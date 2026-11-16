@@ -1,4 +1,5 @@
 import CoreSpotlight
+import FentonActivityModel
 import HassCore
 import HassDesign
 import UIKit
@@ -27,7 +28,7 @@ final class UKHostedRootTests: DemoHouseTestCase {
     private func settle(_ seconds: TimeInterval = 0.3) { HostedPage.wait(seconds) }
 
     private func hasLogin(_ root: UIViewController) -> Bool { root.children.contains { $0 is UKLoginViewController } }
-    private func hasShell(_ root: UIViewController) -> Bool { root.children.contains { $0 is UKShellViewController } }
+    private func hasShell(_ root: UIViewController) -> Bool { root.children.contains { $0 is UKServerUIProductionHost } }
 
     func testSigningInHoldsHomeUnderTheSignInLayerThenLiftsItAway() async throws {
         let session = session()
@@ -37,7 +38,7 @@ final class UKHostedRootTests: DemoHouseTestCase {
         XCTAssertTrue(hasLogin(root))
         XCTAssertFalse(session.motion.hasPlayed(.signInArrival))
         try root.signedIn(server, tokens)
-        XCTAssertTrue(hasShell(root), "Home is built behind the sign-in layer")
+        XCTAssertTrue(hasShell(root), "the product is built behind the sign-in layer")
         XCTAssertTrue(hasLogin(root), "and the sign-in layer is still up while Home arrives")
         XCTAssertTrue(session.motion.hasPlayed(.signInArrival), "the arrival plays once per session")
         let login = root.children.first { $0 is UKLoginViewController }
@@ -102,35 +103,32 @@ final class UKHostedRootTests: DemoHouseTestCase {
         rig.settle()
         let scene = try XCTUnwrap(rig.window.windowScene)
         let center = NotificationCenter.default
-        rig.navigator.open(.homePage("vacuums"))
-        rig.settle(0.6)
         center.post(name: UIScene.didActivateNotification, object: scene)
         center.post(name: UIScene.willDeactivateNotification, object: scene)
-        rig.settle(0.1)
-        XCTAssertNotNil(scene.session.userInfo?["routes"] ?? scene.session.userInfo?.values.first, "leaving the foreground saves the stacks")
-        let saved = scene.session.userInfo?.count ?? 0
-        scene.session.userInfo = [:]
         center.post(name: UIScene.didEnterBackgroundNotification, object: scene)
         rig.settle(0.1)
-        XCTAssertGreaterThanOrEqual(scene.session.userInfo?.count ?? 0, 1, "the background saves again (\(saved) before)")
-        // Another scene's notifications are not ours.
-        scene.session.userInfo = [:]
+        XCTAssertTrue(hasShell(rig.root), "the product stays through the scene's phases")
+        // Another scene's notifications are not ours: nothing here may throw or tear the product down.
         center.post(name: UIScene.didEnterBackgroundNotification, object: nil)
         rig.settle(0.1)
-        XCTAssertEqual(scene.session.userInfo?.count ?? 0, 0)
+        XCTAssertTrue(hasShell(rig.root))
     }
 
     func testTheDebugHooksOpenASpotlightResultAndDumpTheViews() throws {
-        let id = try XCTUnwrap(SpotlightCatalog.entries.first).id
+        let catalog = RouteCatalog(sessionID: String(repeating: "a", count: 64), revision: 1, routes: [
+            RouteCatalogEntry(id: "kitchen-page", path: "kitchen", title: "Kitchen", summary: "Kitchen lights", icon: "fork.knife"),
+        ])
+        let id = try XCTUnwrap(SpotlightCatalog.entries(for: catalog).first).id
         let dump = FileManager.default.temporaryDirectory.appending(path: "uk-viewdump-\(UUID().uuidString).txt").path
         for (key, value) in [("FENTON_OPEN_SPOTLIGHT", id), ("FENTON_DUMP_VIEWS", "0.1"), ("FENTON_DUMP_FILE", dump)] { setenv(key, value, 1) }
         defer { for key in ["FENTON_OPEN_SPOTLIGHT", "FENTON_DUMP_VIEWS", "FENTON_DUMP_FILE"] { unsetenv(key) } }
         let session = session()
+        session.push.routeCatalog = { catalog }
         let root = UKRootViewController(session: session)
         let window = HostedScene.show(root) ?? HostedPage.show(root)
         defer { window.isHidden = true }
         settle(0.8)
-        XCTAssertNotNil(session.push.pendingRequest, "the Spotlight result's page is requested")
+        XCTAssertEqual(session.push.pendingRequest?.route, RouteRequest(path: "kitchen"), "the Spotlight result's route is requested")
         XCTAssertTrue(FileManager.default.fileExists(atPath: dump), "the view hierarchy is written once")
         try? FileManager.default.removeItem(atPath: dump)
     }

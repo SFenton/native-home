@@ -1,7 +1,7 @@
 # Weather sheet (modal)
 > **What:** the full-height forecast sheet the Home weather card opens: hero, Today briefing, hourly Conditions in three modes, seven days and the Highlights tiles over the condition gradient. **Read when:** you change `WeatherSheet` or any `Weather*Panel`, or need the sheet's states.
 - Mockup: [weather-sheet.html](weather-sheet.html) · status shipped · reviewed 2026-10-23
-- Source: `apple/Sources/HassUI/Features/Home/Weather/WeatherSheet.swift`, `WeatherBackdrop.swift`, `WeatherSurface.swift`, `WeatherDecoration.swift`, the `Weather*Panel` and tile files, `HassDesign/HassModal.swift` · Spec: `.agents/patterns/weather.md`, `.agents/pages/home/spec.md` · Patterns: weather, modal-sheet, dynamic-grid
+- Source: `apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift`, `WeatherBackdrop.swift`, `WeatherSurface.swift`, `WeatherDecoration.swift`, the `Weather*Panel` and tile files, `HassDesign/HassModal.swift` · Spec: `.agents/patterns/weather.md`, `.agents/pages/home/spec.md` · Patterns: weather, modal-sheet, dynamic-grid
 - States covered: default (rain), loading, error, empty, offline, stale-error, scenes (sunny, clouds, fog, storm with hazard, snow, night), air-quality hazard, no AQI, AQI unavailable, precipitation and wind modes, calm wind, scrolled to the seven days and the Highlights, long text, large, closed (presenter), ax5
 - Motion: rain and snow streaks, compass needle (short way round), mode switch (quick), rail marker (standard), page dots. Transitions: present from the card, dismiss
 - Devices: iPhone, Duo folded, Duo unfolded landscape, iPad portrait and landscape (704 pt page sheet). Always dark in either system appearance

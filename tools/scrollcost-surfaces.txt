@@ -25,8 +25,6 @@ Weather card ticking label|FENTON_GALLERY=weather FENTON_GALLERY_WEATHER_FILL=16
 Weather sheet|FENTON_GALLERY=weather FENTON_GALLERY_WEATHER_OPEN=1
 Vacuum sheet: controls|FENTON_GALLERY=vacuums FENTON_GALLERY_VACUUM=mapped_devicea FENTON_GALLERY_TAB=controls FENTON_GALLERY_SCENARIO=docked FENTON_GALLERY_CLEAN=1
 Vacuum sheet: zones|FENTON_GALLERY=vacuums FENTON_GALLERY_VACUUM=mapped_devicea FENTON_GALLERY_TAB=zones FENTON_GALLERY_SCENARIO=docked FENTON_GALLERY_CLEAN=1
-Humidifier sheet|FENTON_GALLERY=room-devices FENTON_GALLERY_DEVICE=humidifier FENTON_GALLERY_TAB=controls FENTON_GALLERY_CLEAN=1
-Humidifier schedules|FENTON_GALLERY=room-devices FENTON_GALLERY_DEVICE=humidifier FENTON_GALLERY_TAB=schedules FENTON_GALLERY_CLEAN=1
 
 # The system large title (`--section flyout`; `--section all` skips it): the same pages in the phone's flyout chrome
 # (FENTON_GALLERY_FLYOUT=1, Debug builds: menu button, title below the bar that collapses on scroll), so a pass goes through the

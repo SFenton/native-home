@@ -4,58 +4,6 @@ import SwiftUI
 
 // MARK: - Pages
 
-/// The household Settings topics ported in this lane, in the web's order (`portedDashboard.ts`
-/// `SETTINGS_PAGE_ITEMS`; copy from `settings.json` `items.*`). Raw values match the topic ids of the
-/// Settings navigation shell, so `settings.topic.<id>` identifies the row everywhere.
-enum HouseholdSettingsPage: String, CaseIterable, Identifiable, Hashable, Codable, Sendable {
-    case admin, specialDeviceModes, guests
-    case vehicle = "car"
-
-    var id: String { rawValue }
-
-    /// The Settings row title.
-    var rowTitle: String {
-        switch self {
-        case .admin: "Admin Controls"
-        case .specialDeviceModes: "Special Device Modes"
-        case .guests: "Guest Controls"
-        case .vehicle: "Car"
-        }
-    }
-
-    /// The Settings row subtitle.
-    var subtitle: String {
-        switch self {
-        case .admin: "Presence-Based Toggles, Automation Overrides, and More"
-        case .specialDeviceModes: "Allows enabling special device modes, such as High AQI Mode."
-        case .guests: "Toggle automations when guests stay over."
-        case .vehicle: "Controls for the car."
-        }
-    }
-
-    /// The page's navigation title (web route titles: Admin, Special Device Modes, Guest Controls, Car).
-    var pageTitle: String {
-        switch self {
-        case .admin: HouseholdSettingsConfig.Admin.pageTitle
-        case .specialDeviceModes: HouseholdSettingsConfig.SpecialDeviceModes.pageTitle
-        case .guests: HouseholdSettingsConfig.Guests.pageTitle
-        case .vehicle: HouseholdSettingsConfig.Vehicle.pageTitle
-        }
-    }
-
-    /// The row's SF Symbol (web `mdi:shield-account`, `mdi:tune-vertical`, `mdi:account-multiple`, `mdi:car-estate`).
-    var symbol: String {
-        switch self {
-        case .admin: "person.badge.shield.checkmark"
-        case .specialDeviceModes: "slider.vertical.3"
-        case .guests: "person.2"
-        case .vehicle: "car.side"
-        }
-    }
-}
-
-// MARK: - Shared pieces
-
 extension HassTokens.Tint {
     /// Toggle tiles' active tint (web `SWITCH_ACTIVE_COLOR`, 67/160/71).
     static let settingsSwitch = Color(HassTokens.RGB.Tint.settingsSwitch)

@@ -9,7 +9,7 @@
 | Port or change a page | [pages](pages/README.md), then `pages/<id>/spec.md`; [port-page](skills/port-page/SKILL.md) |
 | Add or change a control | [add-control](skills/add-control/SKILL.md) |
 | Touch shared behavior | [patterns](patterns/README.md) |
-| Restyle a surface; the app icon | [direction-g](design/direction-g.md), [its plan](design/direction-g-plan.md) |
+| Restyle a surface; the app icon | [direction-g](design/direction-g.md) |
 | See how a surface looks and moves | [mockups](design/mockups/README.md) |
 | A visible choice | [propose-first](workflow/propose-first.md), [design-decision](skills/design-decision/SKILL.md) |
 | Write or review SwiftUI | [swiftui](platforms/apple/swiftui.md) and the `swiftui-pro` skill |

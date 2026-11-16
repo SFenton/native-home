@@ -19,7 +19,7 @@ Owner-approved design, 2026-10-17. Replaces the single-scroll Account sheet (202
 ## Tabs
 
 - **Profile** (`ProfileTab`): the centred `AccountHeader` (84 pt monogram, name, the server they are signed in to), **People at Home** (one row per `person.*`: a monogram in the person's colour, name, Home / Away / zone; residents take their chore colours, `ColorFamily.choreResident1` blue and `.choreResident2` magenta, a guest a neutral grey), `LocationAccountSection` on phones, Sign Out behind the existing confirmation alert ("Sign Out of Home Assistant?"). Identifiers `account.list`, `account.header`, `profile.person.<entity id>`, `account.signOut`.
-- **Overdue Chores** (`SummaryChoresTab`): `todo.demo_todo_<n>` (the viewer's past-due-with-unassigned list), one `TodoListSection` ("Overdue Chores") of the Chores page's canonical `TodoItemRow` on the same module list, **with the edit button** (Choreapp task form, `DonetickTaskSheet`, the same flow) and the same swipe actions (Complete leading; Delete and Edit trailing), the same completion animation and the same delete confirmation. Empty: **No Chores Due** / "You are all caught up on chores that slipped past their due date."
+- **Overdue Chores** (`SummaryChoresTab`): `todo.demo_todo_<n>` (the viewer's past-due-with-unassigned list), one `TodoListSection` ("Overdue Chores") of the Chores page's canonical `TodoItemRow` on the same module list, **with the edit button** (the Choreapp task form, the same flow) and the same swipe actions (Complete leading; Delete and Edit trailing), the same completion animation and the same delete confirmation. Empty: **No Chores Due** / "You are all caught up on chores that slipped past their due date."
 - **Upcoming Chores**: `…_due_today_with_unassigned` ("Upcoming Chores") then `…_no_due_date_with_unassigned` ("No Due Date"), the same rows, each section hidden when empty. Empty (both): **No Chores Upcoming** / "There is nothing else on your schedule for the rest of today."
 - **Expired Food** (`SummaryExpiredFoodTab`): the Food page's canonical `InventoryRow` for each expired card of the All Food model, soonest expiry first (the web locks the Food page's controls to the expired filter and expiry sort the same way): name, the red "Expired <date>" line with the warning glyph, the stock count above one, the add-to-Groceries cart (quantity prompt) and a chevron into the same item editor, with the same swipe actions (Add to Groceries leading, Delete trailing). `sensor.demo_ext_12` decides whether there is anything: a confirmed zero shows **No Expired Food** / "Everything in the kitchen is still within date." The models are the session's (`InventoryModels.shared(for:)`), so the tab keeps its rows between visits.
 - **Vacation Mode** (`input_boolean.demo_mode_3` on): empty chore tabs read "Enjoy vacation!" under their usual title; Expired Food hides its list: **Expired Food Hidden** / "Enjoy vacation!", or **No Expired Food** / "Enjoy vacation!" when the count is a confirmed zero (an unavailable sensor stays "Hidden"). Exact web copy (`ProfileSummary.expiredFoodEmpty`, `choresEmpty`).
@@ -29,6 +29,20 @@ Owner-approved design, 2026-10-17. Replaces the single-scroll Account sheet (202
 - **One component per pattern.** The summary draws no row of its own: `TodoListSection`/`TodoItemRow` ([module-list](../../patterns/module-list.md)), `InventoryRow` and `.inventoryRowActions(...)` (editor sheet, quantity prompt, delete confirmation, shared with the inventory pages), `todoDeletionDialog`, `DonetickEditTarget(item:listEntityId:)`, `TodoPageLayout.section(for:...)`. In a sheet (`tileSurface == .sheet`) the module card is the sheet's cell colour and the secondary ink follows the sheet (`TileSurface.secondaryInk`, `ModuleRowBackground`), so the same rows read in a light sheet.
 - Home Assistant stays the source of truth: a check-off, edit or delete goes through the Chores page's `TodoListController` and form; food edits through the item editor. The summary holds no state of its own beyond the selected tab.
 - The sheet hosts a `ChoresModel` (`.live`) when the environment has none, because the task form reads it.
+
+## Server-driven integration
+
+`ServerUISummaryScope` resolves the authenticated user against the supplied, verified people records once. It rejects missing
+or ambiguous identities, exposes only that viewer's three personal list targets, and gives guests no personal collection.
+It opens on Profile; `showsAdminTodo` is the same scoped record's flag, not an authored role override. Reauthentication creates
+a new scope and provider registry. The Shell/Collections lane mounts its action-bearing chore/inventory collections and
+viewer-dependent local tabs from this scope; plain read-only rows are not a substitute for their edit/swipe/cart behavior.
+
+`UKServerUIProfileProvider` uses private display projections for the dynamic people list, existing avatar boxes, Location,
+HA account/server values and confirmed sign-out. It rechecks current-session identity before intents and pins confirmation,
+sign-out and failure/retry lifetimes. `supportsLocation` explicitly models the existing phone-only policy; a missing phone
+coordinator fails preflight rather than silently dropping Location. The first-run permission pre-alert remains the normal
+session bootstrap's responsibility; the configurable pushed Location page is not that first-run gate.
 
 ## Tests
 

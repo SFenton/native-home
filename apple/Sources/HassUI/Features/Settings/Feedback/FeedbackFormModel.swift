@@ -305,12 +305,20 @@ final class FeedbackFormModel {
         }
     }
 
-    /// Stops sending and goes back to editing with everything kept.
+    /// Cancels an upload with the draft kept; ownership lasts until it unwinds. Filing cannot be stopped.
     func cancelSubmit() {
-        guard isSending else { return }
+        guard case .sending(let step, let total) = phase, step < total else { return }
         submitTask?.cancel()
-        submitTask = nil
+        // Retain ownership until cancellation unwinds; a late upload must not race a second submit.
+    }
+
+    /// Resets a confirmed discard or a completed form; never cancels a real in-flight submission.
+    func resetDraft() {
+        guard !isSending else { return }
+        discardMedia()
+        draft = FeedbackDraft(kind: draft.kind)
         phase = .editing
+        attachmentMessage = nil
     }
 
     /// Returns from an error to the editable form.

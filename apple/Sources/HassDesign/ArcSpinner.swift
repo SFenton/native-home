@@ -16,12 +16,17 @@ public struct ArcSpinner: View {
         case compact
         /// 16 pt with a 2 pt ring: inside a button or next to a subtitle ("Sending Open", "Connecting").
         case inline
+        /// 28 pt with a 3 pt ring: the arc that stands in a tile's 44 pt action disc while a tap does nothing (7/11 of the disc, with a
+        /// ring 3/44 of it). It grows with the disc to 42 pt and 4.5 pt at the 66 pt cap of the accessibility sizes, which the tile
+        /// asks for with `maxScale: 1.5`.
+        case tile
 
         public var diameter: CGFloat {
             switch self {
             case .page: 44
             case .compact: 20
             case .inline: 16
+            case .tile: 28
             }
         }
 
@@ -34,9 +39,16 @@ public struct ArcSpinner: View {
             case .page: 3
             case .compact: 2.5
             case .inline: 2
+            case .tile: 3
             }
         }
     }
+
+    /// The arc's diameter inside an action disc of `disc` points: 7/11 of it (28 pt in the 44 pt disc, 42 pt in the 66 pt one).
+    public static func tileDiameter(disc: CGFloat) -> CGFloat { disc * 7 / 11 }
+
+    /// The arc's ring inside an action disc of `disc` points: 3/44 of it (3 pt in the 44 pt disc, 4.5 pt in the 66 pt one).
+    public static func tileLineWidth(disc: CGFloat) -> CGFloat { disc * 3 / 44 }
 
     /// Seconds per turn (web `dashboardPageLoadingSpin 820ms linear infinite`).
     public nonisolated static let period: TimeInterval = 0.82

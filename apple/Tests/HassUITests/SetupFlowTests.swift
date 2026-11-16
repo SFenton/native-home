@@ -16,6 +16,13 @@ struct SetupFlowTests {
 
     // MARK: Who sees what
 
+    /// Fails if: a publication can reorder or drop the native consent steps; it may only add explanatory copy.
+    @Test func theNativeStepsKeepTheirFixedOrderWhateverThePublicationSays() {
+        #expect(SetupStep.allCases == [.notifications, .timeSensitive, .location])
+        #expect(next(inputs(.notDetermined)) == .notifications)
+        #expect(next(inputs(.denied, .enabled, location: false)) == nil)
+    }
+
     @Test func aFirstLaunchSeesEveryStepInOrderWhenTheyAllow() {
         // Notifications are asked first; the answer arrives with the re-evaluation.
         #expect(next(inputs(.notDetermined, .notSupported)) == .notifications)

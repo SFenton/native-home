@@ -15,7 +15,7 @@
   Mock.mount({
     kind: 'proposal', id: 'settings-notifications-time-sensitive', title: 'Settings: Time Sensitive row', area: 'settings', status: 'proposed',
     summary: 'Proposal 2026-10-27, revised after review. The Settings tab as built, with the Notifications section drawn (the shipped Settings mockup does not draw it) and the proposed change: two entries, Notifications and Time Sensitive Notifications, each a row with a glyph, title, status line and chevron, each opening this app\'s notification page in iOS Settings. Shown only once notifications are allowed. Companion to proposals/setup-flow-time-sensitive.',
-    source: ['apple/Sources/HassUI/Features/Notifications/NotificationPermission.swift', 'apple/Sources/HassUI/Features/Settings/SettingsScreen.swift'],
+    source: ['apple/Sources/HassUI/Features/Notifications/NotificationPermission.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift'],
     spec: ['.agents/pages/settings/ios.md', '.agents/patterns/settings-section.md', '.agents/platforms/apple/push.md'],
     patterns: ['settings-section', 'module-list'],
     hig: ['Lists and tables', 'Notifications', 'Settings'],

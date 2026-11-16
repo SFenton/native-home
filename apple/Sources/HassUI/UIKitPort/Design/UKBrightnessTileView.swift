@@ -24,6 +24,7 @@ final class UKBrightnessTileView: UIView, UKGridMeasuring, UIGestureRecognizerDe
     private(set) var fillTint: UIColor?
     private(set) var percent: Int
     private(set) var isUnavailable: Bool
+    private var isFailed = false
     /// Asked to turn the light on (`true`) or off.
     var onPower: ((Bool) -> Void)?
     /// Asked to set brightness; 0 means off.
@@ -43,10 +44,12 @@ final class UKBrightnessTileView: UIView, UKGridMeasuring, UIGestureRecognizerDe
     private var pendingTask: Task<Void, Never>?
     private var lastHapticStep: Int?
     private var isDragging: Bool { interaction.dragPercent != nil }
+    /// A publication must not replace a drag or its local brightness feedback.
+    var hasActiveInteraction: Bool { isDragging || interaction.pendingPercent != nil }
     private var pan: UIPanGestureRecognizer?
 
     /// Every state line the tile can show, so the grid sizes it for the longest and a live change never re-spans it.
-    private static let stateCandidates = ["Off", "100%", "Unavailable"]
+    private static let stateCandidates = ["Off", "100%", "Unavailable", "Didn't Respond"]
 
     // MARK: Init
 
@@ -83,7 +86,8 @@ final class UKBrightnessTileView: UIView, UKGridMeasuring, UIGestureRecognizerDe
     // MARK: Update
 
     /// Shows the live state. Any live report replaces the optimistic value (web `useOptimisticState`).
-    func update(title: String? = nil, symbol: String? = nil, tint: UIColor? = nil, fillTint: UIColor?, percent: Int, isUnavailable: Bool) {
+    func update(title: String? = nil, symbol: String? = nil, tint: UIColor? = nil, fillTint: UIColor?, percent: Int, isUnavailable: Bool,
+                isFailed: Bool = false) {
         if let title { self.title = title }
         if let symbol { self.symbol = symbol }
         if let tint { self.tint = tint }
@@ -91,6 +95,7 @@ final class UKBrightnessTileView: UIView, UKGridMeasuring, UIGestureRecognizerDe
         if percent != self.percent { interaction.pendingPercent = nil }
         self.percent = percent
         self.isUnavailable = isUnavailable
+        self.isFailed = isFailed
         refresh()
     }
 
@@ -107,8 +112,8 @@ final class UKBrightnessTileView: UIView, UKGridMeasuring, UIGestureRecognizerDe
         let shown = interaction.shown(live: percent)
         let status = BrightnessTile.status(percent: shown, isUnavailable: isUnavailable)
         var model = UKGlassTileModel(
-            title: title, subtitle: status, symbol: symbol, tint: tint, family: .lights, isActive: shown > 0 && !isUnavailable,
-            isUnavailable: isUnavailable, isError: false, behavior: onOpen == nil ? .perform(BrightnessTile.powerId) : .navigate,
+            title: title, subtitle: isFailed ? "Didn't Respond" : status, symbol: symbol, tint: tint, family: .lights, isActive: shown > 0 && !isUnavailable,
+            isUnavailable: isUnavailable, isError: isFailed, behavior: onOpen == nil ? .perform(BrightnessTile.powerId) : .navigate,
             actions: items(shown: shown), progress: isUnavailable ? nil : Double(shown) / 100, progressTint: fillTint, identifier: identifier)
         model.stateCandidates = Self.stateCandidates
         // A button speaking its percentage and adjustable, never a switch (the power disc carries the on/off state).

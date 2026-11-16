@@ -1,3 +1,4 @@
+#if DEBUG
 import HassCore
 import HassDesign
 import SwiftUI
@@ -14,9 +15,6 @@ public struct ComponentGallery {
         case security
         case rooms
         case mediaPage = "media-page"
-        case customLights = "custom-lights"
-        case sprinklers
-        case bedroom = "bedroom"
         case vacuums
         case roomDevices = "room-devices"
         case householdSettings = "household-settings"
@@ -43,15 +41,13 @@ public struct ComponentGallery {
         case shellHeader = "shell-header"
         case cameraViewer = "camera-viewer"
         case home
+        /// The state-styled tile through its states: a tile with a disc and one without (`FENTON_GALLERY=state-tile`).
+        case stateTile = "state-tile"
     }
 
-    /// The page requested at launch, if any. Always `nil` in release builds.
+    /// The page requested at launch, if any. The whole type is debug-only.
     public static var requested: Page? {
-        #if DEBUG
         ProcessInfo.processInfo.environment["FENTON_GALLERY"].flatMap(Page.init(rawValue:))
-        #else
-        nil
-        #endif
     }
 
     public var page: Page
@@ -61,3 +57,4 @@ public struct ComponentGallery {
 
 
 }
+#endif

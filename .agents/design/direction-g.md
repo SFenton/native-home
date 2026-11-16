@@ -2,7 +2,7 @@
 
 > **What:** the visual language for every page and sheet (owner choice, 2026-10-13: Apple system components on the blurred house photo, after rejecting custom looks as "very Android and too far removed from Apple"). **Read when:** building or restyling any screen, tile, chip, sheet or spinner.
 
-Mockups of every screen live on the owner's private gallery (the owner's private mockup gallery, link kept outside the repo); the HTML sources are in the project's shared folder, not this public repo. Owner decisions win over this file, and HIG *must* rules win over both. The build order is in [direction-g-plan.md](direction-g-plan.md).
+Mockups of every screen live on the owner's private gallery (the owner's private mockup gallery, link kept outside the repo); the HTML sources are in the project's shared folder, not this public repo. Owner decisions win over this file, and HIG *must* rules win over both.
 
 ## The idea
 
@@ -130,7 +130,7 @@ People have no colour of their own. **Rooms do** (owner reversal, 2026-10-16: "r
 | Guest Bathroom | `#407B6E` | Bathroom 1 | `#59596F` |
 | Dining Room | `#975B46` | Entryway | `#7D7200` |
 
-**Quick Links tiles** (owner, 2026-10-16: "Quick Links now have different tile sizes (prefer consistency of what we had before), and no color there as well"; `HassDesign/QuickLinkPalette`):
+**Quick Links tiles** (owner, 2026-10-16: "Quick Links now have different tile sizes (prefer consistency of what we had before), and no color there as well"):
 - Same treatment as a room: a solid fill, a filled white glyph and white text, on every link. Each link reuses the colour its own pages already use; only Rooms is new.
 - The arrangement is the Rooms grid's (below), not the Row. Every tile is one size: `equalRowHeights` plus `equalHeightTiles()`, so the tallest tile (a two-line name over a two-line state, "Food & Recipes" over "42 Items • 3 Expiring Soon") sets the height of all of them, and at accessibility sizes they grow together. The cause of the unequal sizes was the Row layout (#95) in a grid without equal heights: a tile with a state line was taller than one without.
 
@@ -302,7 +302,7 @@ Owner decision, 2026-10-17, from the "Paired tile and house colours" mockups (`P
 - **Appearances (HIG App icons, Appearances).** Every set carries Any, Dark and Tinted. *Dark* is the same art with a deeper tint (92%) over a darker dusk with quieter glows ("base dark on light ... no excessive brightness"), the glyph unchanged ("don't swap elements between variants"). *Tinted* is an opaque greyscale of the same elements, with the glyph the brightest thing, for the system's tint; it is identical for all eight, since tinted mode is monochrome. Clear is left to the system.
 - **PNG sets, not Icon Composer.** The owner approved the baked glass look, and HIG asks for layers so the system can add its own highlights, which would stack on the drawn ones. Flattened images are allowed ("You can supply a flattened image"), so the sets are PNGs; Icon Composer `.icon` layers are the route if the owner later wants the system's Liquid Glass instead. This departs from the HIG's layered preference.
 - **Wiring.** `apple/project.yml` sets `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` and lists the seven alternates in `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` (`AppIcon-TealMint`, `-PlumLilac`, `-ForestGreen`, `-BurgundyRose`, `-IndigoPeriwinkle`, `-EspressoAmber`, `-MidnightGold`); the built Info.plist lists them under `CFBundleIcons` / `CFBundleAlternateIcons`. The names are stable: an installed build remembers the one chosen.
-- **Settings → App Icon.** A row in its own Appearance section of the Settings list, after Vacation and To-Do and above the household topics (`AppIconSettingsRow`, a `SettingsLinkRow` whose leading icon is a 30 pt preview of the installed icon; subtitle is its name), opening a content-fitted form sheet (`AppIconPickerSheet`, `hassSheet(.form)`): a grid of the eight with their names, Navy + Sky marked "Default", the installed one checked (ring and check, never colour alone). Two columns on iPhone, three on an iPad form sheet, one at accessibility sizes where the icon grows with the text. Choosing calls `UIApplication.setAlternateIconName(_:)` (nil for the default); iOS shows its own notice, and a refusal shows an alert and keeps the selection. Each choice is a button "Navy and Sky, default" with the value Selected or Not selected, at least 44 pt. The row hides where the system cannot switch icons.
+- **Settings → App Icon.** A row in its own Appearance section of the Settings list, after Vacation and To-Do and above the household topics (a settings link row whose leading icon is a 30 pt preview of the installed icon; subtitle is its name), opening a content-fitted form sheet: a grid of the eight with their names, Navy + Sky marked "Default", the installed one checked (ring and check, never colour alone). Two columns on iPhone, three on an iPad form sheet, one at accessibility sizes where the icon grows with the text. Choosing calls `UIApplication.setAlternateIconName(_:)` (nil for the default); iOS shows its own notice, and a refusal shows an alert and keeps the selection. Each choice is a button "Navy and Sky, default" with the value Selected or Not selected, at least 44 pt. The row hides where the system cannot switch icons.
 
 ## Loading and feedback
 

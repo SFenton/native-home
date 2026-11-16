@@ -1,0 +1,67 @@
+{
+  "sources": [
+    {"id":"demo-alarm","kind":"model","model":"alarm-mode@1","inputs":{"entityId":{"type":"literal","value":"alarm_control_panel.demo_unit"}}},
+    {"id":"demo-lock","kind":"model","model":"security-door@1","inputs":{"kind":"lock","entityId":{"type":"literal","value":"lock.demo_unit"}}},
+    {"id":"demo-garage","kind":"model","model":"security-door@1","inputs":{"kind":"garage","entityId":{"type":"literal","value":"cover.demo_unit"}}}
+  ],
+  "components": [
+    {
+      "id":"demo-panel-control","title":"Security System","type":"alarm-panel","layout":{"span":1},
+      "props":{
+        "sourceId":"demo-alarm",
+        "modes":[
+          {"state":"disarmed","label":"Disarm","hint":"Disarms the security system","icon":{"type":"sf-symbol","name":"shield.slash","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":67,"green":160,"blue":71}},
+          {"state":"armed_home","label":"Home","hint":"Sets the security system to Home","icon":{"type":"sf-symbol","name":"house","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}},
+          {"state":"armed_away","label":"Away","hint":"Sets the security system to Away","icon":{"type":"sf-symbol","name":"figure.walk","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}},
+          {"state":"armed_night","label":"Night","hint":"Sets the security system to Night","icon":{"type":"sf-symbol","name":"moon","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":142,"green":36,"blue":170}}
+        ],
+        "states":[
+          {"state":"disarmed","appearance":{"text":"Disarmed","icon":{"type":"sf-symbol","name":"shield.slash","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":67,"green":160,"blue":71}}},
+          {"state":"armed_home","appearance":{"text":"Armed Home","icon":{"type":"sf-symbol","name":"shield.lefthalf.filled","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}}},
+          {"state":"armed_away","appearance":{"text":"Armed Away","icon":{"type":"sf-symbol","name":"shield","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}}},
+          {"state":"armed_night","appearance":{"text":"Armed Night","icon":{"type":"sf-symbol","name":"moon","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":142,"green":36,"blue":170}}},
+          {"state":"triggered","appearance":{"text":"Alarm Triggered","icon":{"type":"sf-symbol","name":"exclamationmark.shield","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}}},
+          {"state":"arming","appearance":{"text":"Arming","icon":{"type":"sf-symbol","name":"shield","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}}},
+          {"state":"disarming","appearance":{"text":"Disarming","icon":{"type":"sf-symbol","name":"shield.slash","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}}},
+          {"state":"pending","appearance":{"text":"Pending","icon":{"type":"sf-symbol","name":"shield","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}}}
+        ],
+        "fallback":{"text":"Unknown","icon":{"type":"sf-symbol","name":"shield","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}},
+        "subtitle":"Security System","sincePrefix":"Since ","separator":" · ",
+        "loadingText":"Loading","unavailableText":"Unavailable","hiddenText":"Hidden","errorText":"Didn't Respond","pendingText":"Sending command",
+        "confirmation":{"title":"Disarm the Security System?","message":"Doors and motion stop triggering the alarm.","confirmLabel":"Disarm","cancelLabel":"Cancel"},
+        "triggeredWash":{"type":"solid-rgb","red":215,"green":0,"blue":21}
+      }
+    },
+    {
+      "id":"demo-lock-control","title":"Entry","type":"door-tile","layout":{"span":1},
+      "props":{
+        "sourceId":"demo-lock","kind":"lock",
+        "states":[
+          {"state":"locked","appearance":{"text":"Locked","icon":{"type":"sf-symbol","name":"lock.fill","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":67,"green":160,"blue":71}},"active":false,"error":false},
+          {"state":"unlocked","appearance":{"text":"Unlocked","icon":{"type":"sf-symbol","name":"lock.open","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}},"active":true,"error":false},
+          {"state":"locking","appearance":{"text":"Locking","icon":{"type":"sf-symbol","name":"lock.fill","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}},"active":true,"error":false},
+          {"state":"unlocking","appearance":{"text":"Unlocking","icon":{"type":"sf-symbol","name":"lock.open","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}},"active":true,"error":false},
+          {"state":"jammed","appearance":{"text":"Jammed","icon":{"type":"sf-symbol","name":"lock.trianglebadge.exclamationmark","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}},"active":true,"error":true}
+        ],
+        "fallback":{"text":"Unknown","icon":{"type":"sf-symbol","name":"lock","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}},
+        "loadingText":"Loading","unavailableText":"Unavailable","hiddenText":"Hidden","errorText":"Didn't Respond",
+        "sendingOpenText":"Sending Open...","sendingCloseText":"Sending Close...","openLabel":"Unlock","closeLabel":"Lock","reverseLabel":"Reverse"
+      }
+    },
+    {
+      "id":"demo-garage-control","title":"Garage","type":"door-tile","layout":{"span":1},
+      "props":{
+        "sourceId":"demo-garage","kind":"garage",
+        "states":[
+          {"state":"closed","appearance":{"text":"Closed","icon":{"type":"sf-symbol","name":"door.garage.closed","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":67,"green":160,"blue":71}},"active":false,"error":false},
+          {"state":"open","appearance":{"text":"Open","icon":{"type":"sf-symbol","name":"door.garage.open","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":229,"green":57,"blue":53}},"active":true,"error":false},
+          {"state":"opening","appearance":{"text":"Opening","icon":{"type":"sf-symbol","name":"door.garage.open","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}},"active":true,"error":false},
+          {"state":"closing","appearance":{"text":"Closing","icon":{"type":"sf-symbol","name":"door.garage.closed","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":30,"green":136,"blue":229}},"active":true,"error":false}
+        ],
+        "fallback":{"text":"Unknown","icon":{"type":"sf-symbol","name":"door.garage.closed","rendering":"canonical","unavailable":"reject"},"fill":{"type":"solid-rgb","red":84,"green":110,"blue":122}},
+        "loadingText":"Loading","unavailableText":"Unavailable","hiddenText":"Hidden","errorText":"Error",
+        "sendingOpenText":"Sending Open...","sendingCloseText":"Sending Close...","openLabel":"Open","closeLabel":"Close","reverseLabel":"Reverse"
+      }
+    }
+  ]
+}

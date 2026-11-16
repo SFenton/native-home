@@ -3,7 +3,7 @@
 > **What:** the alert behind Sign Out on the Your Summary sheet's Profile tab. **Read when:** you change sign-out confirmation copy or presentation.
 
 - Mockup: [sign-out-alert.html](sign-out-alert.html) · shipped · reviewed 2026-10-23 (author self-check; skill reviewers replace it)
-- Source: `apple/Sources/HassUI/Features/Settings/Profile/YourSummarySheet.swift`, `ProfileTab.swift`
+- Source: `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProfileProvider.swift`, `apple/Sources/HassUI/Features/Settings/SignOutRow.swift`, `apple/Sources/HassUI/Common/AlertCopy.swift` (the publication authors the layout)
 - Spec: `.agents/pages/settings/profile.md`, `.agents/design/direction-g.md`  · Patterns: modal-sheet
 - States covered: default, ax5 (dark and light by the Sheet appearance control).
 - Motion: None custom. Transition: the alert fades in over the sheet.

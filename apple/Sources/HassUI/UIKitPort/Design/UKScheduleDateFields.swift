@@ -41,9 +41,13 @@ public final class UKScheduleDateFields: UIView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     /// Hands the pickers their saved values (and bounds) again.
-    public func update(fields newFields: [ScheduleDateField]) {
+    public func update(fields newFields: [ScheduleDateField], enabled: [Bool]? = nil) {
+        precondition(enabled == nil || enabled?.count == newFields.count)
         fields = newFields
-        for (picker, field) in zip(pickers, newFields) { picker.update(field: field) }
+        for (index, pair) in zip(pickers, newFields).enumerated() {
+            pair.0.update(field: pair.1)
+            pair.0.setEnabled(enabled?[index] ?? true)
+        }
     }
 
     public override func layoutSubviews() {
@@ -136,6 +140,11 @@ final class UKScheduleDatePicker: UIView {
         picker.setDate(picked, animated: false)
         picker.accessibilityLabel = field.label
         picker.accessibilityIdentifier = field.identifier
+    }
+
+    func setEnabled(_ enabled: Bool) {
+        picker.isEnabled = enabled
+        titleLabel.isEnabled = enabled
     }
 
     /// The saved value moved (an echo or another device): drop the pick.

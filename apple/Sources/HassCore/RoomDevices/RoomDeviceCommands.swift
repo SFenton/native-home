@@ -11,10 +11,14 @@ public final class RoomDeviceCommands {
     public let store: EntityStore
     /// Optimistic values by entity id.
     public let overlay: OptimisticOverlay
+    /// Actual transport lifetime, independent of optimistic expiry or an early HA echo.
+    public private(set) var activeCallCount = 0
+    /// A publication must retain this command source until both transport and feedback settle.
+    public var hasPendingIntent: Bool { activeCallCount > 0 || !overlay.pending.isEmpty }
 
     @ObservationIgnored private let caller: any HassServiceCalling
     @ObservationIgnored private let liveValue: @MainActor (String) -> String?
-    @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    @ObservationIgnored private var inFlight: [UUID: Task<Void, Never>] = [:]
 
     /// Creates the plumbing.
     /// - Parameters:
@@ -57,19 +61,24 @@ public final class RoomDeviceCommands {
                 .map { (intent.entityId, $0) }
         }
         let caller = caller
-        inFlight.append(Task { @MainActor [weak self] in
+        let callId = UUID()
+        activeCallCount += 1
+        inFlight[callId] = Task { @MainActor [self] in
+            defer {
+                activeCallCount -= 1
+                inFlight[callId] = nil
+            }
             do {
                 try await caller.call(call)
             } catch {
-                for (entityId, generation) in commits { self?.overlay.fail(entityId, generation: generation) }
+                for (entityId, generation) in commits { overlay.fail(entityId, generation: generation) }
             }
-        })
+        }
     }
 
     /// Waits for every call started so far. Tests use it to observe calls and failures.
     public func waitForCalls() async {
-        let tasks = inFlight
-        inFlight.removeAll()
+        let tasks = Array(inFlight.values)
         for task in tasks { await task.value }
     }
 

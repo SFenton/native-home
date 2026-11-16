@@ -4,9 +4,9 @@ import Foundation
 public enum TileActionKind: String, Equatable, Sendable, CaseIterable {
     /// No actions: the tile opens something or only shows state.
     case none
-    /// ``LockActions``.
+    /// ``StateStyleActions`` over the lock style.
     case lock
-    /// ``CoverActions`` (garage doors).
+    /// ``StateStyleActions`` over the garage door style.
     case garageDoor
     /// ``PowerToggleActions`` (PCs, towel racks, guest toggles, lights and switches).
     case power
@@ -28,7 +28,7 @@ public enum TileActionKind: String, Equatable, Sendable, CaseIterable {
     case bedSidePower
     /// ``HotFlashActions``: Hot Flash Mode's snowflake and stop disc.
     case hotFlash
-    /// ``AlarmModeActions``: Quick Links Security System, Arm Home or Disarm.
+    /// ``StateStyleActions`` over the alarm style: Quick Links Security System, Arm Home or Disarm.
     case alarmMode
     /// ``SprinklerActions``: Stop Watering on a controller card.
     case sprinkler

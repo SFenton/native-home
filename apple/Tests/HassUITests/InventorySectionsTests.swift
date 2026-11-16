@@ -56,11 +56,4 @@ struct InventorySectionsTests {
         #expect(InventorySections.bucket(of: card("Old", expiry: "2026-10-10"), calendar: calendar) == .expired)
         #expect(InventorySections.bucket(of: card("Far", expiry: "2026-10-18"), calendar: calendar) == .later)
     }
-
-    @Test func theListKeepsThePageMarginUntilTheColumnPassesTheReadableMeasure() {
-        #expect(InventoryScreen.sideMargin(forWidth: 0) == 16, "before the first measurement")
-        #expect(InventoryScreen.sideMargin(forWidth: 402) == 16, "a phone keeps the page margin, so modules never run edge to edge")
-        #expect(InventoryScreen.sideMargin(forWidth: 720) == 16)
-        #expect(InventoryScreen.sideMargin(forWidth: 1000) == 140, "an iPad column centres a 720 pt measure")
-    }
 }

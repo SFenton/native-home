@@ -3,23 +3,20 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// `FENTON_GALLERY=room-devices`: the bathroom fan, air quality, humidifier and grill sheets on fixture state with a recording caller
-/// (`RoomDevicesGallery`). `FENTON_GALLERY_DEVICE=<id>` opens a fixture at launch; `FENTON_GALLERY_TAB=<tab>` picks the humidifier's
-/// first tab.
+/// `FENTON_GALLERY=room-devices`: the grill sheet on fixture state with a recording caller (`RoomDevicesGallery`).
+/// `FENTON_GALLERY_DEVICE=<id>` opens a fixture at launch.
 @MainActor
 final class UKRoomDevicesGalleryViewController: UKPageViewController, UITableViewDataSource, UITableViewDelegate {
     private let tableView = UITableView(frame: .zero, style: .insetGrouped)
-    private let fixtures = RoomDeviceFixture.all()
+    private let fixtures = RoomDeviceFixture.all().filter { $0.kind == .grill }
     private let recorder = RoomDeviceGalleryRecorder()
     private var initial: RoomDeviceFixture?
-    private let initialTab: HumidifierTab
     private let footer = UKGalleryLastCallView()
 
     init() {
         let environment = ProcessInfo.processInfo.environment
-        let all = RoomDeviceFixture.all()
+        let all = RoomDeviceFixture.all().filter { $0.kind == .grill }
         initial = environment["FENTON_GALLERY_DEVICE"].flatMap { id in all.first { $0.id == id } }
-        initialTab = environment["FENTON_GALLERY_TAB"].flatMap(HumidifierTab.init(rawValue:)) ?? .controls
         super.init(context: UKGalleryChrome.context(), title: "Room Devices")
     }
 
@@ -72,19 +69,8 @@ final class UKRoomDevicesGalleryViewController: UKPageViewController, UITableVie
         let caller = recorder.caller(for: fixture.store)
         let context = UKGalleryChrome.context(store: fixture.store, caller: caller).with { $0.surface = .sheet }
         let accessory: UIView? = GalleryEnvironment.isClean ? nil : UKLastCallBar { [recorder] in recorder.lastCall }
-        let modal: UKHassModalController
-        switch fixture.kind {
-        case let .fan(config):
-            modal = UKBathroomFanSheet.make(controller: BathroomFanController(config: config, store: fixture.store, caller: caller), accessory: accessory)
-        case let .purifier(config):
-            modal = UKAirPurifierSheet.make(controller: AirPurifierController(config: config, store: fixture.store, caller: caller), accessory: accessory)
-        case .humidifier:
-            guard let humidifier = HumidifierConfig.all.first else { return }
-            modal = UKHumidifierSheet.make(config: humidifier, store: fixture.store, caller: caller, storage: GalleryScheduleStore(), context: context,
-                                           initialTab: initialTab, accessory: accessory)
-        case .grill:
-            modal = UKGrillSheet.make(controller: GrillController(store: fixture.store, caller: caller), accessory: accessory)
-        }
+        guard case .grill = fixture.kind else { return }
+        let modal = UKGrillSheet.make(controller: GrillController(store: fixture.store, caller: caller), accessory: accessory)
         modal.present(from: self)
     }
 }

@@ -121,8 +121,8 @@ extension UKTilePaint {
         }
 
         switch style {
-        case .off, .tinted, .error:
-            var ground = neutral(dense: style == .error)
+        case .off, .tinted, .error, .warning:
+            var ground = neutral(dense: style == .error || style == .warning)
             if let wash = input.wash { ground = resolve(wash).ukOpacity(input.appearance.washOpacity).ukOver(ground) }
             paint.ground = .flat(ground)
             paint.band = band(.flat(resolve(input.levelTint ?? input.tint).ukOpacity(0.32)))

@@ -22,9 +22,7 @@
   Mock.mount({
     kind: 'page', id: 'room-page', title: 'Room page (config-driven, 16 rooms)', area: 'rooms', status: 'shipped',
     summary: 'One template for sixteen rooms: a status rail of overview chips, then the room\'s titled sections in a responsive section grid (two columns from 704 pt), each opening a sheet. Pushed from Quick Links, so the header shows Back, Quick Links and Profile. Leads with the Living Room; Bedroom 1 and Kitchen have their own items.',
-    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSupport.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomCards.swift', 'apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift', 'apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting.swift',
-      'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
+    source: ['apple/Sources/HassUI/Features/Rooms/RoomSupport.swift', 'apple/Sources/HassDesign/TileActions/TileActionButtonStyle.swift', 'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Rooms/RoomController.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift'],
     spec: ['.agents/pages/rooms/spec.md', '.agents/pages/rooms/ios.md', '.agents/design/apple/split-view.md'],
     patterns: ['status-rail', 'entity-tile', 'dynamic-grid', 'room-device-sheets', 'room-overview-sheet', 'optimistic-actions', 'modal-sheet', 'motion'],
     hig: ['Toolbars', 'Layout', 'Lists and tables (grids)', 'Color', 'Typography', 'Dynamic Type', 'Empty states (ContentUnavailableView)', 'Motion', 'Accessibility'],

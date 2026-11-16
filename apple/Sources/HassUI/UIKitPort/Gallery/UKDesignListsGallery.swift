@@ -344,11 +344,4 @@ private final class UKTabSheetPage: UIViewController {
     }
 }
 
-@MainActor
-private extension UIImage {
-    func withAccessibilityLabel(_ label: String) -> UIImage {
-        accessibilityLabel = label
-        return self
-    }
-}
 #endif

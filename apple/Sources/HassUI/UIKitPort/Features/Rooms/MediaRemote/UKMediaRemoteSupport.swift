@@ -102,50 +102,6 @@ extension UIView {
     }
 }
 
-/// One scrolling column of the remote, at most 640 pt wide and centred, 16 pt in from the edges (`RemoteScroll`).
-@MainActor
-final class UKRemoteCenteredColumn: UIView, UKGridMeasuring {
-    static let maximumWidth: CGFloat = 640
-    let content: UIView & UKGridMeasuring
-
-    init(content: UIView & UKGridMeasuring) {
-        self.content = content
-        super.init(frame: .zero)
-        addSubview(content)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    private func contentWidth(_ width: CGFloat) -> CGFloat { max(0, min(Self.maximumWidth, width - 2 * HassTokens.Spacing.l)) }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        content.gridHeight(forWidth: contentWidth(width)) + 2 * HassTokens.Spacing.l
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let width = contentWidth(bounds.width)
-        content.frame = CGRect(x: ((bounds.width - width) / 2).rounded(), y: HassTokens.Spacing.l, width: width,
-                               height: content.gridHeight(forWidth: width))
-    }
-}
-
-/// A scroll view with one centred column in it (`RemoteScroll`).
-@MainActor
-enum UKRemoteScroll {
-    static func make(_ content: UIView & UKGridMeasuring, identifier: String? = nil) -> UIScrollView {
-        let scroll = UKColumnScrollView(content: UKRemoteCenteredColumn(content: content))
-        scroll.backgroundColor = .clear
-        scroll.keyboardDismissMode = .interactive
-        scroll.accessibilityIdentifier = identifier
-        return scroll
-    }
-}
-
-// MARK: - Slider
-
 /// A slider that moves by whole steps for VoiceOver adjust, as SwiftUI's `Slider(step:)` does.
 @MainActor
 final class UKRemoteSlider: UISlider {

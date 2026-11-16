@@ -6,6 +6,22 @@ import Foundation
 public enum HouseholdAway {
     // MARK: - Entities
 
+    /// Explicit, immutable endpoints for one Household Away command stream.
+    public struct Targets: Equatable, Sendable {
+        public let statusEntityId: String
+        public let commandService: String
+
+        /// Rejects malformed or wrong-domain targets before they can be used.
+        public init(statusEntityId: String, commandService: String) throws {
+            guard AwayTargetValidation.entity(statusEntityId, domain: "sensor"),
+                  AwayTargetValidation.service(commandService) else {
+                throw AwayTargetValidation.Error.invalidTarget
+            }
+            self.statusEntityId = statusEntityId
+            self.commandService = commandService
+        }
+    }
+
     /// The status sensor: the document's `bedroom.householdAwayEntityId`.
     public static var statusEntityId: String { HouseConfigSource.active.read { $0.bedroom.householdAwayEntityId } ?? "" }
     /// The command script's domain.
@@ -71,7 +87,7 @@ public enum HouseholdAway {
         public var traveler: HouseholdResident?
 
         /// Parses the sensor; a missing, unavailable or incompatible sensor is idle and unavailable.
-        public init(entity: EntityState?) {
+        public init(entity: EntityState?, people: [HouseConfig.Person]? = nil) {
             let attributes = entity?.attributes ?? [:]
             let rawState = entity?.state ?? "unavailable"
             contractVersion = Self.integer(attributes["contract_version"])
@@ -87,8 +103,12 @@ public enum HouseholdAway {
             )
             endsAt = Self.nonEmpty(attributes["ends_at"])
             startsAt = Self.nonEmpty(attributes["starts_at"])
-            homeResident = attributes["home_resident"]?.string.flatMap { HouseholdResident(soloTripId: $0) }
-            traveler = attributes["traveler"]?.string.flatMap { HouseholdResident(soloTripId: $0) }
+            func resident(_ id: String) -> HouseholdResident? {
+                guard let people else { return HouseholdResident(soloTripId: id) }
+                return people.first { $0.soloTripId == id }.map { Resident(person: $0) }
+            }
+            homeResident = attributes["home_resident"]?.string.flatMap(resident)
+            traveler = attributes["traveler"]?.string.flatMap(resident)
             mode = attributes["mode"]?.string.flatMap(Mode.init(rawValue:)) ?? .none
             revision = Self.integer(attributes["revision"])
         }
@@ -172,6 +192,23 @@ public enum HouseholdAway {
             data["end_time"] = .string(end.time)
         }
         return data
+    }
+}
+
+/// Validation shared by explicit away target descriptors.
+public enum AwayTargetValidation {
+    public enum Error: Swift.Error, Equatable, Sendable { case invalidTarget }
+
+    static func entity(_ value: String, domain: String) -> Bool {
+        value.utf16.count <= 160 && matches(value, "^\(domain)\\.[a-z0-9_]+$")
+    }
+
+    static func service(_ value: String) -> Bool {
+        value.utf16.count <= 160 && matches(value, "^[a-z0-9_]+$")
+    }
+
+    private static func matches(_ value: String, _ pattern: String) -> Bool {
+        value.range(of: pattern, options: .regularExpression) == value.startIndex..<value.endIndex
     }
 }
 

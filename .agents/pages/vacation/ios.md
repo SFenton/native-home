@@ -26,8 +26,18 @@ Spec: [spec.md](spec.md) (web source `ha-sfenton-react-dash@9ac2a46`).
 - Departure from web parity (decided 2026-10-24, `proposals/copy-wording` row 9): the chooser row says "Needs setup in Home Assistant", plain text. The web's "Home Assistant Setup · Learn More" reads as a link but has no target (spec open question 2).
 - Departure from web parity (row 8): while a trip runs, the "<Traveler> Away" title appears once, on the notice box; the web also repeats it as the status section title. `SoloTripStatus.make` returns no title when it shows the active notice.
 
+## Server-driven integration
+
+`UKServerUIAwayProvider` receives one shared Household Away controller, explicit `Vacation.Targets`, the canonical Vacation
+and Solo Trip models, stable resident keys and a current-session check. The document composes chooser/detail pages, date
+editors, status/restore sections and the existing tile models; it cannot choose a raw service or dispatch a compiled screen.
+Both compile-time domains and native target preflight must pass. Confirmations revalidate the captured plan before commands.
+The publication guard includes the real command and accepted-awaiting-echo lifetimes, including confirmed vacation dates.
+The existing HIG Layout, Sheets and Toggles decisions above remain the target. Shell-level conditional section headings,
+route-on-engaged entry and pinned editor actions still need integration before claiming production parity.
+
 ## Tests
 
 - Unit (`HassCoreTests`): `HouseholdAwayContractTests`, `HouseholdAwayControllerTests`, `VacationConfigTests`, `VacationModeControllerTests`, `SoloTripControllerTests`.
 - Hosted (`HassUITests/VacationViewTests`): every page in every fixture scenario, both sheets, the gallery house's echoes.
-- Journeys (`VacationChooserJourneyTests`, `VacationModeJourneyTests`, `VacationConfirmJourneyTests`, `VacationSoloTripJourneyTests`, over `VacationJourneyTestCase`; `VacationCaptureJourneyTests` and `VacationLiveJourneyTests` are not source-selected) run on the `vacation` gallery page (`FENTON_GALLERY=vacation`, `FENTON_GALLERY_AWAY=<scenario>`): a fixture house that echoes like Home Assistant, so no journey changes the real house. Audits with AX5 relaunch on every page and sheet, AX5 reachability (one test per page), screenshots (`vacation-<page>-<orientation>`). One read-only live journey opens Settings → Vacation on the real server.
+- Journeys run on the `vacation` gallery page (`FENTON_GALLERY=vacation`, `FENTON_GALLERY_AWAY=<scenario>`): a fixture house that echoes like Home Assistant, so no journey changes the real house. Audits with AX5 relaunch on every page and sheet, AX5 reachability (one test per page), screenshots (`vacation-<page>-<orientation>`). One read-only live journey opens Settings → Vacation on the real server.

@@ -3,7 +3,7 @@
 > **What:** A screen's one primary action: 50 pt capsule, #0071E3 or an owner hue. **Read when:** adding a primary action or a custom label with the style.
 
 - Mockup: [primary-button.html](primary-button.html) · shipped · reviewed 2026-10-23
-- Source: `apple/Sources/HassDesign/PrimaryButton.swift`, `PrimaryButtonStyle.swift`, `LoginView.swift`
+- Source: `apple/Sources/HassUI/UIKitPort/Design/UKPrimaryButton.swift`, `PrimaryButtonStyle.swift`, `LoginView.swift`
 - Spec: `.agents/design/direction-g.md` · Patterns: motion
 - States covered: variants (default, family, long), disabled, pressed, busy, real usages, ax5; page and sheet surfaces.
 - Motion: enable fade (quick), fill change (state), press dim to 80% (the sign-in pressedScale 0.96 is not applied).

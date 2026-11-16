@@ -16,7 +16,7 @@
   Mock.mount({
     kind: 'modal', id: 'sign-out-failed-alert', title: 'Sign Out couldn’t complete (alert)', area: 'shell', status: 'shipped',
     summary: 'The alert after confirming Sign Out when the server did not answer: "Couldn’t Sign Out" with "Check your connection and try again.", Try Again and Cancel. The same alert and copy sit on the Your Summary sheet and on the Home Assistant cover; the session stays signed in.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift'],
+    source: ['apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift'],
     spec: ['.agents/pages/settings/profile.md', '.agents/pages/settings/ios.md'],
     patterns: ['modal-sheet'],
     hig: ['Alerts'],

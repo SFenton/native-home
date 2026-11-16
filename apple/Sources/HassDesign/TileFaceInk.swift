@@ -47,6 +47,7 @@ public enum TileFaceInk {
         case .colored: RoomPalette.inkToken
         case .tinted: isEnabled ? tintGlyph : mutedToken(appearance: appearance)
         case .error: HassRGB(rgb: appearance.errorRGB)
+        case .warning: HassRGB(rgb: appearance.warningRGB)
         }
     }
 
@@ -82,6 +83,7 @@ public enum TileFaceInk {
         case let .filled(family): family.secondaryInkToken
         case .colored: RoomPalette.inkToken
         case .error: HassRGB(rgb: appearance.errorRGB)
+        case .warning: HassRGB(rgb: appearance.warningRGB)
         default:
             if appearance == .light { hasWash ? HassTokens.RGB.Ink.secondary : HassTokens.RGB.Surface.secondaryInSheet }
             else if hasWash { HassTokens.RGB.Surface.secondaryOnWash }

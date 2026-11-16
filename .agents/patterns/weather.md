@@ -39,6 +39,38 @@ Web source: `ha-sfenton-react-dash@f5a7bf9` `src/components/hass/WeatherSummary.
 
 The weather, air-quality and sun entity ids (`WeatherEntities.weather`, `.airQuality`, `.sun`; document paths `home.weatherEntityId`, `home.airQualityEntityId`, `home.sunEntityId`, the last two optional) are facades over the loaded house document; with no document they answer empty (architecture.md, "House config facades"). `WeatherForecastStore` reads the id each time a fetch is due, never at creation, so a document that arrives after the card is built (a first sign-in) reaches it: the card's driver tracks the id and starts the first fetch. While the id is empty the store sends no call, arms no timer and leaves both feeds pending, so the card shows its placeholders. A failed fetch shows the deck line (`WeatherCopy.forecastFailure`), never Home Assistant's own text; the server's reason goes to Telemetry only (`weather.forecastFailed`). The rules above still hold.
 
+## Configured UIKit consumers
+
+`UKWeatherCardContentView` takes current conditions, night, forecast feeds,
+today and briefing values plus an optional open closure. `UKWeatherCardView` is
+the house-facade binding: it supplies the forecast store,
+appear/disappear/reconnect wiring, narrow layout, starts-open behavior and sheet.
+The canonical sheet and compositions share `UKWeatherHeroView`; hourly mode order,
+panel headings, page sizes, empty/loading copy and highlight order are configurable
+without copying their presentation or chart/VoiceOver implementations.
+
+The schema-2 `home-weather@1` source injects weather, optional sun and optional AQI
+targets into `UKWeatherForecastDriver.Inputs`; only the legacy binding uses house
+facades. `weather-panel` composes summary, hero, briefing, hourly, daily and
+highlights independently. All panels using one source retain one driver/store and
+selected mode, with balanced visible consumers. Identical publications do not
+rebuild their cells. Cache/error/offline values remain visible, with authored
+stale/error notices; absence of a forecast caller is explicitly unavailable.
+`units: source@1` means provider units: there is no label-only unit conversion.
+
+An isolated preview injects `ServerUIWeatherReader` into the renderer's
+`weatherReader` argument. The reader permits only hourly/daily
+`weather.get_forecasts` for its explicit weather-entity allowlist and reports
+readiness from the existing connection. It exposes neither that connection nor
+an arbitrary service caller.
+Missing or out-of-scope readers reject adoption before replacing last-good.
+Tests may inject typed forecast/readiness closures without network access.
+
+No whole Weather controller is embedded. The parent recipe still requires Shell's
+condition-gradient backdrop and motion/scroll attachments; the primitives alone
+are not weather-sheet parity certification. The inherited HIG Charting data rule
+"Make every chart accessible" continues through the canonical spoken chart series.
+
 ## Guards
 
 Checked by `python3 tools/pattern_guard.py` against `contracts/patterns.json` (comment lines are ignored).
@@ -51,6 +83,6 @@ Known debt (the gallery and debug fixtures; step 5b replaces them with the demo 
 
 ## Tests
 
-`apple/Tests/HassCoreTests/Weather*Tests.swift` (store, presentation, briefing, chart maths, highlights, parsing), `apple/Tests/HassUITests/WeatherViewTests.swift` (symbols, paging, labels, every state rendered, wiring in a live window), `apple/Apps/iOSUITests/WeatherJourneyTests.swift` (gallery journeys and audits at default and AX5; run on iPhone, Duo and iPad with `tools/ios_uitest.sh`).
+`apple/Tests/HassCoreTests/Weather*Tests.swift` (store, presentation, briefing, chart maths, highlights, parsing), `apple/Tests/HassUITests/SharedWeatherAndRoomStyleTests.swift` (shared style) and the hosted renderer journeys (default and AX5, on the three families).
 
 - **Owned files** (also in `contracts/patterns.json`): `PagedRow.swift`, `PagedRowMetrics.swift`.

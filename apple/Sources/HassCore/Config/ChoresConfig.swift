@@ -70,7 +70,28 @@ public enum ChoresConfig {
         public var hasTaskForm = false
         /// The resident whose chores these are (personalized empty state).
         public var resident: Resident?
+        /// The empty-state text for the page's own resident; absent keeps the compiled "no chores due" wording.
+        public var ownEmptyDescription: String?
         public var addAction: AddAction
+
+        /// Creates a page.
+        public init(
+            id: String, title: String, lists: [TodoList], emptyTitle: String, emptyDescription: String,
+            hiddenByVacation: Bool = false, hideListHeaders: Bool = false, hasTaskForm: Bool = false,
+            resident: Resident? = nil, ownEmptyDescription: String? = nil, addAction: AddAction
+        ) {
+            self.id = id
+            self.title = title
+            self.lists = lists
+            self.emptyTitle = emptyTitle
+            self.emptyDescription = emptyDescription
+            self.hiddenByVacation = hiddenByVacation
+            self.hideListHeaders = hideListHeaders
+            self.hasTaskForm = hasTaskForm
+            self.resident = resident
+            self.ownEmptyDescription = ownEmptyDescription
+            self.addAction = addAction
+        }
 
         /// Whether rows can be deleted: DoneTick tasks and groceries (`todo.remove_item` after a confirmation). The admin
         /// To-Do is synced to GitHub issues, so it can only be renamed or completed.
@@ -89,7 +110,7 @@ public enum ChoresConfig {
         /// The empty-state description for `viewer`: personal when it is their own page, vacation copy when hidden.
         public func emptyDescription(viewer: Resident?, vacationModeOn: Bool) -> String {
             if hiddenByVacation && vacationModeOn { return ChoresConfig.vacationEmptyDescription }
-            if let resident, resident == viewer { return "You have no chores due. Nice job!" }
+            if let resident, resident == viewer { return ownEmptyDescription ?? "You have no chores due. Nice job!" }
             return emptyDescription
         }
     }

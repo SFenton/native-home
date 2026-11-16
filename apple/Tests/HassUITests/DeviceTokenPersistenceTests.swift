@@ -215,9 +215,9 @@ struct DeviceTokenPersistenceTests {
         #if DEBUG
         push.simulateConnected()
         #endif
-        push.open(PushDestination(dashboardPath: "kitchen"))
-        #expect(push.pendingRequest?.destination == PushDestination(dashboardPath: "kitchen"))
-        #expect(push.open(spotlightUserInfo: [CSSearchableItemActivityIdentifier: "section.climate"]))
+        push.open(RouteRequest(path: "kitchen"))
+        #expect(push.pendingRequest?.route == RouteRequest(path: "kitchen"))
+        #expect(push.open(spotlightUserInfo: [CSSearchableItemActivityIdentifier: "route.climate"]))
         #expect(!push.open(spotlightUserInfo: nil))
     }
 }

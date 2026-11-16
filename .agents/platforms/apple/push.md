@@ -16,7 +16,7 @@ automation ─ notify.mobile_app_<device>_fenton ─▶ mobile_app ─ POST push
 |---|---|
 | Config, payload, links, categories, attachments | `HassCore/Push` (logic, 95% bar) |
 | Registration and its webhook (shared with location) | `HassCore/MobileApp`, `HassUI/App/MobileApp` ([mobile-app](mobile-app.md)) |
-| Session wiring, taps, buttons, `clear_notification` | `HassUI/App/Push/PushCoordinator.swift`; `ShellNavigator.open(_:)` |
+| Session wiring, taps, buttons | `HassUI/App/Push/PushCoordinator.swift`; `UKServerUIProductionHost` (`routeExternal`) |
 | System glue (permission, APNs token, `UNUserNotificationCenterDelegate`) | `Apps/iOS/FentonHomeApp.swift`, `Apps/iOS/SystemPushPlatform.swift` |
 | App icon badge ([badge](badge.md)) | `HassUI/App/Push/AppIconBadgeSync.swift` |
 | Notification Service Extension (`com.sfenton.home.NotificationService`) | `Apps/NotificationService/` |

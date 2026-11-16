@@ -6,7 +6,7 @@ import SwiftUI
 
 /// Fixture todo lists keyed by entity id, due dates relative to now.
 enum ChoresFixtures {
-    static func iso(_ offset: TimeInterval, from now: Date = .now) -> String {
+    static func iso(_ offset: TimeInterval, from now: Date = GalleryFixtureClock.shared.now) -> String {
         ISO8601DateFormatter().string(from: now.addingTimeInterval(offset))
     }
 
@@ -14,7 +14,7 @@ enum ChoresFixtures {
     static let firstResidentPageId = "alexs-chores"
 
     /// - Parameter extra: More chores for each list of the first resident's page (a house as long as a real one, for the scroll cost probe).
-    static func lists(now: Date = .now, extra: Int = 0) -> [String: [TodoItem]] {
+    static func lists(now: Date = GalleryFixtureClock.shared.now, extra: Int = 0) -> [String: [TodoItem]] {
         let hour = 3600.0, day = 86_400.0
         func task(_ id: Int, _ summary: String, due: TimeInterval?, description: String? = nil) -> TodoItem {
             TodoItem(uid: "\(id)--fixture", summary: summary, description: description, due: due.map { iso($0, from: now) })

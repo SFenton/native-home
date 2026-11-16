@@ -32,6 +32,7 @@ public enum HomeActivityIsland {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(card.problem == nil ? card.title : card.spokenSummary)
+            .activityPresentationPrivacy(card)
         }
     }
 
@@ -51,11 +52,14 @@ public enum HomeActivityIsland {
         private var accent: Color { ActivityStyle(tint: card.tint).accent }
 
         public var body: some View {
-            if isLimitedWidth {
-                EmptyView()
-            } else {
-                content
+            Group {
+                if isLimitedWidth {
+                    EmptyView()
+                } else {
+                    content
+                }
             }
+            .activityPresentationPrivacy(card)
         }
 
         @ViewBuilder
@@ -132,6 +136,7 @@ public enum HomeActivityIsland {
             }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(card.problem == nil ? card.title : card.spokenSummary)
+            .activityPresentationPrivacy(card)
         }
     }
 
@@ -150,6 +155,7 @@ public enum HomeActivityIsland {
                 }
             }
             .accessibilityHidden(true)
+            .activityPresentationPrivacy(card)
         }
     }
 
@@ -164,6 +170,7 @@ public enum HomeActivityIsland {
         public var body: some View {
             CornerMark()
                 .frame(maxWidth: .infinity, alignment: .trailing)
+                .activityPresentationPrivacy(card)
         }
     }
 
@@ -177,11 +184,14 @@ public enum HomeActivityIsland {
         public init(card: ActivityCard) { self.card = card }
 
         public var body: some View {
-            if let problem = card.problem {
-                problemBlock(problem)
-            } else {
-                jobBlock
+            Group {
+                if let problem = card.problem {
+                    problemBlock(problem)
+                } else {
+                    jobBlock
+                }
             }
+            .activityPresentationPrivacy(card)
         }
 
         private var jobBlock: some View {

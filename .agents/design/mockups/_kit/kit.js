@@ -22,7 +22,7 @@
   /** Files loaded after this one, in order. mockups_check.py verifies components/ matches COMPONENTS. */
   Mock.LIB = ['symbols', 'anim', 'devices', 'chrome', 'reflow', 'mount'];
   Mock.COMPONENTS = [
-    'NavigationGlass', 'ArcSpinner', 'GlassTile', 'TileGrid', 'ChipRail', 'ModuleList', 'SettingsSection', 'PageSectionHeader',
+    'NavigationGlass', 'ArcSpinner', 'GlassTile', 'StateTile', 'TileGrid', 'ChipRail', 'ModuleList', 'SettingsSection', 'PageSectionHeader',
     'HassModal', 'SheetCloseItem', 'FloatingActionBar', 'FilterSheet', 'OptionPickerSheet', 'StatusPill', 'InfoBox',
     'PrimaryButton', 'SegmentedChoice', 'Toggle', 'Slider', 'BrightnessTile', 'ThermostatDial', 'ContentGate', 'ImageCard',
     'ModalTabBar', 'TabBar', 'AlarmPanel', 'NavigationFlyout', 'ReconnectingArc', 'ScheduleDateFields', 'FormField', 'Alert', 'WeatherCard',

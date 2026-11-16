@@ -19,7 +19,7 @@
   Mock.mount({
     kind: 'component', id: 'security-door-tiles', title: 'Door tiles (LockTile, GarageDoorTile)', area: 'security', status: 'shipped', frame: false,
     summary: 'A lock or a garage door as a tile in the Doors and windows colour family: dark while locked or closed, filled while unlocked, open or moving, the red error face when a lock jams or a garage command fails. The tile is the button. The Security page\'s Doors grid and the garage room cards draw them.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Security/SecurityTiles.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    source: ['apple/Sources/HassCore/Security/GarageDoorController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
     spec: ['.agents/pages/security/ios.md', '.agents/pages/security/spec.md', '.agents/patterns/entity-tile.md'],
     patterns: ['entity-tile', 'optimistic-actions', 'dynamic-grid', 'motion'],
     hig: ['Buttons', 'Color', 'Feedback', 'Dynamic Type'],

@@ -3,12 +3,22 @@ import HassCore
 import HassDesign
 import UIKit
 
+// MARK: - Legacy feature binding
+
 /// The shared forecast store's wiring for the Home card (`WeatherSummaryCard`): it starts fetching when the card appears, refetches
 /// when the weather entity updates, pauses in the background, tells the store when the websocket is ready, and keeps the day's
 /// briefing current.
 @MainActor
 final class UKWeatherForecastDriver {
+    struct Inputs {
+        let weather: String
+        let sun: String?
+        let airQuality: String?
+        static var legacy: Inputs { Inputs(weather: WeatherEntities.weather, sun: WeatherEntities.sun, airQuality: WeatherEntities.airQuality) }
+    }
     let forecasts: WeatherForecastStore
+    private let configuredInputs: Inputs?
+    var inputs: Inputs { configuredInputs ?? .legacy }
     private let context: UKContext
     private let caller: (any WeatherForecastCalling)?
     private var lastRevision: String??
@@ -22,27 +32,33 @@ final class UKWeatherForecastDriver {
     /// - Parameters:
     ///   - store: A fixture store (the gallery); nil creates the card's own from the connection.
     ///   - caller: Overrides the connection that answers `weather.get_forecasts` (the gallery's fixture service).
-    init(context: UKContext, store: WeatherForecastStore?, caller: (any WeatherForecastCalling)?) {
+    init(context: UKContext, store: WeatherForecastStore?, caller: (any WeatherForecastCalling)?, inputs: Inputs? = nil,
+         connected: (@MainActor () -> Bool)? = nil) {
         self.context = context
         self.caller = caller
+        configuredInputs = inputs
+        self.connected = connected
         let server = context.connection?.server
-        forecasts = store ?? WeatherForecastStore(server: server, cache: server == nil ? nil : WeatherForecastDiskCache())
+        forecasts = store ?? WeatherForecastStore(entityId: inputs?.weather ?? WeatherEntities.weather,
+                                                  server: server, cache: server == nil ? nil : WeatherForecastDiskCache())
     }
 
     /// Whether the websocket is ready. Without a connection (the gallery) forecasts come from the injected service.
     private var isConnected: Bool {
+        if let connected { return connected() }
         guard let connection = context.connection else { return true }
         if case .connected = connection.status { return true }
         return false
     }
+    private let connected: (@MainActor () -> Bool)?
 
     /// The card appeared.
     func activate() {
         guard !isActive else { return }
         isActive = true
-        let revision = WeatherForecastStore.revision(of: context.store.entity(WeatherEntities.weather).state)
+        let revision = WeatherForecastStore.revision(of: context.store.entity(inputs.weather).state)
         lastRevision = .some(revision)
-        lastEntityId = WeatherEntities.weather
+        lastEntityId = inputs.weather
         lastConnected = isConnected
         if let target: any WeatherForecastCalling = caller ?? context.connection {
             forecasts.activate(caller: target, revision: revision, connected: isConnected)
@@ -72,7 +88,7 @@ final class UKWeatherForecastDriver {
 
     /// Reads what the store depends on; call it inside an observation so a change reaches it.
     func refresh() {
-        let entityId = WeatherEntities.weather
+        let entityId = inputs.weather
         let revision = WeatherForecastStore.revision(of: context.store.entity(entityId).state)
         let connected = isConnected
         let key = [forecasts.daily.updatedAt, forecasts.hourly.updatedAt]
@@ -96,12 +112,13 @@ final class UKWeatherForecastDriver {
         briefingTask?.cancel()
         let store = context.store
         let forecasts = forecasts
+        let inputs = inputs
         briefingTask = Task { @MainActor in
             await forecasts.keepBriefingCurrent {
                 WeatherBriefingContext(
-                    current: WeatherCurrent(entity: store.entity(WeatherEntities.weather).state),
-                    aqiState: store.entity(WeatherEntities.airQuality).state?.state,
-                    sun: WeatherSunInput(entity: store.entity(WeatherEntities.sun).state)
+                    current: WeatherCurrent(entity: store.entity(inputs.weather).state),
+                    aqiState: inputs.airQuality.flatMap { store.entity($0).state?.state },
+                    sun: WeatherSunInput(entity: inputs.sun.flatMap { store.entity($0).state })
                 )
             }
         }
@@ -115,13 +132,16 @@ final class UKWeatherForecastDriver {
 /// display numeral on the right (header: option D, `.agents/design/weather-card-header.md`), then the day's first briefing sentence,
 /// then the hours. Hand-laid; the hours are the only moving part.
 @MainActor
-final class UKWeatherCardView: UIView, UKGridMeasuring {
+final class UKWeatherCardContentView: UIView, UKGridMeasuring {
     /// The numeral's largest size at accessibility text sizes.
     static let maxNumeralSize: CGFloat = 96
 
-    private let context: UKContext
-    private let driver: UKWeatherForecastDriver
-    private let present: (UKHassModalController) -> Void
+    var onOpen: (() -> Void)?
+    var openLabel = "Open seven-day weather forecast."
+    var loadingLabel = "Loading 24-hour weather forecast"
+    var emptyLabel: String?
+    var compactHours = 6 { didSet { if compactHours != oldValue { carouselKind = "" } } }
+    var regularHours = 9 { didSet { if regularHours != oldValue { carouselKind = "" } } }
     private let module = UKModuleView(.thin)
     /// The card sits in half of a split window, so its hourly row holds the compact number of hours per page.
     var isNarrow: Bool {
@@ -132,7 +152,6 @@ final class UKWeatherCardView: UIView, UKGridMeasuring {
         }
     }
     private var lastFeed: WeatherForecastFeed?
-    private let bag = UKObservationBag()
 
     private var current = WeatherCurrent(entity: nil)
     private var night = false
@@ -150,19 +169,12 @@ final class UKWeatherCardView: UIView, UKGridMeasuring {
     private var hasToday = false
     private var briefingText: String?
     private var hourlyMessage: String?
-    private var didAutoOpen = false
-    private let startsOpen: Bool
 
     /// - Parameters:
     ///   - isNarrow: The card sits in half of a split window, so its hourly row holds the compact number of hours per page.
-    ///   - present: Presents a view controller from the page.
-    init(context: UKContext, store: WeatherForecastStore?, caller: (any WeatherForecastCalling)?, isNarrow: Bool, startsOpen: Bool,
-         present: @escaping (UKHassModalController) -> Void) {
-        self.context = context
+    init(isNarrow: Bool, onOpen: (() -> Void)?) {
         self.isNarrow = isNarrow
-        self.startsOpen = startsOpen
-        self.present = present
-        driver = UKWeatherForecastDriver(context: context, store: store, caller: caller)
+        self.onOpen = onOpen
         condition = UKTickerLabel("", textStyle: .headline, wraps: false, probe: "home.weather.condition")
         super.init(frame: .zero)
         addSubview(module)
@@ -193,63 +205,29 @@ final class UKWeatherCardView: UIView, UKGridMeasuring {
             condition.wraps = traitCollection.ukIsAccessibilitySize
             ukSetNeedsLayoutUpward()
         }
-        bind()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    /// The forecast store the card and its sheet share.
-    var forecasts: WeatherForecastStore { driver.forecasts }
 
     /// Whether Home is on screen; a ticker holds still behind another tab.
     func setSectionOnScreen(_ onScreen: Bool) { condition.isSectionOnScreen = onScreen }
 
     @objc private func tapped() { open() }
 
-    private func open() { present(makeSheet()) }
+    private func open() { onOpen?() }
 
-    private func makeSheet() -> UKHassModalController {
-        UKWeatherSheet.controller(context: context, forecasts: driver.forecasts)
-    }
+    // MARK: - Values
 
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window != nil {
-            driver.activate()
-            if startsOpen, !didAutoOpen {
-                didAutoOpen = true
-                DispatchQueue.main.async { [weak self] in self?.open() }
-            }
-        } else {
-            driver.deactivate()
-        }
-    }
-
-    // MARK: Binding
-
-    private func bind() {
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let entities = context.store
-            let current = WeatherCurrent(entity: entities.entity(WeatherEntities.weather).state)
-            let night = WeatherSunInput(entity: entities.entity(WeatherEntities.sun).state)?.isNight ?? false
-            let feed = driver.forecasts.hourly
-            let today = driver.forecasts.daily.forecasts.first
-            let briefing = driver.forecasts.briefing
-            driver.refresh()
-            apply(current: current, night: night, feed: feed, today: today, briefing: briefing)
-        }
-    }
-
-    private func apply(current: WeatherCurrent, night: Bool, feed: WeatherForecastFeed, today: WeatherForecast?, briefing: WeatherDayBriefing?) {
+    func apply(current: WeatherCurrent, night: Bool, feed: WeatherForecastFeed, today: WeatherForecast?, briefing: WeatherDayBriefing?) {
         let reading = current.degreeText
         let label = current.conditionLabel
         var changedHeight = false
         if numeral.text != reading { numeral.text = reading; changedHeight = true }
         if condition.text != label { condition.text = label; changedHeight = true }
         glyph.configure(condition: current.drawnCondition, night: night)
-        cardButton.accessibilityLabel = "Open seven-day weather forecast. \(current.conditionLabel), \(current.temperatureText)"
+        cardButton.accessibilityLabel = "\(openLabel) \(current.conditionLabel), \(current.temperatureText)"
+        cardButton.accessibilityTraits = onOpen == nil ? .staticText : .button
         self.current = current
         self.night = night
         let hasToday = today != nil
@@ -276,21 +254,21 @@ final class UKWeatherCardView: UIView, UKGridMeasuring {
     }
 
     private func updateHourly(feed: WeatherForecastFeed, current: WeatherCurrent) {
-        let regular = isNarrow ? 6 : 9
+        let regular = isNarrow ? compactHours : regularHours
         if feed.showsPlaceholders {
             hourlyMessage = nil
             let kind = "placeholder"
             if carouselKind != kind {
-                install(UKWeatherCarouselView(cells: (0..<24).map { _ in UKWeatherCardHourPlaceholder() }, compactPerPage: 6, regularPerPage: regular,
+                install(UKWeatherCarouselView(cells: (0..<24).map { _ in UKWeatherCardHourPlaceholder() }, compactPerPage: compactHours, regularPerPage: regular,
                                               label: WeatherCopy.text("carousel.forecast"), identifier: "home.weather"), kind: kind)
             }
             carousel?.isAccessibilityElement = true
-            carousel?.accessibilityLabel = "Loading 24-hour weather forecast"
+            carousel?.accessibilityLabel = loadingLabel
         } else if feed.forecasts.isEmpty {
             carousel?.removeFromSuperview()
             carousel = nil
             carouselKind = ""
-            let text = feed.error ?? WeatherCopy.text("forecast.hourlyEmpty")
+            let text = feed.error ?? emptyLabel ?? WeatherCopy.text("forecast.hourlyEmpty")
             if hourlyMessage != text { hourlyMessage = text; message.text = text; ukSetNeedsLayoutUpward() }
         } else {
             hourlyMessage = nil
@@ -299,7 +277,7 @@ final class UKWeatherCardView: UIView, UKGridMeasuring {
             if carouselKind == kind, let carousel {
                 carousel.setCells(cells)
             } else {
-                install(UKWeatherCarouselView(cells: cells, compactPerPage: 6, regularPerPage: regular, label: WeatherCopy.text("carousel.forecast"),
+                install(UKWeatherCarouselView(cells: cells, compactPerPage: compactHours, regularPerPage: regular, label: WeatherCopy.text("carousel.forecast"),
                                               identifier: "home.weather"), kind: kind)
             }
             carousel?.isAccessibilityElement = false

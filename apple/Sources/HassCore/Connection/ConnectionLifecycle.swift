@@ -48,6 +48,13 @@ public final class ConnectionLifecycle {
         connection.connect()
     }
 
+    /// Ends an owning session immediately, cancelling a delayed background disconnect without clearing entity boxes.
+    public func stop() {
+        disconnectTask?.cancel()
+        disconnectTask = nil
+        connection.disconnect()
+    }
+
     /// The app went to the background: save now, disconnect after the grace period.
     public func didEnterBackground() {
         connection.saveSnapshotNow()

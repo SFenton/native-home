@@ -19,7 +19,7 @@
     states: base.states,
     id: 'chip-rail', title: 'ChipRail (scroll, wrap)', area: 'design', status: 'shipped',
     summary: 'A page\'s row of status chips: it scrolls sideways on every width (a UIKit scroller) across the whole page, over the Duo\'s hinge too (owner, 2026-10-26; was: wraps in regular width and stops 24 pt short of the hinge), always starts at the leading margin, and wraps only at accessibility text sizes, where a wrapped rail still stops 24 pt short of a hinge. FlowLayout is the same wrap as a general helper (vacuum status chips, room-order capsules, recipe chips).',
-    source: ['apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassDesign/ChipRailLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassDesign/ChipRailLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKPaging.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift'],
     spec: ['.agents/patterns/status-rail.md', '.agents/design/direction-g.md'],
     patterns: ['status-rail', 'resume-lifecycle'],
     hig: ['Layout', 'Scroll views', 'Dynamic Type', 'Split views'],

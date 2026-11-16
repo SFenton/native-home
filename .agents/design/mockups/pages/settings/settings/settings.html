@@ -41,9 +41,7 @@
   Mock.mount({
     kind: 'page', id: 'settings', title: 'Settings', area: 'settings', status: 'shipped',
     summary: 'The last tab: Vacation and To-Do, Appearance (Background Blur, count on the app icon, App Icon), the household topics, Home Assistant Settings, Performance, the two Feedback rows and About (Version, tap to copy), as modules on the dimmed house photo.',
-    source: ['apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift',
-      'apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassUI/Features/Settings/AboutSettingsSection.swift', 'apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow.swift',
-      'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsList.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback.swift', 'apple/Sources/HassUI/Features/Settings/AboutSettingsSection.swift', 'apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage.swift', 'apple/Sources/HassCore/Config/VacationConfig.swift'],
     spec: ['.agents/pages/settings/ios.md', '.agents/pages/settings/household.md', '.agents/pages/settings/feedback.md'],
     patterns: ['settings-section', 'module-list', 'page-backdrop', 'header-edge-fade'],
     hig: ['Lists and tables', 'Settings', 'Toggles', 'Sliders', 'Tab bars', 'Dark Mode', 'Typography'],

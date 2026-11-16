@@ -3,6 +3,8 @@ import PackageDescription
 
 let package = Package(
     name: "FentonHomeApple",
+    // The compiled copy catalog (`Sources/HassCore/Copy/Copy.xcstrings`) is English only; localization is deferred.
+    defaultLocalization: "en",
     // `.macOS` exists only so `swift test` runs on the host Mac. macOS is not a supported product platform.
     platforms: [.iOS(.v17), .watchOS(.v10), .macOS(.v14)],
     products: [
@@ -32,7 +34,9 @@ let package = Package(
         .target(name: "FentonActivityViews", dependencies: ["FentonActivityModel", "HassDesign"]),
         .target(
             name: "HassCore",
-            dependencies: ["HassTelemetry", "FentonActivityModel", .product(name: "HAKit", package: "HAKit")]
+            dependencies: ["HassTelemetry", "FentonActivityModel", .product(name: "HAKit", package: "HAKit")],
+            // Manual-state catalog read by key at run time; no symbol generation (`Bundle.module` only).
+            resources: [.process("Copy/Copy.xcstrings")]
         ),
         .target(name: "HassDesign", dependencies: ["HassTelemetry"]),
         .target(

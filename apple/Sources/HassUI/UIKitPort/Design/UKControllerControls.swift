@@ -95,6 +95,8 @@ public final class UKControllerStepper: UIView {
         stepper.maximumValue = Double(range.upperBound)
         stepper.stepValue = Double(step)
         stepper.value = Double(value)
+        stepper.accessibilityLabel = title
+        stepper.accessibilityValue = format(value)
         stepper.addAction(UIAction { [weak self] _ in self?.changed() }, for: .valueChanged)
         let row = UIStackView(arrangedSubviews: [label, stepper])
         row.axis = .horizontal
@@ -114,6 +116,7 @@ public final class UKControllerStepper: UIView {
     public func show(_ value: Int) {
         shown = value
         stepper.value = Double(value)
+        stepper.accessibilityValue = format(value)
         label.text = title.map { "\($0), \(format(value))" } ?? format(value)
     }
 

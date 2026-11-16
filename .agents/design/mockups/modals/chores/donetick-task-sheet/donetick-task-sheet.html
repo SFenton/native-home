@@ -30,7 +30,7 @@
   Mock.mount(C.sheetConfig({
     id: 'donetick-task-sheet', title: 'Task sheet (create and edit)', file: 'DonetickTaskSheet.swift', fromLabel: 'Chores', from: 'chores',
     summary: 'New Task and Edit Task for Choreapp chores: name, description, assignee and priority, due date and time, repeat, vacation. A fitted form sheet with Cancel and a check (Create or Save). Follows the system appearance; switch Sheet appearance above (the States gallery shows both).',
-    source: ['apple/Sources/HassCore/Todo/DonetickTaskForm.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift'],
+    source: ['apple/Sources/HassCore/Todo/DonetickTaskForm.swift'],
     docs: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/patterns/modal-sheet.md', '.agents/patterns/schedule-date-fields.md'],
     patterns: ['schedule-date-fields'], entities: ['todo.demo_todo_10', 'input_boolean.demo_mode_4'],
     build: function (ctx, o) { return C.taskSheet(ctx, o); },

@@ -15,7 +15,7 @@ struct TileClassificationTests {
     }
 
     @Test func specsOverloadCountsSpecs() {
-        let specs = LockActions(entityId: "lock.demo_a").actions(for: nil)
+        let specs = StateStyleActions(.lock, entityId: "lock.demo_a").actions(for: nil)
         #expect(TileClassification.classify(hasDestination: false, actions: specs) == .action(1))
         #expect(TileClassification.classify(hasDestination: true, actions: specs) == .navigation(actionCount: 1))
     }
@@ -99,8 +99,8 @@ struct TileClassificationTests {
     }
 
     @Test func restingCountsMatchTheProviders() {
-        #expect(TileActionKind.lock.restingActionCount == LockActions(entityId: "l").actions(for: nil).count)
-        #expect(TileActionKind.garageDoor.restingActionCount == CoverActions(entityId: "c").actions(for: nil).count)
+        #expect(TileActionKind.lock.restingActionCount == StateStyleActions(.lock, entityId: "l").actions(for: nil).count)
+        #expect(TileActionKind.garageDoor.restingActionCount == StateStyleActions(.garageDoor, entityId: "c").actions(for: nil).count)
         #expect(TileActionKind.power.restingActionCount == PowerToggleActions.entity("switch.demo_a").actions(for: nil).count)
         #expect(TileActionKind.bathroomFan.restingActionCount == FanRailActions(config: BathroomFanConfig.all[0], lockState: nil).actions(for: nil).count)
         #expect(TileActionKind.vacuum.restingActionCount == VacuumActions(entityId: "v").actions(for: nil).count)

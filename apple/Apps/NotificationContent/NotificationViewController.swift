@@ -1,4 +1,5 @@
 import AVFoundation
+import FentonActivityModel
 import HassCore
 import Observation
 import UIKit
@@ -35,6 +36,10 @@ final class NotificationViewController: UIViewController, @preconcurrency UNNoti
 
     func didReceive(_ notification: UNNotification) {
         let content = notification.request.content
+        model.stop()
+        model.snapshot = nil
+        model.title = content.title
+        cameraView.configure(nil)
         guard let payload = PushPayload(userInfo: content.userInfo) else {
             PushTrace.shared.record("content: no fenton payload")
             return
@@ -43,6 +48,12 @@ final class NotificationViewController: UIViewController, @preconcurrency UNNoti
         // Buttons per notification: the camera category is fixed, so its actions are set here.
         extensionContext?.notificationActions = payload.actions.map(\.notificationAction)
         model.title = content.title
+        do {
+            if let appearance = try ExtensionPresentationStore.shared?.read()?.targets?.cameras.first(where: { $0.entityId == payload.entityID }) {
+                model.title = appearance.title
+                cameraView.configure(appearance)
+            }
+        } catch { PushTrace.shared.record("content: rejected authored presentation") }
         if let url = content.attachments.first?.url, url.startAccessingSecurityScopedResource() {
             model.snapshot = UIImage(contentsOfFile: url.path)
             url.stopAccessingSecurityScopedResource()
@@ -76,6 +87,14 @@ final class CameraNotificationUIView: UIView {
     #endif
     private weak var model: CameraNotificationModel?
     private var attachedPlayer: AVPlayer?
+    private var appearance: NativeExtensionPresentation.Camera?
+
+    func configure(_ appearance: NativeExtensionPresentation.Camera?) {
+        self.appearance = appearance
+        badge.liveLabel = appearance?.liveLabel ?? "Live"
+        badge.unavailableLabel = appearance?.unavailableLabel ?? "Stream unavailable"
+        render()
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -135,8 +154,8 @@ final class CameraNotificationUIView: UIView {
         playerView.isHidden = player == nil
         playerView.alpha = isLive ? 1 : 0
         badge.state = isLive ? .live : failed ? .unavailable : .loading
-        accessibilityLabel = isLive ? "\(title), live camera"
-            : failed ? "\(title), stream unavailable" : "\(title), camera snapshot"
+        accessibilityLabel = isLive ? "\(title), \(appearance?.liveLabel ?? "live camera")"
+            : failed ? "\(title), \(appearance?.unavailableLabel ?? "stream unavailable")" : "\(title), camera snapshot"
         #if DEBUG
         statusLabel.text = status
         #else
@@ -177,6 +196,8 @@ final class CameraNotificationUIView: UIView {
         enum State { case loading, live, unavailable }
 
         var state: State = .loading { didSet { if state != oldValue { apply() } } }
+        var liveLabel = "Live" { didSet { apply() } }
+        var unavailableLabel = "Stream unavailable" { didSet { apply() } }
         private let label = UILabel()
         private let icon = UIImageView()
         private let spinner = UIActivityIndicatorView(style: .medium)
@@ -224,11 +245,11 @@ final class CameraNotificationUIView: UIView {
             switch state {
             case .live:
                 icon.image = UIImage(systemName: "circle.fill", withConfiguration: config)
-                label.text = "Live"
+                label.text = liveLabel
                 backgroundColor = .systemRed
             case .unavailable:
                 icon.image = UIImage(systemName: "exclamationmark.triangle.fill", withConfiguration: config)
-                label.text = "Stream unavailable"
+                label.text = unavailableLabel
                 backgroundColor = UIColor.black.withAlphaComponent(0.7)
             case .loading:
                 backgroundColor = .clear

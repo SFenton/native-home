@@ -21,7 +21,7 @@
   Mock.mount({
     kind: 'modal', id: 'inventory-quantity-prompt', title: 'Quantity prompt (alert with a field)', area: 'inventory', status: 'shipped',
     summary: 'The web\'s window.prompt as a native alert with a decimal-pad field prefilled 1: Add to Groceries (the cart button or the leading swipe), Delete how many (a card with more than one in stock), and the editor\'s Delete and Prepared Food prompts. Cancel and one confirm button.',
-    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift (InventoryPrompt)', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift (EditorPrompt)', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift (parseQuantity)'],
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift (InventoryPrompt)', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift (EditorPrompt)', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIInventoryForm.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift (parseQuantity)'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
     patterns: ['floating-actions'],
     hig: ['Alerts', 'Text fields', 'Keyboards', 'Dynamic Type'],

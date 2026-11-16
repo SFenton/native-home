@@ -1,0 +1,91 @@
+#if os(iOS)
+import HassCore
+import Observation
+import UIKit
+
+// MARK: - The signed-in person
+
+/// Who is signed in, for `viewer` operands and predicates.
+///
+/// The user comes from `auth/current_user` over the one connection (``load(from:)``). Until it arrives the cached publication's
+/// recorded user id can be ``seed(userID:)``ed, so a rule on the user's id resolves at the first frame; `isAdmin` stays unknown
+/// (a ``ServerUIVisibility`` then follows its `whenUnknown` policy) until the connection has said.
+@MainActor
+@Observable
+final class UKServerUIViewerSource {
+    private(set) var user: HassUser?
+    private(set) var seededUserID: String?
+
+    /// Records the user the cached publication was delivered for.
+    func seed(userID: String?) { if user == nil, seededUserID != userID { seededUserID = userID } }
+
+    /// Sets the signed-in user (a hosted test, or ``load(from:)``).
+    func set(_ user: HassUser?) { if self.user != user { self.user = user } }
+
+    /// Fetches the user once over the existing connection; a failure leaves the viewer unknown.
+    func load(from connection: HassConnection) async {
+        guard user == nil, let loaded = try? await connection.currentUser() else { return }
+        set(loaded)
+    }
+
+    /// The viewer as an expression sees it. Reads `peopleRevision`, so an observation re-runs when the person list changes.
+    func viewer(in store: EntityStore) -> ServerUIViewer? {
+        guard let id = user?.id ?? seededUserID else { return nil }
+        _ = store.peopleRevision
+        return ServerUIViewer(userId: id, isAdmin: user?.isAdmin,
+                              personEntityId: AvatarSyncPlan.personID(forUser: id, in: store.allValues.values))
+    }
+}
+
+// MARK: - Reading entity state for expressions
+
+/// Evaluates operands and predicates over the entity boxes the document's `ha-entity` sources name.
+///
+/// Every read goes through `EntityStore` boxes and the optimistic overlay, so an observation that evaluates an expression
+/// subscribes to exactly the entities that expression reads and to nothing else.
+struct UKServerUIReader: ServerUIReading {
+    let bindings: UKServerUIBindings
+    let viewerSource: UKServerUIViewerSource
+    let runner: UKServerUICallRunner?
+    var controlValue: JSONValue?
+
+    init(bindings: UKServerUIBindings, viewerSource: UKServerUIViewerSource, runner: UKServerUICallRunner?, controlValue: JSONValue? = nil) {
+        self.bindings = bindings
+        self.viewerSource = viewerSource
+        self.runner = runner
+        self.controlValue = controlValue
+    }
+
+    var viewer: ServerUIViewer? {
+        MainActor.assumeIsolated { viewerSource.viewer(in: bindings.context.store) }
+    }
+
+    func viewerPersonState() -> ServerUIReadResult {
+        MainActor.assumeIsolated {
+            guard let viewer = viewerSource.viewer(in: bindings.context.store) else { return .loading }
+            guard let person = viewer.personEntityId else { return .unavailable }
+            if bindings.context.valuesPending { return .loading }
+            guard let state = bindings.context.store.entity(person).state, !state.isUnavailable else { return .unavailable }
+            return .value(.string(state.state))
+        }
+    }
+
+    func read(sourceId: String, path: [String]) -> ServerUIReadResult {
+        MainActor.assumeIsolated {
+            guard case .haEntity = bindings.definitions[sourceId] else { return .unavailable }
+            let entity = bindings.entityID(for: sourceId)
+            guard case .ready(let id) = entity else {
+                if case .loading = entity { return .loading }
+                return .unavailable
+            }
+            if bindings.context.valuesPending { return .loading }
+            guard let state = bindings.context.store.entity(id).state, !state.isUnavailable else { return .unavailable }
+            if path == ["state"] { return .value(.string(runner?.pendingState(id) ?? state.state)) }
+            guard path.first == "attributes" else { return .unavailable }
+            var value: JSONValue? = .object(state.attributes)
+            for segment in path.dropFirst() { value = value?[segment] }
+            return value.map { .value($0) } ?? .unavailable
+        }
+    }
+}
+#endif

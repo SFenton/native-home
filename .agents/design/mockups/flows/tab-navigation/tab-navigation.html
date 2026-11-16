@@ -24,7 +24,7 @@
   Mock.mount({
     kind: 'flow', id: 'tab-navigation', title: 'Tab navigation (tab bar, re-tap, badge)', area: 'shell', status: 'shipped',
     summary: 'Moving between the five sections. A tab switch is a cut with no transition; each tab keeps its own stack and scroll position; tapping the selected tab pops to its root and a second tap scrolls to the top. The tab bar is the floating glass bar on iPhone and the unfolded Duo in portrait, and the vertical bar on the folded Duo and in unfolded landscape; iPad uses the flyout for the same moves.',
-    source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/App/Shell/ShellNavigator.swift', 'apple/Sources/HassUI/UIKitPort/App/Page/UKScrollToTop.swift', 'apple/Sources/HassUI/App/Shell/AppSection.swift', 'apple/Sources/HassUI/Features/Chores/OverdueChoresBadge.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/App/Page/UKScrollToTop.swift'],
     spec: ['.agents/design/motion.md', '.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/apple/duo.md'],
     patterns: ['motion', 'header-edge-fade'],
     hig: ['Tab bars', 'Navigation and search', 'Scroll views'],

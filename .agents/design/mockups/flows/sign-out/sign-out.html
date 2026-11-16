@@ -32,7 +32,7 @@
   Mock.mount({
     kind: 'flow', id: 'sign-out', title: 'Sign out (Account sheet or Home Assistant settings)', area: 'shell', status: 'shipped',
     summary: 'Two ways to sign out, one result. The Your Summary sheet\'s Profile tab asks in an alert; Home Assistant settings asks in a confirmation dialog. Confirming revokes the sign-in and replays the sign-in intro; if Home Assistant cannot confirm, an alert says so and the person stays signed in.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassUI/App/AppSession.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantSettingsView.swift', 'apple/Sources/HassUI/App/AppSession.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift'],
     spec: ['.agents/pages/settings/ios.md', '.agents/pages/settings/profile.md', '.agents/platforms/apple/auth.md'],
     patterns: ['modal-sheet', 'motion'],
     hig: ['Alerts', 'Action sheets', 'Destructive actions', 'Sheets'],

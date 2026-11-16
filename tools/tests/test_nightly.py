@@ -62,7 +62,7 @@ class PlanTests(unittest.TestCase):
     def test_main_prints_json_and_fails_on_an_empty_filter(self):
         out = io.StringIO()
         with redirect_stdout(out):
-            self.assertEqual(nightly_plan.main(["--filter", "Bedroom", "--plans", "Gate"]), 0)
+            self.assertEqual(nightly_plan.main(["--filter", "Login", "--plans", "Gate"]), 0)
         self.assertEqual([i["plan"] for i in json.loads(out.getvalue())["include"]], ["Gate"])
         self.assertEqual(nightly_plan.main(["--filter", "NoSuchClassAnywhere"]), 1)
 
@@ -362,7 +362,7 @@ class FamilyMatrixTests(unittest.TestCase):
     def test_main_takes_families_and_refuses_an_unknown_one(self):
         out = io.StringIO()
         with redirect_stdout(out):
-            self.assertEqual(nightly_plan.main(["--filter", "Bedroom", "--plans", "Gate", "--families", "duo,ipad"]), 0)
+            self.assertEqual(nightly_plan.main(["--filter", "Login", "--plans", "Gate", "--families", "duo,ipad"]), 0)
         self.assertEqual([i["family"] for i in json.loads(out.getvalue())["include"]], ["duo", "ipad"])
         self.assertEqual(nightly_plan.main(["--plans", "Gate", "--families", "mac"]), 2)
 

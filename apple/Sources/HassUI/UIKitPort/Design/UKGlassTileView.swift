@@ -17,6 +17,11 @@ struct UKGlassTileModel {
     var isUnavailable = false
     /// The error face: a red glyph and red state on a dense ground.
     var isError = false
+    /// Needs attention and nothing has failed: the warning face.
+    var isWarning = false
+    /// The look a state style resolved for the tile's state; non-nil makes the tile state-styled, so its layers change one by one through
+    /// ``UKStateTileTransition``.
+    var look: StateTileLook?
     /// Toggles get toggle semantics; navigation gets a chevron; read-only tiles are not buttons. A tile built with a ``behavior`` carries
     /// the equivalent kind.
     var kind: GlassTileKind = .toggle
@@ -114,13 +119,20 @@ struct UKGlassTileModel {
     func faceContent(trailingInset: CGFloat, bottomInset: CGFloat, hidesGlyph: Bool = false, textFit: TileTextFit = .natural) -> UKTileFaceContent {
         UKTileFaceContent(
             title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, isActive: isActive,
-            isUnavailable: isUnavailable && !isInert, isError: isError, showsChevron: behavior == .navigate, level: progress,
+            isUnavailable: isUnavailable && !isInert, isError: isError, isWarning: isWarning,
+            showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,
             textFit: textFit, probeIdentifier: identifier)
     }
 
     /// What VoiceOver reads for the value (`GlassTile.accessibilityValue`).
     func accessibilityValue(valuesPending: Bool) -> String {
+        let base = baseAccessibilityValue(valuesPending: valuesPending)
+        guard let look, !valuesPending else { return base }
+        return StateTileLook.spokenValue(text: base, stateClass: look.stateClass)
+    }
+
+    private func baseAccessibilityValue(valuesPending: Bool) -> String {
         // The first sign-in, before any value has arrived: the soft bar says nothing, so the tile does.
         if valuesPending, subtitle != nil || kind == .toggle { return "Loading" }
         if let spokenValue { return spokenValue }
@@ -188,6 +200,9 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     private let strip = UKTileActionStrip()
     private var stripConfiguredFor: [TileActionItem]?
     private var motion = ActionSetMotion()
+    /// Moves the tile from one state look to the next; made on the first state-styled configure.
+    private var transition: UKStateTileTransition?
+    private var pendingConfigure: (model: UKGlassTileModel, environment: UKTileEnvironment?, animated: Bool)?
 
     /// The tile's state while its action set changes shape. Local to the tile and written only by a change of shape.
     private struct ActionSetMotion {
@@ -236,6 +251,52 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// - Parameter animated: False for a reused cell taking another tile's state, which must not cross-fade.
     func configure(_ model: UKGlassTileModel, environment: UKTileEnvironment? = nil, animated: Bool = true, action: (() -> Void)? = nil,
                    perform: ((TileActionItem.ID) -> Void)? = nil) {
+        guard let look = model.look else {
+            transition = nil
+            pendingConfigure = nil
+            configureNow(model, environment: environment, animated: animated, action: action, perform: perform)
+            return
+        }
+        // A state-styled tile changes layer by layer: the transition decides when this model is shown (the flap guard may hold it) and what
+        // animates. The closures update at once, so a tap during a hold runs the latest.
+        if let action { self.action = action }
+        if let perform { self.onPerform = perform }
+        let transition = stateTransition()
+        let reapply = !animated || (model.reapplyGeneration != nil && model.reapplyGeneration != motion.seenGeneration)
+        pendingConfigure = (model, environment, animated)
+        switch transition.apply(look, reapply: reapply) {
+        case .rendered, .held: break
+        case .unchanged: configureNow(model, environment: environment, animated: animated && hasConfigured, action: nil, perform: nil)
+        }
+    }
+
+    private func stateTransition() -> UKStateTileTransition {
+        if let transition { return transition }
+        let transition = UKStateTileTransition(title: { [weak self] in self?.model.title ?? "" })
+        transition.isPageVisible = { [weak self] in self?.window != nil }
+        transition.render = { [weak self] plan in
+            guard let self, let pending = pendingConfigure else { return }
+            if plan.stopsEffect { face.stopEffects() }
+            configureNow(pending.model, environment: pending.environment, animated: !plan.isInstant && pending.animated, action: nil, perform: nil)
+        }
+        transition.playEffect = { [weak self] indicator in
+            guard let self, let look = model.look else { return }
+            face.playEffect(indicator, once: indicator.playsOnce || look.stateClass == .warning)
+        }
+        self.transition = transition
+        return transition
+    }
+
+    /// Replays a warning's pulse when the tile's page becomes visible again.
+    func pageDidBecomeVisible() { transition?.pageDidBecomeVisible() }
+
+    private func performed(_ id: TileActionItem.ID) {
+        transition?.noteOwnRequest()
+        onPerform?(id)
+    }
+
+    private func configureNow(_ model: UKGlassTileModel, environment: UKTileEnvironment?, animated: Bool, action: (() -> Void)?,
+                              perform: ((TileActionItem.ID) -> Void)?) {
         let old = self.model
         let oldShape = TileActionShape(motion.held?.actions ?? old.actions, hasAccessory: motion.held?.hasAccessory ?? hasAccessory(for: old))
         self.model = model
@@ -258,7 +319,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         apply(animated: hasConfigured && animated)
         // A change of shape that did not animate moved the tile's height at once: the grids around it measure again.
         if oldShape != newShape, hasConfigured, motion.held == nil, motion.outgoing == nil, !motionIsPlaying { ukRemeasureContainers() }
-        if hasConfigured, animated, model.isError, !old.isError {
+        if hasConfigured, animated, model.look == nil, model.isError, !old.isError {
             UKTapFeedback.failure()
             if model.announcesFailure { announceFailure([model.title, model.subtitle].compactMap { $0 }.joined(separator: ", ")) }
         }
@@ -382,11 +443,11 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
 
     /// The ground the discs sit on, from the same face the tile draws.
     private var actionFace: TileActionFace {
-        switch TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError,
+        switch TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
                                      isUnavailable: model.isUnavailable && !isInert, solidFill: model.fillRGB) {
         case .lit: .lit
         case .filled, .colored: .filled
-        case .off, .tinted, .error: .dark
+        case .off, .tinted, .error, .warning: .dark
         }
     }
 
@@ -410,6 +471,13 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         setNeedsLayout()
     }
 
+    /// The face's primary ink, the title's colour: what the arc standing in for a disc is drawn in, never the warning or error ink.
+    private var arcTint: UIColor {
+        let style = TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
+                                          isUnavailable: model.isUnavailable && !isInert, solidFill: model.fillRGB)
+        return UIColor(TileFaceInk.primaryToken(style: style, appearance: UKDesign.tileAppearance(surface: environment.surface, traits: traitCollection)))
+    }
+
     private func configureStrip(animated: Bool) {
         let items = shownActions
         strip.isHidden = items.isEmpty
@@ -420,7 +488,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
             return
         }
         strip.configure(items: items, title: model.title, tileIdentifier: model.identifier, face: actionFace, family: model.family,
-                        surface: environment.surface, animated: animated)
+                        surface: environment.surface, animated: animated, arcTint: arcTint)
         stripConfiguredFor = items
     }
 
@@ -437,7 +505,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         // A body that performs an action runs the item it names (the primary of the set); the others open or run the tile's own action.
         if case let .perform(id) = model.behavior, model.usesItems {
             // The body's action goes through the same question as its disc.
-            if TileActionConfirmation.required(forPerforming: id, in: shownActions) != nil { request(id) } else { onPerform?(id) }
+            if TileActionConfirmation.required(forPerforming: id, in: shownActions) != nil { request(id) } else { performed(id) }
         } else {
             action?()
         }
@@ -456,7 +524,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     private func request(_ id: TileActionItem.ID) {
         guard let item = shownActions.first(where: { $0.id == id }), let confirmation = TileActionConfirmation.required(forPerforming: id, in: shownActions),
               let presenter = ukOwningViewController
-        else { onPerform?(id); return }
+        else { performed(id); return }
         let ask = ConfirmationRequest(item: item, confirmation: confirmation)
         let alert = UIAlertController(title: confirmation.title, message: confirmation.message,
                                       preferredStyle: confirmation.style == .dialog ? .actionSheet : .alert)
@@ -483,7 +551,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         guard let now = shownActions.first(where: { $0.id == ask.item.id }), now.isOn == ask.item.isOn, now.verb == ask.item.verb,
               TileActionConfirmation.required(forPerforming: ask.item.id, in: shownActions) == ask.confirmation
         else { return }
-        onPerform?(ask.item.id)
+        performed(ask.item.id)
     }
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
@@ -734,7 +802,10 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         // an element is no VoiceOver stop, so this changes nothing for people.
         accessibilityIdentifier = single ? model.identifier : model.identifier.map { $0 + ".tile" }
         accessibilityTraits = single ? traits.union(onAdjust == nil ? [] : .adjustable) : (traits.contains(.notEnabled) ? [.notEnabled] : [])
-        accessibilityHint = spokenHint
+        let takesTaps = model.look?.acceptsTaps != false
+        // While the arc stands in, or the class is unknown, the button trait stays with not-enabled added, no hint, and no response to interaction.
+        accessibilityHint = takesTaps ? spokenHint : nil
+        accessibilityRespondsToUserInteraction = takesTaps
         if exposesControls {
             let element = bodyElement ?? UKTileAccessibilityElement(accessibilityContainer: self)
             element.accessibilityLabel = model.spokenLabel ?? model.title
@@ -742,6 +813,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
             element.accessibilityIdentifier = model.identifier
             element.accessibilityTraits = onAdjust == nil ? traits : traits.union(.adjustable)
             element.accessibilityHint = accessibilityHint
+            element.accessibilityRespondsToUserInteraction = takesTaps
             element.onAdjust = onAdjust
             element.activate = { [weak self] in
                 guard let self, !isInert, isEnabled else { return false }

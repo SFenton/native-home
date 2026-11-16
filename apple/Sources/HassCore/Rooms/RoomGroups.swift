@@ -10,14 +10,19 @@ public struct RoomGroupItem: Hashable, Sendable, Identifiable, Codable {
     public var resident: HouseholdResident?
     /// A text helper holding this sensor's `rgba()` card color (climate sensors, web `EntityButtonConfig.colorEntityId`).
     public var colorEntityId: String?
+    /// Explicit physical kind when authored; legacy house documents retain title/entity inference.
+    public var contactKind: ContactKind?
+    public enum ContactKind: String, Hashable, Sendable, Codable { case door, window }
     public var id: String { entityId + title }
 
-    public init(_ title: String, _ entityId: String, contactCount: Int = 1, resident: HouseholdResident? = nil, color colorEntityId: String? = nil) {
+    public init(_ title: String, _ entityId: String, contactCount: Int = 1, resident: HouseholdResident? = nil,
+                color colorEntityId: String? = nil, contactKind: ContactKind? = nil) {
         self.title = title
         self.entityId = entityId
         self.contactCount = contactCount
         self.resident = resident
         self.colorEntityId = colorEntityId
+        self.contactKind = contactKind
     }
 
     /// "Your Nightstand" for the owner, "Sam Nightstand" for anyone else signed in (web `LightsSheet`).

@@ -49,9 +49,7 @@
   Mock.mount({
     kind: 'component', id: 'content-unavailable', title: 'Empty and error states (ContentUnavailable usage)', area: 'design', status: 'shipped', frame: false,
     summary: 'A reference sheet of every empty and error message the app draws: the system ContentUnavailableView (glyph, bold title, secondary description, optional action) and the two plain-stack look-alikes (Recipes and Inventory) built because the system view caps its text size. Pages draw them white on the wallpaper; sheets use the sheet\'s ink.',
-    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoPageViewController.swift', 'apple/Sources/HassUI/UIKitPort/Features/Food/UKRecipesViewController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift',
-      'apple/Sources/HassUI/Features/Chores/DonetickTaskSheet.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift', 'apple/Sources/HassUI/UIKitPort/App/UKScreens.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantWebPage.swift', 'apple/Sources/HassUI/Features/Rooms/RoomSheets.swift', 'apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift',
-      'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Food/RecipeDetailView.swift', 'apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift', 'apple/Sources/HassUI/Features/Settings/HomeAssistantWebPage.swift', 'apple/Sources/HassCore/Config/ChoresConfig.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
     spec: ['.agents/patterns/settings-section.md', '.agents/design/direction-g.md'],
     patterns: ['content-gate', 'floating-actions'],
     hig: ['Loading', 'Typography', 'Dynamic Type', 'Buttons'],
@@ -84,7 +82,7 @@
 
         { rule: "Writing: say what happened and what to do next; be consistent", verdict: "pass", note: "AlertCopy.tryAgain is the one retry label (Recipes, Inventory, HA web page).", by: "apple-hig skill" },
 
-        { rule: "Progress indicators and Loading: if a process fails, explain the problem and what people can do", verdict: "pass", note: "DonetickTaskSheet shows LoadFailure.of(\"Task\", ...).stateMessage: a Try Again button (AlertCopy.tryAgain, task.retry) that re-runs load() with an inline arc and \"Trying Again\", and \"You're Offline\" wording with the reason when HassConnection.isOffline.", by: "apple-hig skill" },
+        { rule: "Progress indicators and Loading: if a process fails, explain the problem and what people can do", verdict: "pass", note: "DonetickTaskSheet shows LoadFailure.of(\"Task\", ...).stateMessage: a Try Again button (AlertCopy.tryAgain, task.retry) that re-runs load() with an inline arc and \"Trying Again…\", and \"You're Offline\" wording with the reason when HassConnection.isOffline.", by: "apple-hig skill" },
 
         { rule: "Writing: plain, specific copy; Title Case titles that name what is missing", verdict: "pass", note: "Titles such as 'No Items Found', 'Can't open <page>' and 'Unable to Load Recipes' name the problem; descriptions say what to check ('Check your connection and try again').", by: "apple-hig skill" },
 

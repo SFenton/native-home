@@ -14,8 +14,7 @@ final class UKHostedGalleryDriveTests: DemoHouseTestCase {
     }
 
     private let lanes: [@MainActor (ComponentGallery.Page) -> UIViewController?] = [
-        UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.home, UKGallery.security, UKGallery.climate,
-        UKGallery.chores, UKGallery.settings, UKGallery.household, UKGallery.rooms, UKGallery.vacuums, UKGallery.food, UKGallery.setup, UKGallery.liveActivity,
+        UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.components, UKGallery.setup, UKGallery.liveActivity,
     ]
 
     /// Presses everything on the page, then on whatever it presented, up to `depth` levels.
@@ -52,47 +51,8 @@ final class UKHostedGalleryDriveTests: DemoHouseTestCase {
         }
     }
 
-    func testEveryRoomPageAndItsSheetsTakeInput() {
-        run(RoomsConfig.pages.map { Variant(.rooms, ["FENTON_GALLERY_ROOM": $0.id]) } + [Variant(.rooms, ["FENTON_GALLERY_QUICK_LINKS": "1"]), Variant(.rooms)],
-            size: CGSize(width: 393, height: 2400))
-    }
-
-    func testMediaRemotesSprinklersAndCustomLightsTakeInput() {
-        var variants: [Variant] = [Variant(.mediaPage), Variant(.mediaRemote)]
-        for remote in MediaRemotes.all { variants.append(Variant(.mediaRemote, ["FENTON_GALLERY_REMOTE": remote.id])) }
-        for controller in ["frontYard", "backyard"] {
-            variants.append(Variant(.sprinklers, ["FENTON_GALLERY_SPRINKLER": controller]))
-            for zone in 1...3 {
-                variants.append(Variant(.sprinklers, ["FENTON_GALLERY_SPRINKLER": controller, "FENTON_GALLERY_DETAIL": "water-\(zone)"]))
-                variants.append(Variant(.sprinklers, ["FENTON_GALLERY_SPRINKLER": controller, "FENTON_GALLERY_DETAIL": "schedule-\(zone)"]))
-            }
-        }
-        for light in CustomLightsConfig.lights { variants.append(Variant(.customLights, ["FENTON_GALLERY_LIGHT": light.entityId])) }
-        run(variants, size: CGSize(width: 393, height: 2400))
-    }
-
-    func testWeatherHomeAndSecurityTakeInputInEveryState() {
-        var variants: [Variant] = []
-        for mode in ["normal", "loading", "error", "empty"] {
-            variants.append(Variant(.weather, ["FENTON_GALLERY_WEATHER_STATE": mode, "FENTON_GALLERY_WEATHER_OPEN": "1"]))
-            variants.append(Variant(.home, ["FENTON_GALLERY_WEATHER_STATE": mode]))
-        }
-        for condition in ["rainy", "clear-night", "snowy", "lightning", "fog", "windy", "sunny", "cloudy", "partlycloudy", "hail"] {
-            variants.append(Variant(.weather, ["FENTON_GALLERY_WEATHER_CONDITION": condition, "FENTON_GALLERY_WEATHER_OPEN": "1"]))
-        }
-        variants.append(Variant(.weather, ["FENTON_GALLERY_WEATHER_NIGHT": "1", "FENTON_GALLERY_WEATHER_NOAQI": "1", "FENTON_GALLERY_WEATHER_OPEN": "1"]))
-        for scenario in ["standard", "unavailable", "triggered", "openHome", "openAway", "openArmed"] { variants.append(Variant(.security, ["FENTON_GALLERY_SCENARIO": scenario])) }
-        variants.append(Variant(.security, ["FENTON_GALLERY_FAIL": "1"]))
-        run(variants, size: CGSize(width: 393, height: 2400))
-    }
-
-    func testBedroomAndRoomDeviceSheetsTakeInput() {
-        var variants: [Variant] = []
-        for scenario in ["ringing", "unavailable", "waking", "solo-trip", "hot-flash"] { variants.append(Variant(.bedroom, ["FENTON_GALLERY_SCENARIO": scenario])) }
-        for device in RoomDeviceFixture.all() {
-            variants.append(Variant(.roomDevices, ["FENTON_GALLERY_DEVICE": device.id]))
-            for tab in HumidifierTab.allCases { variants.append(Variant(.roomDevices, ["FENTON_GALLERY_DEVICE": device.id, "FENTON_GALLERY_TAB": tab.rawValue])) }
-        }
+    func testGrillSheetTakesInput() {
+        let variants = RoomDeviceFixture.all().filter { $0.kind == .grill }.map { Variant(.roomDevices, ["FENTON_GALLERY_DEVICE": $0.id]) }
         run(variants, size: CGSize(width: 393, height: 2400))
     }
 

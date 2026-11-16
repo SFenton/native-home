@@ -46,5 +46,6 @@ public struct HomeActivitySmallView: View {
             }
         }
         .accessibilityElement(children: .combine)
+        .activityPresentationPrivacy(card)
     }
 }

@@ -23,6 +23,7 @@ final class UKStatusChipView: UIControl {
     private let summaryLabel = UILabel()
     private var symbol = ""
     private var fill: ChipTint?
+    private var idleGlyph: UIColor?
     private var title = ""
     private var summary = ""
     private var hasAction = false
@@ -78,16 +79,18 @@ final class UKStatusChipView: UIControl {
     ///   - family: The colour family; nil draws neutral.
     ///   - isActive: Whether the family fill applies.
     ///   - tint: A computed look that wins over `family`.
+    ///   - idleGlyph: An authored glyph colour on the neutral face; nil preserves the canonical ink.
     ///   - action: What a tap does; nil draws an inert chip.
     func configure(title: String, summary: String, symbol: String, family: ColorFamily?, isActive: Bool, tint: ChipTint?,
-                   animated: Bool = true, action: (() -> Void)? = nil) {
+                   idleGlyph: UIColor? = nil, animated: Bool = true, action: (() -> Void)? = nil) {
         let newFill = StatusChipStyle.fillTint(family, isActive: isActive, tint: tint)
-        let colorsChanged = newFill != fill
+        let colorsChanged = newFill != fill || idleGlyph != self.idleGlyph
         let textChanged = title != self.title || summary != self.summary || symbol != self.symbol || (newFill != nil) != (fill != nil)
         self.title = title
         self.summary = summary
         self.symbol = symbol
         fill = newFill
+        self.idleGlyph = idleGlyph
         onTap = action
         hasAction = action != nil
         isUserInteractionEnabled = hasAction
@@ -111,7 +114,7 @@ final class UKStatusChipView: UIControl {
             ground.backgroundColor = groundColor.cgColor
             highlight.opacity = fill == nil ? 0 : 1
         }
-        let glyph = fill.map { UIColor(rgb: $0.glyph) } ?? ink
+        let glyph = fill.map { UIColor(rgb: $0.glyph) } ?? idleGlyph ?? ink
         let text = fill != nil ? UIColor.white : ink
         UKMotion.stateFade("StatusChip", view: iconView, animated: animated) { [iconView] in iconView.tintColor = glyph }
         UKMotion.stateFade("StatusChip", view: summaryLabel, animated: animated) { [summaryLabel] in summaryLabel.textColor = text }

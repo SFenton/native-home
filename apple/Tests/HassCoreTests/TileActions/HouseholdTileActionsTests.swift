@@ -15,15 +15,34 @@ struct HouseholdTileActionsTests {
 
     // MARK: Mapping
 
-    @Test func everySwitchIsAPowerActionTileAndTheReadingsStayFlat() {
-        for tile in switches {
-            #expect(HouseholdTileActions.kind(of: tile) == .power, Comment(rawValue: tile.entityId))
-            #expect(HouseholdTileActions.classification(of: tile) == .action(1), Comment(rawValue: tile.entityId))
-        }
+    @Test func aSwitchIsAPowerActionTileFromItsControlKindAndTheReadingsStayFlat() {
+        #expect(HouseholdTileActions.kind(of: .toggle) == .power)
+        #expect(HouseholdTileActions.classification(of: .toggle) == .action(1))
+        #expect(HouseholdTileActions.kind(of: .readOnly) == .none && HouseholdTileActions.classification(of: .readOnly) == .state)
+        #expect(HouseholdTileActions.kind(of: .presence) == .none && HouseholdTileActions.classification(of: .presence) == .state)
+        #expect(HouseholdTileActions.kind(of: .powerRecovery) == .momentaryCommand
+                && HouseholdTileActions.classification(of: .powerRecovery) == HouseholdTileActions.powerRecoveryClassification)
         for tile in Config.Vehicle.tiles where tile.entityId != SecurityConfig.vehicleLockEntityId {
             #expect(HouseholdTileActions.kind(of: tile) == .none && HouseholdTileActions.classification(of: tile) == .state, Comment(rawValue: tile.title))
         }
         #expect(switches.count == 1 + 1 + 2 + 14 + 1, "Auto-Lock, Relay, two Show Specific, 14 Auto-Reset rooms, High AQI")
+    }
+
+    @Test func aToggleTheHouseListsDoNotNameIsStillAPowerSwitch() {
+        // Synthetic entity and the lists empty: the control kind decides, so nothing here reads a house list.
+        var house = DemoHouse.config
+        house.household.securityTiles = []
+        house.household.relayTiles = []
+        house.household.showSpecificTiles = []
+        house.household.presenceRooms = []
+        let source = HouseConfigSource()
+        source.set(house)
+        HouseConfigSource.$scoped.withValue(source) {
+            #expect(HouseholdSettingsConfig.Admin.securityTiles.isEmpty && HouseholdSettingsConfig.Admin.relayTiles.isEmpty)
+            let specs = HouseholdTileActions.specs(entityId: "switch.demo_unlisted", isOn: false, isUnavailable: false)
+            #expect(specs.count == 1 && specs[0].symbol == "power" && specs[0].call?.service == "turn_on")
+            #expect(HouseholdTileActions.classification(of: .toggle) == .action(1))
+        }
     }
 
     @Test func vehicleDoorsActsWithTheLockDiscAndPowerRecoveryIsMomentary() {
@@ -45,28 +64,27 @@ struct HouseholdTileActionsTests {
 
     @Test func aSwitchOffersTurnOffWhileOnAndTurnOnWhileOffWithExplicitCalls() {
         let tile = Config.Admin.relayTiles[0]
-        let on = HouseholdTileActions.specs(for: tile, isOn: true, isUnavailable: false)[0]
+        let on = HouseholdTileActions.specs(entityId: tile.entityId, isOn: true, isUnavailable: false)[0]
         #expect(on.verb == "Turn Off" && on.isOn == true && on.call?.service == "turn_off" && on.call?.target == tile.entityId)
-        let off = HouseholdTileActions.specs(for: tile, isOn: false, isUnavailable: false)[0]
+        let off = HouseholdTileActions.specs(entityId: tile.entityId, isOn: false, isUnavailable: false)[0]
         #expect(off.verb == "Turn On" && off.isOn == false && off.call?.service == "turn_on")
         #expect(on.symbol == "power" && off.symbol == "power" && on.feedback == .optimistic && on.confirmation == nil)
     }
 
     @Test func anUnavailableSwitchDimsInPlace() {
-        let spec = HouseholdTileActions.specs(for: Config.Admin.showSpecificTiles[0], isOn: true, isUnavailable: true)[0]
+        let spec = HouseholdTileActions.specs(entityId: Config.Admin.showSpecificTiles[0].entityId, isOn: true, isUnavailable: true)[0]
         #expect(spec.phase == .unavailable && spec.isOn == false)
     }
 
     @Test func frontDoorAutoLockDrawsTheLockItControls() {
-        let tile = Config.Admin.securityTiles[0]
-        #expect(tile.entityId == HouseholdTileActions.autoLockEntityId)
-        #expect(HouseholdTileActions.specs(for: tile, isOn: true, isUnavailable: false)[0].symbol == "lock.fill")
-        #expect(HouseholdTileActions.specs(for: tile, isOn: false, isUnavailable: false)[0].symbol == "lock.open")
-        #expect(HouseholdTileActions.specs(for: tile, isOn: true, isUnavailable: true)[0].symbol == "lock.open")
-        // Every other switch keeps the power glyph in both states.
-        for other in switches where other.entityId != tile.entityId {
-            #expect(HouseholdTileActions.symbol(for: other, isOn: true) == "power" && HouseholdTileActions.symbol(for: other, isOn: false) == "power")
+        let id = "switch.demo_lock"
+        func symbol(_ isOn: Bool, _ unavailable: Bool, lock: Bool = true) -> String {
+            HouseholdTileActions.specs(entityId: id, isAutoLock: lock, isOn: isOn, isUnavailable: unavailable)[0].symbol
         }
+        #expect(symbol(true, false) == "lock.fill")
+        #expect(symbol(false, false) == "lock.open")
+        #expect(symbol(true, true) == "lock.open")
+        for (on, unavailable) in [(true, false), (false, false), (true, true)] { #expect(symbol(on, unavailable, lock: false) == "power") }
     }
 
     // MARK: Guests, power recovery, Doors

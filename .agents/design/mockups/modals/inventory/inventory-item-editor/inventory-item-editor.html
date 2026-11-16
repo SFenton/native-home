@@ -27,8 +27,7 @@
   Mock.mount({
     kind: 'modal', id: 'inventory-item-editor', title: 'Item editor', area: 'inventory', status: 'shipped',
     summary: 'A row opens the editor: one group per batch (expiry and place in the header) with Quantity, an optional Expiration Date, Prepared Food and a red Delete row. A form sheet on iPhone and the portrait windows; the trailing pane where the window splits (iPad landscape, unfolded Duo landscape). Edit sheet: circle x Cancel, filled check Save.',
-    source: ['apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassCore/Inventory/InventoryEditorModel.swift',
-      'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassDesign/HassModal.swift'],
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassCore/Inventory/InventoryEditorModel.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassDesign/HassModal.swift'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/modal-sheet.md'],
     patterns: ['modal-sheet', 'floating-actions'],
     hig: ['Sheets', 'Toolbars', 'Steppers', 'Toggles', 'Date pickers', 'Alerts', 'Split views', 'Dynamic Type'],

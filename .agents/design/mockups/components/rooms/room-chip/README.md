@@ -3,7 +3,7 @@
 > **What:** the chips under a room title and how each kind is coloured. **Read when:** you change a room chip or the room rail.
 
 - Mockup: [room-chip.html](room-chip.html) · shipped · reviewed 2026-10-23 (author draft; skill reviewers replace it)
-- Source: `apple/Sources/HassUI/` Features/Rooms/RoomTiles.swift; Features/Home/StatusRail.swift, StatusChipAppearance.swift; HassDesign/ChipRail.swift
+- Source: `apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomsParts.swift`, `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRooms.swift` (the publication authors the layout)
 - Spec: .agents/patterns/status-rail.md · Patterns: status-rail, entity-tile
 - States covered: lights, climate gradient, occupancy, window (four house states), plural doors, air quality, inert, unavailable, real rails, ax5
 - Motion: chip colour, lights off

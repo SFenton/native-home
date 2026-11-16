@@ -58,7 +58,7 @@
   Mock.mount({
     kind: 'component', id: 'house-backdrop', title: 'House photo backdrop (wallpaper, blur, scrim)', area: 'shell', status: 'shipped', frame: false,
     summary: 'The blurred photo of the house behind every page (never in sheets): rendered once at the window\'s pixel size, blurred in points, cached in memory and on disk, drawn under direction G\'s scrim. The Background Blur setting (0 to 100%) re-renders it live.',
-    source: ['apple/Sources/HassUI/Common/HouseBackdrop.swift', 'apple/Sources/HassUI/Common/BackdropRenderer.swift', 'apple/Sources/HassCore/Settings/BackdropBlur.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/Features/Settings/Appearance/AppearanceSettingsSection.swift'],
+    source: ['apple/Sources/HassUI/Common/HouseBackdrop.swift', 'apple/Sources/HassUI/Common/BackdropRenderer.swift', 'apple/Sources/HassCore/Settings/BackdropBlur.swift'],
     spec: ['.agents/patterns/page-backdrop.md', '.agents/design/direction-g.md', '.agents/design/motion.md'],
     patterns: ['page-backdrop', 'image-cache'],
     hig: ['Materials', 'Color', 'Accessibility (Reduce Transparency, Increase Contrast)', 'Dark Mode'],

@@ -20,16 +20,10 @@
       },
       "parallelizable": false,
       "selectedTests": [
-        "AdaptiveLayoutJourneyTests/testRootNavigationOpensHome()",
-        "AdaptiveLayoutJourneyTests/testSecurityDoorTilesStayOffTheHinge()",
-        "ChipAlignmentJourneyTests/testHomeChipsStartAtTheLeadingMargin()",
-        "ChoresPageJourneyTests/testChoresTabPassesAccessibilityAudit()",
-        "ChoresTaskFormJourneyTests/testAddTaskSheetHasSeparateFieldsWithFooters()",
         "LoginJourneyTests/testAtTheLargestTextTheFormScrollsAndSignInStaysReachable()",
         "LoginJourneyTests/testLoginScreenPassesAccessibilityAudit()",
         "ModalSizingJourneyTests/testShortSheetOpensAtContentHeight()",
         "ModalSizingJourneyTests/testTabBarShowsIconsOnCompactWidthAndNamesThem()",
-        "SheetBottomGapJourneyTests/testQuickLinksHasNoBandUnderItsTiles()",
         "TileLayoutJourneyTests/testTileLayoutAX5RowKeepsTilesReadable()"
       ]
     }

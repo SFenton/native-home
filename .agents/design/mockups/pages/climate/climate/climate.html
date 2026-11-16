@@ -20,8 +20,7 @@
   Mock.mount({
     kind: 'page', id: 'climate', title: 'Climate', area: 'climate', status: 'shipped',
     summary: 'The Climate tab: the Whole Home thermostat dial straight on the wallpaper, the Thermostat Hub pill tucked into its open bottom, notices, open doors and windows, and three rows that open the Advanced Controls sheet. Sample data is the debug gallery fixture.',
-    source: ['apple/Sources/HassUI/Features/Climate/ClimateScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift', 'apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift',
-      'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDialModel.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateParts.swift', 'apple/Sources/HassUI/Controls/Thermostat/ClimateThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDial.swift', 'apple/Sources/HassDesign/ThermostatDial/ThermostatDialModel.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift'],
     spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/thermostat-dial.md'],
     patterns: ['thermostat-dial', 'module-list', 'dynamic-grid', 'entity-tile', 'modal-sheet', 'motion'],
     hig: ['Tab bars', 'Pop-up buttons', 'Layout (readable width)', 'Accessibility: VoiceOver adjustable', 'Color', 'Dynamic Type'],

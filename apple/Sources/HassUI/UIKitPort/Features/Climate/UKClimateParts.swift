@@ -102,14 +102,14 @@ final class UKHubPicker: UIButton {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// Shows the current value and the choices.
-    func update(value: String, symbol: String?, options: [ClimateLogic.Option], selected: String?) {
+    func update(value: String, symbol: String?, options: [ClimateLogic.Option], selected: String?, systemIcons: Bool = false) {
         valueLabel.text = value
         symbolView.isHidden = symbol == nil
         symbolView.image = symbol.flatMap { UIImage(systemName: $0, withConfiguration: UIImage.SymbolConfiguration(font: UKFont.bodyEmphasis())) }
         accessibilityValue = value
         isEnabled = !options.isEmpty
         menu = UIMenu(children: options.map { option in
-            UIAction(title: option.label, image: UIImage(systemName: ClimateStyle.symbol(option.icon ?? "mdi:thermometer-check")),
+            UIAction(title: option.label, image: UIImage(systemName: systemIcons ? option.icon ?? "thermometer" : ClimateStyle.symbol(option.icon ?? "mdi:thermometer-check")),
                      state: option.value == selected ? .on : .off) { [weak self] _ in self?.onSelect(option.value) }
         })
     }
@@ -120,7 +120,7 @@ final class UKHubPicker: UIButton {
 /// the menus drop under the text and show the value alone.
 @MainActor
 final class UKThermostatHubPill: UIView {
-    private let controller: ClimateController
+    private var controller: ClimateController?
     private let bag = UKObservationBag()
     private let icon = UIImageView()
     private let nameLabel = UILabel.uk(.subheadline, weight: .semibold, ink: .white)
@@ -128,24 +128,36 @@ final class UKThermostatHubPill: UIView {
     private let info = UIStackView()
     private let main = UIStackView()
     private let pickers = UIStackView()
-    private lazy var modePicker = UKHubPicker(label: "Thermostat Hub Mode", identifier: "climate.hub.mode") { [controller] in controller.setHubMode($0) }
-    private lazy var fanPicker = UKHubPicker(label: "Thermostat Hub Fan", identifier: "climate.hub.fan") { [controller] in controller.setHubFan($0) }
+    private let modePicker: UKHubPicker
+    private let fanPicker: UKHubPicker
     private var lastTint: UIColor?
+    private var stacked: Bool { traitCollection.isAccessibilitySize }
 
     /// The glyph beside the mode's name: the selected HVAC mode's own icon, else a thermometer.
     static func modeSymbol(selected: String?) -> String {
         ClimateStyle.symbol(selected.flatMap { ClimateConfig.hvacModeIcons[$0] } ?? "mdi:thermometer")
     }
 
-    init(controller: ClimateController) {
+    convenience init(controller: ClimateController) {
+        self.init(title: "Thermostat Hub", symbol: ClimateStyle.symbol("mdi:thermostat"), identifier: "climate.hub",
+                  modeLabel: "Thermostat Hub Mode", fanLabel: "Thermostat Hub Fan",
+                  onMode: { controller.setHubMode($0) }, onFan: { controller.setHubFan($0) })
         self.controller = controller
+        bag.observe { [weak self] in self?.apply() }
+    }
+
+    /// Value/closure entry point for composed controls; the legacy binding initializer is unchanged.
+    init(title: String, symbol: String, identifier: String, modeLabel: String, fanLabel: String,
+         onMode: @escaping (String) -> Void, onFan: @escaping (String) -> Void) {
+        modePicker = UKHubPicker(label: modeLabel, identifier: identifier + ".mode", onSelect: onMode)
+        fanPicker = UKHubPicker(label: fanLabel, identifier: identifier + ".fan", onSelect: onFan)
         super.init(frame: .zero)
-        icon.image = UIImage(systemName: ClimateStyle.symbol("mdi:thermostat"), withConfiguration: UIImage.SymbolConfiguration(font: UKFont.preferred(.title2)))
+        icon.image = UIImage(systemName: symbol, withConfiguration: UIImage.SymbolConfiguration(font: UKFont.preferred(.title2)))
         icon.contentMode = .center
         icon.setContentHuggingPriority(.required, for: .horizontal)
         icon.widthAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
         icon.isAccessibilityElement = false
-        nameLabel.text = "Thermostat Hub"
+        nameLabel.text = title
         let texts = UIStackView(arrangedSubviews: [nameLabel, stateLabel])
         texts.axis = .vertical
         texts.spacing = 2
@@ -155,7 +167,7 @@ final class UKThermostatHubPill: UIView {
         info.addArrangedSubview(icon)
         info.addArrangedSubview(texts)
         info.isAccessibilityElement = true
-        info.accessibilityIdentifier = "climate.hub"
+        info.accessibilityIdentifier = identifier
         pickers.axis = .horizontal
         pickers.alignment = .center
         pickers.spacing = HassTokens.Spacing.xs
@@ -171,66 +183,57 @@ final class UKThermostatHubPill: UIView {
         addSubview(module)
         module.ukPin(to: self)
         isAccessibilityElement = false
-        bag.observe { [weak self] in self?.apply() }
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (pill: UKThermostatHubPill, _) in pill.apply() }
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (pill: UKThermostatHubPill, _) in
+            pill.reflow()
+            if pill.controller != nil { pill.apply() }
+        }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     private func apply() {
+        guard let controller else { return }
         let entity = controller.entity(ClimateConfig.hubEntityId)
         let action = ClimateLogic.hvacAction(entity)
         let mode = controller.shown(ClimateController.hubModeKey)
         let state = ClimateLogic.compactState(entity, state: mode)
         let fans = ClimateLogic.fanModeOptions(entity)
-        let stacked = traitCollection.isAccessibilitySize
+        let fanMode = controller.shown(ClimateController.hubFanKey)
+        update(state: state, action: action, modes: ClimateLogic.hvacModeOptions(entity), mode: mode,
+               modeSymbol: Self.modeSymbol(selected: mode), fans: fans, fan: fanMode,
+               fanText: ClimateLogic.selectOption(fanMode ?? ""), fanSymbol: ClimateStyle.symbol("mdi:fan"))
+    }
+
+    private func reflow() {
         main.axis = stacked ? .vertical : .horizontal
         main.alignment = stacked ? .leading : .center
         main.spacing = stacked ? HassTokens.Spacing.s : HassTokens.Spacing.m
+    }
+
+    /// Renders caller-owned modes, labels and symbols using the canonical layout and state animation.
+    func update(state: String, action: String, modes: [ClimateLogic.Option], mode: String?, modeSymbol: String?,
+                fans: [ClimateLogic.Option], fan: String?, fanText: String, fanSymbol: String?,
+                enabled: Bool = true, systemIcons: Bool = false) {
+        reflow()
         let tint = UKClimateStyle.tint(action: action) ?? UKDesignSurface.secondaryOnModule
         if tint != lastTint {
             lastTint = tint
             UKMotion.stateFade("ThermostatHubPill", view: icon, animated: true) { [icon] in icon.tintColor = tint }
         }
         stateLabel.text = state
-        info.accessibilityLabel = "Thermostat Hub, \(state)"
-        modePicker.update(value: state, symbol: stacked ? nil : Self.modeSymbol(selected: mode),
-                          options: ClimateLogic.hvacModeOptions(entity), selected: mode)
+        info.accessibilityLabel = "\(nameLabel.text ?? ""), \(state)"
+        modePicker.update(value: state, symbol: stacked ? nil : modeSymbol,
+                          options: modes, selected: mode, systemIcons: systemIcons)
+        modePicker.isEnabled = enabled && !modes.isEmpty
         fanPicker.isHidden = fans.isEmpty
         if !fans.isEmpty {
-            let fanMode = controller.shown(ClimateController.hubFanKey)
-            fanPicker.update(value: ClimateLogic.selectOption(fanMode ?? ""), symbol: stacked ? nil : ClimateStyle.symbol("mdi:fan"),
-                             options: fans, selected: fanMode)
+            fanPicker.update(value: fanText, symbol: stacked ? nil : fanSymbol,
+                             options: fans, selected: fan, systemIcons: systemIcons)
+            fanPicker.isEnabled = enabled
         }
     }
 }
 
 // MARK: - Entry rows
 
-/// An Advanced Controls row on the page: titled, with the tab's description as its hint (the SwiftUI row sets both).
-@MainActor
-final class UKClimateEntryRow: UKRowButton {
-    private let spokenTitle: String
-    private let spokenHint: String
-
-    init(tab: ClimateConfig.Tab, action: @escaping () -> Void) {
-        spokenTitle = tab.entryTitle
-        spokenHint = tab.description
-        super.init(UKRowView(UKRowContent(tab.entryTitle, subtitle: tab.description, symbol: ClimateStyle.symbol(tab.icon))),
-                   onTap: action)
-        accessibilityIdentifier = "climate.entry.\(tab.rawValue)"
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override var accessibilityLabel: String? {
-        get { spokenTitle }
-        set {}
-    }
-
-    override var accessibilityHint: String? {
-        get { spokenHint }
-        set {}
-    }
-}
 #endif

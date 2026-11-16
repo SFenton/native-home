@@ -37,9 +37,7 @@
   Mock.mount({
     kind: 'modal', id: 'your-summary', title: 'Your Summary (Account sheet, four tabs)', area: 'shell', status: 'shipped',
     summary: 'The sheet behind the header Profile button: the web’s Daily Report modal as a full-height sheet with four bottom tabs, Profile, Overdue Chores, Upcoming Chores and Expired Food. Opens on Profile for everyone (owner, 2026-11-01), with the selected-tab capsule behind the Profile segment from the first frame. Follows the system appearance; switch Sheet appearance above.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKYourSummary.swift', 'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryTabs.swift', 'apple/Sources/HassUI/Features/Settings/Profile/PersonRow.swift',
-      'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Location/LocationAccountSection.swift', 'apple/Sources/HassCore/Profile/SummaryTab.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile.swift', 'apple/Sources/HassUI/Features/Settings/Profile/PersonRow.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Location/LocationAccountSection.swift', 'apple/Sources/HassCore/Profile/SummaryTab.swift', 'apple/Sources/HassCore/Profile/ProfileSummary.swift'],
     spec: ['.agents/design/profile-photos.md', '.agents/pages/settings/profile.md', '.agents/design/direction-g.md', '.agents/pages/settings/location.md'],
     patterns: ['modal-sheet', 'module-list', 'motion'],
     hig: ['Sheets', 'Segmented controls', 'Alerts', 'Lists and tables', 'Empty states', 'Privacy'],

@@ -37,7 +37,7 @@
 |---|---|---|---|---|
 | [Brightness tile (drag dragger)](tiles/brightness-tile/brightness-tile.html) | `brightness-tile` | shipped | iphone, duo, ipad |  |
 
-## design (30)
+## design (31)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
@@ -68,6 +68,7 @@
 | [SegmentedChoice and percent slider row](controls/segmented-choice/segmented-choice.html) | `segmented-choice` | shipped | iphone, duo, ipad |  |
 | [SF Symbol map and family glyphs](icons/symbol-map/symbol-map.html) | `symbol-map` | shipped | iphone, duo, ipad |  |
 | [SheetCancelItem and SheetConfirmItem (create/edit toolbar)](modals/sheet-edit-toolbar/sheet-edit-toolbar.html) | `sheet-edit-toolbar` | shipped | iphone, duo, ipad |  |
+| [State-styled tile](tiles/state-styled-tile/state-styled-tile.html) | `state-styled-tile` | shipped |  |  |
 | [StatusPill](chips/status-pill/status-pill.html) | `status-pill` | shipped | iphone, duo, ipad |  |
 | [ThermostatDial (HassDesign)](controls/thermostat-dial/thermostat-dial.html) | `thermostat-dial` | shipped | iphone, duo, ipad |  |
 | [Tile finish (tinted glass) and tile layouts](tiles/tile-finish-layout/tile-finish-layout.html) | `tile-finish-layout` | shipped | iphone, duo, ipad |  |
@@ -107,7 +108,7 @@
 | [Dynamic Island compact and minimal](live-activity/dynamic-island-compact/dynamic-island-compact.html) | `dynamic-island-compact` | shipped | iphone, duo |  |
 | [Dynamic Island expanded](live-activity/dynamic-island-expanded/dynamic-island-expanded.html) | `dynamic-island-expanded` | shipped | iphone, duo |  |
 | [Live Activity job card (Lock Screen, banner, StandBy)](live-activity/live-activity-job-card/live-activity-job-card.html) | `live-activity-job-card` | shipped | iphone, duo |  |
-| [Live Activity parts (corner mark, glyph, ring, buttons, severity circle)](live-activity/live-activity-parts/live-activity-parts.html) | `live-activity-parts` | shipped | iphone, duo |  |
+| [Live Activity parts](live-activity/live-activity-parts/live-activity-parts.html) | `live-activity-parts` | shipped | iphone, duo |  |
 | [Live Activity problem card (critical red, warning amber)](live-activity/live-activity-problem-card/live-activity-problem-card.html) | `live-activity-problem-card` | shipped | iphone, duo |  |
 | [Live Activity small family (Smart Stack, CarPlay)](live-activity/live-activity-small/live-activity-small.html) | `live-activity-small` | shipped | iphone, duo |  |
 
@@ -194,7 +195,7 @@
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
-| [Vacuum status tiles, order chip, pop-up setting rows, action and selection tiles](vacuums/vacuum-status-chip/vacuum-status-chip.html) | `vacuum-status-chip` | shipped | iphone, duo, ipad |  |
+| [Vacuum tiles, chips and setting rows](vacuums/vacuum-status-chip/vacuum-status-chip.html) | `vacuum-status-chip` | shipped | iphone, duo, ipad |  |
 | [Valetudo map canvas and map frame](vacuums/vacuum-map-canvas/vacuum-map-canvas.html) | `vacuum-map-canvas` | shipped | iphone, duo, ipad |  |
 
 ## widgets (4)

@@ -35,6 +35,7 @@ Tokens: `.quick` (ease out 0.2), `.state`/`.stateReduced`, `.standard` (smooth s
 | `UKModalTabBar(tabs:, label:, title:, symbol:, badge:, selection:, identifier:) { }` | `ModalTabBar`, `BadgedTabSegment(s)` | form follows size class and Dynamic Type exactly as `ModalTabBarStyle.form`; `.inset()` returns it with the modal padding for `UKPinnedBarViewController`; `ModalTabSymbols` is shared as is |
 | `UKSegmentedChoice(label:, options:, title:, selection:, identifier:) { }` | `SegmentedChoice` | segmented control, a menu at AX sizes; set `selection` from the model, it shows the device value again after a tap |
 | `UKControllerToggle(isOn:) { }`, `UKActionToggle`, `UKControllerStepper`, `UKControllerPicker` | `ControllerControls` | call `show(_:)` with the controller's value; the control reverts to it after reporting intent |
+| `UKCameraControlStripView(buttons:, caption:)` | canonical camera controls | value/closure buttons only; shared measured horizontal/vertical layout, AX stacking and RTL, no entity binding; [camera streams](../../patterns/camera-streams.md#configured-composition-cameras) |
 
 ```swift
 let bar = UKFloatingActionBar(actions: [UKFloatingAction(id: "add", title: "Add Task", symbol: "plus") { add() }],

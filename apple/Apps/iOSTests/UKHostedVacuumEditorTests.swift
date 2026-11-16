@@ -8,14 +8,14 @@ import XCTest
 @MainActor
 final class UKHostedVacuumEditorTests: DemoHouseTestCase {
     private func editor(scenario: VacuumFixtures.Scenario = .docked, area: MapGridRect? = nil)
-        -> (UKVacuumAreaEditorViewController, VacuumController, UIWindow, UINavigationController) {
+        -> (VacuumAreaEditorHost, VacuumController, UIWindow, UINavigationController) {
         let vacuum = Vacuums.all.first { $0.areaCleaning != nil } ?? Vacuums.all[0]
         let store = VacuumFixtures.store(scenario)
         let controller = VacuumController(vacuum: vacuum, store: store, caller: GalleryServiceRecorder(store: store))
         controller.areaSelection = area
         let state = VacuumMapState(vacuum: vacuum, loader: VacuumFixtures.loader(vacuum, scenario: scenario))
         state.refresh()
-        let page = UKVacuumAreaEditorViewController(controller: controller, mapState: state)
+        let page = VacuumAreaEditorHost(controller: controller, mapState: state)
         let nav = UINavigationController(rootViewController: UIViewController())
         let window = HostedPage.show(nav)
         nav.pushViewController(page, animated: false)

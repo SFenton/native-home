@@ -1,4 +1,4 @@
-/* GlassTile: the tile. apple/Sources/HassDesign/GlassTile.swift (+ TileFaceStyle, TintedGlassGround/Sheen/Rim, TileFinish, TileLayout,
+/* GlassTile: the tile. apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift (+ TileFaceStyle, TintedGlassGround/Sheen/Rim, TileFinish, TileLayout,
  * TileMetrics, LitTile). patterns/entity-tile.md; direction-g.md "Colour families" and "Tile finish: tinted glass".
  *
  * props: {title, subtitle?, symbol, family?, fill?:cssColor, room?:'kitchen', quickLink?:'rooms', tint?:cssColor, isActive?, isUnavailable?, isError?,
@@ -109,7 +109,7 @@
   V.push({ id: 'quick-rooms', label: 'Quick Link · Rooms', props: { title: 'Rooms', symbol: 'square.split.2x2', quickLink: 'rooms', layout: 'stack', titleLines: 2, kind: 'navigate' } });
   V.push({ id: 'layout-stack', label: 'Layout · stacked (navigation tile)', props: { title: 'Bedroom 1 Closet', symbol: 'door.left.hand.closed', family: 'contact', layout: 'stack', titleLines: 2, isActive: false } });
 
-  Mock.register('GlassTile', GlassTile, { source: 'apple/Sources/HassDesign/GlassTile.swift', props: 'see the file header',
+  Mock.register('GlassTile', GlassTile, { source: 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', props: 'see the file header',
     variants: V,
     states: [
       { id: 'off', label: 'Off', props: { title: 'Front Door', subtitle: 'Locked', symbol: 'lock', family: 'contact', isActive: false } },

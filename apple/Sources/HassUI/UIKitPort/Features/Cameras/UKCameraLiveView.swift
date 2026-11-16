@@ -30,6 +30,9 @@ final class UKCameraLiveView: UIView {
     let style: Style
     private let context: UKContext
     private let pool: CameraStreamPool
+    private let configuration: ServerUICameraDescriptor?
+    private let privacy: @MainActor () -> Bool
+    private let reader: UKCameraReadProvider?
     private let bag = UKObservationBag()
 
     private let content = UIView()
@@ -44,6 +47,7 @@ final class UKCameraLiveView: UIView {
     private let badge = UKCameraBadgeView()
     private let retryButton = UIButton(type: .system)
     private let videoElement = UIView()
+    private let stateLabel = UILabel.uk(.body, ink: .white)
 
     private var onScreen = false
     /// Whether the view is really on screen (scroll viewport, hidden chain, active scene, no rotation in flight), not just in a window.
@@ -59,12 +63,17 @@ final class UKCameraLiveView: UIView {
     ///   - style: `.tile` fills and crops with no badge; `.viewer` fits, with the status badge and a retry.
     ///   - context: Gives the store (snapshot), the connection (stream, offline) and the section.
     ///   - pool: The stream pool; the app's shared one by default (the viewer gallery passes one with no modes).
-    init(camera: HomeConfig.Camera, style: Style, context: UKContext, pool: CameraStreamPool = .shared) {
+    init(camera: HomeConfig.Camera, style: Style, context: UKContext, pool: CameraStreamPool = .shared,
+         configuration: ServerUICameraDescriptor? = nil, reader: UKCameraReadProvider? = nil,
+         privacy: @escaping @MainActor () -> Bool = { ScreenshotPrivacy.isRedacting }) {
         self.camera = camera
         self.style = style
         self.context = context
         self.pool = pool
-        snapshot = UKCameraSnapshotView(entityId: camera.entityId, context: context)
+        self.configuration = configuration
+        self.privacy = privacy
+        self.reader = reader
+        snapshot = UKCameraSnapshotView(entityId: configuration?.snapshotEntityId ?? camera.entityId, context: context, reader: reader)
         super.init(frame: .zero)
         backgroundColor = .black
         clipsToBounds = true
@@ -83,6 +92,10 @@ final class UKCameraLiveView: UIView {
         pausedView.isHidden = true
         snapshotLayer.addSubview(pausedView)
         content.addSubview(snapshotLayer)
+        stateLabel.numberOfLines = 0
+        stateLabel.textAlignment = .center
+        stateLabel.isHidden = true
+        addSubview(stateLabel)
         isAccessibilityElement = false
         switch style {
         case .tile:
@@ -98,26 +111,35 @@ final class UKCameraLiveView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    deinit {
+        MainActor.assumeIsolated {
+            if counted {
+                if let reader { reader.setVisible(camera, false) } else { pool.disappear(camera) }
+            }
+        }
+    }
+
     // MARK: Viewer chrome
 
     private func buildViewer() {
         addSubview(badge)
         var configuration = UIButton.Configuration.filled()
-        configuration.title = "Retry Live Video"
+        configuration.title = self.configuration?.labels.retry ?? "Retry Live Video"
         configuration.image = UIImage(systemName: "arrow.clockwise")
         configuration.imagePadding = HassTokens.Spacing.s
         retryButton.configuration = configuration
         retryButton.isHidden = true
         retryButton.accessibilityIdentifier = "camera.viewer.retry"
         retryButton.addAction(UIAction { [weak self] _ in
-            guard let self, let connection = context.connection else { return }
-            pool.retry(camera, connection: connection)
+            guard let self, !privacy() else { return }
+            if let reader { reader.retry(camera) }
+            else if let connection = context.connection { pool.retry(camera, connection: connection) }
         }, for: .touchUpInside)
         // A clear shape of the video's own size is the one element that reads its state: an element's frame is the union of its
         // children's, and the fill-cropped snapshot is wider than the video (the SwiftUI zero-frame fix, 2026-10-17).
         videoElement.isAccessibilityElement = true
         videoElement.isUserInteractionEnabled = false
-        videoElement.accessibilityLabel = "\(camera.title) camera"
+        videoElement.accessibilityLabel = self.configuration == nil ? "\(camera.title) camera" : camera.title
         videoElement.accessibilityIdentifier = "camera.viewer.video"
         insertSubview(videoElement, aboveSubview: content)
         addSubview(retryButton)
@@ -127,7 +149,19 @@ final class UKCameraLiveView: UIView {
 
     private func render(_ model: CameraLiveModel) {
         let state = model.state
-        let redacting = ScreenshotPrivacy.isRedacting
+        let redacting = privacy()
+        let entity = context.store.entity(camera.entityId).state
+        let unavailable = configuration != nil && (context.valuesPending || EntityState.isUnavailable(entity?.state))
+        // Configured privacy is opaque, including the snapshot and last-live frame.
+        let concealed = configuration != nil && (redacting || unavailable)
+        content.isHidden = concealed
+        stateLabel.isHidden = !concealed
+        let status = configuration?.status(state: state, entityState: entity?.state, pending: context.valuesPending,
+                                           hidden: redacting, offline: reader?.isOffline ?? context.connection?.isOffline ?? false)
+        stateLabel.text = status
+        stateLabel.accessibilityLabel = status
+        if concealed { model.setMuted(true) }
+        syncPresence()
         let animated = lastPhase != nil && lastPhase != state.phase && window != nil
         lastPhase = state.phase
 
@@ -153,9 +187,11 @@ final class UKCameraLiveView: UIView {
         }
 
         if style == .viewer {
-            videoElement.accessibilityValue = CameraLiveView.statusText(state)
-            badge.update(state: state, lastLive: model.lastLiveAt, animated: animated)
-            let showsRetry = state.phase == .failed && !state.modes.isEmpty
+            videoElement.accessibilityValue = status ?? CameraLiveView.statusText(state)
+            badge.isHidden = concealed
+            badge.update(state: state, lastLive: model.lastLiveAt, animated: animated,
+                         text: state.phase == .live ? configuration?.labels.live : status)
+            let showsRetry = !concealed && state.phase == .failed && !state.modes.isEmpty
             if retryButton.isHidden == showsRetry {
                 retryButton.isHidden = !showsRetry
                 accessibilityElements = [videoElement] + (showsRetry ? [retryButton] : [])
@@ -197,10 +233,15 @@ final class UKCameraLiveView: UIView {
 
     /// Tells the pool when this view starts or stops showing the camera.
     private func syncPresence() {
-        guard let connection = context.connection else { return }
-        guard onScreen != counted else { return }
-        counted = onScreen
-        if onScreen { pool.appear(camera, connection: connection) } else { pool.disappear(camera) }
+        guard reader != nil || context.connection != nil else { return }
+        let permitted = configuration == nil || (!privacy() && !context.valuesPending &&
+            !EntityState.isUnavailable(context.store.entity(camera.entityId).state?.state))
+        let visible = onScreen && permitted
+        guard visible != counted else { return }
+        counted = visible
+        if let reader { reader.setVisible(camera, visible) }
+        else if visible, let connection = context.connection { pool.appear(camera, connection: connection) }
+        else { pool.disappear(camera) }
     }
 
     // MARK: Layout
@@ -209,6 +250,7 @@ final class UKCameraLiveView: UIView {
         super.layoutSubviews()
         monitor.layoutDidRun()
         content.frame = bounds
+        stateLabel.frame = bounds.insetBy(dx: HassTokens.Spacing.s, dy: HassTokens.Spacing.s)
         hlsView.frame = bounds
         #if canImport(WebRTC)
         rtcView?.frame = bounds
@@ -266,13 +308,13 @@ private final class UKCameraBadgeView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func update(state: CameraStreamState, lastLive: Date?, animated: Bool) {
+    func update(state: CameraStreamState, lastLive: Date?, animated: Bool, text: String? = nil) {
         let apply = {
             self.phase = state.phase
             self.spinner.isHidden = state.phase != .connecting
             self.dot.isHidden = state.phase != .live
             self.photo.isHidden = state.phase != .failed
-            self.label.text = CameraLiveView.badgeText(state, lastLive: lastLive)
+            self.label.text = text ?? CameraLiveView.badgeText(state, lastLive: lastLive)
             self.setNeedsLayout()
             self.superview?.setNeedsLayout()
         }
@@ -330,7 +372,7 @@ final class UKCameraSnapshotView: UIView {
     private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemUltraThinMaterial))
     private let bag = UKObservationBag()
 
-    init(entityId: String, context: UKContext) {
+    init(entityId: String, context: UKContext, reader: UKCameraReadProvider? = nil) {
         super.init(frame: .zero)
         backgroundColor = .quaternarySystemFill
         clipsToBounds = true
@@ -345,6 +387,10 @@ final class UKCameraSnapshotView: UIView {
         let box = context.store.entity(entityId)
         let baseURL = context.connection?.server.baseURL
         bag.observe { [weak self] in
+            if let reader {
+                self?.image.url = reader.snapshotURL(entityId)
+                return
+            }
             guard let picture = box.state?.attributes["entity_picture"]?.string else {
                 self?.image.url = nil
                 return

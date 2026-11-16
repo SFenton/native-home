@@ -281,7 +281,8 @@ class CliTests(Isolated):
         send = self.transport(lambda body: {k: noul(0.1) for k in body["questions"]})
         code, out, _ = self.run_cli("ask", "context.patterns", "--context", '{"title": "t"}', transport=send)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(out)["question"], "context.patterns@8")
+        version = json.loads((REPO / "contracts/jev/questions/context.patterns.json").read_text())["version"]  # bumped with every sync
+        self.assertEqual(json.loads(out)["question"], f"context.patterns@{version}")
         self.assertEqual(self.run_cli("ask", "nope.question", "--context", "{}")[0], 2)
         self.assertEqual(self.run_cli("ask", "context.patterns", "--context", "[1]")[0], 2)
         self.assertEqual(self.run_cli("ask", "context.patterns", "--context", "{bad")[0], 2)

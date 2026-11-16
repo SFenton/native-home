@@ -5,7 +5,7 @@
 ## Read first
 1. `AGENTS.md`: the invariants. Every build and simulator runs inside a `tools/devcap.py` hold; the scripts below already take it.
 2. [uikit-port](uikit-port.md): the port's rules (location, `#if os(iOS)`, `UK` prefix, no SwiftUI on screen, reuse logic, identical accessibility).
-3. The component guides: [design tiles](uikit-port-design-tiles.md), [design lists and sheets](uikit-port-design-lists.md), [design controls](uikit-port-design-controls.md), and [shell and page contract](uikit-port-shell.md). Build on these components. Never make a parallel one. If a component is missing or wrong, extend it in place under `UIKitPort/Design/` (keep its other callers working) and say so in your report.
+3. The component guides: [design tiles](uikit-port-design-tiles.md), [design lists and sheets](uikit-port-design-lists.md), [design controls](uikit-port-design-controls.md), and the [page base](../../patterns/page-base.md). Build on these components. Never make a parallel one. If a component is missing or wrong, extend it in place under `UIKitPort/Design/` (keep its other callers working) and say so in your report.
 4. Your feature's SwiftUI sources, its spec (`.agents/pages/<id>/`), its pattern records, its mockups (`.agents/design/mockups/`), its galleries (`apple/Sources/HassUI/Features/Gallery/`) and its journeys (`apple/Apps/iOSUITests/`).
 
 ## Rules

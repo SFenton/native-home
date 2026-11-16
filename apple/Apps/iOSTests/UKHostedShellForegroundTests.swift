@@ -3,30 +3,20 @@ import UIKit
 import XCTest
 @testable import HassUI
 
-/// The shell's foreground handling and gesture rules: the scene coming forward tells the location coordinator, the leading-edge swipe
-/// shares the screen with the page's own gestures, and the location permission page comes from the Household lane's hook.
+/// The root's scene handling: the scene coming forward and going away reaches the location coordinator and the production host
+/// without dropping the product.
 @MainActor
 final class UKHostedShellForegroundTests: DemoHouseTestCase {
-    func testComingForwardAsksTheLocationCoordinatorForAFixAndTheEdgeSwipeSharesTheScreen() throws {
-        let rig = try HostedShellRig.make()
+    func testTheSceneCyclesLeaveTheProductUp() throws {
+        let rig = try HostedShellRig.make(inScene: true)
         defer { rig.tearDown() }
         rig.settle()
-        XCTAssertTrue(rig.shell.gestureRecognizer(UIPanGestureRecognizer(), shouldRecognizeSimultaneouslyWith: UITapGestureRecognizer()),
-                      "the edge swipe never blocks the page's own gestures")
-        rig.shell.sceneBecameActive()
+        let scene = try XCTUnwrap(rig.window.windowScene)
+        let center = NotificationCenter.default
+        center.post(name: UIScene.didActivateNotification, object: scene)
+        center.post(name: UIScene.willDeactivateNotification, object: scene)
+        center.post(name: UIScene.didEnterBackgroundNotification, object: scene)
         rig.settle(0.2)
-        XCTAssertNotNil(rig.shell.view.window, "the shell stays up after the scene comes forward")
-    }
-
-    func testTheLocationPermissionHookBuildsThePageForTheCoordinator() throws {
-        let rig = try HostedShellRig.make()
-        defer { rig.tearDown() }
-        rig.settle()
-        let location = LocationCoordinator(platform: GalleryLocationPlatform(.notDetermined), mobileApp: PushCoordinator.inert().mobileApp,
-                                           defaults: UserDefaults(suiteName: "shell-foreground-\(UUID())")!)
-        var closed = 0
-        let page = UKShellHooks.locationPermission(location, UKGalleryChrome.context(), { closed += 1 })
-        XCTAssertNotNil(page.view, "the permission page builds")
-        XCTAssertEqual(closed, 0)
+        XCTAssertTrue(rig.root.children.contains { $0 is UKServerUIProductionHost }, "the product stays up through a scene cycle")
     }
 }

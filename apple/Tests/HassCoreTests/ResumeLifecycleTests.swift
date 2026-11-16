@@ -83,6 +83,23 @@ struct ResumeLifecycleTests {
         #expect(lifecycle.liveResources["Lifecycle.pendingDisconnect"] == 0)
     }
 
+    @Test func stoppingCancelsBackgroundWorkAndRetainsLastKnownBoxes() {
+        let (connection, lifecycle, _) = make()
+        connection.store.apply([EntityState(entityId: "sensor.demo_unit", state: "12")])
+        let box = connection.store.entity("sensor.demo_unit")
+        lifecycle.didBecomeActive()
+        lifecycle.didEnterBackground()
+        lifecycle.stop()
+        lifecycle.stop()
+        #expect(lifecycle.liveResources["Lifecycle.pendingDisconnect"] == 0)
+        #expect(connection.liveResources["Connection.statesSubscription"] == 0)
+        #expect(connection.store.entity("sensor.demo_unit") === box)
+        #expect(box.state?.state == "12")
+        lifecycle.didBecomeActive()
+        #expect(connection.liveResources["Connection.statesSubscription"] == 1)
+        lifecycle.stop()
+    }
+
     @Test func aLongBackgroundDisconnectsOnceAndTheReturnResubscribesOnce() async {
         let (connection, lifecycle, _) = make()
         lifecycle.didBecomeActive()

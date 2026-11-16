@@ -26,7 +26,7 @@ Ported from FestivalNativeApps' in-app feedback form (`.agents/controls/feedback
 | Diagnostics | `FeedbackDiagnostics`, `HassUI/.../FeedbackDiagnosticsCollector.swift` | App version and build date, OS, device family + hardware id, window size/size class/orientation, Home Assistant version and connection, text size/VoiceOver/Reduce Motion/appearance, locale. Never a token, password or server address |
 | Media | `FeedbackLocationScrubber` (ported), `FeedbackMediaFitter`, `FeedbackPickedMedia` | Copy → strip location → fit to 10 MB (JPEG steps for photos; movies are re-encoded by bitrate, see Media compression below) → count limit (4). Private copies in `tmp/fenton-feedback-media/<uuid>/`, purged when the sheet goes away |
 | Form | `FeedbackFormModel`, `FeedbackFormSheet`, `FeedbackAttachmentStrip`/`Tile`, `FeedbackFieldHeader`, `SheetDismissAttemptObserver` | As Festival's sheet; checks availability on open; progress "Uploading media n of m…" then "Filing your report on GitHub…"; Stop Sending only while media uploads |
-| Entry | `FeedbackSettingsSection` in `SettingsScreen` | Its own section (no header, since the list sits on the house backdrop) after Performance; `.feedbackFormSheet(item:)` builds the services from the session and presents with `.hassSheet(.form)`; the form uses `.modalChrome()` |
+| Entry | the Feedback section of Settings | Its own section (no header, since the list sits on the house backdrop) after Performance; `.feedbackFormSheet(item:)` builds the services from the session and presents with `.hassSheet(.form)`; the form uses `.modalChrome()` |
 | Fixture | `FeedbackFixtureFiler` (Debug only), `FENTON_FEEDBACK_FIXTURE=1` (set up) / `unavailable` | Titles with `fixture-failed` fail as a GitHub problem, `fixture-limited` as rate limited |
 
 ## Decisions (HIG via `apple-hig`)
@@ -35,6 +35,17 @@ Ported from FestivalNativeApps' in-app feedback form (`.agents/controls/feedback
 - **Visible explanations, not placeholders** (HIG Text fields), **Submit disabled with the reason shown** (HIG Entering data), including "Reporting isn't set up in Home Assistant yet."
 - **Setup notice leads the form** when the integration is missing (the shared `InfoBox`, neutral tone), saying who can add it, so nobody types a report that can't be sent.
 - **Quick Look** for tapped media; no photo-library permission (`PhotosPicker` runs out of process; HIG Privacy).
+
+## Server-driven integration
+
+`UKServerUIFeedbackProvider` composes the canonical text views, media strip, Photos/Files pickers, Quick Look, progress and
+result alerts over one injected `FeedbackFormModel` per form kind and authenticated session. It receives only the existing
+services and sanitized diagnostics. The shell's `requestSettingsExit` seam uses the canonical discard dialog and blocks exit
+while a command is owned. Native Back/interactive-pop must route through that same gate before mounting production forms.
+
+Stopping an upload cancels its task but does not release the sending phase until the task actually unwinds; filing itself
+cannot be cancelled into a second submission. Successful completion can reset a draft; a failed/unknown outcome keeps it.
+Picker/Quick Look lifetimes protect publication, and unchanged keyed controls retain their model and first responder.
 
 ## Test IDs
 

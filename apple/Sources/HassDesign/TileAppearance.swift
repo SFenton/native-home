@@ -20,6 +20,11 @@ public enum TileAppearance: Equatable, Sendable {
         self == .light ? HassTokens.Palette.redLight : HassTokens.Palette.red
     }
 
+    /// The glyph and state colour of a warning face: amber `#FFB340` on dark, a dark amber on a light cell (5:1 on white).
+    public var warningRGB: UInt32 {
+        self == .light ? HassTokens.Palette.orangeLight : HassTokens.Palette.orange
+    }
+
     /// How strongly a state wash tints the ground: 60% over a dark module, 22% over a white cell so the ink on it keeps
     /// 4.5:1.
     public var washOpacity: Double { self == .light ? 0.22 : 0.6 }

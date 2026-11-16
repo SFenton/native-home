@@ -21,8 +21,8 @@ struct TintedGlassGround: View {
         let tokens = tokens
         ZStack(alignment: .leading) {
             switch style {
-            case .off, .tinted, .error:
-                neutral(dense: style == .error, tokens: tokens)
+            case .off, .tinted, .error, .warning:
+                neutral(dense: style == .error || style == .warning, tokens: tokens)
                 if let wash { wash.opacity(appearance.washOpacity) }
                 band { (levelTint ?? tint).opacity(0.32) }
             case .lit:

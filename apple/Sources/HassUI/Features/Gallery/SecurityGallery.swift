@@ -4,56 +4,6 @@ import HassDesign
 import Observation
 import SwiftUI
 
-/// Records calls and echoes them into the fixture store after short delays, like Home Assistant: a garage door
-/// reports `opening` then `open`, locks and the alarm switch at once.
-@MainActor
-@Observable
-final class SecurityGalleryRecorder: HassServiceCalling {
-    private(set) var lastCall = "None"
-    @ObservationIgnored private let store: EntityStore
-    @ObservationIgnored private let fails: Bool
-
-    struct Failure: Error {}
-
-    init(store: EntityStore, fails: Bool) {
-        self.store = store
-        self.fails = fails
-    }
-
-    func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
-        lastCall = GalleryServiceRecorder.describe(domain, service, data)
-        // A door's "Sending…" lasts until the call returns; hold it long enough for a journey to read it.
-        try? await Task.sleep(for: domain == "cover" ? .seconds(2.5) : .milliseconds(300))
-        if fails { throw Failure() }
-        guard let target = data["entity_id"] as? String else { return }
-        switch (domain, service) {
-        case ("cover", "open_cover"): moveDoor(target, through: "opening", to: "open")
-        case ("cover", "close_cover"): moveDoor(target, through: "closing", to: "closed")
-        case ("lock", "lock"): set(target, "locked")
-        case ("lock", "unlock"): set(target, "unlocked")
-        case ("alarm_control_panel", _):
-            if let mode = SecurityConfig.alarmModes.first(where: { $0.service == service }) { set(target, mode.state) }
-        default: break
-        }
-    }
-
-    private func moveDoor(_ id: String, through moving: String, to final: String) {
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(1500))
-            set(id, moving)
-            try? await Task.sleep(for: .seconds(3))
-            set(id, final)
-        }
-    }
-
-    private func set(_ id: String, _ state: String) {
-        var entity = store.value(id) ?? EntityState(entityId: id, state: state)
-        entity.state = state
-        entity.lastChanged = .now
-        store.apply([entity])
-    }
-}
-
 /// Synthetic Security states for the gallery and hosted tests (not a copy of the live house).
 enum SecurityFixtures {
     /// Which house the fixtures describe.
@@ -85,7 +35,7 @@ enum SecurityFixtures {
 
     /// The states for a scenario. The alarm entered its mode 40 minutes ago, so the card reads "Since …".
     static func states(_ scenario: Scenario) -> [EntityState] {
-        let since = Date.now.addingTimeInterval(-40 * 60)
+        let since = GalleryFixtureClock.shared.now.addingTimeInterval(-40 * 60)
         let mode: String? = switch scenario {
         case .triggered: "triggered"
         case .openHome, .openAway: "disarmed"

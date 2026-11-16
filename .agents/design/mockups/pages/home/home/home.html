@@ -5,11 +5,10 @@
 <link rel="stylesheet" href="../../../_kit/kit.css">
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../components/weather/_home-weather.js"></script>
-<script src="../../../components/house-config/_house-config-states.js"></script>
 </head><body>
 <script>
 (function () {
-  var h = Mock.h, K = Mock.components, HW = Mock.HW, HC = Mock.HC;
+  var h = Mock.h, K = Mock.components, HW = Mock.HW;
 
   /* ---- the Home page body, section order as HomeScreen.swift draws it: status rail, weather, guests (only while a toggle is on), cameras.
      Unfolded Duo landscape splits on the hinge (HomeColumns): the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather leads, cameras and guests trail; iPad landscape stays one column. */
@@ -53,8 +52,7 @@
   Mock.mount({
     kind: 'page', id: 'home', title: 'Home', area: 'home', status: 'shipped',
     summary: 'The At a Glance overview: status chips, weather, guests (while a toggle is on) and four cameras, on the dimmed house photo. Sample data is fixture data.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift', 'apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/Features/Home/HomeColumns.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCard.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift'],
+    source: ['apple/Sources/HassUI/Features/Home/StatusRail.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassUI/Features/Home/HomeColumns.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherCard.swift', 'apple/Sources/HassCore/Config/HomeConfig.swift'],
     spec: ['.agents/pages/home/spec.md', '.agents/pages/home/ios.md'],
     patterns: ['status-rail', 'dynamic-grid', 'page-backdrop', 'header-edge-fade', 'entity-tile', 'content-gate', 'motion'],
     hig: ['Tab bars', 'Toolbars', 'Materials', 'Color', 'Dynamic Type', 'Motion', 'Loading'],
@@ -66,14 +64,6 @@
       'default': { title: 'Signed in, house online', render: function (d) { return page(d); } },
       'loading': { title: 'First sign-in, nothing saved', note: 'chips: names at once and soft pulsing bars where values go; the weather card has no bars: it reads "--" and Weather Unavailable over static placeholder hours until the entity arrives', render: function (d) {
         return page(d, { chips: PENDING, weather: { loading: true }, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
-      'no-layout-skeleton': { title: 'No house layout yet: the skeleton', note: 'house-config-states rule 11: no saved layout and the store is idle or loading (offline too): four chip capsules, the weather module, a section bar and camera-shaped tiles pulse like the pending bars; one VoiceOver element "Getting your home from Home Assistant"; the header keeps its one Connecting arc', render: function (d) {
-        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.skeletonHome(d), connection: 'reconnecting' }); } },
-      'no-layout-admin': { title: 'No house layout: integration missing, administrator', note: 'rule 12: a state message in place of the page, the shell kept; the action opens the Home Assistant modal on Integrations (houseConfig.state, houseConfig.action)', render: function (d) {
-        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'missing', 'admin') }); } },
-      'no-layout-member': { title: 'No house layout: member', note: 'the same message with the ask-someone text and no action', render: function (d) {
-        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'missing', 'member') }); } },
-      'no-layout-timeout': { title: 'No house layout: 10 s with no answer', note: 'Try Again for everyone; the button shows "Trying Again" while it asks', render: function (d) {
-        return Mock.page(d, { title: 'Home', section: 'home', badge: 0, choresBadge: 0, body: HC.message(d, 'timeout', 'member') }); } },
       'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: no spinner, no pill, nothing re-fades (owner 2026-10-17)', render: function (d) { return page(d); } },
       'error': { title: 'Entities unavailable', note: 'chips read "Unavailable", dimmed, and still open their sheet', render: function (d) {
         return page(d, { chips: UNAVAIL, weather: { condition: 'Weather Unavailable', temp: null, glyph: 'cloudy' }, cams: ['snapshot', 'snapshot', 'snapshot', 'snapshot'] }); } },

@@ -4,29 +4,6 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// Add Item (``ScanItemSheet``; web `ScanItemCameraSheet`; direction G mockups n6-scan-item and n6-scan-review): scan or type the
-/// product, read or pick the expiration date, review, then add through `evershelf.add_scanned_item`. `onAdded` runs once after a
-/// successful add.
-///
-/// A multi-step create sheet (direction G, Sheets): circle x Cancel on the first step, a Back circle on later steps, and on the review
-/// step the filled check adds the item. The step's subtitle ("Scan Barcode · Step 1 of 3") sits under the title on iOS 26 and heads the
-/// form before. The camera is AVFoundation behind ``ScanCameraController``: a live back camera, the simulated viewfinder
-/// (`FENTON_SCAN_CAMERA=simulated`), or none.
-@MainActor
-enum UKScanItemSheet {
-    static func present(model: ScanItemModel, from presenter: UIViewController, context: UKContext, camera: ScanCameraController = ScanCameraController(),
-                        onAdded: @escaping () -> Void, onDismissed: @escaping () -> Void) {
-        let page = UKScanItemViewController(model: model, camera: camera, context: context.with { $0.surface = .sheet }, onAdded: onAdded)
-        var options = UKHassModalOptions(title: "Add Item")
-        options.showsClose = false
-        options.width = .form
-        // Live camera scanner.
-        options.height = .full
-        options.onDismissed = onDismissed
-        UKHassModalController(root: page, options: options).present(from: presenter)
-    }
-}
-
 final class UKScanItemViewController: UKFormViewController {
     private let model: ScanItemModel
     private let camera: ScanCameraController
@@ -214,7 +191,7 @@ final class UKScanItemViewController: UKFormViewController {
     // MARK: Sections
 
     private func sections(showsFooterInForm: Bool) -> [UKFormSection] {
-        var sections: [UKFormSection] = [headerSection()].compactMap { $0 }
+        var sections: [UKFormSection] = [Self.headerSection(model: model)].compactMap { $0 }
         if model.isProcessing {
             sections.append(UKFormSection(id: "processing", rows: [UKFormRow(id: "processing", .clear { Self.processingView() })]))
         } else {
@@ -222,7 +199,7 @@ final class UKScanItemViewController: UKFormViewController {
             case .barcode: sections.append(contentsOf: barcodeSections())
             case .expiry: sections.append(contentsOf: expirySections())
             case .review: sections.append(contentsOf: reviewSections())
-            case .adding: sections.append(addingSection())
+            case .adding: sections.append(Self.addingSection(model: model))
             }
         }
         // At accessibility sizes the step's buttons scroll with the form: pinned, they took about 40% of the iPhone screen.
@@ -233,7 +210,7 @@ final class UKScanItemViewController: UKFormViewController {
     }
 
     /// The step's instructions, led by its subtitle where the system can't draw one under the title.
-    private func headerSection() -> UKFormSection? {
+    static func headerSection(model: ScanItemModel) -> UKFormSection? {
         let subtitle = SheetSubtitle.isShown ? nil : model.subtitle
         let instructions = (!model.instructions.isEmpty && !model.isProcessing) ? model.instructions : nil
         let key = "\(subtitle ?? "")|\(instructions ?? "")"
@@ -260,7 +237,7 @@ final class UKScanItemViewController: UKFormViewController {
         })])
     }
 
-    private static func processingView() -> UIView {
+    static func processingView() -> UIView {
         let arc = UKArcSpinnerView(.compact, label: "Processing")
         arc.isAccessibilityElement = false
         let label = UILabel.uk(.headline, ink: UKDesignInk.primary)
@@ -366,7 +343,7 @@ final class UKScanItemViewController: UKFormViewController {
         return sections
     }
 
-    private func addingSection() -> UKFormSection {
+    static func addingSection(model: ScanItemModel) -> UKFormSection {
         let added = model.addStatus == .added
         let location = model.location.title
         return UKFormSection(id: "adding", rows: [UKFormRow(id: "adding-\(added)", .clear {

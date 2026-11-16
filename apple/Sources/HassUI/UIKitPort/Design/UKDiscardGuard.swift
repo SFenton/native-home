@@ -32,7 +32,9 @@ enum UKDiscardGuard {
     /// (`discard.keep`); the identifiers are set once it is on screen (``UIAlertController/ukApplyIdentifiers(_:)``).
     static func confirm(from controller: UIViewController, source: UKPopoverSource, onDiscard: @escaping () -> Void) {
         let dialog = UIAlertController(title: DiscardChangesCopy.title, message: nil, preferredStyle: .actionSheet)
-        dialog.addAction(UIAlertAction(title: DiscardChangesCopy.discard, style: .destructive) { _ in onDiscard() })
+        dialog.addAction(UIAlertAction(title: DiscardChangesCopy.discard, style: .destructive) { [weak dialog] _ in
+            dialog?.dismiss(animated: true, completion: onDiscard)
+        })
         dialog.addAction(UIAlertAction(title: DiscardChangesCopy.keepEditing, style: .cancel))
         source.attach(to: dialog.popoverPresentationController, fallback: controller.view)
         controller.ukPresent(dialog, identifiers: [

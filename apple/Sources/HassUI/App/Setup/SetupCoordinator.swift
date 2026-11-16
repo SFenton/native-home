@@ -1,4 +1,5 @@
 import Foundation
+import HassCore
 import Observation
 
 /// Runs the after-sign-in Setup flow: one sheet whose steps swap in place, Notifications, then Time Sensitive, then
@@ -29,6 +30,40 @@ public final class SetupCoordinator {
     @ObservationIgnored private let defaults: UserDefaults
     /// The iOS notification alert is up; a second Continue is ignored meanwhile.
     @ObservationIgnored private var isAsking = false
+    /// Accepted publisher explanations supplement (never replace) native consent and system status.
+    public private(set) var bootstrapPolicy: ServerUIBootstrapPolicy?
+    @ObservationIgnored private var generation = 0
+
+    /// A publication cannot replace an active permission explanation or alert.
+    public func configure(bootstrap policy: ServerUIBootstrapPolicy?) throws {
+        guard !blocksPublication else { throw ConfigurationError.interactionPending }
+        bootstrapPolicy = policy
+    }
+
+    public enum ConfigurationError: Error { case interactionPending }
+
+    /// Includes an outstanding system alert even if account teardown has closed its sheet.
+    public var blocksPublication: Bool { isPresenting || isAsking }
+
+    /// Stops presentation immediately at sign-out; an outstanding system answer cannot advance the old flow.
+    public func sessionEnded() {
+        generation += 1
+        step = nil
+        bootstrapPolicy = nil
+    }
+
+    /// Additional trusted explanatory text for a native step.
+    public func explanation(for step: SetupStep) -> String? {
+        bootstrapPolicy?.setup.first { Self.step($0.permission) == step }?.explanation
+    }
+
+    private static func step(_ permission: ServerUIBootstrapPolicy.Permission) -> SetupStep {
+        switch permission {
+        case .notifications: .notifications
+        case .timeSensitive: .timeSensitive
+        case .location: .location
+        }
+    }
 
     /// Creates the flow.
     /// - Parameters:
@@ -53,8 +88,10 @@ public final class SetupCoordinator {
     /// up. Reads the system's answers first, so a person who allowed notifications in Settings is judged by that.
     public func offerIfNeeded() async {
         guard step == nil else { return }
+        let epoch = generation
         syncSeen()
         await push.refreshSettings()
+        guard epoch == generation else { return }
         await advance()
     }
 
@@ -66,6 +103,7 @@ public final class SetupCoordinator {
 
     /// Shows the next pending step in place, or closes the sheet when none is left.
     private func advance() async {
+        // The native steps and their order are fixed: a publication only adds explanatory copy (``explanation(for:)``).
         guard let next = SetupFlow.nextStep(for: inputs, seen: SetupFlow.seen(in: defaults)) else {
             step = nil
             return
@@ -97,11 +135,13 @@ public final class SetupCoordinator {
     /// swaps to Time Sensitive if the person allowed, otherwise to the next pending step.
     public func continueNotifications() async {
         guard !isAsking else { return }
+        let epoch = generation
         isAsking = true
         defer { isAsking = false }
         SetupFlow.markSeen(.notifications, in: defaults)
         push.setupHasShownNotifications = true
         await push.enableNotifications()
+        guard epoch == generation else { return }
         await advance()
     }
 

@@ -42,6 +42,16 @@ final class ScriptedResponder: HassServiceResponding {
 }
 
 @MainActor
+private final class AwayTargetResponder: HassServiceResponding {
+    var calls: [(String, String)] = []
+    func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {}
+    func callServiceWithResponse(_ domain: String, _ service: String, data: [String: any Sendable]) async throws -> JSONValue {
+        calls.append((domain, service))
+        return .object(["status": .string("accepted")])
+    }
+}
+
+@MainActor
 @Suite(.demoHouse)
 struct HouseholdAwayControllerTests {
     func make(_ entity: EntityState? = awayEntity(), timeout: Duration = .seconds(10)) -> (HouseholdAwayController, ScriptedResponder, EntityStore) {
@@ -49,6 +59,19 @@ struct HouseholdAwayControllerTests {
         if let entity { store.replaceAll([entity]) }
         let responder = ScriptedResponder()
         return (HouseholdAwayController(store: store, responder: responder, timeout: timeout, makeRequestId: { "req-1" }), responder, store)
+    }
+
+    @Test func explicitSensorAndCommandRemainIndependentOfHouseConfiguration() async throws {
+        let target = try HouseholdAway.Targets(statusEntityId: "sensor.example_away", commandService: "example_command")
+        let store = EntityStore()
+        store.replaceAll([EntityState(entityId: target.statusEntityId, state: "idle", attributes: awayAttributes(revision: 7))])
+        let responder = AwayTargetResponder()
+        let controller = HouseholdAwayController(store: store, responder: responder, targets: target)
+        #expect(controller.snapshot.revision == 7)
+        #expect(await controller.cancel() == .accepted(revision: nil))
+        #expect(responder.calls.count == 1)
+        #expect(responder.calls.first?.0 == "script")
+        #expect(responder.calls.first?.1 == "example_command")
     }
 
     @Test func acceptedCommandSendsRevisionAndRequestId() async {

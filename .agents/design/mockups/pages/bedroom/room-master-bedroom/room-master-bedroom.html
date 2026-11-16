@@ -19,9 +19,7 @@
   Mock.mount({
     kind: 'page', id: 'room-master-bedroom', title: 'Bedroom 1 room page (beds, wake light, humidifier)', area: 'bedroom', status: 'shipped',
     summary: 'The Bedroom 1 swaps the generic card for the bedroom lane\'s tiles: a Wake-Light Alarms card, one Bed tile per bed side (personalised "Your Side"), the Streamer, and a Climate section with the humidifier. Four sections, two columns on wide windows.',
-    source: ['apple/Sources/HassUI/Features/Rooms/RoomScreen.swift', 'apple/Sources/HassUI/Features/Rooms/RoomTiles.swift', 'apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift',
-      'apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift', 'apple/Sources/HassCore/Rooms/RoomsConfig.swift',
-      'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassDesign/ThermostatTileFace.swift'],
+    source: ['apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift', 'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassDesign/ThermostatTileFace.swift'],
     spec: ['.agents/patterns/bedroom-devices.md', '.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md'],
     patterns: ['bedroom-devices', 'room-device-sheets', 'entity-tile', 'status-rail', 'optimistic-actions', 'modal-sheet'],
     hig: ['Toolbars', 'Layout', 'Color', 'Typography', 'Dynamic Type', 'Motion', 'Accessibility'],

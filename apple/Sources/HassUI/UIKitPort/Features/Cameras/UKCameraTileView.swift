@@ -30,11 +30,14 @@ final class UKCameraTileView: UIControl, UKGridMeasuring {
     /// - Parameters:
     ///   - identifier: The card's accessibility identifier (`<prefix>.<go2rtc stream id>`).
     ///   - pool: The stream pool; the app's shared one by default.
-    init(camera: HomeConfig.Camera, context: UKContext, identifier: String, pool: CameraStreamPool = .shared) {
+    init(camera: HomeConfig.Camera, context: UKContext, identifier: String, pool: CameraStreamPool = .shared,
+         configuration: ServerUICameraDescriptor? = nil, openHint: String? = nil, reader: UKCameraReadProvider? = nil,
+         privacy: @escaping @MainActor () -> Bool = { ScreenshotPrivacy.isRedacting }) {
         self.camera = camera
         self.context = context
         self.pool = pool
-        live = UKCameraLiveView(camera: camera, style: .tile, context: context, pool: pool)
+        live = UKCameraLiveView(camera: camera, style: .tile, context: context, pool: pool, configuration: configuration,
+                                reader: reader, privacy: privacy)
         super.init(frame: .zero)
         picture.clipsToBounds = true
         picture.layer.cornerRadius = HassTokens.Radius.tile
@@ -46,8 +49,8 @@ final class UKCameraTileView: UIControl, UKGridMeasuring {
         addSubview(name)
         isAccessibilityElement = true
         accessibilityTraits = .button
-        accessibilityLabel = "\(camera.title) camera"
-        accessibilityHint = "Opens the camera"
+        accessibilityLabel = configuration == nil ? "\(camera.title) camera" : camera.title
+        accessibilityHint = openHint ?? "Opens the camera"
         accessibilityIdentifier = identifier
         name.configure(title: camera.title)
         addTarget(self, action: #selector(tapped), for: .touchUpInside)
@@ -61,8 +64,13 @@ final class UKCameraTileView: UIControl, UKGridMeasuring {
         let connection = context.connection
         bag.observe { [weak self] in
             guard let self else { return }
-            let next = CameraTile.indicator(for: model.state, isOffline: connection?.isOffline ?? false)
-            accessibilityValue = CameraTile.statusText(model.state)
+            let concealed = configuration != nil && (privacy() || context.valuesPending ||
+                EntityState.isUnavailable(context.store.entity(camera.entityId).state?.state))
+            let offline = reader?.isOffline ?? connection?.isOffline ?? false
+            let next = concealed ? CameraTile.Indicator.offline : CameraTile.indicator(for: model.state, isOffline: offline)
+            accessibilityValue = configuration?.status(state: model.state, entityState: context.store.entity(camera.entityId).state?.state,
+                                                        pending: context.valuesPending, hidden: privacy(), offline: offline)
+                ?? CameraTile.statusText(model.state)
             guard next != indicator else { return }
             let animated = indicator != nil && window != nil
             indicator = next
@@ -265,69 +273,4 @@ private final class UKCameraNameView: UIView {
 
 // MARK: - Grid section
 
-/// The camera cards on Home and Security (`CameraGrid`: web `columns={2} maxCellWidth={280} maxColumns={4}`, 2 x 2 on iPhone): a
-/// "Cameras" section header over a grid of ``UKCameraTileView``s. Both pages show this one grid, and every card on it shows the
-/// camera's shared stream from ``CameraStreamPool``.
-///
-/// ```swift
-/// let cameras = UKCameraGridSectionView(context: context, identifierPrefix: "security.camera", bag: bag) { camera, source in open(camera, source) }
-/// ```
-@MainActor
-final class UKCameraGridSectionView: UIView, UKGridMeasuring {
-    private let header = UKPageSectionHeaderView("Cameras")
-    private let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: DynamicGridMetrics.tileMinWidth, maxColumns: 4, fill: .none))
-    private(set) var tiles: [UKCameraTileView] = []
-
-    /// The window's hinge (the grid keeps tiles off it).
-    var hinge: CGRect? {
-        get { grid.hinge }
-        set { grid.hinge = newValue }
-    }
-
-    /// - Parameters:
-    ///   - identifierPrefix: Prefix of each card's identifier (`<prefix>.<go2rtc stream id>`), so a journey can tell Home's cards
-    ///     from Security's while both pages show the same shared streams.
-    ///   - bag: The page's bag, for the arrival motion of the cards (the first screenful rises one after another after a sign-in).
-    ///   - pool: The stream pool; the app's shared one by default.
-    ///   - onOpen: Runs when a card is tapped, with the card as the zoom source.
-    init(context: UKContext, identifierPrefix: String = "home.camera", bag: UKObservationBag, pool: CameraStreamPool = .shared,
-         onOpen: @escaping (HomeConfig.Camera, UKCameraTileView) -> Void) {
-        super.init(frame: .zero)
-        grid.followsFold = true
-        addSubview(header)
-        addSubview(grid)
-        tiles = HomeConfig.cameras.map { camera in
-            let tile = UKCameraTileView(camera: camera, context: context, identifier: "\(identifierPrefix).\(camera.rtcStreamId)", pool: pool)
-            tile.onOpen = { onOpen(camera, $0) }
-            return tile
-        }
-        for (index, tile) in tiles.enumerated() {
-            UKArrivalMotion.apply(to: tile, shell: context.shell, kind: .rise, index: index + 1, bag: bag)
-        }
-        grid.setItems(tiles.map { UKGridItem($0) })
-        ukOnContentSizeChange { [weak self] in
-            guard let self else { return }
-            // Scales with the name capsule's text, so accessibility sizes step down to fewer, wider cameras.
-            grid.configuration.minCellWidth = UKFont.scaled(160, relativeTo: .footnote, traits: traitCollection)
-            setNeedsLayout()
-            superview?.setNeedsLayout()
-        }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        header.gridHeight(forWidth: width) + HassTokens.Spacing.s + grid.gridHeight(forWidth: width)
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let headerHeight = header.gridHeight(forWidth: bounds.width)
-        header.frame = CGRect(x: 0, y: 0, width: bounds.width, height: headerHeight)
-        grid.frame = CGRect(x: 0, y: headerHeight + HassTokens.Spacing.s, width: bounds.width, height: grid.gridHeight(forWidth: bounds.width))
-    }
-}
 #endif

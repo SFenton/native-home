@@ -47,4 +47,10 @@ public struct EntityState: Codable, Hashable, Sendable, Identifiable {
 
     /// A number parsed from ``state``, if it is numeric.
     public var numericState: Double? { Double(state) }
+
+    /// Projects optimistic feedback without altering the live entity, attributes or timestamp.
+    public func showing(_ value: String?) -> EntityState {
+        guard let value, value != state else { return self }
+        return EntityState(entityId: entityId, state: value, attributes: attributes, lastChanged: lastChanged)
+    }
 }

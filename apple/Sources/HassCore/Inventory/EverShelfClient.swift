@@ -26,10 +26,12 @@ public final class EverShelfClient {
     }
 
     private let caller: any EverShelfCalling
+    private let shoppingListEntityId: String
 
-    /// Creates a client over a connection (or a fixture server).
-    public init(caller: any EverShelfCalling) {
+    /// Creates a client over a connection (or fixture); callers may supply a configured grocery target.
+    public init(caller: any EverShelfCalling, groceryListEntityId: String = EverShelfClient.groceryListEntityId) {
         self.caller = caller
+        shoppingListEntityId = groceryListEntityId
     }
 
     // MARK: - Inventory
@@ -101,8 +103,13 @@ public final class EverShelfClient {
 
     /// Adds an item to EverShelf's shopping list and Home Assistant's grocery list together.
     public func addToShoppingList(name: String, quantity: Double) async throws {
+        guard shoppingListEntityId.utf16.count <= 160,
+              shoppingListEntityId.range(of: "^todo\\.[a-z0-9_]+$", options: .regularExpression)
+                == shoppingListEntityId.startIndex..<shoppingListEntityId.endIndex else {
+            throw Failure("Invalid grocery list target.")
+        }
         try await caller.callService("evershelf", "add_to_shopping", data: ["name": name, "quantity": Self.number(quantity)])
-        try await caller.callService("todo", "add_item", data: ["entity_id": Self.groceryListEntityId, "item": name])
+        try await caller.callService("todo", "add_item", data: ["entity_id": shoppingListEntityId, "item": name])
     }
 
     // MARK: - Scan Item

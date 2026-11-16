@@ -39,7 +39,7 @@ struct TileRolloutMappingTests {
     // MARK: Words
 
     @Test func theAlarmDiscAsksWithTheSecuritySheetsWords() {
-        #expect(TileActionSpec.Confirmation(AlertCopy.disarm) == AlarmModeActions.disarmConfirmation)
+        #expect(TileActionSpec.Confirmation(AlertCopy.disarm) == StateStyle.alarmDisarmConfirmation)
     }
 
     @Test func anAlertCopySpecKeepsItsRole() {

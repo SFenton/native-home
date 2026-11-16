@@ -3,7 +3,7 @@
 > **What:** the header button's sheet: up to seven solid-colour tiles; Rooms and Security System push inside, the rest open pages. **Read when:** you change Quick Links tiles, colours or routing.
 
 - Mockup: [quick-links.html](quick-links.html) · shipped · reviewed 2026-10-23 (author draft; skill reviewers replace it)
-- Source: `apple/Sources/HassUI/` Features/Rooms/QuickLinksSheet.swift; HassDesign/QuickLinkPalette.swift; HassCore/Rooms/RoomNavigation.swift
+- Source: `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChrome.swift`, `apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift` (the publication authors the layout)
 - Spec: .agents/pages/rooms/ios.md, .agents/design/direction-g.md · Patterns: modal-sheet, entity-tile, dynamic-grid
 - States covered: default, loading, error, offline, sprinklers-hidden, armed-away/night, disarmed, triggered, redacted, food-counts, was-full, medium (provisional), large, fitted (shipped), closed, ax5; dark and light
 - Motion: Security colour follows the alarm; transitions: present (zoom out of the header button), Rooms push (sheet refits), Security push, page link (sheet closes then pushes), dismiss

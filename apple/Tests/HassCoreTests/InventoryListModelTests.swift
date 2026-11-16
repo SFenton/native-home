@@ -404,4 +404,78 @@ struct InventoryListModelTests {
         #expect(pantry.phase == .loading)
         #expect(fridge.items.count == 2)
     }
+
+    @Test func compositionProviderKeepsKeysAndAppliesOnlyCommittedDrafts() async throws {
+        let (model, _) = await loaded()
+        let provider = try InventoryCompositionProvider(sourceID: "source-stock", space: .fridge, model: model)
+        #expect(throws: InventoryCompositionProvider.Failure.wrongSpace) {
+            try InventoryCompositionProvider(sourceID: "source-other", space: .pantry, model: model)
+        }
+        let selection = try provider.select("eggs")
+        let other = try InventoryCompositionProvider(sourceID: "source-other", space: .fridge, model: model)
+        #expect(throws: InventoryCompositionProvider.Failure.wrongSource) { try other.editor(for: selection) }
+        var draft = provider.draft
+        draft.sort = .expiry
+        draft.direction = .descending
+        draft.filter = .week
+        #expect(provider.items.map(\.id) == ["butter", "eggs", "whole milk"])
+        provider.apply(draft)
+        #expect(provider.items.map(\.id) == ["whole milk"])
+        #expect(try provider.select("eggs") == selection)
+        #expect(try provider.editor(for: selection).itemId == "eggs")
+    }
+
+    @Test func expiredSummaryKeepsItsOwnProjectionAndCanonicalCommandIdentity() async throws {
+        let (model, _) = await loaded(.allFood)
+        model.sortMode = .title; model.sortDirection = .descending; model.filterMode = .week
+        let provider = try InventoryCompositionProvider(sourceID: "summary-food", space: .allFood, model: model, query: .expiredFoodSummary)
+        #expect(provider.items.map(\.id) == ["butter"])
+        #expect(model.sortMode == .title && model.sortDirection == .descending && model.filterMode == .week)
+        let selection = try provider.select("butter")
+        #expect(try provider.editor(for: selection).itemId == "butter")
+        let (wrongModel, _) = makeModel(.fridge)
+        #expect(throws: InventoryCompositionProvider.Failure.wrongSpace) {
+            try InventoryCompositionProvider(sourceID: "summary-wrong", space: .fridge, model: wrongModel, query: .expiredFoodSummary)
+        }
+    }
+
+    @Test func compositionCommandsRejectStaleInvalidAndBusySelections() async throws {
+        let (model, server) = await loaded()
+        let provider = try InventoryCompositionProvider(sourceID: "source-stock", space: .fridge, model: model)
+        let eggs = try provider.select("eggs")
+        await #expect(throws: InventoryCompositionProvider.Failure.invalidQuantity) {
+            try await provider.delete(eggs, quantity: .nan)
+        }
+        await #expect(throws: InventoryCompositionProvider.Failure.invalidQuantity) {
+            try await provider.addToShopping(eggs, quantity: 0)
+        }
+        #expect(server.calls.count == 1)
+        server.rows[1].quantity = 8
+        try await model.refresh()
+        await #expect(throws: InventoryCompositionProvider.Failure.changedItem) {
+            try await provider.delete(eggs, quantity: 1)
+        }
+        #expect(server.calls.count == 2)
+        let current = try provider.select("eggs")
+        server.latency = .milliseconds(500)
+        let first = Task { try await provider.delete(current, quantity: 1) }
+        #expect(await eventually { provider.hasPendingIntent })
+        await #expect(throws: InventoryCompositionProvider.Failure.busy) {
+            try await provider.delete(current, quantity: 1)
+        }
+        try await first.value
+        #expect(!provider.hasPendingIntent)
+        #expect(server.calls.last == "evershelf.delete_inventory inventory_id=2 quantity=1")
+    }
+
+    @Test func compositionCommandSurfacesCanonicalFailure() async throws {
+        let (model, server) = await loaded()
+        let provider = try InventoryCompositionProvider(sourceID: "source-stock", space: .fridge, model: model)
+        server.failing = ["evershelf.delete_inventory"]
+        await #expect(throws: InventoryCompositionProvider.Failure.commandFailed("EverShelf is unavailable")) {
+            try await provider.delete(provider.select("eggs"), quantity: 1)
+        }
+        #expect(!provider.hasPendingIntent)
+        #expect(model.displayItem(id: "eggs")?.quantity == 12)
+    }
 }

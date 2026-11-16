@@ -16,12 +16,3 @@ enum VacuumSheetContent {
         return Key(tab: controller.tabs(in: mode).contains(requested) ? requested : .controls, mode: mode)
     }
 }
-
-/// The state line under the title.
-enum VacuumSheetChrome {
-    /// "Docked · 100%", or the state alone while the battery is unknown (mockup n6-vacuum-sheet).
-    static func subtitle(state: String, battery: String) -> String {
-        let label = VacuumFormat.state(state)
-        return battery == "Unknown" ? label : "\(label) · \(battery)"
-    }
-}

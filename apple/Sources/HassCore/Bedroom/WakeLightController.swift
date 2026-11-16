@@ -99,6 +99,9 @@ public final class WakeLightController {
     /// Stopping the episode is in flight.
     public var stopping: Bool { pending.contains("end_episode") }
 
+    /// Transport and still-visible optimistic changes both pin the command's provider.
+    public var hasPendingCommands: Bool { !pending.isEmpty || !timers.isEmpty }
+
     /// Whether an alarm's save or delete is in flight.
     public func isPending(alarmId: String) -> Bool { pending.contains("alarm:\(alarmId)") }
 

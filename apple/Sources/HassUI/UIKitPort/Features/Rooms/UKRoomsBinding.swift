@@ -36,43 +36,6 @@ class UKRoomsGrid: UKDynamicGridView {
     }
 }
 
-/// An Auto Layout view (a state message) measured at a width inside the hand-laid columns and grids.
-@MainActor
-final class UKRoomsMeasured: UIView, UKGridMeasuring {
-    private let content: UIView
-
-    init(_ content: UIView, identifier: String? = nil) {
-        self.content = content
-        super.init(frame: .zero)
-        addSubview(content)
-        // The identifier lives on the message; a semantic group makes it an element XCUITest can find.
-        content.accessibilityContainerType = .semanticGroup
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        ceil(content.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-                                             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height)
-    }
-
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        content.frame = bounds
-    }
-}
-
-/// The vacuum's and a remote's transport tapped values, made on the first tap (pattern: optimistic-actions), and a remote's own controller
-/// made on its first Power tap. Observable, so a tile bound before the first tap follows the tapped value once it exists.
-@MainActor @Observable
-final class UKActionsHolder {
-    var actions: OptimisticActions?
-    var ownController: MediaRemoteController?
-}
-
 /// Binding helpers: a tile follows the entities its model closure reads, and the grid measures again when its text changed height.
 @MainActor
 enum UKRoomsBind {

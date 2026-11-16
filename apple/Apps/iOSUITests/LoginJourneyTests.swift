@@ -14,7 +14,7 @@ final class LoginJourneyTests: JourneyTestCase {
     /// (nil leaves it empty).
     private func launch(stub: String? = nil, expired: String? = nil, arguments: [String] = [], intro: Bool = false,
                         server: String? = LoginJourneyTests.prefilledServer,
-                        settings: [FentonHomeApp.SystemSetting] = []) -> XCUIApplication {
+                        settings: [FentonHomeApp.SystemSetting] = [], publication: String? = nil) -> XCUIApplication {
         let app = FentonHomeApp.makeApp()
         app.launchEnvironment["FENTON_UITEST_RESET"] = "1"
         if let server { app.launchEnvironment["FENTON_HASS_SERVER"] = server }
@@ -22,6 +22,7 @@ final class LoginJourneyTests: JourneyTestCase {
         app.launchEnvironment.merge(FentonHomeApp.SystemSetting.environment(settings)) { $1 }
         if let stub { app.launchEnvironment["FENTON_SIGNIN_STUB"] = stub }
         if let expired { app.launchEnvironment["FENTON_EXPIRED_ACCOUNT"] = expired }
+        if let publication { app.launchEnvironment["FENTON_UI_PUBLICATION"] = publication }
         app.launchArguments += arguments
         app.launch()
         return app
@@ -52,6 +53,72 @@ final class LoginJourneyTests: JourneyTestCase {
     }
 
     // MARK: - Layout and labels
+
+    /// Every family: successful OAuth with nothing published to Home Assistant stays signed in at the truthful recovery
+    /// boundary, never a compiled product dashboard. The stubbed OAuth server has no websocket, so the journey is answered with
+    /// the integration's `unpublished` state (`FENTON_UI_PUBLICATION`).
+    func testUnpublishedProductShowsRecoveryAfterSignIn() {
+        let app = launch(stub: "success", publication: "unpublished")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        XCTAssertFalse(app.secureTextFields["login.password"].exists)
+        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 10), "An unpublished layout can be asked for again.")
+    }
+
+    func testIncompatibleProductAsksForAnAppUpdateWithoutARetry() {
+        let app = launch(stub: "success", publication: "incompatible")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.staticTexts["Update Required"].appears(timeout: 10))
+        XCTAssertFalse(app.buttons["server-ui.production.retry"].exists, "Asking again cannot make this build newer.")
+    }
+
+    /// Signs in against the stub with nothing published and waits for the recovery page and its two actions.
+    private func unpublishedRecoveryPage(arguments: [String] = []) -> XCUIApplication {
+        let app = launch(stub: "success", arguments: arguments, publication: "unpublished")
+        fill(app)
+        submit(app)
+        XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+        XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 15), "The recovery page's actions are reachable.")
+        XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        return app
+    }
+
+    func testUnpublishedRecoveryPassesAccessibilityAudit() throws {
+        let app = unpublishedRecoveryPage()
+        // The page is built once per state and stays in the accessibility tree. It was rebuilt on every frame (an observation
+        // that tracked UIKit's own layout-time reads), so queries and the audit met elements that had just been torn down: three
+        // element-less "no description" issues on CI's iPhone. Sampled before the audit, so the cause shows as itself.
+        let retry = app.buttons["server-ui.production.retry"], signOut = app.buttons["server-ui.production.signOut"]
+        for sample in 0..<15 {
+            XCTAssertTrue(retry.exists && signOut.exists, "The page's actions stay in the tree (sample \(sample)): it is not rebuilt")
+            usleep(100_000)
+        }
+        settleScreen()
+        // Audited as the page is, then judged at the largest text size like every other page (the audit's own Dynamic Type rule).
+        try FentonHomeApp.audit(app, ax5Page: { self.unpublishedRecoveryPage(arguments: FentonHomeApp.ax5) })
+    }
+
+    /// The failed boundary offers Clear as well as Try Again and Sign Out; "Clear Rejected Layout" is the longest title and must wrap, not
+    /// be cut off, at the largest text size. Every family (the stub answers with a publication the app rejects).
+    func testRejectedRecoveryPassesAccessibilityAudit() throws {
+        func page(_ arguments: [String] = []) -> XCUIApplication {
+            let app = launch(stub: "success", arguments: arguments, publication: "rejected")
+            fill(app)
+            submit(app)
+            XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+            XCTAssertTrue(app.buttons["server-ui.production.clear"].appears(timeout: 15), "A rejected layout offers Clear.")
+            XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 10))
+            XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+            return app
+        }
+        let app = page()
+        settleScreen()
+        try FentonHomeApp.audit(app, ax5Page: { page(FentonHomeApp.ax5) })
+    }
 
     func testLoginScreenPassesAccessibilityAudit() throws {
         let app = launch()

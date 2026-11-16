@@ -34,7 +34,7 @@
   Mock.mount({
     kind: 'modal', id: 'quick-links-security-system', title: 'Quick Links: Security System detail', area: 'shell', status: 'shipped',
     summary: 'The Security System tile of Quick Links pushes the alarm card inside the sheet: the mode as a fact and Disarm, Home, Away and Night. It is the Security sheet\'s card (SecurityControls), so it behaves the same and asks before disarming. Without a connection it shows the state alone.',
-    source: ['apple/Sources/HassUI/Features/Rooms/QuickLinksSheet.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift'],
+    source: ['apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift'],
     spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/pages/rooms/ios.md', '.agents/design/direction-g.md'],
     patterns: ['modal-sheet', 'optimistic-actions', 'motion'],
     hig: ['Sheets', 'Alerts', 'Toolbars', 'Color', 'Dark Mode', 'Dynamic Type', 'Accessibility'],

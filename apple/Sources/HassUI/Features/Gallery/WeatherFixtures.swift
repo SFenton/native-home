@@ -4,10 +4,9 @@ import HassCore
 import HassDesign
 import SwiftUI
 
-/// Synthetic weather for the gallery and hosted tests (not a copy of the live house). Times are relative to now, so
-/// the hourly list never expires while a journey runs.
+/// Synthetic weather for galleries and hosted tests; paired crawls can pin its reference time.
 enum WeatherFixtures {
-    static func states(condition: String, night: Bool, airQuality: Bool, now: Date = Date()) -> [EntityState] {
+    static func states(condition: String, night: Bool, airQuality: Bool, now: Date = GalleryFixtureClock.shared.now) -> [EntityState] {
         var states = [
             EntityState(entityId: WeatherEntities.weather, state: condition, attributes: [
                 "friendly_name": .string("Pirate Weather"), "temperature": .number(72), "apparent_temperature": .number(75),
@@ -30,7 +29,7 @@ enum WeatherFixtures {
     }
 
     /// 24 hours starting at the current hour: rain easing to cloud and then clearing.
-    static func hourly(now: Date = Date()) -> [JSONValue] {
+    static func hourly(now: Date = GalleryFixtureClock.shared.now) -> [JSONValue] {
         let hourStart = Date(timeIntervalSince1970: (now.timeIntervalSince1970 / 3600).rounded(.down) * 3600)
         let conditions = ["rainy", "rainy", "pouring", "rainy", "cloudy", "cloudy", "partlycloudy", "partlycloudy", "sunny", "sunny", "clear-night", "clear-night"]
         return (0..<24).map { index in
@@ -53,7 +52,7 @@ enum WeatherFixtures {
     }
 
     /// Seven days starting today.
-    static func daily(now: Date = Date()) -> [JSONValue] {
+    static func daily(now: Date = GalleryFixtureClock.shared.now) -> [JSONValue] {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = .current
         let start = calendar.startOfDay(for: now)

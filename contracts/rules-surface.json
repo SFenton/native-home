@@ -158,6 +158,14 @@
   {
    "glob": "README.md",
    "reason": "the product's front page for people"
+  },
+  {
+   "glob": "apple/Sources/HassUI/UIKitPort/ServerUI/README.md",
+   "reason": "the renderer's integration contract, kept beside the code it documents; module documentation, not rule text"
+  },
+  {
+   "glob": "apple/Tests/HassCoreTests/ContractCorpus/README.md",
+   "reason": "how the shared Studio and app test corpus is kept in step; fixture documentation, not rule text"
   }
  ],
  "role_load": {

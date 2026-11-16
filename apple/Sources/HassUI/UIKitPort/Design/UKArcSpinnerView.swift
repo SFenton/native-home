@@ -56,8 +56,19 @@ final class UKArcSpinnerView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+    /// Fixes the scale instead of following Dynamic Type: the tile's arc follows its disc (`disc / 44`), so it is 7/11 of the disc at every
+    /// size, 28 pt in the 44 pt disc and 42 pt in the 66 pt one.
+    var scaleOverride: CGFloat? {
+        didSet {
+            guard scaleOverride != oldValue else { return }
+            invalidateIntrinsicContentSize()
+            setNeedsLayout()
+        }
+    }
+
     var scale: CGFloat {
-        ArcSpinner.scale(for: size, textScale: UKFont.scaled(1, relativeTo: .footnote, traits: traitCollection), maxScale: maxScale)
+        if let scaleOverride { return scaleOverride }
+        return ArcSpinner.scale(for: size, textScale: UKFont.scaled(1, relativeTo: .footnote, traits: traitCollection), maxScale: maxScale)
     }
 
     private var diameter: CGFloat { size.diameter * scale }
@@ -177,32 +188,4 @@ final class UKArcProgressView: UIView {
     }
 }
 
-/// The app icon's house and heart as one shape with no tile behind it (`HouseHeartShape`), filled with ``color``. The heart sits in
-/// a ring cut out of the house, so the ring shows whatever is behind the view.
-@MainActor
-final class UKHouseHeartView: UIView {
-    private let shape = CAShapeLayer()
-
-    var color: UIColor = .label { didSet { shape.fillColor = color.cgColor } }
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        isAccessibilityElement = false
-        isUserInteractionEnabled = false
-        shape.fillColor = color.cgColor
-        layer.addSublayer(shape)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        shape.frame = bounds
-        shape.path = HouseHeartShape().path(in: CGRect(origin: .zero, size: bounds.size)).cgPath
-        CATransaction.commit()
-    }
-}
 #endif

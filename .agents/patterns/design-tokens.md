@@ -19,4 +19,4 @@ None yet. A guard on colour literals outside `HassDesign` would hit the weather 
 
 ### Known debt
 
-About 48 `Color(red:)` / `Color(white:)` literals in `HassUI` (`WeatherBackdrop`, `WeatherChanceTile`, `ShellHeader`, `HouseholdSettingsPage`, `PersonRow`, `ValetudoMapView`). They move to tokens when their surface is next changed.
+About 48 `Color(red:)` / `Color(white:)` literals in `HassUI` (the weather views, `PersonRow`, the Valetudo map). They move to tokens when their surface is next changed.

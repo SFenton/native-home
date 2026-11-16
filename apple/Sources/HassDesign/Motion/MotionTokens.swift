@@ -64,6 +64,14 @@ public enum MotionTokens {
     /// ``press``'s duration, in seconds.
     public static let pressDuration: TimeInterval = 0.12
 
+    /// The state-styled tile (`.agents/design/state-styled-tile.md`). Its disc and arc cross-fade on ``quick``, also under Reduce Motion,
+    /// and its colour on ``state`` (``stateReduced`` under Reduce Motion).
+    public enum StateTile {
+        /// Once the in-progress look is shown it stays at least this long, words included, so a state that flaps does not flicker. The
+        /// app's value, not authored.
+        public static let minimumInProgress: TimeInterval = 1.0
+    }
+
     /// The launch sequence on the sign-in screen, about 1.2 s in all (a moment: the one place motion may run past 0.4 s).
     public enum Intro {
         /// The glow fading up from the plain launch ground.

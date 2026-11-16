@@ -1,4 +1,5 @@
 import CoreSpotlight
+import FentonActivityModel
 import HassCore
 import HassDesign
 import OSLog
@@ -242,41 +243,20 @@ final class UKHostedSignalsTests: DemoHouseTestCase {
 
     // MARK: Entry points
 
-    func testPlaceholderScreenShowsItsTitleAndSymbol() {
-        let placeholder = UKPlaceholderViewController(title: "Vacuums", symbol: "fan")
-        let window = HostedPage.show(placeholder)
-        defer { window.isHidden = true }
-        XCTAssertTrue(HostedPage.labels(in: placeholder.view).contains("Vacuums"))
-        XCTAssertNotNil(HostedPage.descendants(of: placeholder.view).compactMap { $0 as? UIImageView }.first?.image)
-    }
-
-    func testEveryTabAndEveryHomeRouteHasAScreen() {
-        let context = UKGalleryChrome.context()
-        for section in AppSection.allCases {
-            let page = UKScreens.root(for: section, context: context)
-            let window = HostedPage.show(UINavigationController(rootViewController: page))
-            XCTAssertNotNil(page.view.window, "\(section) has a root page")
-            window.isHidden = true
-        }
-        let routes: [HomeRoute] = [.room("living-room"), .vacuums, .media, .customLights, .sprinklers, .groceryList, .food]
-        for route in routes {
-            let page = UKScreens.destination(for: route, context: context)
-            let window = HostedPage.show(UINavigationController(rootViewController: page))
-            XCTAssertNotNil(page.view.window, "\(route) has a page")
-            window.isHidden = true
-        }
-    }
-
     func testTheAppEntryPointsOpenLinksAndSpotlightResults() throws {
         let session = AppSession(tokenStore: InMemoryTokenStore())
         XCTAssertTrue(UKApp.makeRootViewController(session: session) is UKRootViewController)
         let state = try XCTUnwrap(URL(string: "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dkitchen"))
         UKApp.open(state, session: session)
-        XCTAssertEqual(session.push.pendingRequest?.destination, PushDestination(dashboardPath: "kitchen"), "a Live Activity tap opens the job's page")
+        XCTAssertEqual(session.push.pendingRequest?.route, RouteRequest(path: "kitchen"), "a Live Activity tap opens the job's route")
         UKApp.open(try XCTUnwrap(URL(string: "https://example.com")), session: session)
-        XCTAssertEqual(session.push.pendingRequest?.destination, PushDestination(dashboardPath: "kitchen"), "any other URL changes nothing")
-        let id = try XCTUnwrap(SpotlightCatalog.entries.first).id
+        XCTAssertEqual(session.push.pendingRequest?.route, RouteRequest(path: "kitchen"), "any other URL changes nothing")
+        let catalog = RouteCatalog(sessionID: String(repeating: "a", count: 64), revision: 1, routes: [
+            RouteCatalogEntry(id: "kitchen-page", path: "kitchen", title: "Kitchen", summary: "Kitchen lights", icon: "fork.knife"),
+        ])
+        let id = try XCTUnwrap(SpotlightCatalog.entries(for: catalog).first).id
         let other = AppSession(tokenStore: InMemoryTokenStore())
+        other.push.routeCatalog = { catalog }
         let wrongType = NSUserActivity(activityType: "com.example.other")
         wrongType.userInfo = [SpotlightLink.userInfoKey: id]
         UKApp.continue(wrongType, session: other)
@@ -284,7 +264,7 @@ final class UKHostedSignalsTests: DemoHouseTestCase {
         let result = NSUserActivity(activityType: CSSearchableItemActionType)
         result.userInfo = [CSSearchableItemActivityIdentifier: id]
         UKApp.continue(result, session: other)
-        XCTAssertNotNil(other.push.pendingRequest, "a tapped Spotlight result opens its page")
+        XCTAssertEqual(other.push.pendingRequest?.route, RouteRequest(path: "kitchen"), "a tapped Spotlight result opens its route")
     }
 
     func testAScenePersistedByTheSwiftUIAppIsAdoptedAndOurOwnIsKept() {

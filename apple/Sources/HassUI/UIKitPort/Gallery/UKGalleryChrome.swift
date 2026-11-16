@@ -21,7 +21,7 @@ enum UKGalleryChrome {
     private static var backdropStore: HouseBackdropStore? {
         let generation = GalleryReset.shared.appliedRequests
         if let cached, cached.generation == generation { return cached.store }
-        let store = HouseBackdropStore.fixture(for: HassServer(baseURL: URL(string: "https://gallery.invalid")!))
+        let store = HouseBackdropStore.fixture()
         cached = (generation, store)
         return store
     }
@@ -48,7 +48,7 @@ enum UKGalleryChrome {
     }
 }
 
-/// Hosts a gallery page: the shell's navigation bar, the wallpaper measured for the window, and optionally the flyout.
+/// Hosts a gallery page: the shell's navigation bar, the wallpaper measured for the window, and optionally the flyout layout's chrome.
 final class UKGalleryHostViewController: UIViewController {
     private let navigation: UINavigationController
     private let context: UKContext
@@ -56,8 +56,6 @@ final class UKGalleryHostViewController: UIViewController {
     private let backdrop: UKBackdropView
     /// Push and pop move as they do in the shell's section stacks.
     private var motion: UKStackMotion?
-    private var flyout: UKNavigationFlyoutView?
-    private let navigator = ShellNavigator()
     /// Feeds the gallery's own shell environment the fold and the vertical bar, as the root view controller does the shell's: without
     /// it a gallery on the Duo never learns the system moved Quick Links into the rail, so Profile stayed a monogram in the top bar
     /// beside it, and no gallery page saw the hinge (`inVerticalBar`, `windowFold`).
@@ -97,11 +95,6 @@ final class UKGalleryHostViewController: UIViewController {
         view.addSubview(navigation.view)
         navigation.didMove(toParent: self)
         if UKGalleryChrome.flyout {
-            let flyout = UKNavigationFlyoutView(navigator: navigator, shell: context.shell)
-            flyout.frame = view.bounds
-            flyout.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            view.addSubview(flyout)
-            self.flyout = flyout
             context.shell?.style = .flyout
             context.shell?.chrome = .resolve(style: .flyout)
         }
@@ -149,5 +142,64 @@ final class UKGalleryLastCallView: UILabel {
 
     /// What the gallery recorded.
     func record(_ call: String) { text = "\(title): \(call)" }
+}
+
+/// The debug line a lane gallery shows on a bar (`GalleryLastCall` on `.background(.bar)`): the last service call, which journeys
+/// read through `gallery.lastCall`. It follows the recorder by observation.
+@MainActor
+final class UKLastCallBar: UIVisualEffectView {
+    private let label = UKGalleryLastCallView()
+    private let bag = UKObservationBag()
+
+    /// - Parameter text: Reads the recorder's last call; observed.
+    init(text: @escaping @MainActor () -> String) {
+        super.init(effect: UIBlurEffect(style: .systemChromeMaterial))
+        label.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(label)
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 4),
+            label.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -4),
+            label.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            label.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+        ])
+        bag.observe { [weak self] in self?.label.record(text()) }
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+}
+
+/// What a gallery shows when it has nothing to draw: a symbol and a title, for a failed fixture launch or a page no lane draws.
+@MainActor
+final class UKGalleryNoteViewController: UIViewController {
+    private let symbol: String
+
+    init(title: String, symbol: String = "hammer") {
+        self.symbol = symbol
+        super.init(nibName: nil, bundle: nil)
+        self.title = title
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        let image = UIImageView(image: UIImage(systemName: symbol))
+        image.tintColor = .secondaryLabel
+        image.preferredSymbolConfiguration = .init(textStyle: .largeTitle)
+        let label = UILabel()
+        label.text = title
+        label.font = .preferredFont(forTextStyle: .title2)
+        label.textColor = .secondaryLabel
+        let stack = UIStackView(arrangedSubviews: [image, label])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 8
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+        ])
+    }
 }
 #endif

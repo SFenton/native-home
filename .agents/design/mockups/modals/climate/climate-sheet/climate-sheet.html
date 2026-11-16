@@ -30,8 +30,7 @@
   Mock.mount({
     kind: 'modal', id: 'climate-sheet', title: 'Advanced Controls (Rooms, Automation, Tracking)', area: 'climate', status: 'shipped',
     summary: 'The thermostat sheet the three Climate rows open: a large page sheet with a NavigationStack, dark system Forms (the sheet\'s ground and cells), and the section tab bar on a glass capsule at the bottom. Rooms is a grid of room tiles; Automation and Tracking are toggles and openers. Details push with Back (climate-room-detail, climate-automation-details).',
-    source: ['apple/Sources/HassUI/Features/Climate/ClimateSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/Features/Climate/ClimateScreen.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift',
-      'apple/Sources/HassCore/Config/ClimateConfig.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Climate/ClimateController.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateForm.swift', 'apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/Common/ModalTabSymbols.swift', 'apple/Sources/HassCore/Config/ClimateConfig.swift', 'apple/Sources/HassCore/Climate/ClimateLogic.swift', 'apple/Sources/HassCore/Climate/ClimateController.swift'],
     spec: ['.agents/pages/climate/spec.md', '.agents/pages/climate/ios.md', '.agents/patterns/modal-sheet.md'],
     patterns: ['modal-sheet', 'thermostat-dial', 'module-list', 'dynamic-grid', 'optimistic-actions', 'motion'],
     hig: ['Sheets', 'Segmented controls', 'Lists and tables', 'Toggles', 'Toolbars'],

@@ -26,7 +26,7 @@ private func assertContract(_ specs: [TileActionSpec], sourceLocation: SourceLoc
 
 @Suite(.demoHouse)
 struct LockActionsTests {
-    let provider = LockActions(entityId: "lock.demo_front")
+    let provider = StateStyleActions(.lock, entityId: "lock.demo_front")
 
     private func spec(_ state: String?) -> TileActionSpec {
         let specs = provider.actions(for: state.map { entity("lock.demo_front", $0) })
@@ -69,9 +69,10 @@ struct LockActionsTests {
         #expect(s.phase == .unavailable && s.id == "lock" && s.isOn == false)
     }
 
-    @Test func matchesTodaysFilledRule() {
-        for state in ["locked", "unlocked", "open", "locking", "unlocking", "jammed", "unavailable", nil] {
-            #expect(LockActions.isFilled(state) == (state != nil && state != "locked" && state != "unavailable"))
+    @Test func theFaceIsLitWhileUnlockedOrUnlocking() {
+        let lit = ["locked": false, "unlocked": true, "open": true, "locking": false, "unlocking": true, "jammed": true, "unavailable": false]
+        for (state, expected) in lit {
+            #expect(StateStyle.lock.resolve(entity("lock.demo_front", state), entityId: "lock.demo_front").isActive == expected, Comment(rawValue: state))
         }
     }
 
@@ -90,8 +91,8 @@ struct CoverActionsTests {
     let stop: [String: JSONValue] = ["supported_features": .number(11)]
     let noStop: [String: JSONValue] = ["supported_features": .number(3)]
 
-    private func spec(_ state: String, _ attributes: [String: JSONValue], hold: CoverActions.Hold = .none) -> TileActionSpec {
-        let specs = CoverActions(entityId: id, hold: hold).actions(for: entity(id, state, attributes))
+    private func spec(_ state: String, _ attributes: [String: JSONValue], hold: Bool = false) -> TileActionSpec {
+        let specs = StateStyleActions(.garageDoor, entityId: id, requestInFlight: hold).actions(for: entity(id, state, attributes))
         assertContract(specs)
         #expect(specs.map(\.id) == ["door"], "one spec, id stable in \(state)")
         return specs[0]
@@ -127,29 +128,28 @@ struct CoverActionsTests {
 
     @Test func missingFeatureAttributeReverses() {
         #expect(spec("opening", [:]).verb == "Reverse")
-        #expect(CoverActions.supportsStop(entity(id, "open", ["supported_features": .number(8)])))
-        #expect(!CoverActions.supportsStop(nil))
+        #expect(StateStyleActions.supportsStop(entity(id, "open", ["supported_features": .number(8)])))
+        #expect(!StateStyleActions.supportsStop(nil))
     }
 
     @Test func holdsAreInFlight() {
-        for hold in [CoverActions.Hold.sending, .stopping] {
-            for state in ["closed", "open", "opening", "closing"] {
-                #expect(spec(state, stop, hold: hold).phase == .inFlight)
-            }
+        for state in ["closed", "open", "opening", "closing"] {
+            #expect(spec(state, stop, hold: true).phase == .inFlight)
         }
-        #expect(spec("closed", stop, hold: .none).phase == .ready)
+        #expect(spec("closed", stop, hold: false).phase == .ready)
     }
 
     @Test func unavailableKeepsTheDoorSpec() {
         for state in [nil, entity(id, "unavailable"), entity(id, "unknown"), entity(id, "stopped")] {
-            let specs = CoverActions(entityId: id).actions(for: state)
+            let specs = StateStyleActions(.garageDoor, entityId: id).actions(for: state)
             #expect(specs.map(\.id) == ["door"] && specs[0].phase == .unavailable)
         }
     }
 
-    @Test func filledWheneverNotClosed() {
-        #expect(!CoverActions.isFilled("closed") && !CoverActions.isFilled("unavailable") && !CoverActions.isFilled(nil))
-        for state in ["open", "opening", "closing"] { #expect(CoverActions.isFilled(state)) }
+    @Test func litWheneverNotClosed() {
+        func lit(_ state: EntityState?) -> Bool { StateStyle.garageDoor.resolve(state, entityId: id).isActive }
+        #expect(!lit(entity(id, "closed")) && !lit(entity(id, "unavailable")) && !lit(nil))
+        for state in ["open", "opening", "closing"] { #expect(lit(entity(id, state))) }
     }
 }
 
@@ -404,7 +404,7 @@ struct VacuumActionsTests {
 struct TileActionContractTests {
     @Test func nobodyEverToggles() {
         let providers: [(any TileActionProviding, String)] = [
-            (LockActions(entityId: "lock.demo_a"), "lock.demo_a"), (CoverActions(entityId: "cover.demo_a"), "cover.demo_a"),
+            (StateStyleActions(.lock, entityId: "lock.demo_a"), "lock.demo_a"), (StateStyleActions(.garageDoor, entityId: "cover.demo_a"), "cover.demo_a"),
             (PowerToggleActions.entity("switch.demo_a"), "switch.demo_a"), (PowerToggleActions.pc(prefix: "p"), "input_boolean.demo_p_power"),
             (VacuumActions(entityId: "vacuum.demo_a"), "vacuum.demo_a"),
             (FanRailActions(config: BathroomFanConfig.all[1], lockState: nil), BathroomFanConfig.all[1].powerEntityId),

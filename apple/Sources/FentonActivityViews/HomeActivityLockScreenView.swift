@@ -17,13 +17,16 @@ public struct HomeActivityLockScreenView: View {
     }
 
     public var body: some View {
-        switch card.style {
-        case .job:
-            JobCardView(card: card, showsMark: !isFullscreen)
-        case .problem:
-            if let problem = card.problem {
-                ProblemCardView(card: card, problem: problem, showsMark: !isFullscreen)
+        Group {
+            switch card.style {
+            case .job:
+                JobCardView(card: card, showsMark: !isFullscreen)
+            case .problem:
+                if let problem = card.problem {
+                    ProblemCardView(card: card, problem: problem, showsMark: !isFullscreen)
+                }
             }
         }
+        .activityPresentationPrivacy(card)
     }
 }

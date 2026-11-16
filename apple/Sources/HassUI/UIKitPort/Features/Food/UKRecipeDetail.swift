@@ -5,291 +5,6 @@ import UIKit
 
 // MARK: - Presentations
 
-/// How a recipe opens: as a full-height sheet (``RecipeDetailSheet``) or in the trailing half of a split (``RecipeDetailPane``).
-@MainActor
-enum UKRecipeDetailPresenter {
-    /// The recipe detail as a sheet (web `RecipeDetailModal`): the page width on iPad, full height (owner, 2026-10-16: a recipe is a
-    /// page to read), its own navigation bar with the circle-x Close (`recipe.done`), the centred title over "8 of 9 Ingredients"
-    /// (iOS 26), and the sections in the bottom glass bar.
-    static func presentSheet(_ model: RecipeDetailModel, from presenter: UIViewController, context: UKContext, onDismissed: (() -> Void)? = nil) {
-        let content = UKRecipeDetailViewController(model: model, context: context.with { $0.surface = .sheet }, setsNavigationTitle: true)
-        var options = UKHassModalOptions(title: nil)
-        options.closeIdentifier = "recipe.done"
-        options.width = .page
-        options.height = .full
-        options.onDismissed = onDismissed
-        UKHassModalController(root: content, options: options).present(from: presenter)
-    }
-}
-
-/// The recipe detail in the trailing half of a split (iPad and unfolded iPhone Duo landscape): its own header with the title and
-/// Close (`recipe.close`), a divider, and the same content as the sheet, whose lists keep the sheet's cells rather than the page module.
-final class UKRecipeDetailPaneViewController: UKPaneViewController {
-    private let model: RecipeDetailModel
-    private let context: UKContext
-    private let onClose: () -> Void
-    private let titleLabel = UILabel.uk(.headline, ink: UKDesignInk.primary)
-    private let bag = UKObservationBag()
-
-    init(model: RecipeDetailModel, context: UKContext, onClose: @escaping () -> Void) {
-        self.model = model
-        self.context = context.with { $0.surface = .sheet }
-        self.onClose = onClose
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        view.accessibilityIdentifier = "recipe.pane"
-        view.accessibilityContainerType = .semanticGroup
-        titleLabel.accessibilityTraits = [.header, .staticText]
-        let closeButton = UIButton(type: .system)
-        closeButton.setImage(UIImage(systemName: "xmark.circle.fill"), for: .normal)
-        closeButton.tintColor = UKDesignInk.secondary
-        closeButton.accessibilityLabel = "Close"
-        closeButton.accessibilityIdentifier = "recipe.close"
-        closeButton.addAction(UIAction { [weak self] _ in self?.onClose() }, for: .touchUpInside)
-        closeButton.setContentHuggingPriority(.required, for: .horizontal)
-        let header = UIStackView(arrangedSubviews: [titleLabel, closeButton])
-        header.axis = .horizontal
-        header.alignment = .firstBaseline
-        header.spacing = HassTokens.Spacing.m
-        header.isLayoutMarginsRelativeArrangement = true
-        header.directionalLayoutMargins = NSDirectionalEdgeInsets(top: HassTokens.Spacing.s, leading: HassTokens.Spacing.l, bottom: HassTokens.Spacing.s, trailing: HassTokens.Spacing.l)
-        header.translatesAutoresizingMaskIntoConstraints = false
-        closeButton.widthAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
-        closeButton.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
-        let divider = UIView()
-        divider.backgroundColor = UKDesignSurface.separator
-        divider.translatesAutoresizingMaskIntoConstraints = false
-        let leading = UIView()
-        leading.backgroundColor = UKDesignSurface.separator
-        leading.translatesAutoresizingMaskIntoConstraints = false
-
-        let detail = UKRecipeDetailViewController(model: model, context: context, setsNavigationTitle: false)
-        addChild(detail)
-        detail.view.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(header)
-        view.addSubview(divider)
-        view.addSubview(detail.view)
-        view.addSubview(leading)
-        detail.didMove(toParent: self)
-        NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            header.leadingAnchor.constraint(equalTo: view.leadingAnchor), header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            divider.topAnchor.constraint(equalTo: header.bottomAnchor), divider.heightAnchor.constraint(equalToConstant: 0.5),
-            divider.leadingAnchor.constraint(equalTo: view.leadingAnchor), divider.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            detail.view.topAnchor.constraint(equalTo: divider.bottomAnchor), detail.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            detail.view.leadingAnchor.constraint(equalTo: view.leadingAnchor), detail.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            leading.topAnchor.constraint(equalTo: view.topAnchor), leading.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            leading.leadingAnchor.constraint(equalTo: view.leadingAnchor), leading.widthAnchor.constraint(equalToConstant: 0.5),
-        ])
-        bag.observe { [weak self] in
-            guard let self else { return }
-            self.titleLabel.text = self.model.detail?.title ?? self.model.recipe.title
-        }
-    }
-}
-
-// MARK: - Content
-
-/// The selected tab under the title, with the tabs in the bottom glass section bar (``RecipeDetailContent``; web
-/// `RECIPE_DETAIL_TABS`: General, Ingredients, Instructions; `.agents/patterns/modal-sheet.md`).
-final class UKRecipeDetailViewController: UKPageViewController {
-    private let model: RecipeDetailModel
-    private let setsNavigationTitle: Bool
-    private let loading = UKArcSpinnerView(.page, label: "Loading recipe details")
-    private var stateView: UKCenteredStateMessageView?
-    private let scroll = UIScrollView()
-    private let content = UIView()
-    private let stack = UIStackView()
-    private var tabBar: UKModalTabBar<RecipeDetailModel.Tab>?
-    private var barHost: UIView?
-    private var pinnedBar: UKPagePinnedBar?
-    private var shownDetail: RecipeDetail?
-    private var shownTab: RecipeDetailModel.Tab?
-    private var centering: [NSLayoutConstraint] = []
-    private var topAndBottom: [NSLayoutConstraint] = []
-    private var minimumHeight: NSLayoutConstraint?
-
-    /// - Parameter setsNavigationTitle: False in the split pane, whose page title stays "Recipes".
-    init(model: RecipeDetailModel, context: UKContext, setsNavigationTitle: Bool) {
-        self.model = model
-        self.setsNavigationTitle = setsNavigationTitle
-        super.init(context: context.with { $0.surface = .sheet }, title: nil)
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        buildScroll()
-        loading.color = UKDesignInk.primary
-        loading.accessibilityIdentifier = "recipe.loading"
-        loading.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(loading)
-        NSLayoutConstraint.activate([loading.centerXAnchor.constraint(equalTo: contentView.centerXAnchor), loading.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)])
-        bag.observe { [weak self] in self?.render() }
-        if setsNavigationTitle {
-            bag.observe { [weak self] in
-                guard let self else { return }
-                self.navigationItem.title = self.model.detail?.title ?? self.model.recipe.title
-                self.navigationItem.largeTitleDisplayMode = .never
-                // "8 of 9 Ingredients" under the title, when the card counted any.
-                UKSheetSubtitle.apply(self.model.recipe.requiredTotal > 0 ? self.model.recipe.coverageText : nil, to: self.navigationItem)
-            }
-        }
-        addDebugMarker()
-        model.load()
-    }
-
-    private func buildScroll() {
-        scroll.accessibilityIdentifier = "recipe.scroll"
-        scroll.alwaysBounceVertical = false
-        scroll.backgroundColor = .clear
-        // The page's scroller: the header fade, scroll to top and the content-fit measure all follow it.
-        install(scrollView: scroll)
-        content.translatesAutoresizingMaskIntoConstraints = false
-        scroll.addSubview(content)
-        NSLayoutConstraint.activate([
-            content.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor), content.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor),
-            content.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor), content.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor),
-            content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
-        ])
-        stack.axis = .vertical
-        stack.alignment = .fill
-        stack.spacing = HassTokens.Spacing.xl
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.leadingAnchor.constraint(equalTo: content.leadingAnchor, constant: HassTokens.Spacing.l),
-            stack.trailingAnchor.constraint(equalTo: content.trailingAnchor, constant: -HassTokens.Spacing.l),
-        ])
-        topAndBottom = [
-            stack.topAnchor.constraint(equalTo: content.topAnchor, constant: HassTokens.Spacing.m),
-            stack.bottomAnchor.constraint(equalTo: content.bottomAnchor, constant: -HassTokens.Spacing.m),
-        ]
-        // Instructions that fit the sheet sit in its vertical centre (owner, 2026-10-16); longer ones scroll from the top.
-        let centred = stack.centerYAnchor.constraint(equalTo: content.centerYAnchor)
-        centred.priority = .defaultHigh
-        // Nothing else says how tall the content is when Instructions are centred: the least the others allow.
-        let shrink = content.heightAnchor.constraint(equalToConstant: 0)
-        shrink.priority = UILayoutPriority(1)
-        shrink.isActive = true
-        centering = [
-            stack.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: HassTokens.Spacing.m),
-            stack.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -HassTokens.Spacing.m),
-            centred,
-        ]
-        let minimum = content.heightAnchor.constraint(greaterThanOrEqualToConstant: 0)
-        minimumHeight = minimum
-    }
-
-    // MARK: Phase
-
-    private func render() {
-        let phase = model.phase
-        let tab = model.tab
-        switch phase {
-        case .loading:
-            shownDetail = nil
-            show(loading: true, scroll: false, state: nil)
-        case let .failed(message, unsupported):
-            let state = UKStateMessageView(symbol: "exclamationmark.triangle", title: unsupported ? "Recipe Details Unsupported" : "Unable to Load Recipe",
-                                           message: message, identifier: "recipe.error")
-            shownDetail = nil
-            show(loading: false, scroll: false, state: UKCenteredStateMessageView(state))
-        case let .loaded(detail):
-            show(loading: false, scroll: true, state: nil)
-            guard detail != shownDetail || tab != shownTab else { return }
-            let sameDetail = detail == shownDetail
-            shownDetail = detail
-            shownTab = tab
-            fill(detail: detail, tab: tab, keepsOffset: sameDetail)
-        }
-    }
-
-    private func show(loading showsLoading: Bool, scroll showsScroll: Bool, state: UKCenteredStateMessageView?) {
-        loading.isHidden = !showsLoading
-        scroll.isHidden = !showsScroll
-        barHost?.isHidden = !showsScroll
-        stateView?.removeFromSuperview()
-        stateView = state
-        if let state {
-            state.translatesAutoresizingMaskIntoConstraints = false
-            contentView.addSubview(state)
-            NSLayoutConstraint.activate([
-                state.topAnchor.constraint(equalTo: contentView.safeAreaLayoutGuide.topAnchor), state.bottomAnchor.constraint(equalTo: contentView.safeAreaLayoutGuide.bottomAnchor),
-                state.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), state.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            ])
-        }
-    }
-
-    private func fill(detail: RecipeDetail, tab: RecipeDetailModel.Tab, keepsOffset: Bool) {
-        for view in stack.arrangedSubviews { stack.removeArrangedSubview(view); view.removeFromSuperview() }
-        let parts: [UIView]
-        switch tab {
-        case .general: parts = UKRecipeTabs.general(detail, fallbackImageURL: model.recipe.imageURL)
-        case .ingredients: parts = UKRecipeTabs.ingredients(detail, model: model)
-        case .instructions: parts = UKRecipeTabs.instructions(detail)
-        }
-        parts.forEach(stack.addArrangedSubview)
-        NSLayoutConstraint.deactivate(centering + topAndBottom + [minimumHeight].compactMap { $0 })
-        NSLayoutConstraint.activate(tab == .instructions ? centering : topAndBottom)
-        if tab == .instructions, let minimumHeight { minimumHeight.isActive = true }
-        ensureTabBar(selection: tab)
-        if !keepsOffset { scroll.setContentOffset(CGPoint(x: 0, y: -scroll.adjustedContentInset.top), animated: false) }
-        view.setNeedsLayout()
-    }
-
-    private func ensureTabBar(selection: RecipeDetailModel.Tab) {
-        if let tabBar {
-            tabBar.selection = selection
-            return
-        }
-        let bar = UKModalTabBar(tabs: RecipeDetailModel.Tab.allCases, label: "Recipe sections", title: { $0.title }, symbol: { $0.symbol },
-                                selection: selection, identifier: "recipe.tabs") { [weak self] tab in self?.model.tab = tab }
-        tabBar = bar
-        let host = bar.inset()
-        barHost = host
-        // The page's one pinned bar: the content scrolls under it (soft bottom edge) and clears it.
-        let pinned = UKPagePinnedBar(bar: host, scrollView: scroll)
-        pinnedBar = pinned
-        pinned.install(in: self)
-    }
-
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
-        pinnedBar?.layoutChanged()
-        let visible = scroll.bounds.height - scroll.adjustedContentInset.top - scroll.adjustedContentInset.bottom
-        if let minimumHeight, abs(minimumHeight.constant - visible) > 0.5 { minimumHeight.constant = max(0, visible) }
-    }
-
-    /// Debug builds with `FENTON_FOOD_DEBUG=1` (live journeys only): the model's identity and tab, so a journey can tell a rebuilt
-    /// model from a lost tap.
-    private func addDebugMarker() {
-        #if DEBUG
-        guard ProcessInfo.processInfo.environment["FENTON_FOOD_DEBUG"] == "1" else { return }
-        let marker = UILabel.uk(.caption2, ink: UKDesignInk.primary)
-        marker.accessibilityIdentifier = "recipe.debug"
-        marker.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(marker)
-        NSLayoutConstraint.activate([marker.trailingAnchor.constraint(equalTo: view.trailingAnchor), marker.bottomAnchor.constraint(equalTo: view.bottomAnchor)])
-        bag.observe { [weak self] in
-            guard let self else { return }
-            marker.text = "model \(ObjectIdentifier(self.model).hashValue) tab \(self.model.tab.rawValue)"
-        }
-        #endif
-    }
-}
-
-// MARK: - Tabs
-
 /// The three tabs' content as views for the detail's vertical stack.
 @MainActor
 enum UKRecipeTabs {
@@ -556,45 +271,43 @@ final class UKRecipeStepRow: UIView, UKSurfaceStyled {
 /// One ingredient: status mark, title with amount, chips, source text and match (``IngredientRow``; web `CheckboxRow`). The canonical
 /// row with the mark leading (top aligned) and the title, chips and notes as its text view.
 final class UKIngredientRow: UKRowView {
-    init(detail: RecipeDetail, ingredient: RecipeDetail.Ingredient, checklist: Bool) {
-        let onHand = RecipeFormatting.isOnHand(ingredient)
+    convenience init(detail: RecipeDetail, ingredient: RecipeDetail.Ingredient, checklist: Bool) {
+        self.init(presentation: RecipeIngredientPresentation(detail: detail, ingredient: ingredient, checklist: checklist))
+    }
+
+    init(presentation: RecipeIngredientPresentation) {
         let title = UILabel.uk(.body, ink: UKDesignInk.primary)
-        title.text = RecipeFormatting.title(ingredient)
+        title.text = presentation.title
         var parts: [UIView] = [title]
-        if checklist {
-            parts.append(UKChipFlow(chips: RecipeFormatting.chips(detail, ingredient)))
-        } else {
-            let notes = [ingredient.optional == true ? "Optional" : nil, RecipeFormatting.quantityNote(detail, ingredient)].compactMap { $0 }
-            if !notes.isEmpty { parts.append(UKChipFlow(chips: notes)) }
-        }
-        if let source = RecipeFormatting.sourceDetail(ingredient) {
+        if !presentation.chips.isEmpty { parts.append(UKChipFlow(chips: presentation.chips)) }
+        if let source = presentation.source {
             let label = UILabel.uk(.footnote, ink: UKDesignInk.secondary)
-            label.text = "Source: \(source)"
+            label.text = source
             parts.append(label)
         }
-        if let match = ingredient.closestMatchLabel {
+        if let match = presentation.match {
             let label = UILabel.uk(.footnote, ink: UKDesignInk.secondary)
-            label.text = "Matched as \(match)"
+            label.text = match
             parts.append(label)
         }
         let column = UIStackView(arrangedSubviews: parts)
         column.axis = .vertical
         column.alignment = .fill
         column.spacing = HassTokens.Spacing.s
-        var content = UKRowContent(RecipeFormatting.title(ingredient))
-        if checklist {
-            content.symbol = Self.mark(ingredient, onHand: onHand)
-            content.glyph = onHand ? UKDesignInk.success : UKDesignInk.secondary
+        var content = UKRowContent(presentation.title)
+        if let mark = presentation.mark {
+            content.symbol = mark
+            content.glyph = presentation.onHand ? UKDesignInk.success : UKDesignInk.secondary
             content.alignsLeadingToTop = true
         }
         content.verticalPadding = HassTokens.Spacing.m
         content.minHeight = RecipeRowMetrics.minHeight
-        content.spokenValue = RecipeFormatting.spokenValue(detail, ingredient, checklist: checklist)
-        content.identifier = "recipe.ingredient.\(ingredient.position)"
+        content.spokenValue = presentation.spokenValue
+        content.identifier = presentation.identifier
         super.init(content, textView: column, surface: .sheet)
         isTextAccessible = false
         isAccessibilityElement = true
-        accessibilityLabel = RecipeFormatting.title(ingredient)
+        accessibilityLabel = presentation.title
         accessibilityValue = content.spokenValue
         accessibilityIdentifier = content.identifier
     }

@@ -329,9 +329,10 @@ struct FeedbackFormModelTests {
         #expect(n.phase == .failed(FeedbackFilingError.network.errorDescription ?? ""))
     }
 
-    @Test func cancellingASendGoesBackToEditingWithEverythingKept() async {
+    @Test func filingCannotBeCancelledOrDiscardedIntoADuplicateSubmission() async {
         let filer = StubFiler()
-        filer.onSubmit = { _ in try await Task.sleep(for: .seconds(30)); throw FeedbackFilingError.network }
+        var finish: CheckedContinuation<FiledIssue, any Error>?
+        filer.onSubmit = { _ in try await withCheckedThrowingContinuation { finish = $0 } }
         let m = model(filer)
         fill(m)
         await m.checkAvailability()
@@ -339,8 +340,34 @@ struct FeedbackFormModelTests {
         #expect(m.phase == .editing)
         m.submit(platform: .ios) { diagnostics }
         #expect(m.isSending)
+        await waitUntil { finish != nil }
         m.cancelSubmit()
-        #expect(m.phase == .editing && m.title == "[Bug] Lights flicker")
+        m.resetDraft()
+        #expect(m.isSending && !m.canSubmit && m.title == "[Bug] Lights flicker")
+        finish?.resume(returning: FiledIssue(number: 7, url: URL(string: "https://github.com/x/y/issues/7")!))
+        await waitUntil { !m.isSending }
+        m.resetDraft()
+        #expect(!m.hasUnsavedInput && m.phase == .editing)
+    }
+
+    @Test func stoppingUploadRetainsPendingUntilCancellationUnwinds() async throws {
+        let folder = try FeedbackUITestMedia.folder()
+        let filer = StubFiler()
+        var finish: CheckedContinuation<URL, any Error>?
+        filer.onUpload = { _ in try await withCheckedThrowingContinuation { finish = $0 } }
+        let m = model(filer)
+        fill(m)
+        await m.checkAvailability()
+        await m.importFiles(.success([try FeedbackUITestMedia.image(in: folder, name: "cancel.png", type: .png, gps: false)]))
+        m.submit(platform: .ios) { diagnostics }
+        await waitUntil { finish != nil }
+        m.cancelSubmit()
+        #expect(m.isSending && !m.canSubmit)
+        finish?.resume(returning: URL(string: "https://github.com/user-attachments/assets/sample")!)
+        await waitUntil { !m.isSending }
+        #expect(m.phase == .editing && m.hasUnsavedInput)
+        m.resetDraft()
+        #expect(m.attachments.isEmpty)
     }
 
     @Test func discardingWhileSendingCancelsTheUpload() async {

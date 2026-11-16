@@ -2,9 +2,9 @@
 
 > **What:** the one way a tile shows and runs actions: trailing or below discs, the chevron beside them, feedback kinds, availability motion. **Read when:** giving any tile an action button, a chevron with actions, or a read-only face.
 
-Decision: [action-navigation-tiles](../design/action-navigation-tiles.md) (owner, option B, 2026-10-26). Architecture and tests: [architecture.md](../design/mockups/proposals/action-navigation-tiles/architecture.md). **Status: first build merged (#186); rollout in progress on `claude/tile-rollout`** (lane F, the shared foundations, is in; each feature lane adopts them in its own folder). Defaults the build chose where the decision was silent are in [the decision doc](../design/action-navigation-tiles.md#defaults-chosen-in-the-build).
+Decision: [action-navigation-tiles](../design/action-navigation-tiles.md) (owner, option B, 2026-10-26). Architecture and tests: [architecture.md](../design/mockups/proposals/action-navigation-tiles/architecture.md). Defaults the build chose where the decision was silent are in [the decision doc](../design/action-navigation-tiles.md#defaults-chosen-in-the-build).
 
-- **Components (built):** HassCore `TileActions/`: `TileActionSpec`, `TileActionProviding` (+ `stateTextCandidates`), providers `LockActions`, `CoverActions` (morphing garage disc), `PowerToggleActions`, `MediaTransportActions`, `FanRailActions`, `VacuumActions`, `TileActionCatalog`, `TileClassification`. HassDesign `TileActions/`: `TileActionItem`, `TileActionButtonStyle`, `TileActionInk`, `TileActionSymbolTransition`, `TileActionStrip`, `TileVolumeSlider`, `TileActionSetTransition`; `TileActionPlacement` and `TileBehavior`; `GlassTile(…, behavior:, actions:, perform:)`; `TileMinimumWidth` and `TileTextMeasure`. HassUI `Features/TileActions/TileActionItem+Spec.swift` maps spec → item and classification → behaviour (HassDesign has no HassCore dependency); `RemoteTileSupport.swift` holds the remote's transport. Never hand-build a disc or a rail in a feature.
+- **Components (built):** HassCore `TileActions/`: `TileActionSpec`, `TileActionProviding` (+ `stateTextCandidates`), providers `PowerToggleActions`, `MediaTransportActions`, `FanRailActions`, `VacuumActions`, `TileActionCatalog`, `TileClassification`. HassDesign `TileActions/`: `TileActionItem`, `TileActionButtonStyle`, `TileActionInk`, `TileActionSymbolTransition`, `TileActionStrip`, `TileVolumeSlider`, `TileActionSetTransition`; `TileActionPlacement` and `TileBehavior`; `GlassTile(…, behavior:, actions:, perform:)`; `TileMinimumWidth` and `TileTextMeasure`. HassUI `Features/TileActions/TileActionItem+Spec.swift` maps spec → item and classification → behaviour (HassDesign has no HassCore dependency); `RemoteTileSupport.swift` holds the remote's transport. Never hand-build a disc or a rail in a feature.
 - **Grid (owner, 2026-10-30):** every tile has one minimum width (150 pt) and a grid fits up to four per row, leading aligned, all tracks equal; a tile never takes more tracks for its text (see [dynamic-grid](dynamic-grid.md), one tile rule). `TileMinimumWidth` no longer changes spans. Three `ViewThatFits` variants, no measurement feedback: natural one line, then a ticker with discs trailing down to the 96 pt text floor, then a ticker with the strip below.
 - **Transport:** a playing remote shows prev, play/pause and next below its text and a `TileVolumeSlider` (writes on release); off shows Power beside the chevron.
 - **Classes:** action (*text · disc*, body does the disc's action), navigation (*glyph · text · chevron*, up to two discs left of the chevron, more below), read-only (glyph, flat face).
@@ -14,9 +14,15 @@ Decision: [action-navigation-tiles](../design/action-navigation-tiles.md) (owner
 - **Choice indicator (selection tiles).** A choice is `TileActionItem.selection` (`TileSelection`: `.single(isSelected:)` a check, `.ordered(position:)` the 1-based number): see the Selection face under Rollout foundations. The vacuum's Rooms and Auto-Clean tiles (`VacuumChoiceTile`, #210) use it; use it for any multi-select grid instead of a switch or checkmark row.
  **Accessibility:** a single-action tile is one element (the disc hidden only when it repeats the body exactly); otherwise the body plus each disc as a button labelled "verb title"; identifiers `<tile-id>.action.<spec.id>`.
 
+Configured security uses these primitives: `UKAlarmPanelControl` and `UKAlarmModeButton.Value` are value and closure presentation.
+`UKServerUIAlarmSource` owns the confirmation tickets and network lifetime.
+`UKServerUIDoorSource` resolves through `StateStyle` ([state-styles](../design/state-styles.md)) and `GarageDoorController`, never generic power.
+The source and its authored control stay pinned during a pending command.
+Mode order, copy and appearance are authored; service selection and the Disarm confirmation are native policy.
+
 ## Rollout foundations (lane F, `claude/tile-rollout`, owner 2026-10-27)
 
-What a feature lane uses; none of it is wired into a screen yet. Decision: [Rollout to every page](../design/action-navigation-tiles.md#rollout-to-every-page-owner-2026-10-27).
+Decision: [Rollout to every page](../design/action-navigation-tiles.md#rollout-to-every-page-owner-2026-10-27).
 
 - **Providers** (HassCore `TileActions/`, each a pure value type with its own suite in `Tests/HassCoreTests/TileActions/RolloutProvidersTests.swift`):
 
@@ -52,7 +58,7 @@ GlassTile(title: "Game Console", subtitle: nil, symbol: "gamecontroller", family
 
 ## Rollout R: rooms, media and device sheets (`claude/tile-rollout`, lane R)
 
-Adopted in `Features/{Rooms,Media,Bedroom,RoomDevices}`; the pure support is `Features/TileActions/RolloutTileSupport.swift`.
+Adopted in `Features/{Rooms,Media,Bedroom,RoomDevices}`; the pure support is in `Features/TileActions/`.
 
 | Tile | Class and disc | Notes |
 |---|---|---|
@@ -60,16 +66,16 @@ Adopted in `Features/{Rooms,Media,Bedroom,RoomDevices}`; the pure support is `Fe
 | Vents | navigation, no disc | stays as it was; read-only in the climate sheets |
 | Bed sides | navigation + `power`, off is confirmed (dialog) | `BedSidePowerActions` fed the controller's shown power; the disc runs `BedSideController.setPower(on:)`; mapped as `.bedSidePower` (`TileActionCatalog.bedSide(of:)`) |
 | Studio sources (room page, Media page, Game) | action + selected face, check disc | `SourceSelectActions`; the tap is today's toggle through the shared `MediaRemoteController` (chosen = TV off, Game relaunches); state line "On the TV" while chosen, none otherwise; Game Console and Game both read chosen with Game active |
-| Handheld Console, Media Room Streamer (room page, Media page) | action + toggle-styled `power`, tracked | `ScriptPowerActions` through `RolloutTileSupport.scriptSpecs` / `scriptActions`; "Turning On…" / "Turning Off…" while in flight, then On / Off; "Didn't Respond" on failure |
+| Handheld Console, Media Room Streamer (room page, Media page) | action + toggle-styled `power`, tracked | `ScriptPowerActions` (`Features/TileActions/`); "Turning On…" / "Turning Off…" while in flight, then On / Off; "Didn't Respond" on failure |
 | Hot Flash Mode (bed sheet) | action, snowflake -> stop | `HotFlashActions`; the body cancels while it runs; the countdown is the state line; the separate cancel button is gone |
 | Bathroom fan sheet Power, Lock | action | `FanRailActions` (`BathroomFanController.railSpecs`) one disc each; `fan.power` / `fan.lock` identifiers kept; the Lock tile now reads its state line ("Locked"), not On / Off |
 | Grill Keep Warm, Smoke Boost | action + `power` | `PowerToggleActions.entity`; the readings stay flat |
 
-One tile path: `BedSideTile`, `WakeLightTile` and the dead `RemoteGlassTile` are deleted. The Bedroom Devices gallery draws the room page's cards; the wake light remains the generic room card (it reads its status sensor), so its subtitle on the page did not change.
+The Bedroom Devices gallery draws the room page's cards; the wake light remains the generic room card (it reads its status sensor), so its subtitle on the page did not change.
 
 ## Rollout L: lights, Custom Lights, overview rooms and Quick Links (`claude/tile-rollout`, lane L)
 
-Adopted in `Features/{CustomLights,Rooms/QuickLinksSheet}` and `Common/RoomOverview`; vents in `Features/Climate` and the room sheets are unchanged.
+Adopted in `UIKitPort/Features/Rooms/CustomLights`, the Quick Links sheet and `Common/RoomOverview`; vents are unchanged.
 
 | Tile | Class and disc | Notes |
 |---|---|---|
@@ -80,7 +86,7 @@ Adopted in `Features/{CustomLights,Rooms/QuickLinksSheet}` and `Common/RoomOverv
 | Quick Links Security System | navigation + `alarm` | `AlarmModeActions`: Arm Home while disarmed, Disarm (confirmed with `AlertCopy.disarm`) while armed, the arc only while disarming (Disarm stays tappable through the exit and entry delays); **no disc while screenshots are redacted** (its verb and glyph would give the mode away) and none without a caller |
 | Vents (Climate room detail, room card sheet, group detail) | read-only | already `kind: .state`; held by tests, nothing changed |
 
-A tile with discs takes its identifier from `tileIdentifier` (a `.accessibilityIdentifier` set from outside is inherited by the disc and replaces its own): `LightGroupTile`, `BrightnessTile` and `QuickLinkTile` take it as a parameter. A navigation tile with a disc has no VoiceOver hint (a hint set from outside would also be read on the disc); `OpensHint` adds one to those without. `BrightnessTile`'s old `brightness.power` identifier is `<tile-id>.action.power`.
+A tile with discs takes its identifier from `tileIdentifier` (a `.accessibilityIdentifier` set from outside is inherited by the disc and replaces its own): `LightGroupTile` and `BrightnessTile` take it as a parameter. A navigation tile with a disc has no VoiceOver hint (a hint set from outside would also be read on the disc); `OpensHint` adds one to those without. `BrightnessTile`'s old `brightness.power` identifier is `<tile-id>.action.power`.
 
 ### Content-aware span, decided (owner, 2026-11-01)
 
@@ -92,14 +98,14 @@ Adopted in `Features/Settings/Household`; the pure rules are HassCore `TileActio
 
 | Tile | Class and disc | Notes |
 |---|---|---|
-| Front Door Auto-Lock | action + toggle-styled disc, `lock.fill` while on, `lock.open` while off | `PowerToggleActions.entity(_, symbol:)`; the mockup's glyph, not `power` |
-| Relay Control Mode, Outdoor Faucets, Holiday Lights, the 14 Auto-Reset rooms, High AQI Mode | action + `power` | no leading glyph; state line On / Off |
+| Front Door Auto-Lock | action + toggle-styled disc, `lock.fill` on, `lock.open` off | the glyph follows the Auto-Lock role, never the authored icon |
+| Every other switch | action + `power` | the disc shows the action; the authored icon is not drawn; state line On / Off |
 | Power recovery | action, momentary `bolt.fill` | `CommandActions.powerRecovery`; keeps the red "Didn't Respond" from `controller.powerRecoveryFailed`; id `admin.powerRecovery` |
 | High AQI Mode | as above, **confirmed** | the spec's `confirmation` is `AlertCopy.highAqiMode(turningOn:)` for the flip it would make (an alert); body and disc ask the same; ids `<tile-id>.confirm` / `.cancel` |
 | Guest Controls | action + `power`, occupancy family | "Guests staying" / "No guests"; ids `guest.tile.<entity>` (the Home page's) |
 | car Doors | action + lock disc, Settings blue | `LockActions` through `OptimisticActions` (`.liveChange`, shows "Unlocking" / "Locking"); the other four tiles stay read-only |
 
-`HouseholdActionTile` replaces `HouseholdToggleTile`. The switch tiles keep `HouseholdSettingsController` as their engine (explicit `turn_on` / `turn_off` from the shown state, the optimistic value, the failed face and the spoken refusal); the spec only draws the disc and the tile's `perform` calls `controller.flip`. A single-action tile is one VoiceOver element, so the disc has no identifier of its own in the tree.
+The switch tiles keep `HouseholdSettingsController` as their engine (explicit `turn_on` / `turn_off` from the shown state, the optimistic value, the failed face and the spoken refusal); the spec only draws the disc and the tile's `perform` calls `controller.flip`. A single-action tile is one VoiceOver element, so the disc has no identifier of its own in the tree.
 
 ## Rollout M: Chores, Vacation, Sprinklers and Vacuums (`claude/tile-rollout`, lane M)
 
@@ -118,7 +124,7 @@ Adopted in `Features/{Chores,Vacation,Sprinklers,Vacuums}`; the pure rules are H
 
 A tile with discs speaks no outside hint; the single-action tiles read the verb as theirs. The Vacation and Solo Trip confirmations moved from the screens' alerts to the tile (`vacation.disable.*` and `soloTrip.end.*` for the toggle became `<tile-id>.confirm` / `.cancel`; End Solo Trip Now in the status block keeps its own alert and `soloTrip.end.*` ids).
 
-- **Owned files** (also in `contracts/patterns.json`): `TileActionDisc.swift`, `TileActionFace.swift`, `TileActionShape.swift`, `TileActionSlot.swift`, `TileVolumeInteraction.swift`.
+- **Owned files** (also in `contracts/patterns.json`): `TileActionFace.swift`, `TileActionShape.swift`, `TileActionSlot.swift`, `TileVolumeInteraction.swift`, `StateTileLook.swift`, `StateTileLookChange.swift`.
 
 ## Momentary command tiles and availability (owner, 2026-11-03)
 

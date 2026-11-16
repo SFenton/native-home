@@ -29,13 +29,13 @@ final class UKHostedVacuumMapGestureTests: DemoHouseTestCase {
     private var vacuum: VacuumConfig { Vacuums.all.first { $0.areaCleaning != nil } ?? Vacuums.all[0] }
 
     private func editor(area: MapGridRect? = nil)
-        -> (page: UKVacuumAreaEditorViewController, controller: VacuumController, window: UIWindow, map: UKValetudoMapView) {
+        -> (page: VacuumAreaEditorHost, controller: VacuumController, window: UIWindow, map: UKValetudoMapView) {
         let store = VacuumFixtures.store(.docked)
         let controller = VacuumController(vacuum: vacuum, store: store, caller: GalleryServiceRecorder(store: store))
         controller.areaSelection = area
         let state = VacuumMapState(vacuum: vacuum, loader: VacuumFixtures.loader(vacuum, scenario: .docked))
         state.refresh()
-        let page = UKVacuumAreaEditorViewController(controller: controller, mapState: state)
+        let page = VacuumAreaEditorHost(controller: controller, mapState: state)
         let nav = UINavigationController(rootViewController: UIViewController())
         let window = HostedPage.show(nav)
         nav.pushViewController(page, animated: false)
@@ -49,21 +49,25 @@ final class UKHostedVacuumMapGestureTests: DemoHouseTestCase {
 
     private func labels(_ page: UIViewController) -> [String] { HostedPage.labels(in: page.view) }
 
+    private func content(_ page: UIViewController) -> UKVacuumAreaEditorContent {
+        HostedPage.descendants(of: page.view).compactMap { $0 as? UKVacuumAreaEditorContent }.first!
+    }
+
     private func drag(_ page: UIViewController, from start: CGPoint, to end: CGPoint) {
         let recognizer = StubDrag()
         recognizer.startLocation = start
         let selector = NSSelectorFromString("dragged:")
         recognizer.stub = start
         recognizer.state = .began
-        page.perform(selector, with: recognizer)
+        content(page).perform(selector, with: recognizer)
         recognizer.stub = CGPoint(x: (start.x + end.x) / 2, y: (start.y + end.y) / 2)
         recognizer.state = .changed
-        page.perform(selector, with: recognizer)
+        content(page).perform(selector, with: recognizer)
         recognizer.stub = end
         recognizer.state = .changed
-        page.perform(selector, with: recognizer)
+        content(page).perform(selector, with: recognizer)
         recognizer.state = .ended
-        page.perform(selector, with: recognizer)
+        content(page).perform(selector, with: recognizer)
         hostedSettle(0.2)
     }
 
@@ -97,11 +101,11 @@ final class UKHostedVacuumMapGestureTests: DemoHouseTestCase {
         recognizer.startLocation = CGPoint(x: map.bounds.width * 0.3, y: map.bounds.height * 0.3)
         recognizer.stub = CGPoint(x: map.bounds.width * 0.7, y: map.bounds.height * 0.7)
         recognizer.state = .began
-        page.perform(NSSelectorFromString("dragged:"), with: recognizer)
+        content(page).perform(NSSelectorFromString("dragged:"), with: recognizer)
         recognizer.state = .changed
-        page.perform(NSSelectorFromString("dragged:"), with: recognizer)
+        content(page).perform(NSSelectorFromString("dragged:"), with: recognizer)
         recognizer.state = .cancelled
-        page.perform(NSSelectorFromString("dragged:"), with: recognizer)
+        content(page).perform(NSSelectorFromString("dragged:"), with: recognizer)
         hostedSettle(0.2)
         XCTAssertNil(controller.areaSelection, "a cancelled drag does not commit")
         XCTAssertTrue(labels(page).contains("No area selected"))
@@ -115,13 +119,13 @@ final class UKHostedVacuumMapGestureTests: DemoHouseTestCase {
         pinch.stubPoint = CGPoint(x: map.bounds.midX, y: map.bounds.midY)
         let selector = NSSelectorFromString("pinched:")
         pinch.state = .began
-        page.perform(selector, with: pinch)
+        content(page).perform(selector, with: pinch)
         pinch.stubScale = 2
         pinch.state = .changed
-        page.perform(selector, with: pinch)
+        content(page).perform(selector, with: pinch)
         XCTAssertNotEqual(map.viewport, .initial, "spreading two fingers zooms in")
         pinch.state = .ended
-        page.perform(selector, with: pinch)
+        content(page).perform(selector, with: pinch)
         XCTAssertNotEqual(map.viewport, .initial)
         // Reset View goes back.
         (HostedPage.descendants(of: page.view).first { $0.accessibilityIdentifier == "vacuum.area.reset" } as? UIControl)?.sendActions(for: .touchUpInside)

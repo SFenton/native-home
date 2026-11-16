@@ -173,12 +173,28 @@ public struct MediaRemoteApp: Hashable, Sendable, Identifiable, Codable {
 public enum MediaRemoteStateResolver: Hashable, Sendable, Codable {
     /// `musicRoomXboxState` (mediaRemotes.ts:224).
     case consoleState
+    /// The same projection with explicit targets for authored remotes.
+    case configuredConsole(cloudEntityId: String, hdmiEntityId: String, tvEntityId: String,
+                           powerEntityId: String, inputEntityId: String, activeStates: [String],
+                           inputSuffix: String, linkedState: String)
 
     /// Resolves the state from the listed entities' states.
     public func resolve(_ states: [String: String]) -> String {
         switch self {
         case .consoleState: MediaRemotes.MusicRoom.xboxState(states)
+        case let .configuredConsole(cloud, hdmi, tv, power, input, active, suffix, linked):
+            Self.console(states, cloud: cloud, hdmi: hdmi, tv: tv, power: power, input: input,
+                         active: active, suffix: suffix, linked: linked)
         }
+    }
+
+    static func console(_ states: [String: String], cloud: String, hdmi: String, tv: String,
+                        power: String, input: String, active: [String], suffix: String, linked: String) -> String {
+        let cloudActive = states[cloud].map(active.contains) ?? false
+        let linkedPath = states[tv].map { !MediaRemoteState.isOff($0) } == true
+            && states[power] == "on" && states[input]?.hasSuffix(suffix) == true && states[hdmi] == linked
+        if cloudActive || linkedPath { return "on" }
+        return [cloud, hdmi, tv, power, input].contains { !EntityState.isUnavailable(states[$0]) } ? "off" : "unavailable"
     }
 }
 

@@ -9,6 +9,36 @@ struct UKInventoryRowActions {
     var onShop: () -> Void
 }
 
+/// Value-only row input, so a collection host can reuse the canonical presentation.
+struct UKInventoryRowValue {
+    let item: InventoryDisplayItem
+    let batches: Int
+    let expiry: ExpiryInfo
+    let deletable: Bool
+    let shopping: InventoryListModel.ShoppingState
+    let error: String?
+
+    @MainActor
+    init(item: InventoryDisplayItem, model: InventoryListModel) {
+        self.item = item
+        batches = model.batches(for: item).count
+        expiry = InventoryCatalog.expiryInfo(item.soonestExpiry(model.calendar), calendar: model.calendar)
+        deletable = model.deletableRows(of: item) != nil
+        shopping = model.shopping[item.id, default: .idle]
+        error = model.rowErrors[item.id]
+    }
+
+    init(item: InventoryDisplayItem, batches: Int, expiry: ExpiryInfo, deletable: Bool,
+         shopping: InventoryListModel.ShoppingState, error: String?) {
+        self.item = item
+        self.batches = batches
+        self.expiry = expiry
+        self.deletable = deletable
+        self.shopping = shopping
+        self.error = error
+    }
+}
+
 /// One inventory card (``InventoryRow``; web `PantryRow`; direction G mockup n6-inventory, redesigned 2026-10-16): the name over its
 /// expiry line, then the stock count (above one) in secondary ink, the add-to-groceries cart in the action tint and, when the card
 /// opens the item editor, a chevron.
@@ -30,7 +60,7 @@ final class UKInventoryRowView: UKRowView, UIGestureRecognizerDelegate {
     private(set) var opensEditor = false
     private(set) var item: InventoryDisplayItem?
 
-    private var model: InventoryListModel?
+    private var value: UKInventoryRowValue?
     private var actions: UKInventoryRowActions?
     private let bag = UKObservationBag()
     private let nameLabel: UILabel
@@ -136,11 +166,23 @@ final class UKInventoryRowView: UKRowView, UIGestureRecognizerDelegate {
     /// Shows `item` and follows `model`'s shopping state and row errors.
     func configure(item: InventoryDisplayItem, model: InventoryListModel, actions: UKInventoryRowActions) {
         self.item = item
-        self.model = model
         self.actions = actions
         bag.removeAll()
         accessibilityIdentifier = "inventory.row.\(item.name)"
-        bag.observe { [weak self] in self?.render() }
+        bag.observe { [weak self] in
+            self?.value = UKInventoryRowValue(item: item, model: model)
+            self?.render()
+        }
+    }
+
+    /// Shows a supplied snapshot and delegates actions without consulting a feature model.
+    func configure(value: UKInventoryRowValue, actions: UKInventoryRowActions) {
+        bag.removeAll()
+        item = value.item
+        self.value = value
+        self.actions = actions
+        accessibilityIdentifier = "inventory.row.\(value.item.name)"
+        render()
     }
 
     func performEdit() { actions?.onEdit() }
@@ -149,23 +191,25 @@ final class UKInventoryRowView: UKRowView, UIGestureRecognizerDelegate {
     func reset() {
         bag.removeAll()
         item = nil
-        model = nil
+        value = nil
+        actions = nil
+        opensEditor = false
     }
 
     private func render() {
-        guard let item, let model else { return }
-        let batches = model.batches(for: item).count
+        guard let value else { return }
+        let item = value.item
+        let batches = value.batches
         let multiBatch = batches > 1
-        let expiry = InventoryCatalog.expiryInfo(item.soonestExpiry(model.calendar), calendar: model.calendar)
+        let expiry = value.expiry
         // The expiry alone: the stock count is the trailing number, so the line never grows long enough to push the actions
         // under the text (owner design pass, 2026-10-16).
         let subtitle = InventoryCatalog.rowSubtitle(expiry, quantity: nil, batchCount: batches)
-        let deletable = model.deletableRows(of: item) != nil
         // Multi-batch cards always open the editor; a single batch needs row ids to edit.
-        opensEditor = multiBatch || deletable
+        opensEditor = multiBatch || value.deletable
         let tone = multiBatch ? nil : expiry.tone
-        let state = model.shopping[item.id, default: .idle]
-        let error = model.rowErrors[item.id]
+        let state = value.shopping
+        let error = value.error
 
         nameLabel.text = item.name
         subtitleLabel.text = subtitle
@@ -361,62 +405,4 @@ final class UKInventoryChevronButton: UIControl {
 
 // MARK: - Cell
 
-/// An inventory row as a list cell: the row's share of its section's dense module (the first row's top corners and the last row's
-/// bottom corners rounded, the selected wash in a split), a hairline above every row but the first, and the row.
-final class UKInventoryRowCell: UICollectionViewListCell {
-    private let card = UKModuleRowBackgroundView()
-    private let row = UKInventoryRowView()
-    private var hairline: UKHairline?
-    private var surfaceShown: TileSurface = .page
-
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        automaticallyUpdatesBackgroundConfiguration = false
-        automaticallyUpdatesContentConfiguration = false
-        backgroundConfiguration = .clear()
-        backgroundView = card
-        row.translatesAutoresizingMaskIntoConstraints = false
-        contentView.addSubview(row)
-        NSLayoutConstraint.activate([
-            row.topAnchor.constraint(equalTo: contentView.topAnchor), row.bottomAnchor.constraint(equalTo: contentView.bottomAnchor),
-            row.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), row.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-        ])
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    var opensEditor: Bool { row.opensEditor }
-
-
-    func configure(item: InventoryDisplayItem, model: InventoryListModel, isFirst: Bool, isLast: Bool, selected: Bool, surface: TileSurface,
-                   actions: UKInventoryRowActions) {
-        card.configure(density: .dense, surface: surface, isFirst: isFirst, isLast: isLast, selected: selected)
-        row.surface = surface
-        row.configure(item: item, model: model, actions: actions)
-        hairline?.removeFromSuperview()
-        hairline = nil
-        if !isFirst {
-            let line = UKHairline(inset: .fixed(HassTokens.Spacing.l), surface: surface)
-            line.translatesAutoresizingMaskIntoConstraints = false
-            contentView.addSubview(line)
-            NSLayoutConstraint.activate([
-                line.topAnchor.constraint(equalTo: contentView.topAnchor),
-                line.leadingAnchor.constraint(equalTo: contentView.leadingAnchor), line.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            ])
-            hairline = line
-        }
-    }
-
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        row.reset()
-    }
-
-    /// Measured at the width the layout proposes (``UIKit/UICollectionViewCell/ukFitted(_:)``): a row sized before the list had its width wrapped
-    /// one word a line (owner, 2026-10-30, Summary sheet Expired Food and Food Spaces rows).
-    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
-        ukFitted(layoutAttributes)
-    }
-}
 #endif

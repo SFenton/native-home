@@ -212,7 +212,7 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         if window != nil { applyFold() }
     }
 
-    private var cache: (key: [CGFloat], solution: UKGridSolution)?
+    private var cache: (key: [CGFloat], visible: [Int], solution: UKGridSolution)?
     /// The cache key for a set of minimums: tenths of a point, so a changed text size or action count misses and noise does not.
     private func minimumsKey(_ minimums: [CGFloat]) -> CGFloat {
         var hasher = Hasher()
@@ -251,7 +251,9 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
     /// Measures the children again: call after a child's content changed its height (a tile whose subtitle now wraps).
     func invalidateMeasurements() { invalidate() }
 
-    private func solution(width: CGFloat) -> UKGridSolution {
+    /// The solution for `width` over the items that are not hidden (`isHidden` takes an item out of the tracks without removing
+    /// it, so a rule that hides a tile reflows the others in place), with the index in ``items`` of each solved item.
+    private func solution(width: CGFloat) -> (visible: [Int], solution: UKGridSolution) {
         var configuration = configuration
         let crossing = (hinge != nil || foldIsPresent) && UKHinge.crossesFold(convert(bounds, to: nil), in: window)
         configuration.evenColumns = configuration.evenColumns || crossing
@@ -260,34 +262,37 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
             // Position and width only: the height follows the tracks and must not feed back.
             configuration.hingeBand = HingeAvoidance.band(in: CGRect(x: frame.minX.rounded(), y: 0, width: width.rounded(), height: 0), hinge: hinge)
         }
-        let minimums = items.map { ukMinimum($0.view) }
+        let visible = items.indices.filter { !items[$0].view.isHidden }
+        let minimums = visible.map { ukMinimum(items[$0].view) }
         let key = [width, configuration.evenColumns ? 1 : 0, configuration.hingeBand?.lowerBound ?? -1, configuration.hingeBand?.upperBound ?? -1, minimumsKey(minimums),
-                   configuration.fill == .share ? 0 : 1]
-        if let cache, cache.key == key { return cache.solution }
-        let solution = UKGridSolver.solve(width: width, configuration: configuration, spans: items.map(\.span), headers: items.map(\.isHeader),
-                                          minimums: minimums) {
-            ukMeasure(items[$0].view, width: $1)
+                   configuration.fill == .share ? 0 : 1] + visible.map { CGFloat($0) }
+        if let cache, cache.key == key { return (cache.visible, cache.solution) }
+        let solution = UKGridSolver.solve(width: width, configuration: configuration, spans: visible.map { items[$0].span },
+                                          headers: visible.map { items[$0].isHeader }, minimums: minimums) {
+            ukMeasure(items[visible[$0]].view, width: $1)
         }
-        cache = (key, solution)
-        return solution
+        cache = (key, visible, solution)
+        return (visible, solution)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = size.width.isFinite && size.width > 0 ? size.width : configuration.minCellWidth * CGFloat(configuration.maxColumns)
-        return CGSize(width: width, height: solution(width: width).height)
+        return CGSize(width: width, height: solution(width: width).solution.height)
     }
 
     func gridHeight(forWidth width: CGFloat) -> CGFloat { sizeThatFits(CGSize(width: width, height: 0)).height }
 
-    override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: solution(width: max(bounds.width, 1)).height) }
+    override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: solution(width: max(bounds.width, 1)).solution.height) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let solution = solution(width: bounds.width)
+        let (visible, solution) = solution(width: bounds.width)
         let mirror = effectiveUserInterfaceLayoutDirection == .rightToLeft
-        for (index, (item, frame)) in zip(items, solution.frames).enumerated() {
-            item.view.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
-            if let tile = item.view as? UKGlassTileView { tile.gridFullRow = solution.fullRow[index] }
+        for (position, index) in visible.enumerated() {
+            let view = items[index].view
+            let frame = solution.frames[position]
+            view.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
+            if let tile = view as? UKGlassTileView { tile.gridFullRow = solution.fullRow[position] }
         }
     }
 }

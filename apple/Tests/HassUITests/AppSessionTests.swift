@@ -80,6 +80,17 @@ struct AppSessionTests {
         #expect(!FileManager.default.fileExists(atPath: houseURL.path))
     }
 
+    /// Fails if: a second sign-in over a running session throws an enrollment error type, or replaces the running session.
+    @Test func signingInOverARunningSessionThrowsTheSignInError() throws {
+        let session = session()
+        try session.didSignIn(server: Self.server, tokens: Self.tokens)
+        #expect(throws: AppSession.SignInError.alreadySignedIn) {
+            try session.didSignIn(server: Self.server, tokens: Self.tokens)
+        }
+        #expect(session.isSignedIn)
+        session.signOut()
+    }
+
     @Test func aRefusedTokenEndsTheSessionAndRemembersWhoItWas() throws {
         RememberedAccountStore(defaults: defaults).remember(username: "alex")
         defaults.set("Alex Demo", forKey: RememberedAccountStore.nameKey)

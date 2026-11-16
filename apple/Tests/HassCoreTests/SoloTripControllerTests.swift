@@ -53,6 +53,7 @@ struct SoloTripControllerTests {
     @Test func selectingATravelerEnablesTheToggle() {
         let h = make()
         h.trip.selectTraveler(.resident2)
+        #expect(h.trip.hasPendingInteraction)
         #expect(h.trip.selectedTraveler == .resident2)
         #expect(!h.trip.toggleDisabled)
         #expect(h.trip.toggleSubtitle == SoloTripCopy.toggleOff)
@@ -60,6 +61,7 @@ struct SoloTripControllerTests {
         #expect(h.trip.travelerTiles[1].icon == "mdi:account-arrow-right-outline")
         h.trip.selectTraveler(.resident2)
         #expect(h.trip.selectedTraveler == nil)
+        #expect(!h.trip.hasPendingInteraction)
     }
 
     // MARK: Scheduling
@@ -81,6 +83,7 @@ struct SoloTripControllerTests {
         await trip.confirmSchedule()
         #expect(h.responder.operation(0) == "schedule")
         #expect(trip.isScheduling)
+        #expect(trip.hasPendingInteraction)
         #expect(trip.editorOpen)
         #expect(trip.editorConfirmDisabled)
         trip.closeEditor()
@@ -238,6 +241,19 @@ struct SoloTripControllerTests {
         #expect(!trip.returnFieldsDisabled)
         #expect(!trip.returnDraftDirty)
         #expect(trip.returnDraft == WallClock(date: "2026-10-16", time: "18:00"))
+    }
+
+    @Test func discardingAnInvalidReturnCannotDiscardAnAcceptedCommand() async {
+        let h = make(activeTrip())
+        let original = h.trip.returnDraft
+        await h.trip.updateReturn(WallClock(date: "2026-10-11", time: "08:00"))
+        #expect(h.trip.returnDraftDirty)
+        #expect(h.trip.discardDrafts())
+        #expect(h.trip.returnDraft == original && !h.trip.returnDraftDirty)
+        await h.trip.updateReturn(WallClock(date: "2026-10-16", time: "18:00"))
+        #expect(!h.trip.canDiscardDrafts && !h.trip.discardDrafts())
+        #expect(h.trip.returnDraft == WallClock(date: "2026-10-16", time: "18:00"))
+        #expect(h.responder.sent.count == 1)
     }
 
     @Test func invalidReturnShowsAnError() async {

@@ -126,16 +126,17 @@ final class UKVacuumToolButton: UIControl {
     }
 }
 
-/// Draws one rectangular cleaning area on the map (`VacuumAreaEditor`).
-///
-/// Draw mode: drag to draw. Otherwise drag inside the area to move it, drag a corner handle to resize it, or drag elsewhere to pan;
-/// pinch zooms 1 to 10 times. VoiceOver gets the same edits as actions on the map.
+/// Canonical area gesture surface over values and closures. The feature wrapper and composition share it.
 @MainActor
-final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRecognizerDelegate {
+final class UKVacuumAreaEditorContent: UIView, UIGestureRecognizerDelegate {
     /// Zoom factor of one Zoom In or Zoom Out action.
     static let zoomStep = 1.5
 
-    private let controller: VacuumController
+    private let vacuum: VacuumConfig
+    private let selection: () -> MapGridRect?
+    private let setSelection: (MapGridRect?) -> Void
+    private let onUse: () -> Void
+    private let bag = UKObservationBag()
     private let mapState: VacuumMapState
     private var drawMode: Bool
     private var viewport = MapViewport.initial { didSet { map.viewport = viewport } }
@@ -144,6 +145,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
     private var draft: MapGridRect? { didSet { map.area = area } }
 
     private let scroll = UIScrollView()
+    var scrollView: UIScrollView { scroll }
     private let content = UIStackView()
     private let toolbar = UIStackView()
     private var drawTool: UKVacuumToolButton!
@@ -161,27 +163,30 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
     private var aspectConstraint: NSLayoutConstraint?
     private var aspect: Double = 0
 
-    init(controller: VacuumController, mapState: VacuumMapState) {
-        self.controller = controller
+    init(vacuum: VacuumConfig, mapState: VacuumMapState, selection: @escaping () -> MapGridRect?,
+         setSelection: @escaping (MapGridRect?) -> Void, onUse: @escaping () -> Void) {
+        self.vacuum = vacuum
         self.mapState = mapState
-        drawMode = controller.areaSelection == nil
-        super.init(sheetTitle: nil)
-        title = "\(controller.vacuum.title) Cleaning Area"
-        navigationItem.title = title
+        self.selection = selection
+        self.setSelection = setSelection
+        self.onUse = onUse
+        drawMode = selection() == nil
+        super.init(frame: .zero)
+        build()
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    private var area: MapGridRect? { draft ?? controller.areaSelection }
-    private var minimumCells: Double { mapState.scene?.minimumAreaCells(controller.vacuum) ?? 5 }
+    private var area: MapGridRect? { draft ?? selection() }
+    private var minimumCells: Double { mapState.scene?.minimumAreaCells(vacuum) ?? 5 }
 
     // MARK: View
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
+    private func build() {
         scroll.alwaysBounceVertical = false
-        install(scrollView: scroll)
+        addSubview(scroll)
+        scroll.ukPin(to: self)
         content.axis = .vertical
         content.alignment = .fill
         content.spacing = HassTokens.Spacing.l
@@ -198,15 +203,15 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
         buildToolbar()
         buildEditor()
         buildSummary()
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKVacuumAreaEditorViewController, _) in
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (page: UKVacuumAreaEditorContent, _) in
             page.toolbar.axis = page.traitCollection.ukIsAccessibilitySize ? .vertical : .horizontal
             page.toolbar.distribution = page.traitCollection.ukIsAccessibilitySize ? .fill : .fillEqually
         }
         bag.observe { [weak self] in self?.render() }
     }
 
-    override func viewDidLayoutSubviews() {
-        super.viewDidLayoutSubviews()
+    override func layoutSubviews() {
+        super.layoutSubviews()
         scroll.isScrollEnabled = !isDragging
     }
 
@@ -223,7 +228,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
             self?.viewport = .initial
         }
         clearTool = UKVacuumToolButton(title: "Clear", symbol: "trash", identifier: "vacuum.area.clear") { [weak self] in
-            self?.controller.areaSelection = nil
+            self?.setSelection(nil)
             self?.drawMode = true
             self?.render()
         }
@@ -233,9 +238,9 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
     }
 
     private func drawTapped() {
-        controller.areaSelection = nil
+        setSelection(nil)
         if UIAccessibility.isVoiceOverRunning, let scene = mapState.scene {
-            controller.areaSelection = MapAreaEdit.voiceOverStart(scene.interactionGeometry, minimum: minimumCells)
+            setSelection(MapAreaEdit.voiceOverStart(scene.interactionGeometry, minimum: minimumCells))
             drawMode = false
         } else {
             drawMode = true
@@ -263,7 +268,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
             map.heightAnchor.constraint(lessThanOrEqualToConstant: 520), fill,
         ])
         map.isAccessibilityElement = true
-        map.accessibilityLabel = "\(controller.vacuum.title) cleaning area editor"
+        map.accessibilityLabel = "\(vacuum.title) cleaning area editor"
         map.accessibilityIdentifier = "vacuum.area.map"
         let drag = UKMapDragRecognizer(target: self, action: #selector(dragged(_:)))
         drag.delegate = self
@@ -288,7 +293,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
         case .changed:
             guard mapState.isReady, pinchStart == nil, let scene = mapState.scene else { return }
             let (job, step) = scene.drag(gesture, from: recognizer.startLocation, to: recognizer.location, size: map.bounds.size, viewport: viewport,
-                                         drawMode: drawMode, area: controller.areaSelection, minimum: minimumCells)
+                                         drawMode: drawMode, area: selection(), minimum: minimumCells)
             gesture = job
             if let next = step.draft { draft = next }
             if let next = step.viewport { viewport = next }
@@ -304,7 +309,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
         isDragging = false
         scroll.isScrollEnabled = true
         if commit, let draft {
-            controller.areaSelection = draft
+            setSelection(draft)
             drawMode = false
         }
         draft = nil
@@ -347,11 +352,11 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
                 return true
             },
         ]
-        if let rect = controller.areaSelection {
+        if let rect = selection() {
             for nudge in MapAreaEdit.Nudge.allCases {
                 actions.append(UIAccessibilityCustomAction(name: nudge.title) { [weak self] _ in
                     guard let self else { return false }
-                    self.controller.areaSelection = MapAreaEdit.nudge(rect, nudge, interaction: scene.interactionGeometry, minimum: self.minimumCells)
+                    self.setSelection(MapAreaEdit.nudge(rect, nudge, interaction: scene.interactionGeometry, minimum: self.minimumCells))
                     return true
                 })
             }
@@ -368,7 +373,7 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
         heading.accessibilityIdentifier = nil
         let button = UKPrimaryButton("Draw an Area to Continue", systemImage: UKVacuumStyle.symbol("mdi:check")) { [weak self] in
             UKTapFeedback.tap()
-            self?.navigationController?.popViewController(animated: true)
+            self?.onUse()
         }
         button.accessibilityIdentifier = "vacuum.area.use"
         useButton = button
@@ -400,14 +405,14 @@ final class UKVacuumAreaEditorViewController: UKPageViewController, UIGestureRec
         summaryHeading?.accessibilityLabel = [dimensions.text, squareMetres.text].compactMap { $0 }.joined(separator: ", ")
         map.accessibilityValue = dimensionsText ?? "No area selected"
         map.area = area
-        outside.isHidden = mapState.allows(controller.areaSelection)
+        outside.isHidden = mapState.allows(selection())
     }
 
     // MARK: Render
 
     private func render() {
         let ready = mapState.isReady
-        let selection = controller.areaSelection
+        let selection = selection()
         drawTool.configure(title: selection == nil ? "Draw" : "Redraw", active: drawMode, enabled: ready)
         resetTool.configure(title: "Reset View", active: false, enabled: ready)
         clearTool.configure(title: "Clear", active: false, enabled: ready && selection != nil)

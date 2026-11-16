@@ -174,43 +174,10 @@ public final class RoomController {
         let subtitleIds = useAlternate ? card.alternate!.subtitleEntityIds : card.subtitleEntityIds
         let entity = displayEntity(card)
 
-        let unavailable = RoomFormat.isUnavailable(entity)
-        let disabledByState = entity.map { card.disabledStates.contains($0.state) } ?? false
         let subtitle: String? = !subtitleIds.isEmpty
             ? subtitleIds.map { RoomFormat.withUnit(self.entity($0)) }.joined(separator: " • ")
             : showState ? RoomFormat.cardState(card, entity) : nil
-        let activeByState = entity.map { card.activeStates.contains($0.state) } ?? false
-        let muted = !unavailable && !activeByState && !RoomFormat.isActive(entity) && RoomFormat.mutedWhenInactive.contains(card.kind)
-        let interactionDisabled = unavailable || disabledByState
-        return RoomCardDisplay(
-            title: card.title(for: viewer),
-            subtitle: subtitle,
-            isUnavailable: unavailable,
-            isOff: unavailable || disabledByState || muted,
-            isEnabled: card.hasInteraction && !interactionDisabled,
-            semantics: semantics(card, entity: entity, active: activeByState || RoomFormat.isActive(entity)),
-            background: RoomFormat.background(card, entity, presence: nil)
-        )
-    }
-
-    private func semantics(_ card: RoomCard, entity: EntityState?, active: Bool) -> RoomTileSemantics {
-        switch card.semantics {
-        case .modal: return .modal
-        case .command: return .command
-        case let .rule(rule):
-            switch rule.semantics(for: entity?.state) {
-            case let .toggle(isOn): return .toggle(isOn: isOn)
-            case let .selection(isSelected): return .selection(isSelected: isSelected)
-            case .command: return .command
-            case .state: return .state
-            }
-        case nil:
-            switch card.action {
-            case .flip: return .toggle(isOn: active)
-            case .remote: return .command
-            case nil: return card.sheet == nil ? .state : .modal
-            }
-        }
+        return .resolve(card, entity: entity, subtitle: subtitle, viewer: viewer)
     }
 
     /// How an overview card shows as a status chip.

@@ -59,6 +59,7 @@ public final class MobileAppCoordinator {
     @ObservationIgnored private(set) var notificationsGranted: Bool?
     /// The running sync, so a token arriving mid-sync waits for it instead of racing it.
     @ObservationIgnored private var syncTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionGeneration = 0
     /// The registration and user the person link last succeeded for, so a reconnect doesn't repeat it.
     @ObservationIgnored private var linkedKey: String?
     /// The user and websocket of the last link, so a permission change can unlink and relink without a screen.
@@ -146,6 +147,7 @@ public final class MobileAppCoordinator {
     ///   - server: The signed-in server.
     ///   - accessToken: Valid access tokens for it.
     func sessionStarted(server: HassServer, accessToken: @escaping @Sendable () async throws -> String) {
+        sessionGeneration += 1
         userID = nil
         linkedKey = nil
         presenceLink = nil
@@ -230,15 +232,18 @@ public final class MobileAppCoordinator {
 
     /// Registers or updates for the session's user with the current token. Waits for a running sync first.
     public func sync() async {
+        let requestedGeneration = sessionGeneration
         await syncTask?.value
         // The saved tokens must be read first: a sync without them would drop what Home Assistant already has.
-        guard isEnabled, let registrar, let userID, loadTokens() else { return }
+        guard requestedGeneration == sessionGeneration, isEnabled, let registrar, let userID, loadTokens() else { return }
+        let generation = sessionGeneration
         // Permission refused or revoked: the stored token is stale, so the registration goes websocket-only.
         let token = notificationsGranted == false ? nil : token, userName = userName, startActivityToken = startActivityToken
         let task = Task { [weak self] in
             guard let outcome = try? await registrar.sync(userID: userID, userName: userName, token: token,
                                                           startActivityToken: startActivityToken) else { return }
-            self?.setRegistration(outcome.registration)
+            guard let self, self.sessionGeneration == generation else { return }
+            self.setRegistration(outcome.registration)
         }
         syncTask = task
         await task.value
@@ -261,8 +266,9 @@ public final class MobileAppCoordinator {
         linkContext = (user, api)
         let key = registration.webhookID + "|" + user.id
         guard linkedKey != key else { return }
+        let generation = sessionGeneration
         let outcome = await PresenceLinker.link(webhookID: registration.webhookID, user: user, api: api)
-        guard self.registration == registration else { return }
+        guard sessionGeneration == generation, self.registration == registration else { return }
         presenceLink = outcome
         linkedKey = outcome.isLinked ? key : nil
     }
@@ -272,7 +278,9 @@ public final class MobileAppCoordinator {
     public func unlinkPresence(user: HassUser, api: any HassCommandSending) async throws {
         // Journeys and simulators never write to the person or entity registry.
         guard isEnabled, allowsRegistration, let webhookID = registration?.webhookID ?? store.active?.webhookID else { return }
+        let generation = sessionGeneration
         try await PresenceLinker.unlink(webhookID: webhookID, user: user, api: api)
+        guard sessionGeneration == generation else { throw PushClientError.signedOut }
         linkedKey = nil
         presenceLink = nil
     }
@@ -292,12 +300,18 @@ public final class MobileAppCoordinator {
 
     /// Signing out: remove this phone's registration from Home Assistant (before the refresh token is revoked).
     func sessionEnded() async {
+        sessionGeneration += 1
+        let pending = syncTask
+        pending?.cancel()
+        syncTask = nil
         let registrar = registrar
         self.registrar = nil
         userID = nil
         linkedKey = nil
         presenceLink = nil
+        linkContext = nil
         setRegistration(nil)
+        await pending?.value
         await registrar?.signOut()
     }
 

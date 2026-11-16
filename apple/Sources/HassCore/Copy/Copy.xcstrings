@@ -1,0 +1,36 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "copy.sample.allClosed" : {
+      "comment" : "Spike seed. A room card's state when every contact sensor reads closed.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "All Closed" } } }
+    },
+    "copy.sample.greeting" : {
+      "comment" : "Spike seed. Placeholder syntax: {{name}} is the house name.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "Welcome home, {{name}}" } } }
+    },
+    "copy.sample.contactsOpen_one" : {
+      "comment" : "Spike seed. Plural one: exactly 1 contact is open.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "{{count}} Open" } } }
+    },
+    "copy.sample.contactsOpen_other" : {
+      "comment" : "Spike seed. Plural other: 0 or 2 or more contacts are open.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "{{count}} Open" } } }
+    },
+    "copy.sample.lightsOn_one" : {
+      "comment" : "Spike seed. Plural one: exactly 1 light is on.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "{{count}} light on in {{room}}" } } }
+    },
+    "copy.sample.lightsOn_other" : {
+      "comment" : "Spike seed. Plural other: 0 or 2 or more lights are on.",
+      "extractionState" : "manual",
+      "localizations" : { "en" : { "stringUnit" : { "state" : "translated", "value" : "{{count}} lights on in {{room}}" } } }
+    }
+  },
+  "version" : "1.0"
+}

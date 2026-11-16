@@ -16,19 +16,7 @@
   Mock.mount({
     kind: 'modal', id: 'room-overview-contacts', title: 'Contact Sensors overview sheet', area: 'home', status: 'shipped',
     summary: "Opened by the Contact Sensors chip on Home and on Security. Every room with doors or windows, each card saying what is open (\"Door Open\", \"1 Window Open\", \"All Windows Closed\"); a card with something open fills soft green. Each pushes the room's sensors inside the sheet. A full-height page sheet that follows the system appearance.",
-    source: [
-      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewSheet.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift',
-      'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift',
-      'apple/Sources/HassCore/Rooms/RoomOverview.swift',
-      'apple/Sources/HassCore/Rooms/RoomGroups.swift',
-      'apple/Sources/HassCore/Rooms/RoomFormat.swift',
-      'apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController.swift',
-      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift',
-      'apple/Sources/HassDesign/DynamicGridLayout.swift',
-      'apple/Sources/HassDesign/HassModal.swift',
-      'apple/Sources/HassUI/Features/Security/SecurityScreen.swift'
-],
+    source: ['apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/Common/RoomOverview/RoomOverviewStyle.swift', 'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassCore/Rooms/RoomGroups.swift', 'apple/Sources/HassCore/Rooms/RoomFormat.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassDesign/HassModal.swift', 'apple/Sources/HassUI/Features/Security/SecurityScreen.swift'],
     spec: [".agents/pages/home/spec.md", ".agents/pages/home/ios.md", ".agents/patterns/room-overview-sheet.md"],
     patterns: ['room-overview-sheet', 'modal-sheet', 'dynamic-grid', 'entity-tile', 'status-rail'],
     hig: ['Sheets', 'Toolbars', 'Layout', 'Typography', 'Accessibility'],

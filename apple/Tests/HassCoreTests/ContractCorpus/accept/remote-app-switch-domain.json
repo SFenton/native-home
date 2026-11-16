@@ -1,0 +1,584 @@
+{
+  "envelopeVersion": "2.0",
+  "publisherId": "publisher-corpus",
+  "revision": 1,
+  "updatedAt": "2026-11-14T10:00:00Z",
+  "publishedAt": "2026-11-14T10:00:01Z",
+  "capabilities": [
+    "sh.backdrop@1",
+    "sh.bindings@1",
+    "sh.chrome@1",
+    "sh.composition@1",
+    "sh.media-remote-config@1",
+    "sh.page@1",
+    "sh.remote-speaker-targets@1",
+    "sh.shell@1",
+    "sh.symbols@1"
+  ],
+  "assetManifestSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "document": {
+    "schemaVersion": "2.0",
+    "id": "device-demo",
+    "name": "Synthetic device assemblies",
+    "theme": {
+      "appearance": "dark",
+      "tokens": "canonical@1",
+      "typography": "dynamic-type@1",
+      "background": {
+        "type": "solid",
+        "token": "shell-base@1"
+      }
+    },
+    "navigation": {
+      "initialPageId": "page-demo",
+      "initialTabId": null,
+      "initialArguments": {},
+      "tabs": [],
+      "policy": {
+        "type": "canonical-shell@1",
+        "tabSwitch": "preserve-cut@1",
+        "reselect": "pop-root-then-scroll@1",
+        "stackMotion": "canonical-stack@1",
+        "restoration": "scene@1",
+        "selectionWhileModal": "reject"
+      },
+      "chrome": {
+        "groups": [
+          {
+            "id": "menu",
+            "placement": "leading",
+            "horizontal": "separate-circles@1",
+            "vertical": "shared@1",
+            "items": [
+              {
+                "id": "menu-button",
+                "type": "shell-menu",
+                "label": "Sections",
+                "visibility": "root-when-menu-available",
+                "icon": {
+                  "type": "sf-symbol",
+                  "name": "line.3.horizontal",
+                  "rendering": "canonical",
+                  "unavailable": "fallback"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pages": [
+      {
+        "id": "page-demo",
+        "title": "Synthetic devices",
+        "parameters": {},
+        "navigation": {
+          "type": "stack"
+        },
+        "icon": {
+          "type": "sf-symbol",
+          "name": "lightbulb",
+          "rendering": "canonical",
+          "unavailable": "fallback"
+        },
+        "toolbar": {
+          "type": "inherit"
+        },
+        "layout": {
+          "type": "column",
+          "padding": {
+            "top": {
+              "type": "token",
+              "name": "m"
+            },
+            "leading": {
+              "type": "token",
+              "name": "m"
+            },
+            "bottom": {
+              "type": "token",
+              "name": "m"
+            },
+            "trailing": {
+              "type": "token",
+              "name": "m"
+            }
+          },
+          "spacing": {
+            "type": "token",
+            "name": "m"
+          },
+          "maxWidth": {
+            "type": "unbounded"
+          },
+          "scroll": "content-fit@1",
+          "chrome": "canonical-page@1",
+          "ground": "host"
+        },
+        "components": []
+      }
+    ],
+    "modals": [],
+    "dataSources": [
+      {
+        "id": "remote-config",
+        "kind": "model",
+        "model": "media-remote-config@1",
+        "inputs": {
+          "id": "demo-remote",
+          "title": "Demo",
+          "roomTitle": "Room",
+          "remoteTitle": "Remote",
+          "mediaEntityId": "media_player.demo_unit",
+          "controlEntityId": "remote.demo_unit",
+          "volumeTitle": "Volume",
+          "volumeEntityId": "media_player.demo_unit",
+          "showVolumeWhenOff": false,
+          "hideKeyboardWhenOff": false,
+          "appSectionTitle": "Apps",
+          "optimisticEntityIds": [],
+          "liveChangeEntityIds": [],
+          "power": {
+            "label": "Power",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "power"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "up": {
+            "label": "Up",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "up"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "left": {
+            "label": "Left",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "left"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "select": {
+            "label": "Select",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "select"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "right": {
+            "label": "Right",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "right"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "down": {
+            "label": "Down",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "down"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "back": {
+            "label": "Back",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "back"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "home": {
+            "label": "Home",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "remote",
+                  "service": "send_command",
+                  "target": "remote.demo_unit",
+                  "data": {
+                    "command": "home"
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "pause": {
+            "label": "Pause",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "media_player",
+                  "service": "media_pause",
+                  "target": "media_player.demo_unit",
+                  "data": {}
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "play": {
+            "label": "Play",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "media_player",
+                  "service": "media_play",
+                  "target": "media_player.demo_unit",
+                  "data": {}
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "volumeDown": {
+            "label": "Volume down",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "media_player",
+                  "service": "volume_down",
+                  "target": "media_player.demo_unit",
+                  "data": {}
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "volumeUp": {
+            "label": "Volume up",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "media_player",
+                  "service": "volume_up",
+                  "target": "media_player.demo_unit",
+                  "data": {}
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "volumeMute": {
+            "label": "Mute",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "state",
+              "entityId": "media_player.demo_unit",
+              "cases": [
+                {
+                  "states": [
+                    "playing"
+                  ],
+                  "command": {
+                    "type": "service",
+                    "call": {
+                      "domain": "media_player",
+                      "service": "volume_mute",
+                      "target": "media_player.demo_unit",
+                      "data": {
+                        "speakerdevice": [
+                          "media_player.demo_unit"
+                        ],
+                        "is_volume_muted": true
+                      }
+                    },
+                    "optimistic": []
+                  }
+                }
+              ],
+              "otherwise": {
+                "type": "service",
+                "call": {
+                  "domain": "media_player",
+                  "service": "volume_mute",
+                  "target": "media_player.demo_unit",
+                  "data": {
+                    "is_volume_muted": false
+                  }
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "keyboard": {
+            "label": "Keyboard",
+            "icon": "mdi:remote",
+            "iconRotationDegrees": 0,
+            "action": {
+              "type": "command",
+              "command": {
+                "type": "service",
+                "call": {
+                  "domain": "input_button",
+                  "service": "press",
+                  "target": "input_button.demo_keyboard",
+                  "data": {}
+                },
+                "optimistic": []
+              }
+            }
+          },
+          "apps": [
+            {
+              "title": "Demo app",
+              "action": {
+                "type": "command",
+                "command": {
+                  "type": "service",
+                  "call": {
+                    "domain": "media_player",
+                    "service": "select_source",
+                    "target": "media_player.demo_unit",
+                    "data": {
+                      "source": "Demo"
+                    }
+                  },
+                  "optimistic": []
+                }
+              },
+              "whiteBackground": false,
+              "activeStates": []
+            },
+            {
+              "title": "Other app",
+              "action": {
+                "type": "command",
+                "command": {
+                  "type": "service",
+                  "call": {
+                    "domain": "switch",
+                    "service": "toggle",
+                    "target": "switch.demo_unit",
+                    "data": {}
+                  },
+                  "optimistic": []
+                }
+              },
+              "whiteBackground": true,
+              "activeStates": []
+            }
+          ],
+          "devices": [
+            {
+              "title": "Demo PC",
+              "entityId": "switch.demo_pc",
+              "icon": "desktopcomputer",
+              "action": {
+                "type": "command",
+                "command": {
+                  "type": "service",
+                  "call": {
+                    "domain": "switch",
+                    "service": "toggle",
+                    "target": "switch.demo_pc",
+                    "data": {}
+                  },
+                  "optimistic": []
+                }
+              },
+              "activeHoldResetEntityIds": [],
+              "activeStates": [
+                "on"
+              ],
+              "stateLabels": {}
+            },
+            {
+              "title": "Demo input",
+              "entityId": "select.demo_input",
+              "icon": "desktopcomputer",
+              "action": {
+                "type": "command",
+                "command": {
+                  "type": "service",
+                  "call": {
+                    "domain": "select",
+                    "service": "select_option",
+                    "target": "select.demo_input",
+                    "data": {
+                      "option": "HDMI 1"
+                    }
+                  },
+                  "optimistic": []
+                }
+              },
+              "activeHoldResetEntityIds": [],
+              "activeStates": [
+                "on"
+              ],
+              "stateLabels": {}
+            },
+            {
+              "title": "Demo Hue",
+              "entityId": "input_select.demo_hue",
+              "icon": "desktopcomputer",
+              "action": {
+                "type": "command",
+                "command": {
+                  "type": "service",
+                  "call": {
+                    "domain": "input_select",
+                    "service": "select_option",
+                    "target": "input_select.demo_hue",
+                    "data": {
+                      "option": "Warm"
+                    }
+                  },
+                  "optimistic": []
+                }
+              },
+              "activeHoldResetEntityIds": [],
+              "activeStates": [
+                "on"
+              ],
+              "stateLabels": {}
+            }
+          ],
+          "cards": [
+            {
+              "key": "demo-card",
+              "configuration": {
+                "title": "Demo card",
+                "entityId": "media_player.demo_card",
+                "icon": "desktopcomputer",
+                "action": {
+                  "type": "command",
+                  "command": {
+                    "type": "service",
+                    "call": {
+                      "domain": "media_player",
+                      "service": "turn_on",
+                      "target": "media_player.demo_card",
+                      "data": {}
+                    },
+                    "optimistic": []
+                  }
+                },
+                "activeHoldResetEntityIds": [],
+                "activeStates": [
+                  "on"
+                ],
+                "stateLabels": {}
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "variables": {},
+    "assets": [],
+    "liveActivities": []
+  }
+}

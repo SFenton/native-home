@@ -21,7 +21,7 @@
   Mock.mount({
     kind: 'flow', id: 'launch-cold-signed-in', title: 'Cold launch, signed in (snapshot, no intro)', area: 'shell', status: 'shipped',
     summary: 'A signed-in phone is opened from nothing: the plain ground the launch screen shows, then a 0.2 s cross-fade onto the saved Home from the disk snapshot. No intro, no spinner; live values land in place and nothing re-fades.',
-    source: ['apple/Sources/HassUI/App/Shell/OfflineOverlay.swift', 'apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
+    source: ['apple/Sources/HassUI/App/Shell/ReconnectingArc.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/App/AppSession.swift'],
     spec: ['.agents/platforms/apple/connection-lifecycle.md', '.agents/design/motion.md', '.agents/design/direction-g.md'],
     patterns: ['resume-lifecycle', 'content-gate', 'motion'],
     hig: ['Launching', 'Loading', 'Motion'],

@@ -113,12 +113,6 @@ struct TileFinishTests {
             family.spec.darkInk || family.spec.fill == nil ? nil : (family.rawValue, .filled(family))
         }
         fills += RoomPalette.fills.enumerated().map { ("room \($0.offset)", .colored($0.element)) }
-        var links = Set(["rooms", "custom-lights"].compactMap { QuickLinkPalette.fill(forLink: $0) })
-        links.insert(QuickLinkPalette.securityUnknown)
-        for state in ["armed_home", "armed_away", "armed_night", "disarmed", "triggered", "arming"] {
-            if let fill = QuickLinkPalette.fill(forLink: "security-system", alarmState: state) { links.insert(fill) }
-        }
-        fills += links.sorted().map { ("link \(String($0, radix: 16))", .colored($0)) }
         return fills
     }()
 

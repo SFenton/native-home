@@ -144,7 +144,8 @@ public enum RoomFormat {
 
     /// Whether a contact item is a window (else a door), from its title and entity (web `contactItemKind`).
     public static func isWindow(_ item: RoomGroupItem) -> Bool {
-        "\(item.title) \(item.entityId)".lowercased().contains("window")
+        if let kind = item.contactKind { return kind == .window }
+        return "\(item.title) \(item.entityId)".lowercased().contains("window")
     }
 
     /// "Door Open", "All Windows Closed", "2 Doors Open"; mixed rooms join the open kinds with ", " or read

@@ -51,6 +51,7 @@ public final class BedSideController {
     // MARK: - Properties
 
     public let config: BedSideConfig
+    public let environment: BedSideEnvironment
     public let store: EntityStore
     /// Optimistic values: `power`, `target`, `hotFlash`, `alarm`, and `stage.<phase>`.
     public let overlay: OptimisticOverlay
@@ -76,6 +77,13 @@ public final class BedSideController {
     @ObservationIgnored private var publishedAlarmKeys: [String] = []
     @ObservationIgnored private var lastPhaseState: String??
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    private var activeCommandCount = 0
+
+    /// Includes debounce work, transport, optimistic feedback and an unanswered scope question.
+    public var hasPendingCommands: Bool {
+        activeCommandCount > 0 || !stageTimers.isEmpty || alarmTimer != nil || alarmOverride != nil
+            || !overlay.pending.isEmpty || scopeRequest != nil
+    }
 
     /// Power and hot-flash edits wait this long for confirmation (web `EIGHT_SLEEP_POWER_REVERT_MS`).
     public static let powerRevert: Duration = .seconds(30)
@@ -102,9 +110,11 @@ public final class BedSideController {
     ///   - scheduler: Runs revert, hold and debounce timers.
     ///   - requestId: Makes Solo Trip `request_id`s.
     public init(config: BedSideConfig, store: EntityStore, caller: any HassServiceResponding,
+                environment: BedSideEnvironment = .configured,
                 scheduler: any RevertScheduler = TaskRevertScheduler(),
                 requestId: @escaping @MainActor () -> String = { UUID().uuidString.lowercased() }) {
         self.config = config
+        self.environment = environment
         self.store = store
         self.caller = caller
         self.scheduler = scheduler
@@ -174,7 +184,7 @@ public final class BedSideController {
 
     /// Solo Trip scope for this side.
     public var scope: HouseholdAwayBedScope {
-        HouseholdAwayBedScope(entity: live(MasterBedroom.householdAwayEntityId), owner: config.owner)
+        HouseholdAwayBedScope(entity: live(environment.householdAwayEntityId), owner: config.owner)
     }
 
     // MARK: - Displayed state
@@ -315,7 +325,7 @@ public final class BedSideController {
 
     /// The side's schedule as Home Assistant reports it.
     public var schedule: SleepypodSchedule? {
-        guard let entity = live(MasterBedroom.scheduleEntityId), !entity.isUnavailable else { return nil }
+        guard let entity = live(environment.scheduleEntityId), !entity.isUnavailable else { return nil }
         return SleepypodSchedule(attributes: entity.attributes)
     }
 
@@ -359,7 +369,7 @@ public final class BedSideController {
 
     /// An edit draft for `alarm`, reading its wake-light link from `wakeLight`.
     public func editDraft(_ alarm: BedAlarm, wakeLight: WakeLight.Snapshot?) -> AlarmDraft {
-        let source = MasterBedroom.wakeLight.source(for: config.side)
+        let source = environment.wakeLight.source(for: config.side)
         let linked = source.map { wakeLight?.isLinked(WakeLight.linkKey(source: $0.id, day: alarm.day, time: alarm.time)) ?? false } ?? false
         return AlarmDraft(days: [alarm.day], editingId: alarm.id, enabled: alarm.enabled, time: alarm.time,
                           title: "\(config.title) \(alarm.day.label) Alarm", wakeLightEnabled: linked, lockedDay: alarm.day)
@@ -374,7 +384,7 @@ public final class BedSideController {
         if !on { overlay.reset("target") }
         let effect: Effect = scope.controlsWholeBed
             ? .solo("set_power", ["enabled": on])
-            : .service("script", MasterBedroom.hotFlashBrokerScript, ["action": on ? "power_heat" : "power_off", "side": config.side.rawValue])
+            : .service("script", environment.hotFlashBrokerScript, ["action": on ? "power_heat" : "power_off", "side": config.side.rawValue])
         run(effect, rollback: [("power", generation)])
     }
 
@@ -653,7 +663,7 @@ public final class BedSideController {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         guard let data = try? encoder.encode(payload), let text = String(data: data, encoding: .utf8) else { return }
-        run(.service("mqtt", "publish", ["topic": MasterBedroom.scheduleSetTopic, "payload": text]), rollback: [])
+        run(.service("mqtt", "publish", ["topic": environment.scheduleSetTopic, "payload": text]), rollback: [])
     }
 
     private func run(_ effect: Effect, rollback: [(String, Int?)]) {
@@ -661,7 +671,11 @@ public final class BedSideController {
         let scope = scope
         let side = config.side
         let requestId = makeRequestId
+        let environment = environment
+        if activeCommandCount == 0 { commandError = nil }
+        activeCommandCount += 1
         let task = Task { @MainActor [weak self] in
+            defer { self?.activeCommandCount -= 1 }
             var refused: String?
             do {
                 switch effect {
@@ -669,7 +683,7 @@ public final class BedSideController {
                     try await caller.callService(domain, service, data: data)
                 case let .solo(action, extra):
                     let data = scope.commandData(action: action, side: side, extra: extra, requestId: requestId())
-                    let response = try await caller.callServiceWithResponse("script", MasterBedroom.householdAwayScript, data: data)
+                    let response = try await caller.callServiceWithResponse("script", environment.householdAwayScript, data: data)
                     switch CommandOutcome(response: response) {
                     case .accepted?: break
                     case .rejected?: refused = "Home Assistant could not apply the Solo Trip change. Try again."
@@ -681,7 +695,9 @@ public final class BedSideController {
             }
             guard let self, let refused else { return }
             for (key, generation) in rollback { self.overlay.fail(key, generation: generation) }
-            if case .solo = effect { self.commandError = refused }
+            // Every failed effect reports, not only Solo Trip: the publication-driven alarm editor refuses to claim a save when a bed
+            // call fails (`ServerUIDeviceProvidersTests.wakeAlarmSaveDoesNotClaimSuccessWhenBedProvisioningFails`).
+            self.commandError = refused == "failed" ? "The bed did not respond. Try again." : refused
         }
         inFlight.append(task)
     }
@@ -697,7 +713,7 @@ public final class BedSideController {
 
     private var observedIds: [String] {
         [config.climateEntityId, config.targetLevelEntityId, config.schedulePhaseEntityId, config.hotFlashActiveEntityId,
-         config.alarmStateEntityId, MasterBedroom.scheduleEntityId, MasterBedroom.householdAwayEntityId]
+         config.alarmStateEntityId, environment.scheduleEntityId, environment.householdAwayEntityId]
             + config.stageLevelEntityIds.values.sorted()
     }
 

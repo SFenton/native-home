@@ -87,9 +87,6 @@ final class UKStackMotion: NSObject, UIGestureRecognizerDelegate, UINavigationCo
     func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         guard gestureRecognizer === pan, isEnabled(), let navigation else { return false }
         guard navigation.viewControllers.count > 1, navigation.transitionCoordinator == nil else { return false }
-        // A column host on top (the Food hub, a wide to-do page) whose columns have a page to close: their edge pan takes this swipe.
-        // At its root column the stack pops the host.
-        if (navigation.topViewController as? UKColumnsHosting)?.columns.takesEdgePan == true { return false }
         return navigation.topViewController?.navigationItem.hidesBackButton != true
     }
 
@@ -133,7 +130,7 @@ final class UKStackMotion: NSObject, UIGestureRecognizerDelegate, UINavigationCo
     func beginSwipe() {
         guard let navigation, interaction == nil else { return }
         interaction = UKStackInteraction()
-        navigation.popViewController(animated: true)
+        if navigation.popViewController(animated: true) == nil { interaction = nil }
     }
 
     func updateSwipe(progress: CGFloat) {

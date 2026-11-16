@@ -5,12 +5,13 @@ import HassDesign
 import HassTelemetry
 import UIKit
 
-/// The root of a window: sign-in or the main tabs, plus scene-phase handling and the launch and arrival motion
+/// The root of a window: native sign-in or the product Home Assistant publishes, plus scene handling and arrival motion.
+/// With no saved or arrived layout the window shows only the recovery boundary, never a compiled product dashboard.
 /// (`.agents/design/direction-g.md`, "Launch and sign-in motion"). The UIKit counterpart of ``RootView``.
 ///
-/// - A cold launch starts on the plain dark ground the launch screen shows (``SignInStyle/base``), which fades away in 0.2 s: onto
-///   the sign-in intro when signed out, onto the disk snapshot when signed in (no intro and no spinner; live values then update in
-///   place).
+/// - A cold launch starts on the plain dark ground (``SignInStyle/base``), then native sign-in or the saved layout, adopted in
+///   the host's first layout pass. The recovery boundary shows only when there is no saved layout. The entity snapshot and
+///   any newer publication update in place.
 /// - A sign-in lifts the sign-in layer away while Home arrives under it (``HomeArrival``), about 0.9 s in all.
 /// - A rejected token ends the session and shows the welcome back sign-in (``AppSession/sessionExpired()``).
 final class UKRootViewController: UIViewController {
@@ -18,7 +19,7 @@ final class UKRootViewController: UIViewController {
     let environment = UKShellEnvironment()
     private let arrival = HomeArrival()
     private let bag = UKObservationBag()
-    private var shell: UKShellViewController?
+    private var product: UKServerUIProductionHost?
     private var login: UKLoginViewController?
     private var gallery: UIViewController?
     private var launchGround: UIView?
@@ -26,6 +27,7 @@ final class UKRootViewController: UIViewController {
     private var keepsSignIn = false
     private var signInLeaves = false
     private var lastSignedIn: Bool?
+    private var arrivalTask: Task<Void, Never>?
     private var probes: [AnyObject] = []
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
     private var activatedOnce = false
@@ -43,6 +45,7 @@ final class UKRootViewController: UIViewController {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     deinit {
+        arrivalTask?.cancel()
         observers.forEach(NotificationCenter.default.removeObserver)
         #if DEBUG
         reuseWatcher?.cancel()
@@ -179,7 +182,7 @@ final class UKRootViewController: UIViewController {
         #endif
     }
 
-    override var childForStatusBarStyle: UIViewController? { shell ?? login ?? gallery }
+    override var childForStatusBarStyle: UIViewController? { product ?? login ?? gallery }
 
     // MARK: Children
 
@@ -221,18 +224,23 @@ final class UKRootViewController: UIViewController {
     private func syncPhase() {
         let signedIn = session.isSignedIn
         if case let .signedIn(connection, _) = session.phase {
-            if shell == nil {
-                let tabs = UKShellViewController(session: session, connection: connection, environment: environment)
+            if product == nil {
+                let tabs = UKServerUIProductionHost(runtime: session.productionUI(connection: connection),
+                    session: session, connection: connection, environment: environment)
                 // The tabs under the sign-in layer; with no sign-in layer they take the window.
                 if let login { embed(tabs, below: login.view) } else { embed(tabs) }
-                shell = tabs
-                Task { await session.backdrop?.refresh() }
+                product = tabs
             }
-        } else if let shell {
+        } else if let product {
             // Signed out: nothing of the person's last session is put back for the next one, and the tabs leave at once.
-            shell.clearStoredState()
-            remove(shell)
-            self.shell = nil
+            arrivalTask?.cancel()
+            arrivalTask = nil
+            arrival.finish()
+            keepsSignIn = false
+            signInLeaves = false
+            product.dismiss(animated: false)
+            remove(product)
+            self.product = nil
         }
         if !signedIn || keepsSignIn {
             if login == nil || (!signedIn && lastSignedIn == true) { showLogin(fadeIn: lastSignedIn == true) }
@@ -242,7 +250,7 @@ final class UKRootViewController: UIViewController {
         }
         lastSignedIn = signedIn
         let isSignedIn = signedIn
-        shell?.view.isHidden = false
+        product?.view.isHidden = false
         login?.view.isUserInteractionEnabled = !isSignedIn
         login?.view.accessibilityElementsHidden = isSignedIn
         if let launchGround { view.bringSubviewToFront(launchGround) }
@@ -257,7 +265,7 @@ final class UKRootViewController: UIViewController {
             onIntroPlayed: { [session] in session.motion.markPlayed(.intro) },
             onUseDifferentAccount: { [session] in session.forgetExpiredAccount() },
             onSignedIn: { [weak self] server, tokens in try self?.signedIn(server, tokens) })
-        embed(screen, above: shell?.view)
+        embed(screen, above: product?.view)
         login = screen
         if fadeIn {
             // The sign-in layer fades in over the ground (`MotionTokens.crossFade`).
@@ -304,7 +312,7 @@ final class UKRootViewController: UIViewController {
             Telemetry.cancelTracked(Telemetry.Name.arrival)
             try session.didSignIn(server: server, tokens: tokens)
             syncPhase()
-            Announcer.screenChanged(announcing: AppRoot.arrivalAnnouncement)
+            Announcer.screenChanged(announcing: arrivalAnnouncement)
             return
         }
         // Building Home behind the sign-in layer is one long turn of its own; the arrival motion is measured after it.
@@ -322,18 +330,28 @@ final class UKRootViewController: UIViewController {
         }
         session.motion.markPlayed(.signInArrival)
         let reduceMotion = environment.reduceMotion
-        Task { @MainActor in
+        guard case let .signedIn(connection, _) = session.phase else { return }
+        arrivalTask?.cancel()
+        arrivalTask = Task { @MainActor [weak self] in
             // Home's views are built, held back; now they and the layer move.
-            try? await Task.sleep(for: .milliseconds(60))
+            do { try await Task.sleep(for: .milliseconds(60)) }
+            catch { return }
+            guard let self, self.session.isCurrentConnection(connection) else { return }
+            // The layout arrives over the socket after a first sign-in: the sign-in layer waits (at most this long) for it rather
+            // than lifting onto the recovery ground. A saved layout is already on screen and this returns at once.
+            await self.product?.awaitFirstLayout(timeout: .milliseconds(1500))
+            guard self.session.isCurrentConnection(connection) else { return }
             LaunchCostProbe.finish()
             LaunchCostProbe.begin("arrival")
             self.liftSignIn(reduceMotion: reduceMotion)
             self.arrival.reveal()
             // The staggered items have no one completion; the arrival's own length bounds them.
-            try? await Task.sleep(for: HomeArrival.duration)
+            do { try await Task.sleep(for: HomeArrival.duration) }
+            catch { return }
+            guard self.session.isCurrentConnection(connection) else { return }
             self.arrival.finish()
             // The sign-in layer is hidden from VoiceOver and Home is built: move focus there and say where it is.
-            Announcer.screenChanged(announcing: AppRoot.arrivalAnnouncement)
+            Announcer.screenChanged(announcing: self.arrivalAnnouncement)
             Telemetry.endTracked(Telemetry.Name.arrival)
             LaunchCostProbe.finish()
         }
@@ -346,8 +364,9 @@ final class UKRootViewController: UIViewController {
             keepsSignIn = false
             return
         }
+
         let done: (Bool) -> Void = { [weak self] _ in
-            guard let self else { return }
+            guard let self, self.login === login else { return }
             self.keepsSignIn = false
             self.signInLeaves = false
             if self.login === login, self.session.isSignedIn {
@@ -366,6 +385,13 @@ final class UKRootViewController: UIViewController {
         }
     }
 
+    private var arrivalAnnouncement: String {
+        guard let publication = product?.renderer?.publication else { return "Signed in. Getting your layout." }
+        return publication.document.bootstrap?.arrivalAnnouncement
+            ?? publication.document.pages.first(where: { $0.surface.id == publication.document.navigation.initialPageId })?.surface.title
+            ?? publication.document.name
+    }
+
     // MARK: Scene phase
 
     /// `lifecycle.didBecomeActive/didEnterBackground` and the shell's saves follow the scene (`@Environment(\.scenePhase)`).
@@ -376,16 +402,18 @@ final class UKRootViewController: UIViewController {
             MainActor.assumeIsolated {
                 guard let self, self.isOurScene(sceneID) else { return }
                 if case let .signedIn(_, lifecycle) = self.session.phase { lifecycle.didBecomeActive() }
+                // Zone and presence bookkeeping follows the foreground, as it did before the layout came from a publication.
+                if let location = self.session.location { Task { await location.didBecomeActive() } }
                 // Back in the foreground: a house layout that never arrived is asked for again.
                 self.session.houseConfig?.resubscribeIfNeeded()
-                self.shell?.sceneBecameActive()
+                self.product?.setForeground(true)
             }
         })
         observers.append(center.addObserver(forName: UIScene.willDeactivateNotification, object: nil, queue: .main) { [weak self] note in
             let sceneID = (note.object as? UIScene).map(ObjectIdentifier.init)
             MainActor.assumeIsolated {
                 guard let self, self.isOurScene(sceneID) else { return }
-                self.shell?.sceneLeftForeground()
+                self.product?.setForeground(false)
             }
         })
         observers.append(center.addObserver(forName: UIScene.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] note in
@@ -393,8 +421,8 @@ final class UKRootViewController: UIViewController {
             MainActor.assumeIsolated {
                 guard let self, self.isOurScene(sceneID) else { return }
                 if case let .signedIn(_, lifecycle) = self.session.phase { lifecycle.didEnterBackground() }
-                self.shell?.sceneLeftForeground()
-                self.shell?.sceneEnteredBackground()
+                self.session.location?.didEnterBackground()
+                self.product?.setForeground(false)
             }
         })
     }

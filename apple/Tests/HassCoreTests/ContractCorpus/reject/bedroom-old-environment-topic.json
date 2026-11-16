@@ -1,0 +1,227 @@
+{
+  "envelopeVersion": "2.0",
+  "publisherId": "publisher-corpus",
+  "revision": 1,
+  "updatedAt": "2026-11-14T10:00:00Z",
+  "publishedAt": "2026-11-14T10:00:01Z",
+  "capabilities": [
+    "sh.backdrop@1",
+    "sh.bedroom-config@1",
+    "sh.chrome@1",
+    "sh.composition@1",
+    "sh.page@1",
+    "sh.shell@1",
+    "sh.symbols@1"
+  ],
+  "assetManifestSha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "document": {
+    "schemaVersion": "2.0",
+    "id": "device-demo",
+    "name": "Synthetic device assemblies",
+    "theme": {
+      "appearance": "dark",
+      "tokens": "canonical@1",
+      "typography": "dynamic-type@1",
+      "background": {
+        "type": "solid",
+        "token": "shell-base@1"
+      }
+    },
+    "navigation": {
+      "initialPageId": "page-demo",
+      "initialTabId": null,
+      "initialArguments": {},
+      "tabs": [],
+      "policy": {
+        "type": "canonical-shell@1",
+        "tabSwitch": "preserve-cut@1",
+        "reselect": "pop-root-then-scroll@1",
+        "stackMotion": "canonical-stack@1",
+        "restoration": "scene@1",
+        "selectionWhileModal": "reject"
+      },
+      "chrome": {
+        "groups": [
+          {
+            "id": "menu",
+            "placement": "leading",
+            "horizontal": "separate-circles@1",
+            "vertical": "shared@1",
+            "items": [
+              {
+                "id": "menu-button",
+                "type": "shell-menu",
+                "label": "Sections",
+                "visibility": "root-when-menu-available",
+                "icon": {
+                  "type": "sf-symbol",
+                  "name": "line.3.horizontal",
+                  "rendering": "canonical",
+                  "unavailable": "fallback"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "pages": [
+      {
+        "id": "page-demo",
+        "title": "Synthetic devices",
+        "parameters": {},
+        "navigation": {
+          "type": "stack"
+        },
+        "icon": {
+          "type": "sf-symbol",
+          "name": "lightbulb",
+          "rendering": "canonical",
+          "unavailable": "fallback"
+        },
+        "toolbar": {
+          "type": "inherit"
+        },
+        "layout": {
+          "type": "column",
+          "padding": {
+            "top": {
+              "type": "token",
+              "name": "m"
+            },
+            "leading": {
+              "type": "token",
+              "name": "m"
+            },
+            "bottom": {
+              "type": "token",
+              "name": "m"
+            },
+            "trailing": {
+              "type": "token",
+              "name": "m"
+            }
+          },
+          "spacing": {
+            "type": "token",
+            "name": "m"
+          },
+          "maxWidth": {
+            "type": "unbounded"
+          },
+          "scroll": "content-fit@1",
+          "chrome": "canonical-page@1",
+          "ground": "host"
+        },
+        "components": []
+      }
+    ],
+    "modals": [],
+    "dataSources": [
+      {
+        "id": "bedroom-config",
+        "kind": "model",
+        "model": "bedroom-config@1",
+        "inputs": {
+          "wakeProviderId": "wake-provider",
+          "beds": [
+            {
+              "providerId": "bed-left",
+              "configuration": {
+                "id": "left-bed",
+                "title": "left bed",
+                "side": "left",
+                "owner": "owner-left",
+                "climateEntityId": "climate.demo_left",
+                "targetLevelEntityId": "number.demo_left_level",
+                "schedulePhaseEntityId": "sensor.demo_left_phase",
+                "stageLevelEntityIds": {
+                  "bedtime": "input_number.demo_left_bedtime",
+                  "asleep": "input_number.demo_left_asleep",
+                  "dawn": "input_number.demo_left_dawn"
+                },
+                "alarmStateEntityId": "sensor.demo_left_alarm",
+                "alarmSnoozeButtonEntityId": "button.demo_left_snooze",
+                "alarmStopButtonEntityId": "button.demo_left_stop",
+                "hotFlashActiveEntityId": "binary_sensor.demo_left_flash",
+                "hotFlashButtonEntityId": "button.demo_left_flash",
+                "hotFlashCancelButtonEntityId": "button.demo_left_flash_cancel",
+                "hotFlashRestoreAtEntityId": "sensor.demo_left_restore",
+                "hotFlashTimerEntityId": "timer.demo_left_flash",
+                "heartRateEntityId": "sensor.demo_left_hr",
+                "breathingRateEntityId": "sensor.demo_left_br",
+                "hrvEntityId": "sensor.demo_left_hrv",
+                "pumpClogEntityId": "binary_sensor.demo_left_clog",
+                "pumpStallEntityId": "binary_sensor.demo_left_stall",
+                "pumpLoopTemperatureEntityId": "sensor.demo_left_loop",
+                "pumpRpmEntityId": "sensor.demo_left_rpm"
+              }
+            },
+            {
+              "providerId": "bed-right",
+              "configuration": {
+                "id": "right-bed",
+                "title": "right bed",
+                "side": "right",
+                "owner": "owner-right",
+                "climateEntityId": "climate.demo_right",
+                "targetLevelEntityId": "number.demo_right_level",
+                "schedulePhaseEntityId": "sensor.demo_right_phase",
+                "stageLevelEntityIds": {
+                  "bedtime": "input_number.demo_right_bedtime",
+                  "asleep": "input_number.demo_right_asleep",
+                  "dawn": "input_number.demo_right_dawn"
+                },
+                "alarmStateEntityId": "sensor.demo_right_alarm",
+                "alarmSnoozeButtonEntityId": "button.demo_right_snooze",
+                "alarmStopButtonEntityId": "button.demo_right_stop",
+                "hotFlashActiveEntityId": "binary_sensor.demo_right_flash",
+                "hotFlashButtonEntityId": "button.demo_right_flash",
+                "hotFlashCancelButtonEntityId": "button.demo_right_flash_cancel",
+                "hotFlashRestoreAtEntityId": "sensor.demo_right_restore",
+                "hotFlashTimerEntityId": "timer.demo_right_flash",
+                "heartRateEntityId": "sensor.demo_right_hr",
+                "breathingRateEntityId": "sensor.demo_right_br",
+                "hrvEntityId": "sensor.demo_right_hrv",
+                "pumpClogEntityId": "binary_sensor.demo_right_clog",
+                "pumpStallEntityId": "binary_sensor.demo_right_stall",
+                "pumpLoopTemperatureEntityId": "sensor.demo_right_loop",
+                "pumpRpmEntityId": "sensor.demo_right_rpm"
+              }
+            }
+          ],
+          "environment": {
+            "scheduleEntityId": "sensor.demo_schedule",
+            "householdAwayEntityId": "binary_sensor.demo_away",
+            "wakeLight": {
+              "id": "wake-light",
+              "title": "Wake light",
+              "roomTitle": "Bedroom",
+              "statusEntityId": "sensor.demo_wake",
+              "sources": [
+                {
+                  "id": "left-source",
+                  "side": "left",
+                  "alarmLabel": "Left alarm",
+                  "alarmsLabel": "Left alarms",
+                  "bedId": "left-bed"
+                },
+                {
+                  "id": "right-source",
+                  "side": "right",
+                  "alarmLabel": "Right alarm",
+                  "alarmsLabel": "Right alarms",
+                  "bedId": "right-bed"
+                }
+              ]
+            },
+            "scheduleSetTopic": "bed/command/schedule"
+          }
+        }
+      }
+    ],
+    "variables": {},
+    "assets": [],
+    "liveActivities": []
+  }
+}

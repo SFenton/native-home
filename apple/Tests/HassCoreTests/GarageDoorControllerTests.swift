@@ -44,7 +44,7 @@ struct GarageDoorControllerTests {
         }
     }
 
-    /// Sending → pending once acknowledged and 1 s has passed; taps are ignored until acknowledged and 2 s.
+    /// Sending → pending once acknowledged (the tile holds the look for its flap guard); taps are ignored until acknowledged and 2 s.
     @Test func successfulOpenWalksThroughThePhases() async {
         let (garage, caller, scheduler) = controller("closed")
         garage.send()
@@ -54,9 +54,7 @@ struct GarageDoorControllerTests {
         #expect(garage.isInteractionLocked)
         await garage.waitForCall()
         #expect(caller.calls == [.init(domain: "cover", service: "open_cover", data: ["entity_id": door])])
-        #expect(garage.phase == .sending, "Feedback holds for at least a second")
-        fire(scheduler, .seconds(1))
-        #expect(garage.phase == .pending)
+        #expect(garage.phase == .pending, "Acknowledged: the one-second hold is the tile's flap guard now")
         #expect(garage.isInteractionLocked, "Locked until the 2 s lockout passes")
         garage.send()
         await garage.waitForCall()
@@ -81,7 +79,6 @@ struct GarageDoorControllerTests {
     @Test func timersWaitForTheAcknowledgement() async {
         let (garage, _, scheduler) = controller("open")
         garage.send()
-        fire(scheduler, .seconds(1))
         fire(scheduler, .seconds(2))
         #expect(garage.phase == .sending)
         #expect(garage.isInteractionLocked)
@@ -119,7 +116,6 @@ struct GarageDoorControllerTests {
         let (garage, _, scheduler) = controller("closed")
         garage.send()
         await garage.waitForCall()
-        fire(scheduler, .seconds(1))
         fire(scheduler, .seconds(2))
         #expect(garage.phase == .pending)
         fire(scheduler, .seconds(45))
@@ -169,7 +165,51 @@ struct GarageDoorControllerTests {
         #expect(garage.phase == .sending)
         #expect(!scheduler.pending.contains { $0.delay == .seconds(8) })
         await garage.waitForCall()
-        fire(scheduler, .seconds(1))
         #expect(garage.phase == .pending)
+    }
+
+    @Test func networkLifetimeOutlivesFeedbackTimeoutAndLiveAcknowledgement() async {
+        let caller = SecurityHeldCaller()
+        let scheduler = ManualScheduler()
+        let garage = GarageDoorController(entityId: "cover.demo_item", liveState: "closed", caller: caller, scheduler: scheduler)
+        garage.send()
+        #expect(garage.networkCount == 1)
+        await caller.waitForStart()
+        fire(scheduler, .seconds(10))
+        #expect(garage.phase == .error)
+        #expect(garage.networkCount == 1, "Timeout must not pretend the service call completed")
+        garage.liveDidChange("opening")
+        #expect(garage.phase == .idle)
+        #expect(garage.networkCount == 1)
+        caller.finish()
+        await garage.waitForCall()
+        #expect(garage.networkCount == 0)
+        #expect(garage.displayState == "opening", "An old acknowledgement must not resurrect its request")
+    }
+}
+
+// MARK: - Controlled network lifetime
+
+@MainActor
+private final class SecurityHeldCaller: HassServiceCalling {
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var started: CheckedContinuation<Void, Never>?
+
+    func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            started?.resume()
+            started = nil
+        }
+    }
+
+    func waitForStart() async {
+        if continuation != nil { return }
+        await withCheckedContinuation { started = $0 }
+    }
+
+    func finish() {
+        continuation?.resume()
+        continuation = nil
     }
 }

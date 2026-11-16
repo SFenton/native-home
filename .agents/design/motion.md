@@ -71,7 +71,7 @@ Exceptions must be written into this file with the owner's say-so. None exist to
 
 ### 4.2 Pages (push)
 - **Navigation:** `NavigationStack` with `navigationDestination` only. No `.transition`, no custom `NavigationTransition`, and no matched geometry on push, except the zoom in §4.3.
-- **UIKit port exception (owner, 2026-11-02, [single-page-motion](single-page-motion.md)):** the section stacks (`UKSectionNavigationController`) return `UKStackMotion`'s animator instead of the system push, whenever the section's columns are not active. Both pages move a full width on `standard`, with no dim, shadow or fade, over the one wallpaper behind the tab controller; the edge swipe follows the finger (complete past half or at 600 pt/s, else reverse). Back, the swipe and re-tapping a tab all use it. Nothing else about §4.2 changes.
+- **UIKit port exception (owner, 2026-11-02, [single-page-motion](single-page-motion.md)):** the renderer's section stacks return `UKStackMotion`'s animator instead of the system push, whenever the section's columns are not active. Both pages move a full width on `standard`, with no dim, shadow or fade, over the one wallpaper behind the tab controller; the edge swipe follows the finger (complete past half or at 600 pt/s, else reverse). Back, the swipe and re-tapping a tab all use it. Nothing else about §4.2 changes.
 - **Destination content:** a destination must render its content in its first frame. It reads `EntityStore` synchronously. It must not start a fade or a cascade in `onAppear`.
 - **Heavy work:** a destination that needs heavy setup (camera streams, maps) starts it after the transition settles (`.onAppear` plus `Task { await Task.yield() }`, or the `transitionSettled` callback in §9). That keeps the push smooth.
 

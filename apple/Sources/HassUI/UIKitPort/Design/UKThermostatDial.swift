@@ -55,6 +55,13 @@ public final class UKThermostatDial: UIView {
         get { face.onCommit }
         set { face.onCommit = newValue }
     }
+    /// Lets a configured host pin a source for the full native drag, without changing its gestures.
+    public var isEditing: Bool { face.editor.activeHandle != nil }
+    public var onEditingChanged: ((Bool) -> Void)?
+    private var lastEditing = false
+
+    /// Discards preview/throttle state only when a configured host changes the underlying target.
+    public func resetEdits() { face.resetEdits() }
 
     private let face: UKDialFace
     private let content = UIStackView()
@@ -114,6 +121,10 @@ public final class UKThermostatDial: UIView {
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
     private func refreshLines() {
+        if lastEditing != isEditing {
+            lastEditing = isEditing
+            onEditingChanged?(isEditing)
+        }
         let showsLines = traitCollection.preferredContentSizeCategory.isAccessibilityCategory
         lines.isHidden = !showsLines
         guard showsLines else { return }
@@ -194,6 +205,11 @@ final class UKDialFace: UIView {
     var surface: TileSurface { didSet { readout.update(configuration, displayed: displayed, surface: surface, side: side) } }
     var onCommit: (ThermostatTargets) -> Void = { _ in }
     private(set) var editor = ThermostatDialEditor()
+
+    func resetEdits() {
+        editor = ThermostatDialEditor()
+        refresh(animated: false)
+    }
 
     var displayed: ThermostatTargets? { editor.displayed(configuration) }
     var onDisplay: () -> Void = {}

@@ -22,6 +22,12 @@ import UIKit
 /// the app, a switch or a selection by the app's semantics, identified `<identifierPrefix><title>` (`remote.app.` by default).
 @MainActor
 final class UKAppTileView: UIControl, UKGridMeasuring {
+    struct Appearance: Equatable {
+        let title: String
+        let symbol: String
+        let whiteBackground: Bool
+        let activeText: String
+    }
     /// Where the tile is drawn (`EnvironmentValues.tileSurface`).
     var surface: TileSurface { didSet { if surface != oldValue { applyColors() } } }
     /// The accessibility identifier is this plus the app's title.
@@ -32,7 +38,7 @@ final class UKAppTileView: UIControl, UKGridMeasuring {
 
     private static let maximumArtwork: CGFloat = AppTile.maximumArtwork
 
-    private(set) var app: MediaRemoteApp?
+    private(set) var app: Appearance?
     private var display: MediaRemoteController.AppDisplay?
     private var action: () -> Void = {}
 
@@ -99,6 +105,14 @@ final class UKAppTileView: UIControl, UKGridMeasuring {
     ///   - imageURL: The artwork, or nil for the icon fallback.
     ///   - action: Runs on a tap.
     func configure(app: MediaRemoteApp, display: MediaRemoteController.AppDisplay, imageURL: URL?, action: @escaping () -> Void) {
+        configure(appearance: .init(title: app.title, symbol: SymbolMap.symbol(for: app.icon ?? "mdi:play-box"),
+                                    whiteBackground: app.whiteBackground, activeText: "Playing"),
+                  display: display, imageURL: imageURL, action: action)
+    }
+
+    /// Authored copy and appearance over the canonical artwork, selection and accessibility presentation.
+    func configure(appearance app: Appearance, display: MediaRemoteController.AppDisplay, imageURL: URL?,
+                   identifier: String? = nil, action: @escaping () -> Void) {
         let appChanged = self.app != app
         let animated = !appChanged && window != nil
         self.app = app
@@ -115,17 +129,17 @@ final class UKAppTileView: UIControl, UKGridMeasuring {
         isEnabled = !display.isUnavailable
         artwork.alpha = display.isUnavailable ? 0.4 : 1
         accessibilityLabel = app.title
-        accessibilityIdentifier = identifierPrefix + app.title
+        accessibilityIdentifier = identifier ?? identifierPrefix + app.title
         switch display.semantics {
         case let .toggle(isOn):
             semanticTraits = [.button, .toggleButton]
             accessibilityValue = isOn ? "On" : "Off"
         case let .selection(isSelected):
             semanticTraits = isSelected ? [.button, .selected] : .button
-            accessibilityValue = display.isActive ? "Playing" : nil
+            accessibilityValue = display.isActive ? app.activeText : nil
         case .command, .state:
             semanticTraits = .button
-            accessibilityValue = display.isActive ? "Playing" : nil
+            accessibilityValue = display.isActive ? app.activeText : nil
         }
         applyColors(animated: animated)
         setNeedsLayout()
@@ -147,7 +161,7 @@ final class UKAppTileView: UIControl, UKGridMeasuring {
     private func updateFallbackGlyph() {
         guard let app else { return }
         let font = UKFont.preferred(.largeTitle, traits: traitCollection)
-        fallback.image = UIImage(systemName: SymbolMap.symbol(for: app.icon ?? "mdi:play-box"),
+        fallback.image = UIImage(systemName: app.symbol,
                                  withConfiguration: UIImage.SymbolConfiguration(font: font))
     }
 
@@ -216,57 +230,6 @@ final class UKAppTileView: UIControl, UKGridMeasuring {
 }
 
 // MARK: - Apps
-
-/// The Apps section (`RemoteAppsTab`): the section title over a grid of app tiles, 100 pt columns (scaled with the subheadline) up to
-/// four, equal row heights.
-@MainActor
-final class UKRemoteAppsView: UIView, UKGridMeasuring {
-    private let controller: MediaRemoteController
-    private let column = UKColumnView(spacing: HassTokens.Spacing.m)
-    private let grid = UKDynamicGridView(configuration: UKGridConfiguration(fill: .none))
-    private let bag = UKObservationBag()
-
-    init(controller: MediaRemoteController, imageServer: HassServer?, context: UKContext) {
-        self.controller = controller
-        super.init(frame: .zero)
-        let tiles = controller.config.apps.map { app -> UKAppTileView in
-            let tile = UKAppTileView(surface: .sheet)
-            let url = imageServer.flatMap { server in app.imagePath.map { server.url($0) } }
-            bag.observe { [weak tile] in
-                tile?.configure(app: app, display: controller.display(app), imageURL: url) { controller.tap(app) }
-            }
-            tile.onHeightChange = { [weak self] in
-                guard let self else { return }
-                grid.setItems(grid.items)
-            }
-            return tile
-        }
-        grid.setItems(tiles.map { UKGridItem($0) })
-        grid.hinge = context.shell?.windowHinge
-        ukOnContentSizeChange { [weak self] in
-            guard let self else { return }
-            var configuration = grid.configuration
-            configuration.minCellWidth = UKFont.scaled(DynamicGridMetrics.tileMinWidth, relativeTo: .subheadline, traits: traitCollection)
-            configuration.maxColumns = 4
-            configuration.equalRowHeights = true
-            grid.configuration = configuration
-        }
-        column.setViews([UKPageSectionHeaderView(controller.config.appSectionTitle, inSheet: true), grid])
-        addSubview(column)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    func gridHeight(forWidth width: CGFloat) -> CGFloat { column.gridHeight(forWidth: width) }
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        column.frame = bounds
-    }
-}
-
-// MARK: - Label rows
 
 /// A list row of a label (a glyph, a title and optionally a subtitle) with an optional switch or checkmark at the trailing edge,
 /// 44 pt at least: the shape of the Devices and Hue Sync rows (`Label` in a `List` row). The row is the control: a tap anywhere on a
@@ -365,35 +328,40 @@ class UKRemoteLabelRow: UKRemoteControl {
 /// button, a device that only reports a state is a plain element.
 @MainActor
 final class UKRemoteDeviceRow: UKRemoteLabelRow {
-    init(controller: MediaRemoteController, device: MediaRemoteDevice) {
+    convenience init(controller: MediaRemoteController, device: MediaRemoteDevice) {
+        self.init(title: device.title, symbol: SymbolMap.symbol(for: device.icon), state: { controller.display(device) },
+                  action: { controller.tap(device) })
+    }
+
+    /// Value/closure row shared with configured Devices atoms.
+    init(title: String, symbol: String, state: @escaping () -> MediaRemoteController.DeviceDisplay, action: @escaping () -> Void) {
         super.init(frame: .zero)
-        accessibilityIdentifier = "remote.device.\(device.title)"
-        onTap { controller.tap(device) }
+        accessibilityIdentifier = "remote.device.\(title)"
+        onTap(action)
         bag.observe { [weak self] in
             guard let self else { return }
-            let display = controller.display(device)
+            let display = state()
             let active = display.isActive && !display.isUnavailable
             let color = active ? UKRemoteStyle.mediaGlyph : UKRemoteStyle.mediaOffGlyph
-            let symbol = SymbolMap.symbol(for: device.icon)
             switch display.semantics {
             case let .toggle(isOn):
-                show(title: device.title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .toggle)
+                show(title: title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .toggle)
                 setSwitch(isOn)
-                asSwitch(label: "\(device.title), \(display.subtitle)", isOn: isOn)
+                asSwitch(label: "\(title), \(display.subtitle)", isOn: isOn)
             case .command:
                 // Every command device toggles its device (`media_player.toggle`, the PC's on/off pair).
-                show(title: device.title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .toggle)
+                show(title: title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .toggle)
                 setSwitch(display.isActive)
-                asSwitch(label: "\(device.title), \(display.subtitle)", isOn: display.isActive)
+                asSwitch(label: "\(title), \(display.subtitle)", isOn: display.isActive)
             case let .selection(isSelected):
-                show(title: device.title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .checkmark)
+                show(title: title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .checkmark)
                 setChecked(isSelected)
-                accessibilityLabel = device.title
+                accessibilityLabel = title
                 accessibilityValue = display.subtitle
                 semanticTraits = isSelected ? [.button, .selected] : .button
             case .state:
-                show(title: device.title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .plain)
-                accessibilityLabel = device.title
+                show(title: title, subtitle: display.subtitle, symbol: symbol, iconColor: color, trailing: .plain)
+                accessibilityLabel = title
                 accessibilityValue = display.subtitle
                 semanticTraits = []
             }
@@ -418,15 +386,25 @@ extension UKRemoteLabelRow {
 /// A Hue Sync power or light-sync switch row (`HueSyncTab.toggleRow`): a glyph in the lights family colour while on.
 @MainActor
 final class UKRemoteHueToggleRow: UKRemoteLabelRow {
-    init(controller: MediaRemoteController, title: String, entityId: String, symbol: String,
-         offProjections: [String] = [], onProjections: [String] = []) {
+    convenience init(controller: MediaRemoteController, title: String, entityId: String, symbol: String,
+                     offProjections: [String] = [], onProjections: [String] = []) {
+        self.init(title: title, symbol: symbol, state: {
+            var display = controller.hueToggle(entityId)
+            display.subtitle = ""
+            return display
+        },
+                  action: { controller.toggleHue(entityId, offProjections: offProjections, onProjections: onProjections) })
+    }
+
+    init(title: String, symbol: String, state: @escaping () -> MediaRemoteController.ToggleDisplay, action: @escaping () -> Void) {
         super.init(frame: .zero)
         accessibilityIdentifier = "remote.hue.\(title)"
-        onTap { controller.toggleHue(entityId, offProjections: offProjections, onProjections: onProjections) }
+        onTap(action)
         bag.observe { [weak self] in
             guard let self else { return }
-            let toggle = controller.hueToggle(entityId)
-            show(title: title, subtitle: nil, symbol: symbol, iconColor: toggle.isOn ? UKRemoteStyle.lightsGlyph : UKRemoteStyle.lightsOffGlyph,
+            let toggle = state()
+            show(title: title, subtitle: toggle.subtitle.isEmpty ? nil : toggle.subtitle,
+                 symbol: symbol, iconColor: toggle.isOn ? UKRemoteStyle.lightsGlyph : UKRemoteStyle.lightsOffGlyph,
                  trailing: .toggle)
             setSwitch(toggle.isOn)
             asSwitch(label: title, isOn: toggle.isOn)
@@ -441,29 +419,46 @@ final class UKRemoteHueToggleRow: UKRemoteLabelRow {
 /// port is unplugged.
 @MainActor
 final class UKRemoteHdmiRow: UKRemoteLabelRow {
-    init(controller: MediaRemoteController, hue: HueSyncConfig, option: String) {
-        super.init(frame: .zero)
+    struct State {
+        let selected: Bool
+        let disconnected: Bool
+        let disabled: Bool
+        let subtitle: String
+        var symbol: String? = nil
+    }
+
+    convenience init(controller: MediaRemoteController, hue: HueSyncConfig, option: String) {
+        self.init(title: option, symbol: "tv", state: {
+            let input = controller.hdmiInputs(hue).first { $0.option == option }
+            return State(selected: input?.isSelected == true, disconnected: input?.isDisconnected ?? true,
+                         disabled: input?.isDisabled ?? true, subtitle: input?.subtitle ?? "Unavailable",
+                         symbol: input?.isDisconnected == true ? "tv.slash" : "tv")
+        }, action: { controller.selectHue(hue.hdmiInputEntityId, option: option) })
         accessibilityIdentifier = "remote.hue.hdmi.\(option)"
-        onTap { controller.selectHue(hue.hdmiInputEntityId, option: option) }
+    }
+
+    init(title: String, symbol: String, state: @escaping () -> State, action: @escaping () -> Void) {
+        super.init(frame: .zero)
+        onTap(action)
         bag.observe { [weak self] in
-            guard let self, let input = controller.hdmiInputs(hue).first(where: { $0.option == option }) else { return }
-            let lit = input.isSelected && !input.isDisconnected
-            show(title: input.option, subtitle: input.subtitle, symbol: input.isDisconnected ? "tv.slash" : "tv",
+            guard let self else { return }
+            let input = state()
+            let lit = input.selected && !input.disconnected
+            show(title: title, subtitle: input.subtitle, symbol: input.symbol ?? symbol,
                  iconColor: lit ? UKRemoteStyle.mediaGlyph : UKRemoteStyle.mediaOffGlyph, trailing: .checkmark)
-            setChecked(input.isSelected)
-            accessibilityLabel = input.option
+            setChecked(input.selected)
+            accessibilityLabel = title
             accessibilityValue = input.subtitle
-            semanticTraits = input.isSelected ? [.button, .selected] : .button
+            semanticTraits = input.selected ? [.button, .selected] : .button
             // Outside the combined element, so an unplugged port reads as dimmed.
-            isEnabled = !input.isDisabled
+            isEnabled = !input.disabled
         }
     }
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 }
 
-/// A short Hue Sync choice (`HueSyncTab.choice`): a segmented control (a menu at accessibility sizes), or "Unavailable" while the
-/// select reports no options.
+/// A short Hue Sync choice (`HueSyncTab.choice`), with a segmented control, an accessibility-size menu and unavailable copy.
 @MainActor
 final class UKRemoteHueChoiceRow: UIView {
     private let bag = UKObservationBag()
@@ -471,15 +466,27 @@ final class UKRemoteHueChoiceRow: UIView {
     private let choice: UKSegmentedChoice<String>
 
     /// - Parameter ordersSyncModes: Lists the options in the Sync Box's mode order (`MediaRemoteState.orderedSyncModes`).
-    init(controller: MediaRemoteController, title: String, entityId: String, identifier: String, ordersSyncModes: Bool = false,
-         choose: @escaping (String) -> Void) {
-        choice = UKSegmentedChoice<String>(label: title, options: [], title: { StateText.titleCase($0) }, selection: nil,
+    convenience init(controller: MediaRemoteController, title: String, entityId: String, identifier: String, ordersSyncModes: Bool = false,
+                     choose: @escaping (String) -> Void) {
+        self.init(title: title, identifier: identifier, unavailableText: "Unavailable", optionTitle: { StateText.titleCase($0) },
+                  reportsUnavailable: false,
+                  state: {
+            let display = controller.hueSelect(entityId)
+            return (ordersSyncModes ? MediaRemoteState.orderedSyncModes(display.options) : display.options,
+                    display.selected, display.isUnavailable)
+        }, choose: choose)
+    }
+
+    init(title: String, identifier: String, unavailableText: String, optionTitle: @escaping (String) -> String,
+         reportsUnavailable: Bool = true,
+         state: @escaping () -> (options: [String], selected: String, unavailable: Bool), choose: @escaping (String) -> Void) {
+        choice = UKSegmentedChoice<String>(label: title, options: [], title: optionTitle, selection: nil,
                                            identifier: identifier, select: choose)
         super.init(frame: .zero)
-        unavailable.text = "Unavailable"
+        unavailable.text = unavailableText
         unavailable.isAccessibilityElement = true
         unavailable.accessibilityLabel = title
-        unavailable.accessibilityValue = "Unavailable"
+        unavailable.accessibilityValue = unavailableText
         unavailable.accessibilityIdentifier = identifier
         for view in [unavailable, choice] as [UIView] {
             addSubview(view)
@@ -493,14 +500,15 @@ final class UKRemoteHueChoiceRow: UIView {
         unavailable.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
         bag.observe { [weak self] in
             guard let self else { return }
-            let select = controller.hueSelect(entityId)
-            let options = ordersSyncModes ? MediaRemoteState.orderedSyncModes(select.options) : select.options
-            unavailable.isHidden = !options.isEmpty
-            choice.isHidden = options.isEmpty
+            let select = state()
+            let options = select.options
+            let missing = options.isEmpty || (reportsUnavailable && select.unavailable)
+            unavailable.isHidden = !missing
+            choice.isHidden = missing
             if choice.options != options { choice.options = options }
             if choice.selection != select.selected { choice.selection = select.selected }
-            choice.isUserInteractionEnabled = !select.isUnavailable
-            choice.alpha = select.isUnavailable ? 0.4 : 1
+            choice.isUserInteractionEnabled = !select.unavailable
+            choice.alpha = select.unavailable ? 0.4 : 1
         }
     }
 
@@ -510,19 +518,29 @@ final class UKRemoteHueChoiceRow: UIView {
 /// The Hue Sync brightness field (`HueSyncTab.brightnessField`): "Brightness" and its value over a slider that commits on release.
 @MainActor
 final class UKRemoteHueBrightnessRow: UKRowView {
-    private let controller: MediaRemoteController
-    private let entityId: String
+    private let readState: () -> MediaRemoteController.BrightnessDisplay
+    private let commit: (Double) -> Void
+    private let editingChanged: (Bool) -> Void
+    private let unavailableText: String?
     private let slider = UKRemoteSlider()
     private let bag = UKObservationBag()
     private var brightness = SliderDraft()
 
-    init(controller: MediaRemoteController, entityId: String) {
-        self.controller = controller
-        self.entityId = entityId
-        super.init(UKRowContent("Brightness", value: " ", style: .form), surface: .sheet)
+    convenience init(controller: MediaRemoteController, entityId: String) {
+        self.init(title: "Brightness", state: { controller.hueBrightness(entityId) },
+                  commit: { controller.setHueBrightness(entityId, value: $0) })
+    }
+
+    init(title: String, unavailableText: String? = nil, state: @escaping () -> MediaRemoteController.BrightnessDisplay,
+         commit: @escaping (Double) -> Void, editingChanged: @escaping (Bool) -> Void = { _ in }) {
+        readState = state
+        self.commit = commit
+        self.editingChanged = editingChanged
+        self.unavailableText = unavailableText
+        super.init(UKRowContent(title, value: " ", style: .form), surface: .sheet)
         isTextAccessible = false
         slider.tintColor = UIColor(HassTokens.RGB.Tint.light)
-        slider.accessibilityLabel = "Brightness"
+        slider.accessibilityLabel = title
         slider.accessibilityIdentifier = "remote.hue.brightness"
         slider.heightAnchor.constraint(greaterThanOrEqualToConstant: HassTokens.minTarget).isActive = true
         slider.addAction(UIAction { [weak self] _ in self?.beginEditing() }, for: .touchDown)
@@ -534,14 +552,10 @@ final class UKRemoteHueBrightnessRow: UKRowView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    private var commit: (Double) -> Void {
-        { [controller, entityId] in controller.setHueBrightness(entityId, value: $0) }
-    }
-
     private func refresh() {
-        let display = controller.hueBrightness(entityId)
+        let display = readState()
         let shown = brightness.shown(live: display.value)
-        let valueText = display.unavailableText ?? MediaRemoteState.numberString(shown)
+        let valueText = display.isUnavailable ? (unavailableText ?? display.unavailableText ?? "Unavailable") : MediaRemoteState.numberString(shown)
         var content = rowContent
         content.value = valueText
         update(content)
@@ -554,7 +568,8 @@ final class UKRemoteHueBrightnessRow: UKRowView {
     }
 
     private func beginEditing() {
-        brightness.editingChanged(true, live: controller.hueBrightness(entityId).value, commit: commit)
+        editingChanged(true)
+        brightness.editingChanged(true, live: readState().value, commit: commit)
     }
 
     private func changed() {
@@ -564,113 +579,12 @@ final class UKRemoteHueBrightnessRow: UKRowView {
     }
 
     private func endEditing() {
-        brightness.editingChanged(false, live: controller.hueBrightness(entityId).value, commit: commit)
+        brightness.editingChanged(false, live: readState().value, commit: commit)
+        editingChanged(false)
         refresh()
     }
 }
 
 // MARK: - Lists
 
-/// The Devices section (`RemoteDevicesTab`): the remote's devices as an inset grouped list under a "Devices" header.
-@MainActor
-final class UKRemoteDevicesViewController: UKPaneViewController {
-    private let form = UKFormViewController()
-    private let controller: MediaRemoteController
-
-    init(controller: MediaRemoteController) {
-        self.controller = controller
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        let controller = controller
-        form.setSections([
-            UKFormSection(id: "devices", header: "Devices", headerStyle: .system, rows: controller.config.devices.map { device in
-                UKFormRow(id: device.id, .custom { UKRemoteDeviceRow(controller: controller, device: device) })
-            }),
-        ], animated: false)
-        addChild(form)
-        form.view.frame = view.bounds
-        form.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(form.view)
-        form.didMove(toParent: self)
-    }
-}
-
-/// The Hue Sync section (`HueSyncTab`): Sync Box power and light sync, sync mode, intensity and brightness, and HDMI input, as an
-/// inset grouped list (direction G, n4 remote Hue Sync). Departure from the web: tapping the selected sync mode again while not syncing
-/// no longer restarts syncing (a segmented control does not report a tap on its selected segment); Light Sync starts it.
-@MainActor
-final class UKRemoteHueSyncViewController: UKPaneViewController {
-    private let form = UKFormViewController()
-    private let controller: MediaRemoteController
-    private let hue: HueSyncConfig
-    private let bag = UKObservationBag()
-    private var shownInputs: [String]?
-
-    init(controller: MediaRemoteController, hue: HueSyncConfig) {
-        self.controller = controller
-        self.hue = hue
-        super.init(nibName: nil, bundle: nil)
-    }
-
-    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        view.backgroundColor = .clear
-        addChild(form)
-        form.view.frame = view.bounds
-        form.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(form.view)
-        form.didMove(toParent: self)
-        // The HDMI rows follow the select's options (HDMI 1 to 4 until it reports any); the rows bind themselves.
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let inputs = controller.hdmiInputs(hue).map(\.option)
-            if inputs != shownInputs {
-                shownInputs = inputs
-                form.setSections(sections(inputs: inputs), animated: false)
-            }
-        }
-    }
-
-    private func sections(inputs: [String]) -> [UKFormSection] {
-        let controller = controller
-        let hue = hue
-        return [
-            UKFormSection(id: "power", header: "Power and Sync", footer: HueSyncTab.help, headerStyle: .system, rows: [
-                UKFormRow(id: "power", .custom {
-                    UKRemoteHueToggleRow(controller: controller, title: "Sync Box Power", entityId: hue.powerEntityId, symbol: "power",
-                                         offProjections: [hue.lightSyncEntityId])
-                }),
-                UKFormRow(id: "lightSync", .custom {
-                    UKRemoteHueToggleRow(controller: controller, title: "Light Sync", entityId: hue.lightSyncEntityId, symbol: "lightbulb.2",
-                                         onProjections: [hue.powerEntityId])
-                }),
-            ]),
-            UKFormSection(id: "mode", header: "Sync Mode", headerStyle: .system, rows: [
-                UKFormRow(id: "mode", .custom {
-                    UKRemoteHueChoiceRow(controller: controller, title: "Sync Mode", entityId: hue.syncModeEntityId, identifier: "remote.hue.mode",
-                                         ordersSyncModes: true) { controller.selectSyncMode(hue, mode: $0) }
-                }),
-            ]),
-            UKFormSection(id: "intensity", header: "Intensity", headerStyle: .system, rows: [
-                UKFormRow(id: "intensity", .custom {
-                    UKRemoteHueChoiceRow(controller: controller, title: "Intensity", entityId: hue.intensityEntityId, identifier: "remote.hue.intensity") {
-                        controller.selectHue(hue.intensityEntityId, option: $0)
-                    }
-                }),
-                UKFormRow(id: "brightness", .custom { UKRemoteHueBrightnessRow(controller: controller, entityId: hue.brightnessEntityId) }),
-            ]),
-            UKFormSection(id: "hdmi", header: "HDMI Input", headerStyle: .system, rows: inputs.map { option in
-                UKFormRow(id: "hdmi.\(option)", .custom { UKRemoteHdmiRow(controller: controller, hue: hue, option: option) })
-            }),
-        ]
-    }
-}
 #endif

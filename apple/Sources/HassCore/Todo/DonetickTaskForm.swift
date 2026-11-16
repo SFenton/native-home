@@ -60,13 +60,16 @@ public struct DonetickTaskForm: Equatable, Sendable {
         Option("Friday", "friday"), Option("Saturday", "saturday"), Option("Sunday", "sunday"),
     ]
 
+    /// The shared non-person assignee offered by both task editors.
+    public static let homeImprovementAssignee = Option("Home Improvement", "3")
+
     /// Anyone, the household (the viewer as "You"), Home Improvement, plus the task's own assignee if unknown.
     public func assignees(viewer: ChoresConfig.Resident?) -> [Option] {
         var options = [Option("Anyone", "")]
         for resident in ChoresConfig.Resident.allCases {
             options.append(Option(resident == viewer ? "You" : resident.name, resident.taskAssignee))
         }
-        options.append(Option("Home Improvement", "3"))
+        options.append(Self.homeImprovementAssignee)
         if !assignee.isEmpty, !options.contains(where: { $0.value == assignee }) {
             options.append(Option("User \(assignee)", assignee))
         }

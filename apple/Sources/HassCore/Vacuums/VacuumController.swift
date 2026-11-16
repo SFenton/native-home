@@ -84,6 +84,12 @@ public final class VacuumController {
     public private(set) var queuedClean: ServiceCall?
     /// Bumped on every intent; views use it to re-read pending state.
     public private(set) var intentRevision = 0
+    /// Includes the actual caller lifetime, even after live state has already acknowledged an intent.
+    public private(set) var activeCallCount = 0
+    /// A publication must not discard this command coordinator until every call and overlay settles.
+    public var hasPendingCommand: Bool {
+        activeCallCount > 0 || !intents.isEmpty || !overlay.pending.isEmpty || cleanStartPending || queuedClean != nil
+    }
 
     let overlay: OptimisticOverlay
     private struct Intent { var value: String; var orderAt: Date; var generation: Int }
@@ -97,6 +103,7 @@ public final class VacuumController {
     @ObservationIgnored private let scheduler: any RevertScheduler
     @ObservationIgnored private let now: @MainActor () -> Date
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    @ObservationIgnored private let reconciliationEntities: [String: String]?
 
     // MARK: - Init
 
@@ -108,12 +115,14 @@ public final class VacuumController {
     ///   - scheduler: Runs revert and settle timers.
     ///   - now: The clock for room order and the settle window.
     public init(vacuum: VacuumConfig, store: EntityStore, caller: any HassServiceCalling,
-                scheduler: any RevertScheduler = TaskRevertScheduler(), now: @escaping @MainActor () -> Date = Date.init) {
+                scheduler: any RevertScheduler = TaskRevertScheduler(), now: @escaping @MainActor () -> Date = Date.init,
+                reconciliationEntities: [String: String]? = nil) {
         self.vacuum = vacuum
         self.store = store
         self.caller = caller
         self.scheduler = scheduler
         self.now = now
+        self.reconciliationEntities = reconciliationEntities
         var rules: [String: OptimisticOverlay.ClearRule] = [vacuum.entityId: .liveChange, vacuum.statusFlagEntityId: .confirmation]
         if let dock = vacuum.dockControls { rules[dock.dockStatusEntityId] = .confirmation }
         for room in vacuum.autoCleanDisabledRooms { rules[room.entityId] = .confirmation }
@@ -169,7 +178,9 @@ public final class VacuumController {
     /// The coordinator's while-away report, with Main Floor reconciliations applied.
     public var whileAway: VacuumWhileAway {
         var reconciled: [String: String] = [:]
-        for (roomId, entityId) in Vacuums.outcomeReconciliations(vacuum.vacuumMapId) {
+        let entities = reconciliationEntities.map { $0.map { (roomId: $0.key, entityId: $0.value) } }
+            ?? Vacuums.outcomeReconciliations(vacuum.vacuumMapId)
+        for (roomId, entityId) in entities {
             if let value = live(entityId), !value.isEmpty { reconciled[roomId] = value }
         }
         return VacuumWhileAway.read(entity(vacuum.coordinatorSessionEntityId)?.attributes, reconciled: reconciled)
@@ -316,7 +327,7 @@ public final class VacuumController {
 
     /// Flips a room and sets the mode its rooms need (`toggleRoom`).
     public func toggleRoom(_ zone: VacuumConfig.Zone) {
-        guard runtimeMode == .full else { return }
+        guard roomsEditable, vacuum.zones.contains(zone) else { return }
         let next = !isSelected(zone)
         if next { areaSelection = nil }
         registerIntent(zone.entityId, next ? "on" : "off")
@@ -589,7 +600,9 @@ public final class VacuumController {
 
     private func perform(_ call: ServiceCall, onFailure: (@MainActor (Error) -> Void)? = nil) {
         let caller = caller
-        inFlight.append(Task { @MainActor in
+        activeCallCount += 1
+        inFlight.append(Task { @MainActor [self] in
+            defer { activeCallCount -= 1 }
             do { try await caller.call(call) } catch { onFailure?(error) }
         })
     }

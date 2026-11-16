@@ -156,7 +156,7 @@ struct LiveActivityLinkTests {
         let state = try #require(HomeActivityFixtures.fixture("dishwasher", now: now)).state
         let url = try #require(ActivityDeepLink.url(for: state))
         #expect(push.openLiveActivity(url))
-        #expect(push.pendingRequest?.destination == PushDestination(dashboardPath: "kitchen"))
+        #expect(push.pendingRequest?.route == RouteRequest(path: "kitchen"))
         #expect(!push.openLiveActivity(URL(string: "https://example.com")!), "any other URL is not ours")
         #expect(!push.openLiveActivity(URL(string: "fentonhome://other")!))
     }

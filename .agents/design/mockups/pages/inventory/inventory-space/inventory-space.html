@@ -27,9 +27,7 @@
   Mock.mount({
     kind: 'page', id: 'inventory-space', title: 'Inventory space', area: 'inventory', status: 'shipped',
     summary: 'One page, six spaces (All Food, Pantry, Fridge, Freezer, Spice Rack, Cabinet): a "10 Items • 2 Expiring Soon" line, the items as rows on one dense module, and a floating bar with Search, Sort, Filter and Scan Item. Pushed from the Food hub. Fixture rows only.',
-    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift', 'apple/Sources/HassUI/Features/Inventory/InventorySections.swift',
-      'apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRowActions.swift',
-      'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift', 'apple/Sources/HassCore/Inventory/InventoryListModel.swift'],
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassUI/Features/Inventory/InventorySections.swift', 'apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventoryRow.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift', 'apple/Sources/HassCore/Inventory/InventoryListModel.swift'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md'],
     patterns: ['floating-actions', 'content-gate', 'module-list', 'status-pill', 'motion'],
     hig: ['Lists and tables', 'Search fields', 'Alerts', 'Action sheets', 'Loading', 'Layout (readable content width)', 'Dynamic Type', 'Motion'],

@@ -4,6 +4,11 @@ import Foundation
 /// Source: `ha-sfenton-react-dash@f5a7bf9:src/components/hass/WeatherSummary.tsx:511` (`highlightTiles`) and
 /// `WeatherAqiTile` (`:1006`).
 public enum WeatherHighlights {
+    /// Ordered panel items, including forecast charts and current-condition metrics.
+    public enum PanelItem: String, Sendable {
+        case aqi, precipitation, accumulation, humidity, cloud, feels, uv, wind, sun, visibility, pressure
+    }
+
     /// Feels Like, UV Index, Wind, Sunrise/Sunset, Visibility and Pressure, in web order.
     public static func tiles(current: WeatherCurrent, today: WeatherForecast?, sun: WeatherSunInput?, now: Date = Date(), timeZone: TimeZone = .current) -> [WeatherHighlight] {
         let unavailable = WeatherCopy.text("unavailable")

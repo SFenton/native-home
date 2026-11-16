@@ -44,6 +44,62 @@ Living Room (vents `cover.demo_living_room_vent_1`, `_vent_2_vent`), Office, Pri
 
 Optimistic values clear on confirmation, on failure, or after 2 s (web `DEFAULT_OPTIMISTIC_REVERT_MS`).
 
+## Configured composition primitives
+
+`climate@1` injects explicit synthetic-or-server entity targets into `ClimateController`.
+`climate-control` provides atomic `dial`, `hub`, `notice`, `toggle`, `check`, `explicit-switch`,
+`mode`, `fan`, `preset`, `options`, `status`, `link` and `room-tile` variants. Each variant negotiates its
+own `sh.climate-<kind>@1` capability (`explicit-switch` shares `sh.climate-toggle@1`),
+plus `sh.climate-source@1` and bindings. The frozen first-slice capability set is unchanged.
+Studio generates the inspector from the same closed, matching contract; copy,
+SF Symbols, choice order, dial bounds/step/unit and explicit fanout are authored.
+Menus intersect authored choices with live supported options and revalidate at dispatch.
+Units are not silently converted or relabeled.
+
+The canonical hub accepts values/closures while retaining its existing controller
+initializer. The dial keeps its editor, hit testing, haptics, adjustable elements
+and late-failure rollback; publication is blocked during a gesture or actual
+service call, independently of the optimistic timeout. One configured controller
+is shared by document sources so tracking gates see optimistic peer changes.
+The away notice and tracking-count projections use extracted canonical rules,
+not new automation. Missing tracking inputs produce unavailable rather than zero.
+Eco option rows share the canonical animated checkmark face with the legacy
+feature; tracking checks reuse `UKCheckRow`, including selected semantics and
+critical-room exclusion.
+
+HIG [Toggles](https://developer.apple.com/design/human-interface-guidelines/toggles):
+"Use the switch style only in a list row" (iOS/iPadOS). These controls reuse the
+canonical row and switch. HIG
+[Pop-up buttons](https://developer.apple.com/design/human-interface-guidelines/pop-up-buttons):
+"Make options predictable before opening with an introductory label or
+effect-describing button label." The canonical hub/pickers retain their labels
+and checked native menu choices. The existing dial accessibility rules below
+remain authoritative.
+
+This is not a Climate-screen adapter. Status projections include combined
+comfort/forecast ranges, the canonical prediction explanation, predictive switch
+summary and all three tracking summaries. Explicit switches may attach a status
+subtitle; recommendation/adjustment labels use the canonical formatter unless
+authored labels override them. Missing bounds and mismatched units remain
+unavailable, never relabeled readings.
+`room-tile` reads explicitly configured temperature/occupancy sensors, keeps
+them on separate lines, and uses the canonical room palette index and authored
+room symbol. This follows the current UIKit room tile, not the older web
+occupancy-dependent symbol above. `link` carries only a navigation action;
+tracking links revalidate canonical live enablement, while Occupied Only
+remains independent of selected-room tracking. Status presentations can be
+canonical aligned metrics, a recommendation headline or separate paragraphs.
+The existing module-list host accepts the narrow row-shaped Climate variants;
+dials, tiles and check grids cannot masquerade as module rows.
+
+The complete Home-domain fixture supplies all three local tabs, room details,
+Eco options, tracking checks and prediction metrics. Shell integration still
+owns pinned bottom tab placement, atomically selecting a tab when presenting,
+and conditional child placement inside a retained module-list.
+These seams and the parent-run device evidence still gate parity certification.
+The canonical Climate page has no schedule editor; thermostat scheduling must
+not be invented from the unrelated bedroom/room-device schedule surfaces.
+
 ## Departures from web
 
 - An `unknown` effective home/away state counts as Unknown. The web passes a sensor's raw lowercase `unknown` through `formatCompactEntityState`, so its `Unknown` checks never match; the spec's intent (unknown falls back to Away Mode) wins.

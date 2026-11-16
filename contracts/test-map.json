@@ -13,34 +13,14 @@
  "smoke": [
   "LoginJourneyTests/testLoginScreenPassesAccessibilityAudit",
   "LoginJourneyTests/testAtTheLargestTextTheFormScrollsAndSignInStaysReachable",
-  "AdaptiveLayoutJourneyTests/testRootNavigationOpensHome",
-  "AdaptiveLayoutJourneyTests/testSecurityDoorTilesStayOffTheHinge",
   "ModalSizingJourneyTests/testShortSheetOpensAtContentHeight",
   "ModalSizingJourneyTests/testTabBarShowsIconsOnCompactWidthAndNamesThem",
-  "ChoresPageJourneyTests/testChoresTabPassesAccessibilityAudit",
-  "ChoresTaskFormJourneyTests/testAddTaskSheetHasSeparateFieldsWithFooters",
-  "TileLayoutJourneyTests/testTileLayoutAX5RowKeepsTilesReadable",
-  "ChipAlignmentJourneyTests/testHomeChipsStartAtTheLeadingMargin",
-  "SheetBottomGapJourneyTests/testQuickLinksHasNoBandUnderItsTiles"
+  "TileLayoutJourneyTests/testTileLayoutAX5RowKeepsTilesReadable"
  ],
  "layoutJourneys": [
-  "AdaptiveLayoutJourneyTests",
   "LayoutJourneyTests",
   "ModalSizingJourneyTests",
-  "SheetBottomGapJourneyTests",
-  "TileLayoutJourneyTests",
-  "NavigationJourneyTests",
-  "ShellJourneyTests",
-  "HomePagesJourneyTests",
-  "ChoresWideLayoutJourneyTests",
-  "ColumnRoutesJourneyTests",
-  "RoomDevicesHumidifierPoseJourneyTests",
-  "FoodWideLayoutJourneyTests",
-  "VacuumSplitPoseJourneyTests",
-  "RoomsWideLayoutJourneyTests",
-  "ClimateWideLayoutJourneyTests",
-  "BedroomWideLayoutJourneyTests",
-  "SectionSidesJourneyTests"
+  "TileLayoutJourneyTests"
  ],
  "ignore": [
   ".agents/",
@@ -64,16 +44,13 @@
    "swift": [
     "HeaderEdgeFade"
    ],
-   "journeys": [
-    "HeaderFadeJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Page/UKFixedBarTitle",
    "swift": [],
    "journeys": [
-    "PageTitleJourneyTests",
-    "DuoBarTitleJourneyTests"
+    "PageTitleJourneyTests"
    ]
   },
   {
@@ -81,18 +58,14 @@
    "swift": [
     "PageIndicator"
    ],
-   "journeys": [
-    "HomePagesJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/PagedRow",
    "swift": [
     "PagedRow"
    ],
-   "journeys": [
-    "HomePagesJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -101,9 +74,7 @@
     "PagedRow",
     "PageIndicator"
    ],
-   "journeys": [
-    "HomePagesJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -112,7 +83,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -123,7 +93,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -134,7 +103,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -145,7 +113,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -156,7 +123,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -167,7 +133,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -178,7 +143,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -189,7 +153,6 @@
     "SheetFit"
    ],
    "journeys": [
-    "SheetBottomGapJourneyTests",
     "ModalSizingJourneyTests"
    ],
    "layout_sensitive": true
@@ -199,9 +162,7 @@
    "swift": [
     "HingeAvoidance"
    ],
-   "journeys": [
-    "AdaptiveLayoutJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -209,9 +170,7 @@
    "swift": [
     "HingeAvoidance"
    ],
-   "journeys": [
-    "AdaptiveLayoutJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -272,9 +231,7 @@
    "swift": [
     "TileAction"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/GlassTile",
@@ -282,7 +239,6 @@
     "TileLayout"
    ],
    "journeys": [
-    "TilesRound2JourneyTests",
     "TileLayoutJourneyTests"
    ]
   },
@@ -292,9 +248,7 @@
     "ChipTint",
     "ColorFamily"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/TileFace",
@@ -302,9 +256,7 @@
     "TileLayout",
     "ChipTint"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/TileFinish",
@@ -312,9 +264,7 @@
     "TileLayout",
     "ChipTint"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/TileSurface",
@@ -322,9 +272,7 @@
     "TileLayout",
     "ChipTint"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/TileAppearance",
@@ -332,9 +280,7 @@
     "TileLayout",
     "ChipTint"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/ThermostatDial",
@@ -359,9 +305,7 @@
    "swift": [
     "ChipRail"
    ],
-   "journeys": [
-    "ChipAlignmentJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -369,9 +313,7 @@
    "swift": [
     "ChipTint"
    ],
-   "journeys": [
-    "ChipAlignmentJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/FloatingActionBar",
@@ -569,13 +511,6 @@
    "journeys": []
   },
   {
-   "prefix": "apple/Sources/HassDesign/QuickLinkPalette",
-   "swift": [
-    "QuickLinkPalette"
-   ],
-   "journeys": []
-  },
-  {
    "prefix": "apple/Sources/HassDesign/RoomPalette",
    "swift": [
     "RoomPalette"
@@ -587,9 +522,7 @@
    "swift": [
     "ScrollActivityTests"
    ],
-   "journeys": [
-    "ScrollKeepsMovingJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassDesign/",
@@ -607,7 +540,6 @@
     "HomeColumnsTests"
    ],
    "journeys": [
-    "AdaptiveLayoutJourneyTests",
     "LayoutJourneyTests"
    ],
    "layout_sensitive": true
@@ -636,9 +568,7 @@
     "LocationCoordinator",
     "LocationLaunchPolicy"
    ],
-   "journeys": [
-    "LocationJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/App/LiveActivity",
@@ -658,7 +588,9 @@
   },
   {
    "prefix": "apple/Sources/HassUI/App/AppSession",
-   "swift": ["AppSessionTests"],
+   "swift": [
+    "AppSessionTests"
+   ],
    "journeys": [
     "LoginJourneyTests"
    ]
@@ -666,23 +598,15 @@
   {
    "prefix": "apple/Sources/HassUI/App/",
    "swift": [],
-   "journeys": [
-    "NavigationJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Common/RoomOverview",
    "swift": [
     "RoomOverview"
    ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Common/ModalTabBar",
@@ -696,18 +620,14 @@
    "swift": [
     "BackdropBlur"
    ],
-   "journeys": [
-    "BackdropBlurJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Common/HouseBackdrop",
    "swift": [
     "BackdropBlur"
    ],
-   "journeys": [
-    "BackdropBlurJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Common/AlertCopy",
@@ -734,9 +654,7 @@
     "ThermostatDial"
    ],
    "journeys": [
-    "ThermostatDialJourneyTests",
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests"
+    "ThermostatDialJourneyTests"
    ]
   },
   {
@@ -747,76 +665,39 @@
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom",
    "swift": [],
-   "journeys": [
-    "BedroomTilesJourneyTests",
-    "BedroomBedJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/BedSideSheet",
    "swift": [],
-   "journeys": [
-    "BedroomTilesJourneyTests",
-    "BedroomBedJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomWideLayoutJourneyTests",
-    "LightAppearanceBedSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "BedroomWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/BedroomComponents",
    "swift": [],
-   "journeys": [
-    "BedroomTilesJourneyTests",
-    "BedroomBedJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomWideLayoutJourneyTests",
-    "LightAppearanceBedSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "BedroomWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/BedDial",
    "swift": [],
-   "journeys": [
-    "BedroomBedJourneyTests",
-    "LightAppearanceBedSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/BedScopeCopy",
    "swift": [],
-   "journeys": [
-    "BedroomBedJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/BedAlarmsTab",
    "swift": [],
-   "journeys": [
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Bedroom/WakeLightSheet",
    "swift": [],
-   "journeys": [
-    "BedroomWakeLightJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Cameras",
@@ -824,133 +705,69 @@
     "CameraUpgrade"
    ],
    "journeys": [
-    "CameraJourneyTests",
     "CameraViewerFitJourneyTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores",
    "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresListLayoutJourneyTests",
-    "ChoresCheckUndoJourneyTests",
-    "ChoresSwipeJourneyTests",
-    "ChoresDeleteJourneyTests",
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests",
-    "ChoresSubPagesJourneyTests",
-    "ChoresWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Chores/ChoreQuickLinks",
-   "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresListLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Chores/OverdueChoresBadge",
-   "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/ChoresModel",
    "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresCheckUndoJourneyTests",
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoListSection.swift",
    "swift": [],
-   "journeys": [
-    "ChoresListLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoPageLayout.swift",
    "swift": [],
-   "journeys": [
-    "ChoresListLayoutJourneyTests",
-    "ChoresSubPagesJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoItemRow",
    "swift": [],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests",
-    "ChoresListLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoCheckUndo",
    "swift": [],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoListSection+Swipe",
    "swift": [],
-   "journeys": [
-    "ChoresSwipeJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoListSection+Delete",
    "swift": [],
-   "journeys": [
-    "ChoresDeleteJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/DonetickTask",
    "swift": [],
-   "journeys": [
-    "ChoresTaskFormJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Chores/TodoItemSheets",
-   "swift": [],
-   "journeys": [
-    "ChoresTodoSheetsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoPageView+List",
    "swift": [],
-   "journeys": [
-    "ChoresSubPagesJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoPageSheets",
    "swift": [],
-   "journeys": [
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests",
-    "ChoresWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "ChoresWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Chores/TodoDraftStore",
    "swift": [],
-   "journeys": [
-    "ChoresWideLayoutJourneyTests"
-   ],
+   "journeys": [],
    "layout_sensitive": true
   },
   {
@@ -958,109 +775,53 @@
    "swift": [
     "DonetickTaskForm"
    ],
-   "journeys": [
-    "ChoresTaskFormJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Todo/TodoItem.swift",
    "swift": [
     "TodoItem"
    ],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests",
-    "ChoresListLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Todo/TodoListController",
    "swift": [
     "TodoList"
    ],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests",
-    "ChoresDeleteJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Todo/TodoRowActions",
    "swift": [
     "TodoItem"
    ],
-   "journeys": [
-    "ChoresSwipeJourneyTests",
-    "ChoresDeleteJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Todo/TodoServicing",
    "swift": [
     "TodoServicing"
    ],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests",
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Config/ChoresConfig",
    "swift": [
     "ChoresConfig"
    ],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresSubPagesJourneyTests",
-    "ChoresTodoSheetsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Climate",
    "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Climate/ClimateScreen",
-   "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Climate/ClimateSheet",
-   "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests",
-    "LightAppearanceClimateSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "ClimateWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Climate/ClimateComponents",
    "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests",
-    "LightAppearanceClimateSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "ClimateWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/CustomLights",
@@ -1076,136 +837,71 @@
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Food/FoodRoute.swift",
-   "swift": [
-    "Food"
-   ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Food/FoodFamilies.swift",
-   "swift": [
-    "Food"
-   ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/FoodModels.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/SuggestedRecipesCarousel.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/SuggestedRecipesModel.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeGrid.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipesJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "FoodWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeFilters.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeCollectionModel.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipesJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeDetailView.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeDetailRows.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipeDetailJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Food/RecipeDetailModel.swift",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodRecipeDetailJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Gallery",
@@ -1217,118 +913,47 @@
    "swift": [
     "GalleryReset"
    ],
-   "journeys": [
-    "RoomsPageJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Home",
    "swift": [],
-   "journeys": [
-    "HomeJourneyTests",
-    "HomePagesJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory",
    "swift": [
     "Inventory"
    ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryRoute.swift",
-   "swift": [
-    "Inventory"
-   ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift",
    "swift": [
     "Inventory"
    ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryPresentation.swift",
-   "swift": [
-    "Inventory"
-   ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryPrompt.swift",
-   "swift": [
-    "Inventory"
-   ],
-   "journeys": [
-    "InventoryRowActionsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory/InventorySections.swift",
    "swift": [
     "Inventory"
    ],
-   "journeys": [
-    "InventoryListJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift",
    "swift": [
     "Inventory"
    ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventorySheetsJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Inventory/InventorySheetContent.swift",
-   "swift": [
-    "Inventory",
-    "ScanItem"
-   ],
-   "journeys": [
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory/InventoryItemEditor.swift",
    "swift": [
     "Inventory"
    ],
-   "journeys": [
-    "InventoryEditorJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Inventory/ScanCamera.swift",
@@ -1336,18 +961,14 @@
     "Inventory",
     "ScanItem"
    ],
-   "journeys": [
-    "InventoryScanJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Location",
    "swift": [
     "Location"
    ],
-   "journeys": [
-    "LocationJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Login",
@@ -1361,19 +982,14 @@
    "swift": [
     "MediaRemote"
    ],
-   "journeys": [
-    "MediaRemoteJourneyTests",
-    "LightAppearanceMediaRemoteSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Media",
    "swift": [
     "MediaRemote"
    ],
-   "journeys": [
-    "MediaRemoteJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Notifications",
@@ -1388,18 +1004,13 @@
    "prefix": "apple/Sources/HassUI/Features/RoomDevices",
    "swift": [],
    "journeys": [
-    "RoomDevicesFanJourneyTests",
-    "RoomDevicesPurifierJourneyTests",
-    "RoomDevicesGrillJourneyTests",
-    "RoomDevicesHumidifierJourneyTests",
-    "RoomDevicesHumidifierPoseJourneyTests"
+    "RoomDevicesGrillJourneyTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/Features/RoomDevices/HumidifierDials",
    "swift": [],
    "journeys": [
-    "RoomDevicesHumidifierJourneyTests",
     "LightAppearanceRoomDeviceSheetJourneyTests"
    ]
   },
@@ -1407,174 +1018,65 @@
    "prefix": "apple/Sources/HassUI/Features/RoomDevices/HumidifierSheet",
    "swift": [],
    "journeys": [
-    "RoomDevicesHumidifierJourneyTests",
-    "RoomDevicesHumidifierPoseJourneyTests",
     "LightAppearanceRoomDeviceSheetJourneyTests"
    ],
-   "layout_journeys": [
-    "RoomDevicesHumidifierPoseJourneyTests"
-   ]
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/RoomDevices/HumidifierSchedulesTab",
    "swift": [],
-   "journeys": [
-    "RoomDevicesHumidifierJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/RoomDevices/RoomDeviceSheetChrome",
    "swift": [],
    "journeys": [
-    "RoomDevicesFanJourneyTests",
-    "RoomDevicesPurifierJourneyTests",
     "RoomDevicesGrillJourneyTests",
-    "RoomDevicesHumidifierJourneyTests",
     "LightAppearanceRoomDeviceSheetJourneyTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/Features/RoomDevices/BathroomFanSheet",
    "swift": [],
-   "journeys": [
-    "RoomDevicesFanJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Rooms",
    "swift": [
     "RoomOverview"
    ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsQuickLinksJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Rooms/QuickLinksSheet",
-   "swift": [
-    "RoomOverview"
-   ],
-   "journeys": [
-    "RoomsQuickLinksJourneyTests",
-    "LightAppearanceQuickLinksSheetJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Rooms/RoomScreen",
-   "swift": [
-    "RoomOverview"
-   ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Rooms/RoomTiles",
-   "swift": [
-    "RoomOverview"
-   ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Rooms/RoomSheets",
-   "swift": [
-    "RoomOverview"
-   ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Rooms/RoomDeviceRouting",
-   "swift": [
-    "RoomOverview"
-   ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Rooms/RoomSupport",
    "swift": [
     "RoomOverview"
    ],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsQuickLinksJourneyTests",
-    "RoomsWideLayoutJourneyTests",
-    "LightAppearanceQuickLinksSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Security",
    "swift": [],
-   "journeys": [
-    "SecurityJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Security/SecuritySystemSheet",
    "swift": [],
-   "journeys": [
-    "SecurityJourneyTests",
-    "LightAppearanceSecuritySheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Settings",
    "swift": [],
    "journeys": [
-    "SettingsJourneyTests",
-    "SettingsTabJourneyTests",
-    "HouseholdSettingsJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Settings/SettingsScreen",
-   "swift": [],
-   "journeys": [
-    "SettingsTabJourneyTests",
     "SettingsJourneyTests"
-   ],
-   "layout_sensitive": true
+   ]
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Settings/AboutSettingsSection",
    "swift": [],
    "journeys": [
-    "SettingsTabJourneyTests",
     "SettingsJourneyTests"
    ],
    "layout_sensitive": true
@@ -1591,24 +1093,6 @@
    "swift": [],
    "journeys": [
     "SettingsJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Settings/Appearance/",
-   "swift": [],
-   "journeys": [
-    "SettingsTabJourneyTests",
-    "AppIconJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Settings/AppIcon/AppIconSettingsRow",
-   "swift": [
-    "AppIcon"
-   ],
-   "journeys": [
-    "SettingsTabJourneyTests",
-    "AppIconJourneyTests"
    ]
   },
   {
@@ -1632,23 +1116,17 @@
   {
    "prefix": "apple/Sources/HassUI/Features/Settings/Household/HouseholdSettingsPage",
    "swift": [],
-   "journeys": [
-    "HouseholdSettingsJourneyTests",
-    "SettingsTabJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Settings/Household/",
    "swift": [],
-   "journeys": [
-    "HouseholdSettingsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Settings/Profile/",
    "swift": [],
    "journeys": [
-    "SummaryJourneyTests",
     "LightAppearanceAccountSheetJourneyTests"
    ]
   },
@@ -1671,19 +1149,12 @@
    "swift": [
     "TileAction"
    ],
-   "journeys": [
-    "TilesRound2JourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacation",
    "swift": [],
-   "journeys": [
-    "VacationChooserJourneyTests",
-    "VacationModeJourneyTests",
-    "VacationConfirmJourneyTests",
-    "VacationSoloTripJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacation/VacationComponents.swift",
@@ -1691,11 +1162,7 @@
     "VacationModeController",
     "SoloTripController"
    ],
-   "journeys": [
-    "VacationModeJourneyTests",
-    "VacationConfirmJourneyTests",
-    "VacationSoloTripJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacation/VacationScheduleDates.swift",
@@ -1703,127 +1170,54 @@
     "VacationModeController",
     "SoloTripController"
    ],
-   "journeys": [
-    "VacationModeJourneyTests",
-    "VacationConfirmJourneyTests",
-    "VacationSoloTripJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums",
    "swift": [
     "Vacuum"
    ],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumSplitPoseJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumsScreen",
    "swift": [],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumSplitPoseJourneyTests"
-   ],
-   "layout_journeys": [
-    "VacuumSplitPoseJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumSheet",
    "swift": [
     "Vacuum"
    ],
-   "journeys": [
-    "VacuumSplitPoseJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "VacuumSplitPoseJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumTabs",
-   "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumControlsTab",
-   "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumCleanTarget",
-   "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumComponents",
    "swift": [
     "Vacuum"
    ],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel",
    "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumDockJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/ValetudoMapView",
    "swift": [
     "ValetudoMap"
    ],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumAreaEditor",
    "swift": [
     "MapAreaEdit"
    ],
-   "journeys": [
-    "VacuumControlsJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Bedroom",
@@ -1977,6 +1371,7 @@
   {
    "prefix": "apple/Sources/HassCore/Push",
    "swift": [
+    "PushLinkTests",
     "PushConfigTests",
     "HomeAssistantPushClientTests",
     "MobileAppRegistrarTests"
@@ -2011,6 +1406,14 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Sources/HassCore/Routes",
+   "swift": [
+    "ServerUIExtensionRouteTests",
+    "PushLinkTests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Sources/HassCore/Settings",
    "swift": [
     "HouseholdSettings"
@@ -2020,7 +1423,8 @@
   {
    "prefix": "apple/Sources/HassCore/Spotlight",
    "swift": [
-    "SpotlightCatalog"
+    "SpotlightCatalog",
+    "SpotlightCatalogTests"
    ],
    "journeys": []
   },
@@ -2114,8 +1518,7 @@
    "prefix": "apple/Apps/iOS/",
    "swift": [],
    "journeys": [
-    "NavigationJourneyTests",
-    "ShellJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
@@ -2188,81 +1591,49 @@
    "prefix": "apple/project.yml",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Package.swift",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Package.resolved",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/FentonHomeApp.swift",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/AppReuse.swift",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests",
-    "RoomsPageJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/JourneyTestCase.swift",
    "swift": [],
    "journeys": [
-    "ShellJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/ChoresJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresListLayoutJourneyTests",
-    "ChoresCheckUndoJourneyTests",
-    "ChoresSwipeJourneyTests",
-    "ChoresDeleteJourneyTests",
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests",
-    "ChoresSubPagesJourneyTests",
-    "ChoresWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/FoodJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "FoodWideLayoutJourneyTests"
+    "LoginJourneyTests"
    ]
   },
   {
    "prefix": "apple/Apps/iOSUITests/RoomDevicesJourneyTestCase.swift",
    "swift": [],
    "journeys": [
-    "RoomDevicesFanJourneyTests",
-    "RoomDevicesPurifierJourneyTests",
     "RoomDevicesGrillJourneyTests",
-    "RoomDevicesHumidifierJourneyTests",
-    "RoomDevicesHumidifierPoseJourneyTests",
     "RoomDevicesCaptureJourneyTests"
    ]
   },
@@ -2272,104 +1643,23 @@
    "journeys": [
     "LightAppearanceLightsJourneyTests",
     "LightAppearanceSystemJourneyTests",
-    "LightAppearanceSecuritySheetJourneyTests",
-    "LightAppearanceClimateSheetJourneyTests",
-    "LightAppearanceMediaRemoteSheetJourneyTests",
     "LightAppearanceRoomDeviceSheetJourneyTests",
-    "LightAppearanceBedSheetJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests",
-    "LightAppearanceQuickLinksSheetJourneyTests",
-    "LightAppearanceWeatherSheetJourneyTests",
     "LightAppearanceAccountSheetJourneyTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/App/Shell",
-   "swift": [
-    "ColumnRoutingTests"
-   ],
+   "swift": [],
    "journeys": [
-    "NavigationJourneyTests",
-    "ShellJourneyTests",
-    "ColumnRoutesJourneyTests"
+    "PageTitleJourneyTests"
    ],
    "layout_sensitive": true
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/InventoryJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/VacationJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "VacationChooserJourneyTests",
-    "VacationModeJourneyTests",
-    "VacationConfirmJourneyTests",
-    "VacationSoloTripJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/VacuumJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumSplitPoseJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/RoomsJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "RoomsPageJourneyTests",
-    "RoomsFanJourneyTests",
-    "RoomsQuickLinksJourneyTests",
-    "RoomsWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/ClimateJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Apps/iOSUITests/BedroomJourneyTestCase.swift",
-   "swift": [],
-   "journeys": [
-    "BedroomTilesJourneyTests",
-    "BedroomBedJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomWideLayoutJourneyTests"
-   ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/",
    "swift": [],
    "journeys": [
-    "DuoBarTitleJourneyTests",
-    "PageTitleJourneyTests",
-    "NavigationJourneyTests",
-    "ShellJourneyTests"
+    "PageTitleJourneyTests"
    ],
    "families": [
     "iphone",
@@ -2381,78 +1671,32 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/",
    "swift": [],
-   "journeys": [
-    "BedroomBedJourneyTests",
-    "LightAppearanceBedSheetJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomTilesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWideLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Chores/",
    "swift": [],
-   "journeys": [
-    "ChoresPageJourneyTests",
-    "ChoresListLayoutJourneyTests",
-    "ChoresCheckUndoJourneyTests",
-    "ChoresSwipeJourneyTests",
-    "ChoresDeleteJourneyTests",
-    "ChoresSubPagesJourneyTests",
-    "ChoresTaskFormJourneyTests",
-    "ChoresTodoSheetsJourneyTests",
-    "ChoresWideLayoutJourneyTests",
-    "ColumnRoutesJourneyTests"
-   ],
-   "layout_journeys": [
-    "ChoresWideLayoutJourneyTests",
-    "ColumnRoutesJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Climate/",
    "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests",
-    "LightAppearanceClimateSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "ClimateWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Food/",
    "swift": [
     "Food"
    ],
-   "journeys": [
-    "FoodHubJourneyTests",
-    "FoodSuggestionsJourneyTests",
-    "FoodWideLayoutJourneyTests",
-    "FoodRecipesJourneyTests",
-    "FoodRecipeSheetsJourneyTests",
-    "FoodRecipeDetailJourneyTests",
-    "ColumnRoutesJourneyTests"
-   ],
-   "layout_journeys": [
-    "FoodWideLayoutJourneyTests",
-    "ColumnRoutesJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/",
    "swift": [],
-   "journeys": [
-    "HomeJourneyTests",
-    "HomePagesJourneyTests",
-    "LightAppearanceWeatherSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Inventory/",
@@ -2460,24 +1704,14 @@
     "Inventory",
     "ScanItem"
    ],
-   "journeys": [
-    "InventoryListJourneyTests",
-    "InventoryRowActionsJourneyTests",
-    "InventoryEditorJourneyTests",
-    "InventorySheetsJourneyTests",
-    "InventoryScanJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/",
    "swift": [],
    "journeys": [
-    "RoomDevicesPurifierJourneyTests",
     "LightAppearanceRoomDeviceSheetJourneyTests",
-    "RoomDevicesGrillJourneyTests",
-    "RoomDevicesFanJourneyTests",
-    "RoomDevicesHumidifierJourneyTests",
-    "RoomDevicesHumidifierPoseJourneyTests"
+    "RoomDevicesGrillJourneyTests"
    ]
   },
   {
@@ -2485,15 +1719,8 @@
    "swift": [
     "RoomOverview"
    ],
-   "journeys": [
-    "RoomsFanJourneyTests",
-    "RoomsWideLayoutJourneyTests",
-    "RoomsPageJourneyTests",
-    "RoomsQuickLinksJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomsWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/",
@@ -2501,10 +1728,8 @@
     "Feedback"
    ],
    "journeys": [
-    "SettingsTabJourneyTests",
     "SettingsJourneyTests",
-    "FeedbackJourneyTests",
-    "HouseholdSettingsJourneyTests"
+    "FeedbackJourneyTests"
    ],
    "layout_sensitive": true
   },
@@ -2515,12 +1740,7 @@
     "SoloTripController",
     "HouseholdAwayController"
    ],
-   "journeys": [
-    "VacationChooserJourneyTests",
-    "VacationModeJourneyTests",
-    "VacationConfirmJourneyTests",
-    "VacationSoloTripJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/",
@@ -2528,16 +1748,7 @@
     "VacuumAutoClean",
     "Vacuum"
    ],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "VacuumPageJourneyTests",
-    "VacuumSplitPoseJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Cameras/",
@@ -2545,16 +1756,13 @@
     "CameraUpgrade"
    ],
    "journeys": [
-    "CameraJourneyTests",
     "CameraViewerFitJourneyTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/",
    "swift": [],
-   "journeys": [
-    "SecurityJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Setup/",
@@ -2566,79 +1774,22 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKBedSideSheet",
-   "swift": [],
-   "journeys": [
-    "BedroomTilesJourneyTests",
-    "BedroomBedJourneyTests",
-    "BedroomSpecialModesJourneyTests",
-    "BedroomAlarmsJourneyTests",
-    "BedroomWakeLightJourneyTests",
-    "BedroomWideLayoutJourneyTests",
-    "LightAppearanceBedSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "BedroomWideLayoutJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet",
-   "swift": [],
-   "journeys": [
-    "BedroomWakeLightJourneyTests"
-   ]
-  },
-  {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoItemRow",
    "swift": [],
-   "journeys": [
-    "ChoresCheckUndoJourneyTests",
-    "ChoresListLayoutJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateSheet",
    "swift": [],
-   "journeys": [
-    "ClimatePageJourneyTests",
-    "ClimateRoomsJourneyTests",
-    "ClimateAutomationJourneyTests",
-    "ClimateTrackingJourneyTests",
-    "ClimateWideLayoutJourneyTests",
-    "LightAppearanceClimateSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "ClimateWideLayoutJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKLocation",
    "swift": [
     "Location"
    ],
-   "journeys": [
-    "LocationJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/UKHumidifierSheet",
-   "swift": [],
-   "journeys": [
-    "RoomDevicesHumidifierJourneyTests",
-    "RoomDevicesHumidifierPoseJourneyTests",
-    "LightAppearanceRoomDeviceSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "RoomDevicesHumidifierPoseJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/UKSecuritySystemSheet",
-   "swift": [],
-   "journeys": [
-    "SecurityJourneyTests",
-    "LightAppearanceSecuritySheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKTileActions",
@@ -2646,258 +1797,86 @@
     "TileAction"
    ],
    "journeys": [
-    "TilesRound2JourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumSheet",
-   "swift": [
-    "Vacuum"
+    "StateTileJourneyTests"
    ],
-   "journeys": [
-    "VacuumSplitPoseJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ],
-   "layout_journeys": [
-    "VacuumSplitPoseJourneyTests"
+   "hosted": [
+    "UKHostedStateTileViewTests",
+    "UKHostedTileActionTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs",
    "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents",
    "swift": [
     "Vacuum"
    ],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumControlsJourneyTests",
-    "VacuumRoomsJourneyTests",
-    "VacuumAutoCleanJourneyTests",
-    "VacuumDockJourneyTests",
-    "VacuumInfoJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumMapPanel",
    "swift": [],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "VacuumDockJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKValetudoMapView",
    "swift": [
     "ValetudoMap"
    ],
-   "journeys": [
-    "VacuumControlsJourneyTests",
-    "LightAppearanceVacuumSheetJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumAreaEditor",
    "swift": [
     "MapAreaEdit"
    ],
-   "journeys": [
-    "VacuumControlsJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumsViewController",
-   "swift": [],
-   "journeys": [
-    "VacuumPageJourneyTests",
-    "VacuumSplitPoseJourneyTests"
-   ],
-   "layout_journeys": [
-    "VacuumSplitPoseJourneyTests"
-   ]
+   "journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion",
    "swift": [],
-   "journeys": [
-    "SinglePageMotionJourneyTests",
-    "NavigationJourneyTests",
-    "ShellJourneyTests"
-   ],
+   "journeys": [],
    "families": [
     "iphone",
     "duo",
     "ipad"
    ],
-   "layout_journeys": [
-    "SinglePageMotionJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController",
-   "swift": [],
-   "journeys": [
-    "SinglePageMotionJourneyTests",
-    "NavigationJourneyTests",
-    "ShellJourneyTests"
-   ],
-   "families": [
-    "iphone",
-    "duo",
-    "ipad"
-   ],
-   "layout_journeys": [
-    "SinglePageMotionJourneyTests"
-   ]
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKDynamicGrid",
    "swift": [
     "DynamicGrid"
    ],
-   "journeys": [
-    "DuoWidthsJourneyTests"
-   ],
-   "layout_journeys": [
-    "DuoWidthsJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKHouseholdParts",
    "swift": [
     "DynamicGrid"
    ],
-   "journeys": [
-    "DuoWidthsJourneyTests"
-   ],
-   "layout_journeys": [
-    "DuoWidthsJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomsBinding",
    "swift": [
     "DynamicGrid"
    ],
-   "journeys": [
-    "DuoWidthsJourneyTests"
-   ],
-   "layout_journeys": [
-    "DuoWidthsJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns",
    "swift": [
     "FoldColumnsTests"
    ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/UKHomeViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Climate/UKClimateViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/CustomLights/UKCustomLightsViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/Sprinklers/UKSprinklersViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/UKRoomViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/UKMediaViewController",
-   "swift": [
-    "FoldColumnsTests"
-   ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassUI/App/Layout/FoldColumns",
@@ -2905,12 +1884,8 @@
     "FoldColumnsTests",
     "HomeColumnsTests"
    ],
-   "journeys": [
-    "SectionSidesJourneyTests"
-   ],
-   "layout_journeys": [
-    "SectionSidesJourneyTests"
-   ]
+   "journeys": [],
+   "layout_journeys": []
   },
   {
    "prefix": "apple/Sources/HassCore/Connection/ServiceCall",
@@ -2927,58 +1902,40 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/",
    "hosted": [
-    "UKHostedBedAlarmsGapTests",
-    "UKHostedBedScopeTests",
-    "UKHostedBedroomSheetTests",
-    "UKHostedWakeEditorTests",
-    "UKHostedWakeLightErrorTests"
+    "ServerUIBedroomControlTests"
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Bedroom/UKWakeLightSheet",
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Climate/",
    "hosted": [
-    "UKHostedWakeEditorTests",
-    "UKHostedWakeLightErrorTests"
+    "UKHostedServerUIClimateTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Chores/",
+   "hosted": [
+    "ServerUITodoCollectionHostedTests",
+    "ServerUIRecordCollectionTests",
+    "ServerUIRecordScrollerTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Food/",
    "hosted": [
-    "UKHostedFood*Tests",
-    "UKHostedRecipe*Tests",
-    "UKHostedSharedRecipe*Tests"
+    "ServerUIRecordCollectionTests",
+    "ServerUIRecordScrollerTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Home/",
    "hosted": [
-    "UKHostedSharedHomeTests",
     "UKHostedSharedWeatherViewsTests",
-    "UKHostedOverviewDetailTests",
-    "UKHostedGateAndOverviewTests",
-    "UKHostedGridMeasuringTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
-   "swift": [
-    "HassUITests"
-   ],
-   "journeys": [
-    "HouseLayoutStatesJourneyTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/HouseConfig/",
-   "hosted": [
-    "UKHostedHouseLayoutGateTests"
+    "UKHostedGateAndOverviewTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/",
    "hosted": [
-    "UKHostedHousehold*Tests",
-    "UKHostedSummary*Tests",
     "UKHostedVacationTests"
    ]
   },
@@ -2989,119 +1946,72 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Household/UKSummaryProfile",
-   "hosted": [
-    "UKHostedSummary*Tests"
-   ]
-  },
-  {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Inventory/",
    "hosted": [
-    "UKHostedInventory*Tests",
-    "UKHostedScanTests",
-    "UKHostedSharedInventorySheetsTests",
     "UKHostedSharedScanTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/RoomDevices/",
    "hosted": [
-    "UKHostedDeviceSheetTests",
-    "UKHostedDeviceKitGapTests",
-    "UKHostedHumidifierGapTests"
+    "UKHostedDeviceKitGapTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/",
    "hosted": [
-    "UKHostedRoomLinkTests",
     "UKHostedRoomsBindingTests",
     "UKHostedCustomLightSheetTests",
-    "UKHostedCustomRowTests",
-    "UKHostedHueSyncBrightnessTests",
-    "UKHostedMediaRemoteWideTests",
-    "UKHostedSprinkler*Tests",
-    "UKHostedCommonGapTests",
-    "UKHostedSectionSidesTests",
-    "UKHostedGridFillTests"
+    "UKHostedCustomRowTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/CustomLights/",
    "hosted": [
     "UKHostedCustomLightSheetTests",
-    "UKHostedCustomRowTests",
-    "UKHostedHueSyncBrightnessTests",
-    "UKHostedSectionSidesTests"
+    "UKHostedCustomRowTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/MediaRemote/",
    "hosted": [
-    "UKHostedMediaRemoteWideTests"
+    "ServerUIRemoteRendererTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Rooms/Sprinklers/",
    "hosted": [
-    "UKHostedSprinkler*Tests",
-    "UKHostedSectionSidesTests"
+    "UKHostedSprinkler*Tests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Security/",
    "hosted": [
-    "UKHostedSharedSecurityTests",
-    "UKHostedSectionSidesTests"
+    "ServerUISecurityHostedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/",
    "hosted": [
-    "UKHostedSettings*Tests",
-    "SettingsFooterInkTests",
-    "UKHostedFeedbackTests",
-    "UKHostedHomeAssistantTests",
-    "UKHostedAppIconTests",
-    "UKHostedPerformanceTests"
+    "UKHostedHomeAssistantTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKFeedback",
    "hosted": [
-    "UKHostedFeedbackTests"
+    "ServerUISettingsRendererTests"
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKHomeAssistantSettings",
+   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKHomeAssistantWebPage",
    "hosted": [
     "UKHostedHomeAssistantTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKAppIcon",
-   "hosted": [
-    "UKHostedAppIconTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKPerformanceViewController",
-   "hosted": [
-    "UKHostedPerformanceTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Features/Settings/UKNotificationsSettings",
-   "hosted": [
-    "UKHostedSettingsPushTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/",
    "hosted": [
     "UKHostedRootTests",
-    "UKHostedShell*Tests",
-    "UKHostedFeatureEntryTests",
     "UKHostedSignalsTests"
    ]
   },
@@ -3114,24 +2024,14 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/",
    "hosted": [
-    "UKHostedShell*Tests",
     "UKHostedEarlierBarTests",
-    "StackMotionTests",
-    "UKHostedSectionColumnsTests"
+    "StackMotionTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKStackMotion",
    "hosted": [
-    "StackMotionTests",
-    "UKHostedShellPartsTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/App/Shell/UKSectionNavigationController",
-   "hosted": [
-    "StackMotionTests",
-    "UKHostedShellPartsTests"
+    "StackMotionTests"
    ]
   },
   {
@@ -3139,9 +2039,7 @@
    "hosted": [
     "UKHostedColumnsTests",
     "UKHostedColumnBarOffscreenTests",
-    "UKHostedSignalsTests",
-    "UKHostedSectionColumnsTests",
-    "UKHostedShellPartsTests"
+    "UKHostedSignalsTests"
    ]
   },
   {
@@ -3149,97 +2047,70 @@
    "hosted": [
     "UKHostedPageBaseTests",
     "UKHostedColumnsTests",
-    "UKHostedColumnBarOffscreenTests",
-    "UKHostedShellMoreTests"
+    "UKHostedColumnBarOffscreenTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/App/Motion/",
    "hosted": [
-    "UKHostedShellPartsTests",
     "StackMotionTests"
-   ]
-  },
-  {
-   "prefix": "apple/Sources/HassUI/UIKitPort/App/Notifications/",
-   "hosted": [
-    "UKHostedSettingsPushTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/",
    "hosted": [
-    "UKHostedAvatarTests",
-    "UKHostedDesign*Tests",
     "UKHostedFloatingBarTests",
     "UKHostedChipUndersizedTests",
-    "UKHostedGrid*Tests",
     "UKHostedImageTests",
     "UKHostedFormTests",
     "UKHostedModalTests",
-    "UKHostedTile*Tests",
     "UKHostedTabLiftTests",
     "UKHostedCustomRowTests",
     "UKHostedSmoothSwapTests",
-    "HassRGBTokenTests",
-    "SettingsFooterInkTests"
+    "HassRGBTokenTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKTile",
    "hosted": [
-    "UKHostedTile*Tests",
-    "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedDesignBrightnessModalTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKGlassTile",
    "hosted": [
-    "UKHostedTile*Tests",
     "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedStateTileViewTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKBrightnessTileView",
    "hosted": [
-    "UKHostedTile*Tests",
-    "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedDesignBrightnessModalTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKDynamicGrid",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
     "UKHostedChipUndersizedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKWrapWidth",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
     "UKHostedChipUndersizedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
     "UKHostedChipUndersizedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
-    "UKHostedChipUndersizedTests",
-    "UKHostedSectionSidesTests"
+    "UKHostedChipUndersizedTests"
    ]
   },
   {
@@ -3335,8 +2206,7 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSettingsSection",
    "hosted": [
-    "UKHostedDesignRowTests",
-    "SettingsFooterInkTests"
+    "UKHostedDesignRowTests"
    ]
   },
   {
@@ -3358,12 +2228,6 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKAvatarView",
-   "hosted": [
-    "UKHostedAvatarTests"
-   ]
-  },
-  {
    "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKSegmentedControls",
    "hosted": [
     "UKHostedDesignControlsTests",
@@ -3380,8 +2244,7 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Common/",
    "hosted": [
-    "UKHostedSmoothSwapTests",
-    "UKHostedShellPartsTests"
+    "UKHostedSmoothSwapTests"
    ]
   },
   {
@@ -3394,28 +2257,23 @@
     "ScanCameraHostedTests",
     "ScrollCostDriverHostedTests",
     "LaunchCostProbeHostedTests",
-    "FramePacingHostedTests",
-    "UKHostedDebugProbeTests",
-    "UKHostedSettingsProbeTests"
+    "FramePacingHostedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/",
    "hosted": [
     "UKHostedRoomsBindingTests",
-    "UKHostedPerformanceTests",
     "ScrollCostDriverHostedTests",
     "FramePacingHostedTests",
-    "LaunchCostProbeHostedTests",
-    "UKHostedDesign*Tests"
+    "LaunchCostProbeHostedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Foundation/UKColor",
    "hosted": [
     "UKHostedTileFaceInkColourTests",
-    "HassRGBTokenTests",
-    "UKHostedDesign*Tests"
+    "HassRGBTokenTests"
    ]
   },
   {
@@ -3445,44 +2303,33 @@
   {
    "prefix": "apple/Sources/HassDesign/",
    "hosted": [
-    "UKHostedAvatarTests",
-    "UKHostedDesign*Tests",
     "UKHostedFloatingBarTests",
     "UKHostedChipUndersizedTests",
-    "UKHostedGrid*Tests",
     "UKHostedImageTests",
     "UKHostedFormTests",
     "UKHostedModalTests",
-    "UKHostedTile*Tests",
     "UKHostedTabLiftTests",
     "UKHostedCustomRowTests",
     "UKHostedSmoothSwapTests",
-    "HassRGBTokenTests",
-    "SettingsFooterInkTests"
+    "HassRGBTokenTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassDesign/Tile",
    "hosted": [
-    "UKHostedTile*Tests",
-    "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedDesignBrightnessModalTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassDesign/GlassTile",
    "hosted": [
-    "UKHostedTile*Tests",
-    "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedDesignBrightnessModalTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassDesign/BrightnessTile",
    "hosted": [
-    "UKHostedTile*Tests",
-    "UKHostedDesignBrightnessModalTests",
-    "UKHostedHueSyncBrightnessTests"
+    "UKHostedDesignBrightnessModalTests"
    ]
   },
   {
@@ -3506,16 +2353,12 @@
   {
    "prefix": "apple/Sources/HassDesign/DynamicGridLayout",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
     "UKHostedChipUndersizedTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassDesign/PagedRow",
    "hosted": [
-    "UKHostedGrid*Tests",
-    "UKHostedSectionColumnsTests",
     "UKHostedChipUndersizedTests"
    ]
   },
@@ -3539,17 +2382,9 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassDesign/Avatar",
-   "hosted": [
-    "UKHostedAvatarTests"
-   ]
-  },
-  {
    "prefix": "apple/Sources/HassUI/App/",
    "hosted": [
     "UKHostedRootTests",
-    "UKHostedShell*Tests",
-    "UKHostedFeatureEntryTests",
     "UKHostedSignalsTests"
    ]
   },
@@ -3558,18 +2393,14 @@
    "hosted": [
     "UKHostedColumnsTests",
     "UKHostedColumnBarOffscreenTests",
-    "UKHostedSignalsTests",
-    "UKHostedSectionColumnsTests",
-    "UKHostedShellPartsTests"
+    "UKHostedSignalsTests"
    ]
   },
   {
    "prefix": "apple/Sources/HassUI/App/Shell",
    "hosted": [
-    "UKHostedShell*Tests",
     "UKHostedEarlierBarTests",
-    "StackMotionTests",
-    "UKHostedSectionColumnsTests"
+    "StackMotionTests"
    ]
   },
   {
@@ -3582,9 +2413,7 @@
     "ScanCameraHostedTests",
     "ScrollCostDriverHostedTests",
     "LaunchCostProbeHostedTests",
-    "FramePacingHostedTests",
-    "UKHostedDebugProbeTests",
-    "UKHostedSettingsProbeTests"
+    "FramePacingHostedTests"
    ]
   },
   {
@@ -3592,6 +2421,150 @@
    "hosted": [
     "UKHostedVacuum*Tests"
    ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/",
+   "swift": [],
+   "journeys": [],
+   "hosted": [
+    "ServerUIBootstrapHostedTests",
+    "ServerUIRendererNavigationTests",
+    "ServerUIShellRendererTests",
+    "ServerUISettingsRendererTests",
+    "ServerUIRendererBindingsTests",
+    "ServerUIRendererPreflightTests",
+    "ServerUIHomeHostedTests",
+    "ServerUIRoomsRendererTests",
+    "UKHostedShellTests",
+    "UKHostedRootTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecord",
+   "swift": [],
+   "journeys": [],
+   "hosted": [
+    "ServerUIRecordScrollerTests",
+    "ServerUIRecordCollectionTests",
+    "ServerUIBootstrapHostedTests",
+    "ServerUIRendererNavigationTests",
+    "ServerUIShellRendererTests",
+    "ServerUISettingsRendererTests",
+    "ServerUIRendererBindingsTests",
+    "ServerUIRendererPreflightTests",
+    "ServerUIHomeHostedTests",
+    "ServerUIRoomsRendererTests",
+    "UKHostedShellTests",
+    "UKHostedRootTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage",
+   "swift": [],
+   "journeys": [],
+   "hosted": [
+    "ServerUIRecordScrollerTests",
+    "ServerUIRecordCollectionTests",
+    "ServerUIBootstrapHostedTests",
+    "ServerUIRendererNavigationTests",
+    "ServerUIShellRendererTests",
+    "ServerUISettingsRendererTests",
+    "ServerUIRendererBindingsTests",
+    "ServerUIRendererPreflightTests",
+    "ServerUIHomeHostedTests",
+    "ServerUIRoomsRendererTests",
+    "UKHostedShellTests",
+    "UKHostedRootTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKRecordCollectionController",
+   "swift": [],
+   "journeys": [],
+   "hosted": [
+    "ServerUIRecordScrollerTests",
+    "ServerUIRecordCollectionTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKStateTile",
+   "swift": [
+    "StateTile"
+   ],
+   "hosted": [
+    "UKHostedStateTile*Tests"
+   ],
+   "journeys": [
+    "StateTileJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView",
+   "swift": [
+    "ArcSpinner"
+   ],
+   "hosted": [
+    "UKHostedStateTileViewTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/Gallery/UKStateTileGallery",
+   "swift": [],
+   "hosted": [
+    "UKHostedStateTileViewTests"
+   ],
+   "journeys": [
+    "StateTileJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/UKHostedStateTile",
+   "swift": [],
+   "hosted": [
+    "UKHostedStateTile*Tests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Apps/iOSUITests/StateTileJourneyTests",
+   "swift": [],
+   "journeys": [
+    "StateTileJourneyTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDoorSource",
+   "swift": [
+    "ServerUISecurity",
+    "StateStyle"
+   ],
+   "hosted": [
+    "ServerUISecurityHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIAlarmSource",
+   "swift": [
+    "ServerUISecurity",
+    "StateStyle"
+   ],
+   "hosted": [
+    "ServerUISecurityHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUISecurityViews",
+   "swift": [
+    "ServerUISecurity",
+    "StateStyle"
+   ],
+   "hosted": [
+    "ServerUISecurityHostedTests"
+   ],
+   "journeys": []
   }
  ],
  "changedEnvironment": {

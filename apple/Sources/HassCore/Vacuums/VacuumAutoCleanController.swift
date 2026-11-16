@@ -20,12 +20,17 @@ public final class VacuumAutoCleanController {
     let overlay: OptimisticOverlay
     @ObservationIgnored private let caller: any HassServiceCalling
     @ObservationIgnored private var inFlight: [Task<Void, Never>] = []
+    private var activeCallCount = 0
+
+    /// Includes the actual transport lifetime, even after optimistic feedback expires.
+    public var hasPendingIntent: Bool { activeCallCount > 0 || !overlay.pending.isEmpty }
 
     /// Creates the controller.
-    public init(store: EntityStore, caller: any HassServiceCalling, scheduler: any RevertScheduler = TaskRevertScheduler()) {
+    public init(store: EntityStore, caller: any HassServiceCalling, controls: [Vacuums.AutoCleanControl]? = nil,
+                scheduler: any RevertScheduler = TaskRevertScheduler()) {
         self.store = store
         self.caller = caller
-        overlay = OptimisticOverlay(rules: Dictionary(Vacuums.autoCleanControls.map { ($0.entityId, .confirmation) }, uniquingKeysWith: { first, _ in first }),
+        overlay = OptimisticOverlay(rules: Dictionary((controls ?? Vacuums.autoCleanControls).map { ($0.entityId, .confirmation) }, uniquingKeysWith: { first, _ in first }),
                                     scheduler: scheduler)
         observeLive()
     }
@@ -53,8 +58,10 @@ public final class VacuumAutoCleanController {
                                        failsOnTimeout: true)
         let call = ServiceCall(control.domain, on ? "turn_on" : "turn_off", target: control.entityId)
         let caller = caller
-        inFlight.append(Task { @MainActor [weak self] in
-            do { try await caller.call(call) } catch { self?.overlay.fail(control.entityId, generation: generation) }
+        activeCallCount += 1
+        inFlight.append(Task { @MainActor [self] in
+            defer { activeCallCount -= 1 }
+            do { try await caller.call(call) } catch { overlay.fail(control.entityId, generation: generation) }
         })
     }
 

@@ -28,7 +28,7 @@
   Mock.mount(C.pageConfig('admin-todo', {
     title: 'Admin To-Do',
     summary: 'Opened from a Settings row (Alex only, hidden from Sam): the admin to-do list with no list header, Edit (rename) on each row, no delete. Checking an item off runs a script; Add Task can attach up to four images. Fixture items.',
-    source: ['apple/Sources/HassUI/Features/Settings/SettingsScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsEntry.swift', 'apple/Sources/HassUI/Features/Chores/TodoItemSheets.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChoresCollection.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecordList.swift', 'apple/Sources/HassUI/UIKitPort/Features/Chores/UKTodoForms.swift'],
     docs: ['.agents/pages/chores/spec.md', '.agents/pages/chores/ios.md', '.agents/pages/settings/ios.md'],
     entities: ['todo.demo_todo_1', 'script.demo_script_1'],
     defaultTitle: 'Two admin to-dos, no list header',

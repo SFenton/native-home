@@ -13,8 +13,7 @@ final class UKHostedGalleryTests: DemoHouseTestCase {
 
     private var lanes: [Lane] {
         [
-            UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.home, UKGallery.security, UKGallery.climate,
-            UKGallery.chores, UKGallery.settings, UKGallery.household, UKGallery.rooms, UKGallery.vacuums, UKGallery.food, UKGallery.setup, UKGallery.liveActivity,
+            UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.components, UKGallery.setup, UKGallery.liveActivity,
         ]
     }
 
@@ -42,7 +41,7 @@ final class UKHostedGalleryTests: DemoHouseTestCase {
             window.isHidden = true
             built += 1
         }
-        XCTAssertGreaterThan(built, 20, "most gallery pages are routed by a lane", file: file, line: line)
+        XCTAssertGreaterThan(built, 12, "most gallery pages are routed by a lane", file: file, line: line)
     }
 
     func testEveryGalleryPageDrawsOnThePhone() { sweep(size: CGSize(width: 393, height: 852), largeText: false) }

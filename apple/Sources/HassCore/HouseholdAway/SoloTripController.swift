@@ -128,6 +128,25 @@ public final class SoloTripController {
         scheduleAwaiting != nil || toggleAwaitingSnapshot || returnAwaiting != nil || restoreAwaitingSnapshot
     }
 
+    /// Local selection, editor, pending command and sensor-echo wait must survive publication updates.
+    public var hasPendingInteraction: Bool {
+        editorOpen || awaitingCommand || household.pending || returnDraftDirty || (selectedTraveler != nil && !isEngaged)
+    }
+
+    /// Unsaved local edits may be discarded, but an accepted command still owns its echo wait.
+    public var canDiscardDrafts: Bool { !awaitingCommand && !household.pending }
+
+    /// Drops only unsent edits; false means the real command must finish first.
+    @discardableResult
+    public func discardDrafts() -> Bool {
+        guard canDiscardDrafts else { return false }
+        closeEditor()
+        returnDraftDirty = false
+        if !isEngaged { selectedTraveler = nil }
+        reconcile()
+        return true
+    }
+
     var selectionLocked: Bool { editorOpen || scheduleAwaiting != nil || isEngaged || isVacationEngaged }
     /// A schedule request is waiting for the sensor.
     public var isScheduling: Bool { scheduleAwaiting != nil }
@@ -169,7 +188,7 @@ public final class SoloTripController {
 
     /// Alex then Sam (web order).
     public var travelerTiles: [TravelerTile] {
-        HouseholdResident.allCases.map { resident in
+        (household.people.map { $0.map { Resident(person: $0) } } ?? HouseholdResident.allCases).map { resident in
             let selected = knownTraveler == resident
             let home = !endPending && snapshot.homeResident == resident
             let subtitle: String? = if presentedEngaged {
@@ -348,7 +367,7 @@ public final class SoloTripController {
 
     private func observeLive() {
         withObservationTracking {
-            _ = household.store.entity(HouseholdAway.statusEntityId).state
+            _ = household.store.entity(household.statusEntityId).state
         } onChange: { [weak self] in
             // onChange fires before the new value lands; read it on the next main-actor turn.
             Task { @MainActor [weak self] in

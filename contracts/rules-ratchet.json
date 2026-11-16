@@ -10,15 +10,12 @@
    "long_lines": 11,
    "over_words": 610
   },
-  ".agents/design/apple/README.md": {
-   "structure": 1
-  },
   ".agents/design/apple/duo.md": {
    "forbidden": 25,
    "long_lines": 8
   },
   ".agents/design/apple/ipados.md": {
-   "forbidden": 16,
+   "forbidden": 14,
    "long_lines": 7
   },
   ".agents/design/apple/iphone.md": {
@@ -26,9 +23,9 @@
    "long_lines": 2
   },
   ".agents/design/apple/split-view.md": {
-   "forbidden": 32,
-   "long_lines": 19,
-   "over_words": 1324
+   "forbidden": 29,
+   "long_lines": 18,
+   "over_words": 1205
   },
   ".agents/design/apple/system-api-audit.md": {
    "forbidden": 15,
@@ -38,41 +35,35 @@
    "forbidden": 5,
    "long_lines": 2
   },
-  ".agents/design/direction-g-plan.md": {
-   "forbidden": 57,
-   "long_lines": 6,
-   "over_words": 1974
-  },
   ".agents/design/direction-g.md": {
    "forbidden": 125,
    "long_lines": 51,
-   "over_words": 8581,
+   "over_words": 8573,
    "links": 1
   },
   ".agents/design/duo-widths.md": {
    "forbidden": 21,
    "long_lines": 17,
-   "over_words": 2027
+   "over_words": 2026
   },
   ".agents/design/feedback-media-compression.md": {
    "forbidden": 3,
    "long_lines": 2
   },
   ".agents/design/house-config-states.md": {
-   "forbidden": 13,
-   "long_lines": 17,
-   "over_words": 1496
+   "forbidden": 10,
+   "long_lines": 7,
+   "over_words": 527
   },
   ".agents/design/mockups/README.md": {
    "forbidden": 5,
    "long_lines": 6
   },
   ".agents/design/mockups/components/README.md": {
-   "over_words": 442
+   "over_words": 439
   },
   ".agents/design/mockups/components/bedroom/bed-side-tile/README.md": {
-   "forbidden": 2,
-   "links": 1
+   "forbidden": 2
   },
   ".agents/design/mockups/components/bedroom/bedroom-controls/README.md": {
    "forbidden": 1
@@ -120,8 +111,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/controls/primary-button/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/controls/segmented-choice/README.md": {
    "forbidden": 1,
@@ -152,8 +142,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/forms/schedule-date-fields/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/forms/settings-controls/README.md": {
    "forbidden": 1
@@ -206,8 +195,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/loading/content-gate/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/loading/pending-value-bar/README.md": {
    "forbidden": 1
@@ -262,8 +250,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/navigation/navigation-flyout/README.md": {
-   "forbidden": 2,
-   "links": 1
+   "forbidden": 2
   },
   ".agents/design/mockups/components/navigation/profile-button/README.md": {
    "forbidden": 1,
@@ -273,16 +260,13 @@
    "forbidden": 2
   },
   ".agents/design/mockups/components/navigation/shell-header-items/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/navigation/tab-bar/README.md": {
-   "forbidden": 3,
-   "links": 1
+   "forbidden": 3
   },
   ".agents/design/mockups/components/rooms/guest-presence-section/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/rooms/light-group-tile/README.md": {
    "forbidden": 2
@@ -303,17 +287,14 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/security/security-door-tiles/README.md": {
-   "forbidden": 3,
-   "links": 1
+   "forbidden": 3
   },
   ".agents/design/mockups/components/settings/appearance-settings-section/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/components/settings/household-toggle-tile/README.md": {
    "forbidden": 2,
-   "long_lines": 1,
-   "links": 1
+   "long_lines": 1
   },
   ".agents/design/mockups/components/settings/settings-link-row/README.md": {
    "forbidden": 1
@@ -335,8 +316,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/components/tiles/glass-tile/README.md": {
-   "forbidden": 3,
-   "links": 1
+   "forbidden": 3
   },
   ".agents/design/mockups/components/tiles/image-card/README.md": {
    "forbidden": 1
@@ -392,12 +372,10 @@
    "links": 2
   },
   ".agents/design/mockups/flows/launch-cold-signed-in/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/flows/launch-cold-signed-out/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/flows/notification-deep-link/README.md": {
    "forbidden": 1
@@ -406,12 +384,10 @@
    "forbidden": 2
   },
   ".agents/design/mockups/flows/push-pop-navigation/README.md": {
-   "forbidden": 1,
-   "links": 2
+   "forbidden": 1
   },
   ".agents/design/mockups/flows/quick-links-to-page/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/flows/session-expired-welcome-back/README.md": {
    "forbidden": 1
@@ -420,8 +396,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/flows/sign-in-to-home-arrival/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/flows/sign-out/README.md": {
    "forbidden": 1,
@@ -535,8 +510,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/modals/home/weather-sheet/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/modals/inventory/inventory-delete-dialog/README.md": {
    "forbidden": 1
@@ -634,8 +608,7 @@
    "long_lines": 1
   },
   ".agents/design/mockups/modals/shell/sign-out-alert/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/modals/shell/sign-out-failed-alert/README.md": {
    "forbidden": 1,
@@ -705,12 +678,10 @@
    "forbidden": 2
   },
   ".agents/design/mockups/pages/food/food-hub/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/pages/food/recipes/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/pages/home/home/README.md": {
    "forbidden": 3,
@@ -760,8 +731,7 @@
    "forbidden": 2
   },
   ".agents/design/mockups/pages/shell/placeholder-screen/README.md": {
-   "forbidden": 1,
-   "links": 2
+   "forbidden": 1
   },
   ".agents/design/mockups/pages/sprinklers/sprinklers/README.md": {
    "forbidden": 2
@@ -771,8 +741,7 @@
    "links": 1
   },
   ".agents/design/mockups/pages/vacation/vacation-chooser/README.md": {
-   "forbidden": 1,
-   "links": 1
+   "forbidden": 1
   },
   ".agents/design/mockups/pages/vacation/vacation-mode/README.md": {
    "forbidden": 2,
@@ -799,7 +768,7 @@
   ".agents/design/motion-components.md": {
    "forbidden": 6,
    "long_lines": 3,
-   "over_words": 1481
+   "over_words": 1474
   },
   ".agents/design/motion.md": {
    "forbidden": 20,
@@ -821,7 +790,7 @@
   ".agents/design/section-sides.md": {
    "forbidden": 26,
    "long_lines": 24,
-   "over_words": 2719
+   "over_words": 2692
   },
   ".agents/design/settings-version-row.md": {
    "forbidden": 5
@@ -853,15 +822,11 @@
    "structure": 13
   },
   ".agents/pages/chores/ios.md": {
-   "forbidden": 34,
+   "forbidden": 33,
    "long_lines": 10,
-   "over_words": 175
+   "over_words": 157
   },
   ".agents/pages/chores/spec.md": {
-   "forbidden": 3,
-   "long_lines": 4
-  },
-  ".agents/pages/climate/ios.md": {
    "forbidden": 3,
    "long_lines": 4
   },
@@ -875,7 +840,7 @@
   },
   ".agents/pages/food/ios.md": {
    "forbidden": 13,
-   "long_lines": 8
+   "long_lines": 7
   },
   ".agents/pages/food/spec.md": {
    "forbidden": 3,
@@ -887,25 +852,17 @@
   },
   ".agents/pages/inventory/ios.md": {
    "forbidden": 4,
-   "long_lines": 8
+   "long_lines": 7
   },
   ".agents/pages/inventory/spec.md": {
    "forbidden": 2,
    "long_lines": 5
-  },
-  ".agents/pages/media/ios.md": {
-   "long_lines": 2
-  },
-  ".agents/pages/rooms/ios.md": {
-   "forbidden": 5,
-   "long_lines": 4
   },
   ".agents/pages/rooms/spec.md": {
    "forbidden": 2,
    "long_lines": 2
   },
   ".agents/pages/security/ios.md": {
-   "forbidden": 2,
    "long_lines": 2
   },
   ".agents/pages/settings/feedback.md": {
@@ -913,12 +870,7 @@
    "long_lines": 2
   },
   ".agents/pages/settings/household.md": {
-   "forbidden": 5,
-   "long_lines": 2
-  },
-  ".agents/pages/settings/ios.md": {
-   "forbidden": 16,
-   "long_lines": 4
+   "forbidden": 5
   },
   ".agents/pages/settings/location.md": {
    "forbidden": 8,
@@ -937,28 +889,23 @@
   },
   ".agents/pages/vacation/ios.md": {
    "forbidden": 6,
-   "long_lines": 2
+   "long_lines": 1
   },
   ".agents/pages/vacation/spec.md": {
    "forbidden": 1,
    "long_lines": 6
-  },
-  ".agents/pages/vacuums/ios.md": {
-   "forbidden": 1,
-   "long_lines": 2
   },
   ".agents/pages/vacuums/spec.md": {
    "forbidden": 3,
    "long_lines": 4
   },
   ".agents/patterns/README.md": {
-   "forbidden": 2,
    "long_lines": 1
   },
   ".agents/patterns/action-tiles.md": {
-   "forbidden": 16,
+   "forbidden": 15,
    "long_lines": 7,
-   "over_words": 1353
+   "over_words": 1347
   },
   ".agents/patterns/alerts.md": {
    "forbidden": 4,
@@ -969,12 +916,11 @@
    "long_lines": 3
   },
   ".agents/patterns/bedroom-devices.md": {
-   "long_lines": 4
+   "long_lines": 1
   },
   ".agents/patterns/camera-streams.md": {
-   "forbidden": 6,
-   "long_lines": 12,
-   "over_words": 392
+   "long_lines": 2,
+   "over_words": 381
   },
   ".agents/patterns/check-row.md": {
    "forbidden": 7,
@@ -995,7 +941,7 @@
   ".agents/patterns/entity-tile.md": {
    "forbidden": 28,
    "long_lines": 18,
-   "over_words": 1221
+   "over_words": 1220
   },
   ".agents/patterns/floating-actions.md": {
    "forbidden": 7,
@@ -1010,7 +956,7 @@
   ".agents/patterns/hinge-avoidance.md": {
    "forbidden": 21,
    "long_lines": 11,
-   "over_words": 244
+   "over_words": 235
   },
   ".agents/patterns/image-card.md": {
    "forbidden": 2,
@@ -1021,18 +967,12 @@
    "long_lines": 1
   },
   ".agents/patterns/media-remote.md": {
-   "forbidden": 8,
-   "long_lines": 6
-  },
-  ".agents/patterns/modal-inventory.md": {
-   "forbidden": 12,
-   "long_lines": 9,
-   "over_words": 99
+   "long_lines": 5
   },
   ".agents/patterns/modal-sheet.md": {
-   "forbidden": 71,
+   "forbidden": 69,
    "long_lines": 23,
-   "over_words": 4904
+   "over_words": 4895
   },
   ".agents/patterns/module-list.md": {
    "forbidden": 4,
@@ -1040,8 +980,8 @@
   },
   ".agents/patterns/motion.md": {
    "forbidden": 12,
-   "long_lines": 6,
-   "over_words": 225
+   "long_lines": 4,
+   "over_words": 172
   },
   ".agents/patterns/optimistic-actions.md": {
    "forbidden": 4,
@@ -1049,11 +989,10 @@
   },
   ".agents/patterns/page-backdrop.md": {
    "forbidden": 6,
-   "long_lines": 11
+   "long_lines": 1
   },
   ".agents/patterns/page-base.md": {
-   "forbidden": 7,
-   "long_lines": 7
+   "long_lines": 1
   },
   ".agents/patterns/page-indicator.md": {
    "forbidden": 2
@@ -1064,7 +1003,7 @@
   },
   ".agents/patterns/room-device-sheets.md": {
    "forbidden": 5,
-   "long_lines": 3
+   "long_lines": 1
   },
   ".agents/patterns/room-overview-sheet.md": {
    "forbidden": 1,
@@ -1086,21 +1025,20 @@
    "long_lines": 3
   },
   ".agents/patterns/settings-section.md": {
-   "forbidden": 7,
+   "forbidden": 6,
    "long_lines": 6
   },
   ".agents/patterns/state-message.md": {
-   "forbidden": 6,
-   "long_lines": 5
+   "forbidden": 4,
+   "long_lines": 4
   },
   ".agents/patterns/status-pill.md": {
    "forbidden": 4,
    "long_lines": 2
   },
   ".agents/patterns/status-rail.md": {
-   "forbidden": 16,
-   "long_lines": 6,
-   "over_words": 210
+   "forbidden": 4,
+   "long_lines": 1
   },
   ".agents/patterns/swipe-row.md": {
    "forbidden": 4,
@@ -1116,17 +1054,15 @@
    "long_lines": 2
   },
   ".agents/patterns/thermostat-dial.md": {
-   "forbidden": 3,
-   "long_lines": 5
+   "forbidden": 3
   },
   ".agents/patterns/ticker.md": {
    "forbidden": 4,
    "long_lines": 1
   },
   ".agents/patterns/vacuum-sheet.md": {
-   "forbidden": 7,
-   "long_lines": 10,
-   "over_words": 100
+   "long_lines": 9,
+   "over_words": 92
   },
   ".agents/patterns/valetudo-map.md": {
    "forbidden": 3,
@@ -1134,25 +1070,20 @@
   },
   ".agents/patterns/weather.md": {
    "forbidden": 1,
-   "long_lines": 6,
-   "links": 1
+   "long_lines": 6
   },
   ".agents/platforms/apple/README.md": {
    "forbidden": 3,
-   "structure": 14
+   "structure": 12
   },
   ".agents/platforms/apple/app-name.md": {
    "forbidden": 7,
    "long_lines": 5
   },
-  ".agents/platforms/apple/architecture.md": {
-   "forbidden": 1,
-   "long_lines": 5
-  },
   ".agents/platforms/apple/auth.md": {
-   "forbidden": 11,
-   "long_lines": 11,
-   "over_words": 536
+   "forbidden": 10,
+   "long_lines": 9,
+   "over_words": 529
   },
   ".agents/platforms/apple/badge.md": {
    "forbidden": 2,
@@ -1166,8 +1097,8 @@
   },
   ".agents/platforms/apple/connection-lifecycle.md": {
    "forbidden": 19,
-   "long_lines": 23,
-   "over_words": 2003
+   "long_lines": 21,
+   "over_words": 1843
   },
   ".agents/platforms/apple/decision-uikit-replaces-swiftui.md": {
    "forbidden": 6,
@@ -1184,9 +1115,9 @@
    "long_lines": 3
   },
   ".agents/platforms/apple/live-activities-per-job.md": {
-   "forbidden": 36,
+   "forbidden": 34,
    "long_lines": 12,
-   "over_words": 6199
+   "over_words": 6153
   },
   ".agents/platforms/apple/live-activities.md": {
    "forbidden": 34,
@@ -1229,22 +1160,15 @@
    "forbidden": 2,
    "links": 1
   },
-  ".agents/platforms/apple/uikit-port-shell.md": {
-   "forbidden": 3,
-   "long_lines": 2
-  },
   ".agents/platforms/apple/uikit-port.md": {
-   "forbidden": 22,
-   "long_lines": 14,
-   "over_words": 826,
-   "links": 1
+   "long_lines": 13,
+   "over_words": 591
   },
   ".agents/testing/apple/README.md": {
-   "forbidden": 36,
-   "long_lines": 33,
-   "over_words": 6348,
-   "links": 1,
-   "structure": 1
+   "forbidden": 25,
+   "long_lines": 24,
+   "over_words": 4098,
+   "links": 1
   },
   ".agents/testing/apple/accessibility.md": {
    "forbidden": 32,
@@ -1252,9 +1176,9 @@
    "over_words": 1666
   },
   ".agents/testing/apple/app-reuse.md": {
-   "forbidden": 16,
-   "long_lines": 12,
-   "over_words": 1823
+   "forbidden": 14,
+   "long_lines": 9,
+   "over_words": 705
   },
   ".agents/testing/apple/coverage.md": {
    "long_lines": 1
@@ -1271,11 +1195,6 @@
   ".agents/testing/apple/journey-expectations.md": {
    "long_lines": 2
   },
-  ".agents/testing/apple/journey-speed.md": {
-   "forbidden": 31,
-   "long_lines": 59,
-   "over_words": 8667
-  },
   ".agents/testing/apple/performance.md": {
    "forbidden": 27,
    "long_lines": 33,
@@ -1289,11 +1208,6 @@
   ".agents/testing/apple/suites.md": {
    "long_lines": 2,
    "links": 1
-  },
-  ".agents/testing/apple/test-speed-roadmap.md": {
-   "forbidden": 38,
-   "long_lines": 11,
-   "over_words": 3870
   }
  }
 }

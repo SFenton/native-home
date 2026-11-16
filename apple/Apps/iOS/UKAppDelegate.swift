@@ -1,3 +1,4 @@
+import CoreSpotlight
 import FentonActivityModel
 import HassCore
 import HassUI
@@ -10,24 +11,34 @@ import UserNotifications
 /// callbacks to ``PushCoordinator`` (`.agents/platforms/apple/push.md`).
 @main
 final class UKAppDelegate: NSObject, UIApplicationDelegate {
-    let push = PushLaunchPolicy.isEnabled()
+    let push = !ServerUIPreviewLaunch.isEnabled() && !GalleryFixtureLaunch.isEnabled() && PushLaunchPolicy.isEnabled()
         ? PushCoordinator(platform: .system)
         : PushCoordinator(platform: .system, store: InMemoryMobileAppRegistrationStore(), isEnabled: false)
 
     private(set) lazy var location: LocationCoordinator? =
-        LocationLaunchPolicy.isEnabled()
+        !ServerUIPreviewLaunch.isEnabled() && !GalleryFixtureLaunch.isEnabled() && LocationLaunchPolicy.isEnabled()
             ? LocationCoordinator.system(mobileApp: push.mobileApp) : nil
 
     /// Background App Refresh for location; nil in journeys.
     private var backgroundRefresh: SystemBackgroundRefresh?
 
-    private(set) lazy var liveActivities = LiveActivityLaunchPolicy.isEnabled()
+    private(set) lazy var liveActivities = !ServerUIPreviewLaunch.isEnabled() && !GalleryFixtureLaunch.isEnabled() && LiveActivityLaunchPolicy.isEnabled()
         ? LiveActivityCoordinator(client: SystemLiveActivityClient(), mobileApp: push.mobileApp)
         : LiveActivityCoordinator.inert(mobileApp: push.mobileApp)
 
     /// The app's one session, shared by every window.
-    @MainActor lazy var session = AppSession(push: push, location: location, liveActivities: liveActivities,
-                                             spotlight: CoreSpotlightIndexer())
+    @MainActor lazy var session: AppSession = {
+        let session = AppSession(push: push, location: location, liveActivities: liveActivities,
+                                 spotlight: CoreSpotlightIndexer(decorate: Self.associateRouteEntity), extensionStore: .shared)
+        // Siri and Shortcuts list the accepted routes: tell the system whenever they change.
+        session.routeCatalogDidChange = { SHShortcuts.updateAppShortcutParameters() }
+        return session
+    }()
+
+    /// iOS 18 and later: the Spotlight item of a route and its App Entity are one result.
+    private static let associateRouteEntity: @Sendable (CSSearchableItemAttributeSet, SpotlightEntry) -> Void = { attributes, entry in
+        if #available(iOS 18.0, *) { RouteEntity.associate(attributes, with: RouteEntity(entry)) }
+    }
 
     override init() {
         super.init()
@@ -77,7 +88,9 @@ final class UKAppDelegate: NSObject, UIApplicationDelegate {
         push.mobileApp.startPendingUnregisterRetries()
         LiveActivityIntentRuntime.install(liveActivities.isEnabled ? liveActivities.intentHandler : nil)
         AppIconAppGroupSync.writeInstalledChoice()
-        AppShortcutRouter.install { [push] destination in push.open(destination) }
+        AppShortcutRouter.install { [push] route in push.open(route) }
+        // Saved parameters can be from an older launch: the routes Siri names come from the saved catalog.
+        SHShortcuts.updateAppShortcutParameters()
         // Home Assistant's request_location_update push runs the location coordinator's one-shot update.
         push.locationUpdateHandler = { [weak self] in await self?.location?.handleLocationRequest() ?? false }
         if let location {

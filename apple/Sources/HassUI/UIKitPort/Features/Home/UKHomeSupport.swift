@@ -3,19 +3,6 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// Where the Home page hands off to screens the Security lane owns. They default to the real implementations; a test may replace them.
-@MainActor
-enum UKHomeHooks {
-    /// Presents the camera viewer a tapped camera card opens (``UKCameraViewer``, `CameraViewer`), growing out of `source`.
-    static var cameraViewer: (HomeConfig.Camera, UIViewController, UKContext, UIView?) -> Void = { camera, presenter, context, source in
-        UKCameraViewer.present(camera, from: presenter, context: context, source: source)
-    }
-    /// The page the Security chip opens: the alarm controls (`SecuritySystemSheet`).
-    static var securitySystemSheet: (UKContext, any HassServiceCalling) -> UIViewController = { context, caller in
-        UKSecuritySystemViewController(context: context, caller: caller)
-    }
-}
-
 /// Ink colours the Home page and the weather views draw with, from the SwiftUI tokens.
 enum UKWeatherInk {
     /// `HassTokens.Ink.onDark`.

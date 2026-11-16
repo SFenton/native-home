@@ -219,10 +219,10 @@ struct PushCoordinatorTests {
         ])
         await push.handle(.open, userInfo: info)
         let first = try #require(push.pendingRequest)
-        #expect(first.destination == .section(.security))
+        #expect(first.route == RouteRequest(path: "security", anchor: "camera-front-door"))
         await push.handle(.action("OPEN_GARAGE", replyText: nil), userInfo: info)
         let second = try #require(push.pendingRequest)
-        #expect(second.destination == .homePage("garage"))
+        #expect(second.route == RouteRequest(path: "garage"))
         #expect(second.id > first.id)
         push.didOpen(first)
         #expect(push.pendingRequest == second, "a stale request does not clear a newer one")
@@ -296,70 +296,67 @@ struct PushCoordinatorTests {
     }
 }
 
-/// Where a notification's page opens in the shell.
+/// How a notification link reaches the pending request the production host resolves against authored routes.
 @Suite(.hosted, .demoHouse)
 @MainActor
 struct PushNavigationTests {
-    @Test func sectionsOpenAtTheirRoot() {
-        let navigator = ShellNavigator()
-        navigator.paths[.security] = NavigationPath(["detail"])
-        navigator.openFlyout()
-        navigator.open(.section(.security))
-        #expect(navigator.selection == .security)
-        #expect(navigator.isAtRoot(.security))
-        #expect(!navigator.isFlyoutOpen)
-        for (section, expected) in [(PushSection.home, AppSection.home), (.climate, .climate), (.chores, .chores), (.settings, .settings)] {
-            navigator.open(.section(section))
-            #expect(navigator.selection == expected)
-        }
-    }
-
-    @Test func settingsOpensTheSettingsTabAtItsRoot() {
-        let navigator = ShellNavigator(selection: .chores)
-        navigator.paths[.settings] = NavigationPath(["detail"])
-        navigator.open(.section(.settings))
-        #expect(navigator.selection == .settings)
-        #expect(navigator.isAtRoot(.settings))
-        #expect(navigator.accountSection == nil)
-    }
-
-    @Test func homePagesPushOnHome() {
-        let navigator = ShellNavigator(selection: .climate)
-        navigator.open(.homePage("garage"))
-        #expect(navigator.selection == .home)
-        #expect(navigator.paths[.home]?.count == 1)
-        navigator.open(.homePage("all-food"))
-        #expect(navigator.paths[.home]?.count == 1)
-        navigator.open(.homePage("no-such-page"))
-        #expect(navigator.isAtRoot(.home))
+    private func coordinator() -> PushCoordinator {
+        let push = PushCoordinator(platform: PlatformProbe().platform, store: InMemoryMobileAppRegistrationStore(), transport: StubHTTPTransport([]))
+        push.sessionStarted(server: server) { "token" }
+        return push
     }
 
     @Test func aLinkAnchorRidesTheRequest() {
-        let push = PushCoordinator(platform: PlatformProbe().platform, store: InMemoryMobileAppRegistrationStore(), transport: StubHTTPTransport([]))
-        push.sessionStarted(server: server) { "token" }
+        let push = coordinator()
         push.open(link: "/sfenton-react-dash/home?path=studio#robot-vacuum")
-        #expect(push.pendingRequest?.destination == .homePage("studio"))
-        #expect(push.pendingRequest?.anchor == "robot-vacuum")
+        #expect(push.pendingRequest?.route == RouteRequest(path: "studio", anchor: "robot-vacuum"))
     }
 
-    @Test func aVacuumLinkOpensItsRoomAndSheet() {
-        let navigator = ShellNavigator(selection: .climate)
-        navigator.open(.homePage("studio"), anchor: "robot-vacuum")
-        #expect(navigator.selection == .home)
-        #expect(navigator.paths[.home]?.count == 1)
-        #expect(navigator.takeSheet(forPage: "media-room") == nil)
-        #expect(navigator.takeSheet(forPage: "studio") == "robot-vacuum")
-        #expect(navigator.takeSheet(forPage: "studio") == nil, "a sheet opens once")
-        navigator.open(.homePage("studio"), anchor: "robot-vacuum")
-        navigator.open(.homePage("garage"))
-        #expect(navigator.takeSheet(forPage: "studio") == nil, "a later link without an anchor drops it")
+    @Test func aLinkWithNoPathAsksForNoRoute() {
+        let push = coordinator()
+        push.open(link: "/sfenton-react-dash/home")
+        #expect(push.pendingRequest?.route == RouteRequest(path: nil, anchor: nil))
     }
 
-    @Test func homeRoutesForNotificationPaths() {
-        #expect(HomeRoute(pushPath: "garage") == .room("garage"))
-        #expect(HomeRoute(pushPath: "grocery-list") == .groceryList)
-        #expect(HomeRoute(pushPath: "pantry") == .food)
-        #expect(HomeRoute(pushPath: "recipes") == .food)
-        #expect(HomeRoute(pushPath: "car") == nil)
+    @Test func aRouteFromASiriPhraseOrAShortcutIsStamped() throws {
+        let push = coordinator()
+        push.open(RouteRequest(path: "kitchen"))
+        let first = try #require(push.pendingRequest)
+        push.open(RouteRequest(path: "kitchen"))
+        let second = try #require(push.pendingRequest)
+        #expect(first.route == second.route && second.id > first.id, "the same route twice in a row still opens")
+        #expect(second.link == nil)
+    }
+
+    @Test func linkPrefixesComeFromThePublicationAndRereadAPendingLink() throws {
+        let probe = PlatformProbe()
+        let push = PushCoordinator(platform: probe.platform, store: InMemoryMobileAppRegistrationStore(), transport: StubHTTPTransport([]))
+        push.sessionStarted(server: server) { "token" }
+        // Before a publication: the migration slugs read.
+        push.open(link: "/my-dash/home?path=kitchen")
+        #expect(push.pendingRequest == nil, "an unknown slug is a Home Assistant page, opened outside the app")
+        #expect(probe.opened.map(\.path) == ["/my-dash/home"])
+        push.open(link: "/sfenton-react-dash/home?path=kitchen")
+        let request = try #require(push.pendingRequest)
+        #expect(request.link == "/sfenton-react-dash/home?path=kitchen")
+        // The accepted publication authors its own slugs: the pending link is read again, now as a Home Assistant page.
+        push.updateLinkPrefixes(["my-dash"])
+        #expect(push.pendingRequest == nil)
+        #expect(probe.opened.map(\.path) == ["/my-dash/home", "/sfenton-react-dash/home"])
+        push.open(link: "/my-dash/home?path=kitchen")
+        #expect(push.pendingRequest?.route == RouteRequest(path: "kitchen"))
+        // A later publication that authors none returns to the migration default and keeps a link that still reads the same.
+        push.updateLinkPrefixes(nil)
+        #expect(push.linkPrefixes == nil)
+        push.invalidateSession()
+        #expect(push.pendingRequest == nil && push.linkPrefixes == nil)
+    }
+
+    @Test func aPendingLinkThatStillReadsTheSameKeepsItsStamp() throws {
+        let push = coordinator()
+        push.open(link: "/sfenton-react-dash/home?path=kitchen")
+        let request = try #require(push.pendingRequest)
+        push.updateLinkPrefixes(["sfenton-react-dash", "other"])
+        #expect(push.pendingRequest == request)
     }
 }

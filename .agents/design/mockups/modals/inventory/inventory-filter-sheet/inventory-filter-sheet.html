@@ -15,7 +15,7 @@
   Mock.mount({
     kind: 'modal', id: 'inventory-filter-sheet', title: 'Filter Inventory', area: 'inventory', status: 'shipped',
     summary: 'The Filter button opens a form sheet on the shared FilterSheet: one "Show" list of seven expiry filters, each with what it keeps, and a count under the title ("2 of 10 Items") that follows the draft. Apply is the filled check; Reset to Defaults is a list row.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventorySheets.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    source: ['apple/Sources/HassUI/Features/Inventory/InventoryListModel+Summary.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassDesign/SheetSubtitle.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/floating-actions.md'],
     patterns: ['floating-actions', 'modal-sheet'],
     hig: ['Sheets', 'Lists and tables', 'Toolbars', 'Dynamic Type'],

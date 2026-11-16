@@ -15,7 +15,7 @@
   Mock.mount({
     kind: 'modal', id: 'inventory-sort-sheet', title: 'Sort Inventory', area: 'inventory', status: 'shipped',
     summary: 'The Sort button on every inventory page opens a fitted form sheet on the shared FilterSheet: Sort By (Title, Expiration Date) and Sort Direction (Ascending, Descending) as single-choice rows, Apply as the filled check, Reset to Defaults as a list row once the draft differs. Follows the system appearance.',
-    source: ['apple/Sources/HassUI/UIKitPort/Features/Inventory/UKInventorySheets.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKForm.swift', 'apple/Sources/HassDesign/SheetEditToolbar.swift', 'apple/Sources/HassUI/Features/Inventory/InventoryScreen.swift', 'apple/Sources/HassCore/Inventory/InventoryCatalog.swift'],
     spec: ['.agents/pages/inventory/spec.md', '.agents/pages/inventory/ios.md', '.agents/patterns/floating-actions.md'],
     patterns: ['floating-actions', 'modal-sheet'],
     hig: ['Sheets', 'Lists and tables', 'Toolbars', 'Dynamic Type', 'Color'],

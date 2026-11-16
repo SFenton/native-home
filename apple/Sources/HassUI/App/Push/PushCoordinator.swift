@@ -40,6 +40,13 @@ public final class PushCoordinator {
     /// Whether Home offers to turn notifications on: never asked, not dismissed, and the Setup flow is not about to ask.
     public var showsPermissionBanner: Bool { authorization == .notDetermined && !bannerDismissed && setupHasShownNotifications }
 
+    /// The routes the person is offered, for a Spotlight tap that names a route id. The app sets it to the accepted
+    /// catalog, or the saved one at a cold launch before a publication is restored; nil resolves nothing.
+    @ObservationIgnored public var routeCatalog: (@MainActor () -> RouteCatalog?)?
+    /// The first path segments that mark a link as the dashboard's (`extensions.linkPrefixes`); nil reads
+    /// ``PushLink/migrationPrefixes`` while the publication authors none.
+    @ObservationIgnored public private(set) var linkPrefixes: [String]?
+
     @ObservationIgnored private let platform: PushPlatform
     @ObservationIgnored private var server: HassServer?
     @ObservationIgnored private var requestID = 0
@@ -138,8 +145,20 @@ public final class PushCoordinator {
 
     /// Signing out: remove this phone's registration from Home Assistant (before the refresh token is revoked).
     func sessionEnded() async {
+        invalidateSession()
+        await finishSessionEnd()
+    }
+
+    /// Clears account-owned routing synchronously, before any asynchronous unregister work.
+    func invalidateSession() {
         server = nil
         pendingRequest = nil
+        linkPrefixes = nil
+        isConnected = false
+    }
+
+    /// May finish after a new login begins; it must not clear that login's queued deep link.
+    func finishSessionEnd() async {
         await mobileApp.sessionEnded()
     }
 
@@ -201,31 +220,48 @@ public final class PushCoordinator {
         return true
     }
 
-    /// Opens a page of the app from outside it: a Spotlight result or an App Shortcut. The shell opens it the way it
-    /// opens a notification's page (``pendingRequest``), including a launch the tap itself caused.
-    /// - Parameter destination: The page.
-    public func open(_ destination: PushDestination) {
+    /// Opens a route from outside the app: a Spotlight result or an App Shortcut. The shell opens it the way it opens a
+    /// notification's page (``pendingRequest``), including a launch the tap itself caused.
+    /// - Parameter route: The route path and anchor; the publication decides what they mean.
+    public func open(_ route: RouteRequest) {
         requestID += 1
-        pendingRequest = PushNavigationRequest(id: requestID, destination: destination)
+        pendingRequest = PushNavigationRequest(id: requestID, route: route)
     }
 
     /// Opens the page a tapped Spotlight result stands for.
     /// - Parameter userInfo: The `NSUserActivity` for `CSSearchableItemActionType`.
-    /// - Returns: Whether the result was one of the app's pages.
+    /// - Returns: Whether the result was one of the app's routes. A route the catalog no longer lists opens the app only.
     @discardableResult
     public func open(spotlightUserInfo userInfo: [AnyHashable: Any]?) -> Bool {
         guard let identifier = SpotlightLink.identifier(in: userInfo),
-              let destination = SpotlightCatalog.destination(forIdentifier: identifier) else { return false }
-        open(destination)
+              let routeID = SpotlightCatalog.routeID(forIdentifier: identifier) else { return false }
+        if let entry = routeCatalog?()?.routes.first(where: { $0.id == routeID }) {
+            open(RouteRequest(path: entry.path))
+        }
         return true
+    }
+
+    /// The publication was accepted with these `extensions.linkPrefixes` (nil when it authors none). A link that arrived
+    /// before is read again, because its first segment may now mean something else.
+    /// - Parameter prefixes: The authored slugs.
+    func updateLinkPrefixes(_ prefixes: [String]?) {
+        guard prefixes != linkPrefixes else { return }
+        linkPrefixes = prefixes
+        guard let request = pendingRequest, let link = request.link else { return }
+        if case let .dashboard(route)? = PushLink(link, server: server, prefixes: prefixes) {
+            if route != request.route { pendingRequest = PushNavigationRequest(id: request.id, route: route, link: link) }
+        } else {
+            pendingRequest = nil
+            open(link: link)
+        }
     }
 
     /// Opens a notification link: an app page, Home Assistant's own page, or another site.
     func open(link: String) {
-        switch PushLink(link, server: server) {
-        case let .dashboard(path, anchor)?:
+        switch PushLink(link, server: server, prefixes: linkPrefixes) {
+        case let .dashboard(route)?:
             requestID += 1
-            pendingRequest = PushNavigationRequest(id: requestID, destination: PushDestination(dashboardPath: path), anchor: anchor)
+            pendingRequest = PushNavigationRequest(id: requestID, route: route, link: link)
         case let .homeAssistant(path)?:
             if let server { platform.openExternal(server.url(path)) }
         case let .external(url)?:

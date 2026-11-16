@@ -126,41 +126,6 @@ func ukSoloTripStatusView(status: SoloTripStatus, notice: SoloTripNotice?, actio
 
 // MARK: - Chooser
 
-enum UKVacationPageKind { case vacationMode, soloTrip }
-
-/// The two away modes as settings rows (`VacationChooser`, web `VacationChooserPage`).
-@MainActor
-final class UKVacationChooserContent: UKVacationContent {
-    private let household: HouseholdAwayController
-    private let soloRow: UKRowView
-
-    override var title: String { Vacation.Copy.chooserTitle }
-
-    init(context: UKContext, household: HouseholdAwayController, push: @escaping (UKVacationPageKind) -> Void) {
-        self.household = household
-        let surface = context.surface
-        let vacationRow = UKRowView(
-            UKRowContent(Vacation.Copy.vacationLinkTitle, subtitle: Vacation.Copy.vacationLinkSubtitle,
-                               symbol: SymbolMap.symbol(for: "mdi:airplane"), showsChevron: true), surface: surface)
-        soloRow = UKRowView(
-            UKRowContent(SoloTripCopy.title, subtitle: SoloTripCopy.chooserSubtitle,
-                               symbol: SymbolMap.symbol(for: "mdi:bag-suitcase"), showsChevron: true), surface: surface)
-        super.init(context: context)
-        let vacationButton = UKRowButton(vacationRow) { push(.vacationMode) }
-        vacationButton.accessibilityIdentifier = "vacation.chooser.vacationMode"
-        let soloButton = UKRowButton(soloRow) { push(.soloTrip) }
-        soloButton.accessibilityIdentifier = "vacation.chooser.soloTrip"
-        container.column.addArrangedSubview(UKModuleListView(hasGlyphs: true, surface: surface, rows: [vacationButton, soloButton]))
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let subtitle = self.household.setupUnavailable ? SoloTripCopy.setupRequiredSubtitle : SoloTripCopy.chooserSubtitle
-            self.soloRow.update(UKRowContent(SoloTripCopy.title, subtitle: subtitle, symbol: SymbolMap.symbol(for: "mdi:bag-suitcase"), showsChevron: true))
-        }
-    }
-}
-
-// MARK: - Vacation Mode
-
 /// Vacation Mode (`VacationModeScreen`, web `VacationModePage`): the mode card, then the pre-vacation checklist or, once enabled,
 /// the vacation dates. Enabling opens the confirmation sheet. While a Solo Trip owns the household plan, the page shows its
 /// status instead.
@@ -169,6 +134,7 @@ final class UKVacationModeContent: UKVacationContent {
     let controller: VacationModeController
     private let modeTile: UKGlassTileView
     private let preChecklistError = UKInlineAlertView(Vacation.Copy.preChecklistError, severity: .error)
+    private let commandError = UKErrorSlot()
     private var checklistSection: UKAwaySectionView!
     private var checklistRows: [UKVacationChecklistRow] = []
     private let datesSection: UKAwaySectionView
@@ -183,8 +149,8 @@ final class UKVacationModeContent: UKVacationContent {
 
     override var title: String { Vacation.Copy.modeTitle }
 
-    init(context: UKContext, household: HouseholdAwayController, caller: any HassServiceCalling) {
-        let controller = VacationModeController(store: context.store, household: household, caller: caller)
+    init(context: UKContext, household: HouseholdAwayController, caller: any HassServiceCalling, targets: Vacation.Targets? = nil) {
+        let controller = VacationModeController(store: context.store, household: household, caller: caller, targets: targets)
         self.controller = controller
         let surface = context.surface
         modeTile = UKGlassTileView(model: Self.modeModel(controller), environment: UKTileEnvironment(context: context))
@@ -195,17 +161,17 @@ final class UKVacationModeContent: UKVacationContent {
         super.init(context: context)
 
         modeTile.onPerform = { _ in VacationModeTile.run(controller) }
-        let modeSection = UKAwaySectionView(description: Vacation.Copy.modeDescription, surface: surface, content: [preChecklistError, modeTile])
+        let modeSection = UKAwaySectionView(description: Vacation.Copy.modeDescription, surface: surface, content: [preChecklistError, commandError, modeTile])
         sections = [modeSection]
 
         // The checklist as one inset list on a module (a sheet cell in a sheet).
-        checklistRows = Vacation.checklist.enumerated().map { index, item in
+        checklistRows = controller.checklist.enumerated().map { index, item in
             let row = UKVacationChecklistRow(title: item.title) { controller.toggle(item) }
             row.accessibilityIdentifier = "vacation.checklist.\(index)"
             return row
         }
         let list = UKModuleListView(hasGlyphs: true, surface: surface, rows: checklistRows)
-        checklistSection = UKAwaySectionView(title: "\(Vacation.Copy.checklistTitle) · 0 of \(Vacation.checklist.count)", surface: surface, content: [list])
+        checklistSection = UKAwaySectionView(title: "\(Vacation.Copy.checklistTitle) · 0 of \(controller.checklist.count)", surface: surface, content: [list])
         statusSlot.isHidden = true
         container.column.addArrangedSubview(statusSlot)
         container.column.addArrangedSubview(grid)
@@ -218,7 +184,7 @@ final class UKVacationModeContent: UKVacationContent {
     /// disc. It keeps its gates: turning it on opens the dates sheet (or shows the unfinished-checklist error), and turning it off asks first
     /// with today's alert (`AlertCopy.turnOffVacation`) as the tile's confirmation, so a disc tap and a body tap take the same path and no
     /// service call fires before Turn Off. The question's buttons are `vacation.modeCard.confirm` and `.cancel`.
-    private static func modeModel(_ controller: VacationModeController) -> UKGlassTileModel {
+    static func modeModel(_ controller: VacationModeController) -> UKGlassTileModel {
         let specs = VacationModeTile.specs(for: controller)
         var model = UKGlassTileModel(
             title: Vacation.Copy.modeTitle, subtitle: controller.cardSubtitle, symbol: SymbolMap.symbol(for: "mdi:airplane"),
@@ -235,15 +201,16 @@ final class UKVacationModeContent: UKVacationContent {
         // The mode card.
         modeTile.configure(Self.modeModel(controller), environment: environment, perform: { _ in VacationModeTile.run(controller) })
         preChecklistError.isHidden = !controller.showsPreChecklistError
+        commandError.show(controller.commandFailed ? "Couldn't update Vacation Mode. Check the current state and try again." : nil)
 
         // The checklist and its count.
         var done = 0
-        for (item, row) in zip(Vacation.checklist, checklistRows) {
+        for (item, row) in zip(controller.checklist, checklistRows) {
             let checked = controller.isChecked(item)
             if checked { done += 1 }
             row.update(isChecked: checked, isUnavailable: controller.isUnavailable(item))
         }
-        checklistSection.setTitle("\(Vacation.Copy.checklistTitle) · \(done) of \(Vacation.checklist.count)")
+        checklistSection.setTitle("\(Vacation.Copy.checklistTitle) · \(done) of \(controller.checklist.count)")
         dateFields.update(range: controller.dateRange, invalid: controller.invalidDateRange)
 
         // Which block shows: the Solo Trip status, or the mode section beside the dates or the checklist.
@@ -406,7 +373,7 @@ final class UKSoloTripContent: UKVacationContent {
     /// `power` disc. Turning a trip **on** opens the editor sheet (the controller's own gate); turning it **off** asks first with today's alert
     /// (`AlertCopy.endSoloTrip`) as the tile's confirmation (`soloTrip.toggle.confirm` / `.cancel`), so a disc tap and a body tap take the same
     /// path. It dims while no traveler is chosen.
-    private static func toggleModel(_ controller: SoloTripController) -> UKGlassTileModel {
+    static func toggleModel(_ controller: SoloTripController) -> UKGlassTileModel {
         UKGlassTileModel(
             title: SoloTripCopy.title, subtitle: controller.toggleSubtitle, symbol: SymbolMap.symbol(for: "mdi:bag-suitcase"),
             tint: UKHouseholdTint.soloTrip, isActive: controller.toggleChecked,
@@ -499,7 +466,7 @@ final class UKSoloTripContent: UKVacationContent {
             travelerOrder = ids
             travelerTiles = [:]
             let views = tiles.map { tile -> UKGlassTileView in
-                let view = UKGlassTileView(model: travelerModel(tile), environment: environment)
+                let view = UKGlassTileView(model: Self.travelerModel(tile), environment: environment)
                 travelerTiles[tile.resident] = view
                 return view
             }
@@ -507,7 +474,7 @@ final class UKSoloTripContent: UKVacationContent {
         }
         for tile in tiles {
             guard let view = travelerTiles[tile.resident] else { continue }
-            view.configure(travelerModel(tile), environment: environment, perform: { [weak self] _ in
+            view.configure(Self.travelerModel(tile), environment: environment, perform: { [weak self] _ in
                 if tile.isInteractive { self?.controller.selectTraveler(tile.resident) }
             })
         }
@@ -518,7 +485,7 @@ final class UKSoloTripContent: UKVacationContent {
     /// item 29; `SelectionActions.single`): the chosen traveler fills in the Vents family blue (Solo Trip's own blue is not a family) with a
     /// white check disc, the other stays dark with an empty ring, and VoiceOver reads "selected", never "switch". While a trip runs the tiles
     /// lock (the disc dims) and say Away or Home.
-    private func travelerModel(_ tile: SoloTripController.TravelerTile) -> UKGlassTileModel {
+    static func travelerModel(_ tile: SoloTripController.TravelerTile) -> UKGlassTileModel {
         let specs = [TravelerTileView.spec(for: tile)]
         return UKGlassTileModel(title: tile.title, subtitle: tile.subtitle, symbol: SymbolMap.symbol(for: tile.icon),
                                 family: TravelerTileView.family, isActive: false, behavior: .perform(SelectionActions.actionId), actions: specs.items,
@@ -590,166 +557,4 @@ final class UKSoloTripContent: UKVacationContent {
 
 // MARK: - Screens
 
-/// A page pushed from the chooser: Vacation Mode or Solo Trip on its own.
-@MainActor
-final class UKVacationSubpageViewController: UKPageViewController {
-    private let content: UKVacationContent
-
-    init(content: UKVacationContent, context: UKContext, accessoryBar: UIView? = nil) {
-        self.content = content
-        super.init(context: context, title: content.title)
-        bottomAccessory = accessoryBar
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        content.host = self
-        install(scrollView: content.scrollView)
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        content.hostDidAppear()
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        content.hostDidDisappear()
-    }
-}
-
-/// The Vacation entry (`VacationScreen`, web route `vacation`): a chooser between Vacation Mode and Solo Trip, or straight to
-/// the engaged one (web `vacationFeaturePath`).
-@MainActor
-final class UKVacationViewController: UKPageViewController {
-    private let household: HouseholdAwayController
-    private let caller: any HassServiceCalling
-    private let currentUserId: @MainActor () async -> String?
-    private var viewer: HouseholdResident? { didSet { solo?.viewer = viewer } }
-    /// The engaged page this screen last showed. Turning that mode off keeps its page (the web stays on `vacation-mode` /
-    /// `solo-trip`) instead of swapping the root back to the chooser under the person.
-    private var lastEngaged: Vacation.Route?
-    /// The chooser left the screen while it was still the live route: the person pushed one of its pages. It stays the root for
-    /// this visit, so turning that mode on doesn't also swap it in underneath and Back returns to the chooser.
-    private var keepsChooser = false
-    private var displayed: Vacation.Route?
-    private var chooser: UKVacationChooserContent?
-    private var mode: UKVacationModeContent?
-    private var solo: UKSoloTripContent?
-    /// A gallery's last-call line for each page the chooser pushes (the first page owns `accessoryBar`).
-    private let subpageBar: (@MainActor () -> UIView?)?
-
-    init(context: UKContext, responder: any HassServiceResponding, caller: any HassServiceCalling,
-         currentUserId: @escaping @MainActor () async -> String? = { nil }, accessoryBar: UIView? = nil,
-         subpageBar: (@MainActor () -> UIView?)? = nil) {
-        self.subpageBar = subpageBar
-        household = HouseholdAwayController(store: context.store, responder: responder)
-        self.caller = caller
-        self.currentUserId = currentUserId
-        super.init(context: context, title: Vacation.Copy.chooserTitle)
-        bottomAccessory = accessoryBar
-    }
-
-    /// The screen on the signed-in connection.
-    static func make(context: UKContext) -> UIViewController {
-        guard let connection = context.connection else { return UKPlaceholderViewController(title: Vacation.Copy.chooserTitle, symbol: "airplane") }
-        return UKVacationViewController(context: context, responder: connection, caller: connection) { try? await connection.currentUser().id }
-    }
-
-    override var houseLayoutSkeleton: HouseSkeletonPlan.Kind? { .page }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        Task { [weak self] in
-            guard let self else { return }
-            self.viewer = HouseholdResident.forUserId(await self.currentUserId())
-        }
-        bag.observe { [weak self] in
-            guard let self else { return }
-            let route = self.liveRoute()
-            if route != .chooser { self.lastEngaged = route }
-            self.show(self.displayedRoute(live: route))
-        }
-    }
-
-    private func liveRoute() -> Vacation.Route {
-        Vacation.route(
-            snapshot: household.snapshot,
-            vacationModeOn: context.store.entity(Vacation.modeEntityId).state?.state == "on",
-            invalidDatesPending: context.store.entity(Vacation.invalidDatesPendingEntityId).state?.state == "on")
-    }
-
-    /// The live route, or the engaged page already shown once its mode turns off, or the chooser a page was pushed from.
-    private func displayedRoute(live route: Vacation.Route) -> Vacation.Route {
-        if keepsChooser { return .chooser }
-        return route == .chooser ? lastEngaged ?? .chooser : route
-    }
-
-    private func show(_ route: Vacation.Route) {
-        guard route != displayed else { return }
-        let previous = activeContent
-        previous?.scrollView.removeFromSuperview()
-        previous?.hostDidDisappear()
-        displayed = route
-        let content: UKVacationContent
-        switch route {
-        case .chooser:
-            let made = chooser ?? UKVacationChooserContent(context: context, household: household) { [weak self] kind in self?.push(kind) }
-            chooser = made
-            content = made
-        case .vacationMode:
-            let made = mode ?? UKVacationModeContent(context: context, household: household, caller: caller)
-            mode = made
-            content = made
-        case .soloTrip:
-            let made = solo ?? UKSoloTripContent(context: context, household: household, viewer: viewer)
-            solo = made
-            content = made
-        }
-        content.host = self
-        title = content.title
-        install(scrollView: content.scrollView)
-        if isViewLoaded, view.window != nil { content.hostDidAppear() }
-    }
-
-    private var activeContent: UKVacationContent? {
-        switch displayed {
-        case .chooser?: chooser
-        case .vacationMode?: mode
-        case .soloTrip?: solo
-        case nil: nil
-        }
-    }
-
-    private func push(_ kind: UKVacationPageKind) {
-        let content: UKVacationContent
-        switch kind {
-        case .vacationMode: content = UKVacationModeContent(context: context, household: household, caller: caller)
-        case .soloTrip: content = UKSoloTripContent(context: context, household: household, viewer: viewer)
-        }
-        // `show`: the next column when the Settings page is a column (drilling slides this page left), else a push on the stack.
-        show(UKVacationSubpageViewController(content: content, context: context, accessoryBar: subpageBar?()), sender: self)
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        activeContent?.hostDidAppear()
-        #if DEBUG
-        // `FENTON_DEBUG_VACATION_PUSH=mode|solo`: drills into that page once, as a tap on its row does (the column-navigation shots).
-        if !debugPushed, let which = ProcessInfo.processInfo.environment["FENTON_DEBUG_VACATION_PUSH"] {
-            debugPushed = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.push(which == "solo" ? .soloTrip : .vacationMode) }
-        }
-        #endif
-    }
-
-    #if DEBUG
-    private var debugPushed = false
-    #endif
-
-    override func viewDidDisappear(_ animated: Bool) {
-        super.viewDidDisappear(animated)
-        if displayed == .chooser, liveRoute() == .chooser { keepsChooser = true }
-    }
-}
 #endif

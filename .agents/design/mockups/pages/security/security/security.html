@@ -5,7 +5,6 @@
 <link rel="stylesheet" href="../../../_kit/kit.css">
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../components/climate/_security-climate.js"></script>
-<script src="../../../components/house-config/_house-config-states.js"></script>
 </head><body>
 <script>
 (function () {
@@ -25,9 +24,7 @@
   Mock.mount({
     kind: 'page', id: 'security', title: 'Security', area: 'security', status: 'shipped',
     summary: 'The Security tab: the Security and Contact Sensors chips, the alarm card on a module, Doors as tiles (a lock and two garage doors), guests while a toggle is on, cameras, and the hidden Car section. Sample data is the debug gallery fixture.',
-    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityTiles.swift', 'apple/Sources/HassUI/Features/Security/SecurityTiles.swift',
-      'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Security/UKSecurityGuests.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift',
-      'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
+    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
     spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/design/direction-g.md'],
     patterns: ['status-rail', 'dynamic-grid', 'camera-streams', 'entity-tile', 'optimistic-actions', 'motion'],
     hig: ['Tab bars', 'Alerts', 'Color', 'Dynamic Type', 'HomeKit: cameras'],
@@ -39,12 +36,6 @@
       'default': { title: 'Armed Home, doors locked and closed', render: function (c) { return page(c, {}); } },
       'loading': { title: 'First sign-in, nothing saved', note: 'door tiles keep their names with a soft pulsing bar where the state goes; the alarm card has no pending look and reads Unavailable; the chips read Unavailable (the rail has no pending mode)', render: function (c) {
         return page(c, { alarm: 'unavailable', unavailable: true, pending: true, chips: UNAVAIL_CHIPS, cams: ['connecting', 'connecting', 'connecting', 'connecting'] }); } },
-      'no-layout-skeleton': { title: 'No house layout yet: the skeleton', note: 'house-config-states rule 11: no saved layout and the store is idle or loading: the generic skeleton (a section bar and four tiles, a bar and two) pulses like the pending bars; one VoiceOver element "Getting your home from Home Assistant"', render: function (c) {
-        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.skeletonPage(c), connection: 'reconnecting' }); } },
-      'no-layout-admin': { title: 'No house layout: not set up yet, administrator', note: 'rule 12: a state message in place of the page, the shell kept; the action opens the S+H Home Integration page in the Home Assistant modal', render: function (c) {
-        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.message(c, 'notConfigured', 'admin') }); } },
-      'no-layout-member': { title: 'No house layout: member', note: 'the same message with the ask-someone text and no action', render: function (c) {
-        return Mock.page(c, { title: 'Security', section: 'security', badge: 0, choresBadge: 0, body: Mock.HC.message(c, 'notConfigured', 'member') }); } },
       'refreshing': { title: 'Saved snapshot on screen, live values swap in', note: 'identical to default by design: no spinner, nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c, {}); } },
       'error': { title: 'Everything unavailable', note: 'Home Assistant reports unavailable: the alarm modes disable and dim their glyphs, tiles read "Unavailable" (FENTON_GALLERY_SCENARIO=unavailable)', render: function (c) {
         return page(c, { alarm: 'unavailable', unavailable: true, chips: UNAVAIL_CHIPS, cams: CAMS_SNAP }); } },

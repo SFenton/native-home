@@ -1,3 +1,4 @@
+import FentonActivityModel
 import Foundation
 @testable import HassCore
 import Testing
@@ -23,39 +24,43 @@ struct SpotlightCatalogTests {
         }
     }
 
-    @Test func theCatalogHasTheFiveSectionsThenEveryRoom() {
-        let ids = SpotlightCatalog.entries.map(\.id)
-        #expect(Array(ids.prefix(5)) == ["section.home", "section.security", "section.climate", "section.chores", "section.settings"])
-        #expect(ids.count == 5 + RoomsConfig.pages.count)
-        #expect(Set(ids).count == ids.count, "identifiers are unique")
+    private let catalog = RouteCatalog(sessionID: String(repeating: "a", count: 64), revision: 1, routes: [
+        RouteCatalogEntry(id: "kitchen-page", path: "kitchen", title: "Kitchen", summary: "Kitchen lights", icon: "fork.knife",
+                          aliases: ["cooking"], keywords: ["stove"], siri: true),
+        RouteCatalogEntry(id: "security-page", path: "security", title: "Security", summary: "Doors and cameras", icon: "shield.fill"),
+    ])
+
+    @Test func theCatalogHasOneEntryPerOfferedRouteAndNoCompiledPages() {
+        let entries = SpotlightCatalog.entries(for: catalog)
+        #expect(entries.map(\.id) == ["route.kitchen-page", "route.security-page"])
+        #expect(entries.map(\.request) == [RouteRequest(path: "kitchen"), RouteRequest(path: "security")])
+        #expect(SpotlightCatalog.entries(for: RouteCatalog(sessionID: catalog.sessionID, revision: 1, routes: [])).isEmpty)
     }
 
-    @Test func everyEntryCarriesTheSearchTermsAndAThumbnailIcon() {
-        for entry in SpotlightCatalog.entries {
+    @Test func everyEntryCarriesTheSearchTermsTheTitleAndAThumbnailSymbol() {
+        for entry in SpotlightCatalog.entries(for: catalog) {
             #expect(Set(AppBranding.searchTerms).isSubset(of: Set(entry.keywords)), "\(entry.id)")
-            #expect(entry.mdiIcon.hasPrefix("mdi:"), "\(entry.id)")
-            #expect(!entry.title.isEmpty && !entry.summary.isEmpty, "\(entry.id)")
+            #expect(entry.keywords.contains(entry.title), "\(entry.id)")
+            #expect(!entry.symbol.isEmpty && !entry.summary.isEmpty, "\(entry.id)")
         }
+        let kitchen = SpotlightCatalog.entry(for: catalog.routes[0])
+        #expect(kitchen.keywords.contains("stove"))
+        #expect(kitchen.symbol == "fork.knife")
     }
 
-    @Test func sectionsOpenTheirSections() {
-        #expect(SpotlightCatalog.destination(forIdentifier: "section.climate") == .section(.climate))
-        #expect(SpotlightCatalog.destination(forIdentifier: "section.settings") == .section(.settings))
+    @Test func aTappedIdentifierNamesItsRouteID() {
+        #expect(SpotlightCatalog.routeID(forIdentifier: "route.kitchen-page") == "kitchen-page")
+        #expect(SpotlightCatalog.routeID(forIdentifier: "route.a.b-c") == "a.b-c")
     }
 
-    @Test func roomsOpenTheirPagesUnderHome() {
-        #expect(SpotlightCatalog.destination(forIdentifier: "room.living-room") == .homePage("living-room"))
-        for page in RoomsConfig.pages {
-            #expect(SpotlightCatalog.destination(forIdentifier: "room.\(page.id)") == .homePage(page.id))
+    @Test func identifiersFromOlderBuildsOpenNothing() {
+        for old in ["section.climate", "room.living-room", "authored.kitchen", "route.", "route", ""] {
+            #expect(SpotlightCatalog.routeID(forIdentifier: old) == nil, "\(old)")
         }
-    }
-
-    @Test func anUnknownIdentifierOpensNothing() {
-        #expect(SpotlightCatalog.destination(forIdentifier: "section.removed") == nil)
     }
 
     @Test func theTappedIdentifierIsReadFromTheActivityUserInfo() {
-        #expect(SpotlightLink.identifier(in: [SpotlightLink.userInfoKey: "section.chores"]) == "section.chores")
+        #expect(SpotlightLink.identifier(in: [SpotlightLink.userInfoKey: "route.chores"]) == "route.chores")
         #expect(SpotlightLink.identifier(in: [SpotlightLink.userInfoKey: 3]) == nil)
         #expect(SpotlightLink.identifier(in: ["other": "x"]) == nil)
         #expect(SpotlightLink.identifier(in: nil) == nil)
