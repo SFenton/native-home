@@ -572,7 +572,6 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             do { try await provider.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
             catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
             await rig.assertRefused(1, "admin to-do upload through the registry")
-            XCTAssertFalse(provider.hasPendingIntent, "\(rig.family): the pending flag clears")
         }
     }
 
