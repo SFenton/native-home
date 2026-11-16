@@ -378,10 +378,13 @@ final class UKServerUIProductionHost: UIViewController {
         signOut.accessibilityIdentifier = "server-ui.production.signOut"
         signOut.addAction(UIAction { [weak self] _ in self?.confirmSignOut() }, for: .touchUpInside)
         for button in [clear, signOut] {
-            // The system button's own title is a fixed 15 pt: it follows Dynamic Type like the page's text (the iPad audit at the
-            // largest size reported Sign Out as unsupported once the page stopped being rebuilt under it).
+            // Dynamic Type (HIG, Typography > Dynamic Type): the system button's title is a fixed 15 pt on one line. It follows the
+            // text size like the page's text and wraps and centres at the largest sizes instead of being cut off, as the sign-in
+            // screen's "Use a different account" button does (the iPad audit at AX5 reported Sign Out as unsupported).
             button.titleLabel?.font = .ukFont(.body)
             button.titleLabel?.adjustsFontForContentSizeCategory = true
+            button.titleLabel?.numberOfLines = 0
+            button.titleLabel?.textAlignment = .center
             button.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
         }
         var arranged: [UIView] = [main, clear, signOut]
