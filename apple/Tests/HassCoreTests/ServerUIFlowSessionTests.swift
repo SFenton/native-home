@@ -186,6 +186,28 @@ struct ServerUIFlowSessionTests {
         #expect(collection.phase == .unavailable)
     }
 
+    // MARK: A corpus document's own flow
+
+    @Test func theUpcomingChoresFlowOfTheCorpusRunsThroughASession() async throws {
+        let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appending(path: "ContractCorpus/accept/list-parts-row-action.json")
+        let publication = try ServerUICompositionPublication.decode(Data(contentsOf: url))
+        var found: ServerUIFlow?
+        for case .pipeline("upcoming", let flow) in publication.document.dataSources { found = flow }
+        let flow = try #require(found)
+        let response: JSONValue = .object(["todo.demo_chores": .object(["items": .array([
+            .object(["uid": "a", "summary": "Water", "status": "needs_action", "due": "2026-11-17"]),
+        ])])])
+        let collection = ServerUIRowCollection()
+        let host = ServerUIFlowHost(call: { _, _, _, _ in response },
+                                    environment: { (ServerUIClock(now: "2026-11-16T09:00:00", utcOffsetMinutes: 0),
+                                                    ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), nil) })
+        let session = ServerUIFlowSession(flow: flow, collection: collection, host: host)
+        session.start()
+        #expect(await eventually { collection.phase != .loading })
+        #expect(collection.rows.map(\.title) == ["Water"])
+        #expect(collection.rows.first?.subtitle == "Due tomorrow")
+    }
+
     // MARK: Parameter reads
 
     @Test func aParametersReadsAreWalkedForTheSnapshot() {

@@ -107,7 +107,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
 
     /// Every accessibility label under `view`, including elements a container hands out itself.
     private func spoken(_ view: UIView) -> [String] {
-        var labels = [view.accessibilityLabel].compactMap { $0 }
+        var labels = [view.accessibilityLabel, (view as? UILabel)?.text].compactMap { $0 }
         for element in view.accessibilityElements ?? [] {
             if let child = element as? UIView { labels += spoken(child) } else if let label = (element as? NSObject)?.accessibilityLabel { labels.append(label) }
         }
@@ -147,7 +147,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             session.start()
             settle { list.rows.count == 2 }
             HostedPage.wait(0.1)
-            XCTAssertEqual(list.rows.count, 2, "width \(width)")
+            XCTAssertEqual(list.rows.count, 2, "width \(width): phase \(session.collection.phase), calls \(calls), publications \(session.publications), model rows \(session.collection.rows.count)")
 
             let buttons = all(UKRowButton.self, in: list)
             XCTAssertEqual(buttons.count, 2, "width \(width): a row is a button when the list has a row action")
