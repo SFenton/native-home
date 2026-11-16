@@ -71,8 +71,11 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         var components = try XCTUnwrap(json["document"]?["pages"]?.array?[0]["components"]?.array)
         components.append(list)
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components))
+        // The case's own record `collection` (on the third page) wants a records provider; the list replaces it.
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: .array([]))
         let capabilities = try XCTUnwrap(json["capabilities"]?.array?.compactMap(\.string))
-        json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array((capabilities + ["sh.row-collection@1"]).sorted().map { .string($0) }))
+        let kept = capabilities.filter { $0 != "sh.collection@1" } + ["sh.row-collection@1"]
+        json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(kept.sorted().map { .string($0) }))
         return try publication(json)
     }
 
@@ -81,7 +84,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         throw XCTSkip("the document has no flow \(id)")
     }
 
-    private func environment() -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?) { (Self.clock, nil, Locale(identifier: "en_US")) }
+    private func environment() -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?) { (Self.clock, ServerUIViewer(userId: "user-2", isAdmin: false, personEntityId: nil), Locale(identifier: "en_US")) }
 
     /// Opens the publication at `width`, the list being filled by `session`'s collection.
     private func open(_ publication: ServerUICompositionPublication, id: String, session: ServerUIFlowSession, width: CGFloat)
