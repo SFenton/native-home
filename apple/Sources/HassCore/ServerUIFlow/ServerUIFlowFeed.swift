@@ -64,7 +64,7 @@ public struct HassFlowFeed: ServerUIFlowFeed {
 
 extension HassConnection {
     /// Calls `domain.service` with `return_response` and a target, once (no retry across reconnects), and gives the service's `response`.
-    func callServiceForFlow(_ domain: String, _ service: String, target: [String: JSONValue], data: [String: JSONValue]) async throws -> JSONValue {
+    public func callServiceForFlow(_ domain: String, _ service: String, target: [String: JSONValue], data: [String: JSONValue]) async throws -> JSONValue {
         var fields: [String: any Sendable] = ["domain": domain, "service": service, "return_response": true,
                                               "service_data": data.mapValues(\.foundationValue)]
         if !target.isEmpty { fields["target"] = target.mapValues(\.foundationValue) }

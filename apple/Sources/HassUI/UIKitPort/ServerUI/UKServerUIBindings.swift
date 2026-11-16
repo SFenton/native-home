@@ -501,7 +501,7 @@ final class UKServerUIBindings {
             default: return .unavailable
             }
         case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .bedroom,
-             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState:
+             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState, .pipeline:
             return .unavailable
         case .homeStatus, .homeWeather, .homeLight: return .unavailable
         }
