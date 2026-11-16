@@ -297,7 +297,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
                        settings("feedback-bug", domain: "feedback")]
         json = try ServerUIRendererFixture.changing(json, path: "/document/dataSources",
             to: .array(try XCTUnwrap(json["document"]?["dataSources"]?.array) + sources))
-        let placed = [control("w-toggle", source: "settings-household", kind: "household-toggle", item: "switch.synthetic_toggle"),
+        let placed = [control("w-toggle", source: "settings-household", kind: "household-toggle", item: "switch.demo_toggle"),
                       control("w-signout", source: "settings-profile", kind: "sign-out", item: ""),
                       control("w-haweb", source: "settings-profile", kind: "ha-web", item: "profile"),
                       control("w-icon", source: "settings-preferences", kind: "app-icon-choice", item: AppIconChoice.midnightGold.rawValue)]
@@ -400,7 +400,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let (live, providers, _) = try make()
             let mock = lastMock!
             providers.user = HassUser(id: person.haUserId, name: person.name, isOwner: false, isAdmin: true)
-            live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off"),
+            live.context.store.apply([EntityState(entityId: "switch.demo_toggle", state: "off"),
                                       EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking) + self.commandableSnapshots(adminLists: adminPage.lists))
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
@@ -421,7 +421,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     func testTheMockCatchesAWriteSentStraightToTheConnection() async throws {
         let (live, _, _) = try make()
         let mock = lastMock!
-        Task { try? await live.connection.callService("light", "turn_on", data: ["entity_id": "light.synthetic"]) }
+        Task { try? await live.connection.callService("light", "turn_on", data: ["entity_id": "light.demo_light"]) }
         let sent = await FeatureHost.settleAsync(until: { !ServerUIPreviewLiveProvidersTests.writes(on: mock).isEmpty })
         XCTAssertTrue(sent, "The detector must see a write that goes to the connection, or the other tests prove nothing")
         XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock).count, 1)
@@ -450,7 +450,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             await rig.assertRefused(1, "household toggle")
             await rig.dismissAlerts()
             XCTAssertFalse(household.protectsPublication, "\(rig.family): the toggle's pending flag clears")
-            XCTAssertEqual(rig.live.context.store.value("switch.synthetic_toggle")?.state, "off", "\(rig.family): the state is untouched")
+            XCTAssertEqual(rig.live.context.store.value("switch.demo_toggle")?.state, "off", "\(rig.family): the state is untouched")
         }
     }
 
