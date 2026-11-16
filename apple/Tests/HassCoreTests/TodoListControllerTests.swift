@@ -105,11 +105,17 @@ struct TodoListControllerTests {
         service.items[list] = [item]
         let controller = controller(service)
         await controller.load()
-        controller.undoGrace = .milliseconds(20)
+        // A hand-advanced clock, not wall time: on a starved host the 15 s revert delay can pass before the test reads the
+        // grace's end (CI saw one test take 45 s), and the row came back as needs_action.
+        let clock = ManualSleeper()
+        controller.sleeper = { await clock.sleep(for: $0) }
+        controller.undoGrace = .seconds(5)
         await controller.toggle(item)
         #expect(service.calls == ["todo.update_item entity_id=todo.demo_list,item=a,status=completed"])
         #expect(controller.visibleItems(hideCompleted: true).first?.status == .completed, "Listed for the undo grace")
-        for _ in 0..<200 where !controller.visibleItems(hideCompleted: true).isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        #expect(await spin { clock.waiting.count >= 2 }, "the grace and the revert delay each park a sleep")
+        clock.fire(duration: .seconds(5))
+        #expect(await spin { !controller.offersUndo(item) }, "the grace ended")
         #expect(controller.visibleItems(hideCompleted: true).isEmpty, "Gone once the grace ends")
         #expect(controller.visibleItems(hideCompleted: false).first?.status == .completed)
         service.items[list] = [TodoItem(uid: "a", summary: "A", status: .completed)]
@@ -118,6 +124,8 @@ struct TodoListControllerTests {
         // Unchecking a completed item sends needs_action.
         await controller.toggle(controller.items![0])
         #expect(service.calls.last == "todo.update_item entity_id=todo.demo_list,item=a,status=needs_action")
+        clock.fire(duration: .seconds(5))
+        clock.fire(duration: .seconds(15))
     }
 
     @Test func completionScriptRunsInsteadOfUpdate() async {
