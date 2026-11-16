@@ -69,14 +69,19 @@ class ReachTests(unittest.TestCase):
         self.assertEqual(world.pressed("reference"), [])
         capture.perform_reach(agent, capture.plan_reach(surface, "reference", "live"), surface)
         self.assertEqual(world.pressed("reference"), [])
-        self.assertEqual(world.calls["reference"][-1][0], "open")
-        self.assertTrue(world.calls["reference"][-1][1].startswith("fentonhome://"))
+        opens = [c for c in world.calls["reference"] if c[0] == "open"]
+        self.assertTrue(opens[-1][1].startswith("fentonhome://"))
 
     def test_plain_surfaces_press_steps_or_open_the_gallery(self) -> None:
         self.assertEqual(capture.plan_reach(BY_ID["chores"], "candidate", "gallery").steps, ["Chores"])
         gallery = capture.plan_reach(BY_ID["chores"], "reference", "gallery")
         self.assertEqual((gallery.method, gallery.page), ("gallery", "chores"))
-        self.assertEqual(capture.plan_reach(BY_ID["chores"], "reference", "live").method, "deeplink")
+        self.assertEqual(capture.plan_reach(BY_ID["chores"], "reference", "live").method, "steps")
+
+    def test_live_quick_links_surfaces_press_from_home_not_by_deep_link(self) -> None:
+        plan = capture.plan_reach(BY_ID["vacuums"], "reference", "live")
+        self.assertEqual((plan.method, plan.steps), ("steps", ["Home", "Quick Links", "Vacuums"]))
+        self.assertEqual(capture.plan_reach(BY_ID["room-kitchen"], "reference", "live").method, "deeplink")
 
     def test_ax_normalisation_drops_status_bar_and_masks_dynamic_text(self) -> None:
         rules = [build_surfaces.CLOCK_MASK, build_surfaces.RELATIVE_TIME_MASK]

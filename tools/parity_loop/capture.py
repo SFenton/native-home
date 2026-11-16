@@ -57,6 +57,9 @@ class Agent:
     def appearance(self, mode: str) -> Dict[str, Any]:
         return self.call("settings", "appearance", mode)
 
+    def labels(self) -> List[str]:
+        return [_label(n) for n in self.snapshot() if _label(n)]
+
     def snapshot(self) -> List[Dict[str, Any]]:
         data = self.call("snapshot").get("data") or {}
         nodes = data.get("nodes", []) if isinstance(data, dict) else []
@@ -78,6 +81,16 @@ class ReachPlan:
     reason: str = ""
 
 
+#: The header button that opens the Quick Links sheet; a reach step "manual: ... Quick Links button" means pressing it.
+QUICK_LINKS = "Quick Links"
+
+
+def _as_press(step: Mapping[str, Any]) -> Mapping[str, Any]:
+    """A manual step that only names the Quick Links button becomes a press of it; any other step is unchanged."""
+    manual = str(step.get("manual", ""))
+    return {"press": QUICK_LINKS} if "press" not in step and "Quick Links button" in manual else step
+
+
 def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     """Choose the reach for ``app`` (``reference`` or ``candidate``) in ``mode`` (``gallery``, ``fixture`` or ``live``).
 
@@ -85,7 +98,7 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     live mode prefers a deep link; everything else prefers fully automatable press steps, then a deep link.
     """
     link = (surface.get("deep_link") or {}).get(app)
-    steps = (surface.get("reach") or {}).get(app) or []
+    steps = [_as_press(s) for s in (surface.get("reach") or {}).get(app) or []]
     pressable = bool(steps) and all("press" in s for s in steps)
     if surface.get("writes_on_reach"):
         if link:
@@ -94,10 +107,12 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str) -> ReachPlan:
     if mode == "gallery" and app == "reference":
         page = surface.get("gallery_page")
         return ReachPlan("gallery", page=page) if page else ReachPlan("skip", reason="no reference gallery page")
+    if pressable:
+        labels = [s["press"] for s in steps]
+        # Quick Links lives on the Home tab: start there, so the previous surface never hides the button.
+        return ReachPlan("steps", steps=(["Home"] + labels) if labels[0] == QUICK_LINKS else labels)
     if mode == "live" and link:
         return ReachPlan("deeplink", url=link)
-    if pressable:
-        return ReachPlan("steps", steps=[s["press"] for s in steps])
     if link:
         return ReachPlan("deeplink", url=link)
     return ReachPlan("skip", reason="reach steps are not automatable and there is no deep link")
@@ -107,12 +122,18 @@ def perform_reach(agent: Agent, plan: ReachPlan, surface: Mapping[str, Any]) -> 
     """Carry out ``plan``; ``True`` when it ran. A surface that writes on reach is never pressed, whatever the plan says."""
     if plan.method == "deeplink":
         agent.open_url(plan.url)
+        if "Open" in agent.labels():  # the simulator asks before opening an app link; answering it writes nothing
+            agent.press("Open")
+            agent.settle()
     elif plan.method == "steps":
         if surface.get("writes_on_reach"):
             return False
         for label in plan.steps:
             agent.press(label)
             agent.settle()
+            if label == QUICK_LINKS and "Rooms" not in agent.labels():  # the first press can miss; never press twice blindly
+                agent.press(label)
+                agent.settle()
     elif plan.method != "gallery":  # the gallery page is chosen at launch; nothing to do here
         return False
     return True
