@@ -116,6 +116,38 @@ final class ServerUIRoomsRendererTests: XCTestCase {
         XCTAssertTrue(caller.calls.isEmpty)
     }
 
+    /// A contact `room-card` draws the authored subtitle source or `showState` line, and VoiceOver reads it with the state.
+    func testContactCardDrawsAndSpeaksWhatTheCompositionAuthors() throws {
+        func card(showState: Bool, sources: [String]) throws -> UKGlassTileView {
+            let json = try ServerUIRendererFixture.roomsJSON()
+            guard case .object(var props) = try XCTUnwrap(json["document"]?["pages"]?.array?[0]["components"]?.array?[1]["children"]?.array?[0]["props"]) else {
+                throw XCTSkip("room-card props are not an object")
+            }
+            props["kind"] = .string("contact")
+            props["showState"] = .bool(showState)
+            props["subtitleSourceIds"] = .array(sources.map(JSONValue.string))
+            props["action"] = nil
+            props["power"] = nil
+            props["stateLabels"] = .array([])
+            let edited = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components/1/children/0/props", to: .object(props))
+            let (host, window, _) = try ServerUIRendererFixture.roomHost(json: edited)
+            addTeardownBlock { window.isHidden = true }
+            host.pageContext.store.apply([EntityState(entityId: "switch.demo_room", state: "on")])
+            HostedPage.wait(0.1)
+            return try XCTUnwrap(ServerUIRendererFixture.root(host).nodes["room-card-demo"]?.view as? UKGlassTileView)
+        }
+        let plain = try card(showState: false, sources: [])
+        XCTAssertEqual(plain.model.subtitle ?? "", "")
+        XCTAssertEqual(plain.model.spokenValue, "Open")
+        let shown = try card(showState: true, sources: [])
+        XCTAssertFalse((shown.model.subtitle ?? "").isEmpty)
+        XCTAssertTrue(try XCTUnwrap(shown.model.spokenValue).hasPrefix("Open"))
+        let sourced = try card(showState: false, sources: ["source-room-visible"])
+        let drawn = try XCTUnwrap(sourced.model.subtitle)
+        XCTAssertFalse(drawn.isEmpty)
+        XCTAssertEqual(sourced.model.spokenValue, drawn == "Open" ? "Open" : "Open, \(drawn)")
+    }
+
     func testMovingARetainedChipToAnEarlierSectionCannotBeDetachedByItsOldOwner() throws {
         let (host, window, _) = try ServerUIRendererFixture.roomHost()
         defer { window.isHidden = true }
