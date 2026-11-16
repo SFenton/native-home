@@ -278,13 +278,14 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let page = try XCTUnwrap(renderer.stacks[.initial]?.viewControllers.first as? UKServerUIPage, family)
             func tap(_ id: String) throws {
                 let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
-                func button(in view: UIView) -> UKRowButton? {
-                    if let found = view as? UKRowButton { return found }
-                    for sub in view.subviews { if let found = button(in: sub) { return found } }
+                func control(in view: UIView) -> UIControl? {
+                    if let found = view as? UKRowButton ?? view as? UKGlassTileView { return found }
+                    for sub in view.subviews { if let found = control(in: sub) { return found } }
                     return nil
                 }
-                let button = try XCTUnwrap(button(in: node), "\(family): \(id) button \(node.subviews)")
-                try XCTUnwrap(button.onTap, "\(family): \(id) tap")()
+                let found = try XCTUnwrap(control(in: node), "\(family): \(id) control \(node.subviews)")
+                if let row = found as? UKRowButton { try XCTUnwrap(row.onTap, "\(family): \(id) tap")() }
+                else { found.sendActions(for: .touchUpInside) }
             }
             func blocked(_ count: Int, _ what: String) async {
                 let reached = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= count })
