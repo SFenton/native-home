@@ -2534,13 +2534,12 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDoorSource",
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUIDoorLowering",
    "swift": [
-    "ServerUISecurity",
-    "StateStyle"
+    "ServerUIDoorLoweringTests"
    ],
    "hosted": [
-    "ServerUISecurityHostedTests"
+    "ServerUIDoorEquivalenceHostedTests"
    ],
    "journeys": []
   },
