@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 19,
+  "version": 20,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -138,6 +138,7 @@
     ".agents/platforms/apple/mobile-app.md": "Shared mobile_app registration: the one `mobile_app` registration each phone keeps per Home Assistant user, which push, location and sensors share. (read when: touching registration, sign-out, the webhook, or adding a feature that sends through `mobile_app`.)",
     ".agents/platforms/apple/presence-inventory.md": "Presence inventory: what Home Assistant does with presence, so the native app's `device_tracker` is added without surprises. (read when: linking the app's tracker to a person, changing `HassCore/Location`, or planning the shadow-to-live switch in [location.md](location.md).)",
     ".agents/platforms/apple/push.md": "Native push notifications: how Home Assistant notifications reach the app natively, and how a notification's buttons, links and attachments behave. (read when: touching notifications, the notification service extension, `mobile_app` registration, or sign-out.)",
+    ".agents/platforms/apple/studio-publication.md": "Studio publication: how an agent changes the owner's Studio draft and publishes it. (read when: a change must reach the phones through the Studio, or you touch `tools/studio_publish.py`. Sibling of [ha-operations](ha-operations.md).)",
     ".agents/platforms/apple/swiftui.md": "SwiftUI: the repo's rules for the SwiftUI that remains (HassDesign's views, the widget extension, Live Activities, the Watch app), and where they override the `swiftui-pro` skill. (read when: writing or reviewing any SwiftUI.)",
     ".agents/platforms/apple/testflight.md": "TestFlight: how S+H gets to TestFlight: the App Store Connect record, privacy manifests, export compliance and the upload script. (read when: uploading a build, adding an API that needs a privacy-manifest reason, or adding a bundle.)",
     ".agents/platforms/apple/uikit-port-design-controls.md": "UIKit port: design controls: the UIKit counterparts of the HassDesign / HassUI controls in `apple/Sources/HassUI/UIKitPort/Design/` (Controls lane), and how feature lanes use them. (read when: building a UIKit screen that needs a button, bar, segmented control, pager, dial, slider, date field or ani...",
