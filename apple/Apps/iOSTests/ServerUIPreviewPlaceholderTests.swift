@@ -12,7 +12,7 @@ import XCTest
 /// Placeholder ids only. The same assertions run at the iPhone, Duo and iPad widths.
 @MainActor
 final class ServerUIPreviewPlaceholderTests: XCTestCase {
-    private static let checkItem = "input_boolean.preview_placeholder_check"
+    static let checkItem = "input_boolean.preview_placeholder_check"
     private var directory: URL!
 
     override func setUp() async throws {
@@ -29,7 +29,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
     // MARK: Fixture
 
     /// The Home fixture (weather source and panel) with a camera source and tile, an away provider and one vacation check.
-    private func json() throws -> JSONValue {
+    static func json(checkItem: String = checkItem) throws -> JSONValue {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let tests = apple.appendingPathComponent("Tests/HassCoreTests")
         var root = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: tests.appendingPathComponent("ServerUIHomeFixture.json")))
@@ -55,7 +55,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
         let symbol: JSONValue = .object(["type": "sf-symbol", "name": "checkmark.circle", "rendering": "canonical", "unavailable": "reject"])
         let check: JSONValue = .object(["id": "fixture-vacation-check", "title": "Placeholder task", "type": "settings-control",
             "layout": .object(["span": .number(1)]), "icon": symbol,
-            "props": .object(["sourceId": "fixture-away", "kind": "vacation-check", "item": .string(Self.checkItem), "subtitle": ""])])
+            "props": .object(["sourceId": "fixture-away", "kind": "vacation-check", "item": .string(checkItem), "subtitle": ""])])
         let components = try XCTUnwrap(root["document"]?["pages"]?.array?.first?["components"]?.array)
         root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/components", to: .array(components + [tile, check]))
         let capabilities = try XCTUnwrap(root["capabilities"]?.array).compactMap(\.string)
@@ -66,14 +66,14 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
             to: .array(Set(capabilities).sorted().map(JSONValue.string)))
     }
 
-    private func publication() throws -> ServerUICompositionPublication {
-        try ServerUICompositionPublication.decode(JSONEncoder().encode(json()))
+    static func publication(checkItem: String = checkItem) throws -> ServerUICompositionPublication {
+        try ServerUICompositionPublication.decode(JSONEncoder().encode(json(checkItem: checkItem)))
     }
 
     // MARK: Logic
 
     func testHouseConfigGainsTheDocumentsChecklistItemsWithoutMutatingTheDemoHouse() throws {
-        let document = try publication().document
+        let document = try Self.publication().document
         let before = DemoHouse.config.vacation.checklist
         let derived = UKServerUIPreviewPlaceholders.houseConfig(for: document, awayProviderId: "away")
         XCTAssertFalse(before.contains { $0.entityId == Self.checkItem })
@@ -90,7 +90,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
     }
 
     func testLiveValidatorStillRefusesCameraAndWeatherSourcesWithNoReader() throws {
-        let publication = try publication()
+        let publication = try Self.publication()
         let context = UKContext(store: EntityStore())
         XCTAssertNil(context.connection)
         XCTAssertThrowsError(try UKServerUIRenderer(publication: publication, context: context,
@@ -106,7 +106,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
     }
 
     func testPlaceholderReadersApproveOnlyTheDocumentsSourcesAndStayOffline() async throws {
-        let document = try publication().document
+        let document = try Self.publication().document
         let weather = UKServerUIPreviewPlaceholders.weatherReader(for: document)
         XCTAssertEqual(weather.entityIds, ["weather.demo_forecast"])
         XCTAssertFalse(weather.isConnected)
@@ -130,7 +130,7 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
         let original = source.current
         GalleryHouse.install(into: source)
         defer { source.set(original) }
-        let publication = try publication()
+        let publication = try Self.publication()
         let partition = try ServerUIPublicationPartition(server: HassServer(baseURL: URL(string: "https://preview.invalid")!))
         let stager = try ServerUIAssetStager(partition: partition, partitionDirectory: partition.storageDirectory(in: directory),
             transport: ServerUIAssetTransport(server: HassServer(baseURL: URL(string: "https://preview.invalid")!),

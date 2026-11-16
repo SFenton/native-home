@@ -434,6 +434,16 @@ a raw connection or session. Both ordinary and response-bearing service commands
 authored bedroom providers. Preview preparation constructs and retains the fully validated renderer before durable
 publication acceptance, so a missing scoped provider cannot advance the cache and fail only afterward.
 
+The live preview also builds the production provider set from its read-only connection and the followed `house_config`
+(`UKServerUIPreviewLiveProviders`): household, away, profile, preferences, performance and feedback settings providers;
+to-do, inventory, recipe and summary records; Data Flow collections; media remotes and bedrooms; the account and shell header.
+It calls the production static builders (`UKServerUIHouseholdProviders`, `UKServerUIRecordProviders`,
+`UKServerUIProductionProviders.bedroomProviders`, `.flowHost`, `.feedbackProvider`, `.presentations`), so the two cannot drift.
+Reads (to-do items, schedules, the current user, the entity feed) pass; every service call, upload, schedule update and flow
+call goes through `UKServerUIPreviewReadOnlyServices` and is refused and counted. Sign-out, Home Assistant web pages and feedback
+filing are refused at the action. Like production, the preview waits (bounded, 20 s) for the house document and the user, and a
+supply asked for earlier throws `inputs_pending`. Fixtures mode keeps `DemoHouse`.
+
 Normal-session provider preparation resolves authored device descriptors before checking their references; house-config
 providers fill only keys those descriptors do not own. Reconnect permission changes replace idle bedroom providers without a
 new document revision, but never discard an owned draft or command. Schedule reads and writes use the same session-fenced

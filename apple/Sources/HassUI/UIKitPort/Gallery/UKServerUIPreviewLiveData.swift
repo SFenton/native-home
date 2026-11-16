@@ -47,7 +47,8 @@ final class UKServerUIPreviewLiveData {
             try reject()
         }
 
-        private func reject() throws -> Never {
+        /// Counts, announces and throws; every write path of the preview ends here.
+        func reject() throws -> Never {
             blockedCommands += 1
             NSLog("ServerUI preview: live device command blocked by read-only policy.")
             UIAccessibility.post(notification: .announcement, argument: Failure.commandsDisabled.errorDescription)
