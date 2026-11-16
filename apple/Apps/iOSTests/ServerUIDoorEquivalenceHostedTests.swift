@@ -11,7 +11,7 @@ import XCTest
 ///
 /// The golden file was recorded from the bespoke `door-tile` atom (`UKServerUISecurityViews`, `UKServerUIDoorSource`) before it was
 /// deleted. The same journeys now run through the compile-time lowering onto a `state-tile` over the built-in `garage-door` or `lock`
-/// style. Every key must equal the golden value, except the named, reviewed differences in ``differences``.
+/// style. Every key must equal the golden value, except the Designer's revised expectations in ``revised``, which are exact.
 @MainActor
 final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
     typealias Snapshot = [String: String]
@@ -126,13 +126,14 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/ServerUIDoorGolden.json")
     }
 
-    /// Keys where the generic tile reads differently by design, by journey (`*` is every journey): the reviewed departures.
-    ///
-    /// - A garage door whose request is on its way: the old tile kept the disc's verb and on-state of the state it had left ("Open"),
-    ///   the lowered tile follows the state it asked for ("Reverse", on). The disc is dimmed and spinning in both, so only VoiceOver's
-    ///   label differs, and "Reverse" is the true action once the door moves.
-    private static let differences: [String: Set<String>] = [
-        "demo-garage-control/tap-sends/during": ["disc0"], "demo-garage-control/tap-sends/after": ["disc0"],
+    /// What the golden says no longer, by journey: the expectation the Designer set (`build/design/native-ingest/door-disc-verdict.md`,
+    /// option 3). A garage door whose request is on its way keeps the disc of the state it asked for, like every other state tile: the
+    /// old atom kept the verb and on-state of the state it had left ("Open", off), an accident of its code, so VoiceOver now reads
+    /// "Reverse <title>, On, in progress". Nothing is drawn differently: the arc stands in for the disc's fill and glyph while it shows.
+    /// The comparison stays exact against this value.
+    private static let revised: [String: Snapshot] = [
+        "demo-garage-control/tap-sends/during": ["disc0": "door|Reverse|door.garage.open|inFlight|true|false"],
+        "demo-garage-control/tap-sends/after": ["disc0": "door|Reverse|door.garage.open|inFlight|true|false"],
     ]
 
     func testTheLoweredTileDrawsWhatTheDoorAtomDrew() async throws {
@@ -144,15 +145,15 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
         let golden = try JSONDecoder().decode([String: Snapshot].self, from: data)
         XCTAssertEqual(Set(golden.keys), Set(now.keys))
         var report: [String] = []
-        for (name, expected) in golden.sorted(by: { $0.key < $1.key }) {
+        for (name, recorded) in golden.sorted(by: { $0.key < $1.key }) {
             guard let actual = now[name] else { continue }
+            let expected = recorded.merging(Self.revised[name] ?? [:]) { _, new in new }
             for key in Set(expected.keys).union(actual.keys).sorted() where expected[key] != actual[key] {
-                let allowed = Self.differences[name]?.contains(key) == true || Self.differences["*"]?.contains(key) == true
-                report.append("\(allowed ? "ALLOWED" : "DIFF") \(name) \(key): golden=\(expected[key] ?? "nil") now=\(actual[key] ?? "nil")")
+                report.append("DIFF \(name) \(key): expected=\(expected[key] ?? "nil") now=\(actual[key] ?? "nil")")
             }
         }
         print("DOOR-EQUIVALENCE\n" + report.joined(separator: "\n"))
-        XCTAssertTrue(report.allSatisfy { $0.hasPrefix("ALLOWED") }, report.filter { !$0.hasPrefix("ALLOWED") }.joined(separator: "\n"))
+        XCTAssertTrue(report.isEmpty, report.joined(separator: "\n"))
     }
 }
 
