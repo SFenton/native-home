@@ -215,16 +215,179 @@ final class ServerUIPreviewTests: XCTestCase {
         return try ServerUIRendererFixture.publication(json)
     }
 
-    func testCredentialIsConsumedOnceEvenWhenMalformed() throws {
-        let path = directory.appendingPathComponent("credential")
-        try Data("test-only-token\n".utf8).write(to: path)
-        XCTAssertEqual(try UKServerUIPreview.consumeCredential(at: path), "test-only-token")
-        XCTAssertNil(try UKServerUIPreview.consumeCredential(at: path))
-        for invalid in [Data([0xFF]), Data(), Data("two tokens".utf8)] {
-            try invalid.write(to: path)
-            XCTAssertThrowsError(try UKServerUIPreview.consumeCredential(at: path))
-            XCTAssertFalse(FileManager.default.fileExists(atPath: path.path))
+    // MARK: Environment credential
+
+    private static let secret = "env-only-secret-token-9f3a"
+
+    func testEnvironmentTokenIsUsedAndRemovedFromTheProcessEnvironment() throws {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        let token = try UKServerUIPreview.liveCredential(environmentName: name)
+        XCTAssertEqual(token, Self.secret)
+        XCTAssertNil(getenv(name), "The bearer must not stay visible to child processes or later reads")
+        XCTAssertNil(try UKServerUIPreview.consumeEnvironmentCredential(named: name), "A second read finds nothing")
+        XCTAssertEqual(UKServerUIPreview.environmentCredentialName, "FENTON_PREVIEW_HA_TOKEN")
+    }
+
+    private func envName() -> String { "FENTON_TEST_\(UUID().uuidString.prefix(8))" }
+
+    private func receipt() throws -> String {
+        try String(contentsOf: directory.appendingPathComponent("receipt.json"), encoding: .utf8)
+    }
+
+    private func stage(_ bootstrap: String) throws {
+        try Data(bootstrap.utf8).write(to: directory.appendingPathComponent("bootstrap.json"))
+    }
+
+    /// Everything the preview leaves behind that a person or a crash report could read.
+    private func assertNoLeak(of secret: String, in preview: UKServerUIPreview) throws {
+        let files = try FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)
+        for file in files where !file.hasDirectoryPath {
+            XCTAssertFalse(((try? String(contentsOf: file, encoding: .utf8)) ?? "").contains(secret), "Token written to \(file.lastPathComponent)")
         }
+        XCTAssertFalse("\(preview)".contains(secret))
+        XCTAssertFalse(String(reflecting: preview).contains(secret))
+    }
+
+    func testTokenIsUnsetAtInitBeforeAnyStepThatCanFail() {
+        let name = envName()
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        _ = UKServerUIPreview(directory: directory, environmentName: name)
+        XCTAssertNil(getenv(name))
+    }
+
+    func testTokenIsUnsetAfterAFailedBootstrap() async throws {
+        let name = envName()
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        let preview = UKServerUIPreview(directory: directory, environmentName: name)
+        await preview.loadPublication()  // no bootstrap.json staged
+        XCTAssertNil(getenv(name))
+        XCTAssertTrue(try receipt().contains("\"status\" : \"failed\""))
+        try assertNoLeak(of: Self.secret, in: preview)
+    }
+
+    func testTokenIsUnsetAndUnusedInFixturesMode() async throws {
+        let name = envName()
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        try stage(#"{"entities":{}}"#)
+        let preview = UKServerUIPreview(directory: directory, environmentName: name)
+        await preview.loadPublication()  // no publication.json, so it fails after the fixtures branch
+        XCTAssertNil(getenv(name))
+        XCTAssertTrue(try receipt().contains("\"dataMode\" : \"fixtures\""))
+        try assertNoLeak(of: Self.secret, in: preview)
+    }
+
+    func testLivePathUsesTheTokenAndStaysReadOnlyWithoutLeakingIt() async throws {
+        let name = envName()
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        try stage(#"{"live":{"server":"https://home.example.com","accountID":"demo"}}"#)
+        let preview = UKServerUIPreview(directory: directory, environmentName: name)
+        await preview.loadPublication()  // live connection is built from the token; the missing publication then fails
+        XCTAssertNil(getenv(name))
+        let text = try receipt()
+        XCTAssertFalse(text.contains("A one-time preview credential"), "The token reached the live path")
+        XCTAssertTrue(text.contains("\"dataMode\" : \"live-read-only\""))
+        XCTAssertTrue(text.contains("\"liveActionsEnabled\" : false"))
+        try assertNoLeak(of: Self.secret, in: preview)
+    }
+
+    func testLiveBootstrapWithoutATokenFailsWithTheCredentialDiagnosticAndIgnoresAStrayFile() async throws {
+        let name = envName()
+        let stray = directory.appendingPathComponent("ha-credential")
+        try Data("file-token".utf8).write(to: stray)  // the folder the preview really uses
+        try stage(#"{"live":{"server":"https://home.example.com","accountID":"demo"}}"#)
+        let preview = UKServerUIPreview(directory: directory, environmentName: name)
+        await preview.loadPublication()
+        XCTAssertTrue(try receipt().contains("A one-time preview credential (FENTON_PREVIEW_HA_TOKEN) is missing or invalid."))
+        XCTAssertEqual(try Data(contentsOf: stray), Data("file-token".utf8), "The file is neither read nor deleted")
+        try assertNoLeak(of: "file-token-never-read", in: preview)
+    }
+
+    func testTokenIsRemovedWhenThePreviewFlagIsAbsent() {
+        let name = envName()
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        UKServerUIPreview.discardEnvironmentCredential(named: name)
+        XCTAssertNil(getenv(name))
+        // The real entry point: this test process carries no `--server-ui-preview`.
+        setenv(UKServerUIPreview.environmentCredentialName, Self.secret, 1)
+        defer { unsetenv(UKServerUIPreview.environmentCredentialName) }
+        XCTAssertFalse(ServerUIPreviewLaunch.isEnabled())
+        _ = UKGalleryRouter.requested()
+        XCTAssertNil(getenv(UKServerUIPreview.environmentCredentialName))
+    }
+
+    func testMalformedEnvironmentTokenIsRemovedAndNoErrorStringContainsIt() async throws {
+        for bad in ["", "two tokens \(Self.secret)"] {
+            let name = envName()
+            setenv(name, bad, 1)
+            defer { unsetenv(name) }
+            var strings: [String] = []
+            do { _ = try UKServerUIPreview.consumeEnvironmentCredential(named: name); XCTFail("Accepted a malformed token") }
+            catch {
+                XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
+                strings += [String(describing: error), String(reflecting: error), error.localizedDescription]
+            }
+            XCTAssertNil(getenv(name))
+            // The same value through the entry point: diagnostic, receipt and status text.
+            setenv(name, bad, 1)
+            try stage(#"{"live":{"server":"https://home.example.com","accountID":"demo"}}"#)
+            let preview = UKServerUIPreview(directory: directory, environmentName: name)
+            await preview.loadPublication()
+            strings.append(try receipt())
+            XCTAssertNil(getenv(name))
+            XCTAssertTrue(strings.last?.contains("is missing or invalid") == true)
+            for value in strings { XCTAssertFalse(value.contains(Self.secret), "Token leaked into: \(value.prefix(80))") }
+        }
+    }
+
+    func testMissingTokenFailsWithTheBootstrapCredentialErrorNotACrash() {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        XCTAssertNil(getenv(name))
+        XCTAssertThrowsError(try UKServerUIPreview.liveCredential(
+            environmentName: name)) { error in
+            XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
+            XCTAssertEqual((error as? UKServerUIPreviewLiveData.Failure)?.errorDescription?.contains("FENTON_PREVIEW_HA_TOKEN"), true)
+        }
+    }
+
+    func testTheTokenNeverAppearsInAnyStringTheLiveTypeProduces() async throws {
+        let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
+                                               credential: Self.secret, directory: directory, store: EntityStore())
+        var strings = ["\(live)", String(reflecting: live), "\(live.receipt)", "\(live.caller)", String(reflecting: live.caller),
+                       "\(live.connection)", "\(live.lifecycle)", "\(live.context)"]
+        for failure in [UKServerUIPreviewLiveData.Failure.configuration, .credential, .commandsDisabled] {
+            strings += ["\(failure)", failure.localizedDescription, failure.errorDescription ?? ""]
+        }
+        do { try await live.caller.callService("light", "turn_on", data: [:]) }
+        catch { strings += ["\(error)", error.localizedDescription] }
+        do { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+        catch { strings += ["\(error)", error.localizedDescription] }
+        strings += ["\(live.receipt)"]
+        for value in strings { XCTAssertFalse(value.contains(Self.secret), "Token leaked into: \(value.prefix(80))") }
+    }
+
+    func testLiveModeStillRejectsEveryServiceCallWhenBuiltFromTheEnvironmentToken() async throws {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        let token = try UKServerUIPreview.liveCredential(environmentName: name)
+        let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
+                                               credential: token, directory: directory, store: EntityStore())
+        for index in 1...3 {
+            do {
+                if index == 2 { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+                else { try await live.caller.callService("light", "turn_on", data: ["entity_id": "light.x"]) }
+                XCTFail("A live service call was accepted")
+            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled) }
+            XCTAssertEqual(live.caller.blockedCommands, index)
+        }
+        XCTAssertEqual(live.connection.status, .disconnected)
     }
 
     func testLiveContextUsesConnectionBoxesAndKeepsValuesDuringDisconnect() throws {

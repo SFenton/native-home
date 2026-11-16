@@ -28,7 +28,7 @@ final class UKServerUIPreviewLiveData {
         var errorDescription: String? {
             switch self {
             case .configuration: "Live preview requires an HTTPS Home Assistant origin and an isolated account identity."
-            case .credential: "A one-time preview credential is missing or invalid."
+            case .credential: "A one-time preview credential (FENTON_PREVIEW_HA_TOKEN) is missing or invalid."
             case .commandsDisabled: "Live commands are disabled in this read-only design preview."
             }
         }
