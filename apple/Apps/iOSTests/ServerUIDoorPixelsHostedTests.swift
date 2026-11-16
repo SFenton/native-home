@@ -68,7 +68,9 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
             let (host, window, _) = try ServerUISecurityHostedFixture.host(size: size)
             defer { window.isHidden = true }
             let view = try XCTUnwrap(ServerUIRendererFixture.root(host).nodes[scenario.tile]?.view as? UKGlassTileView)
-            host.pageContext.store.apply([EntityState(entityId: scenario.entity, state: scenario.state)])
+            // The other door sits at rest, so the still differs from the pair's other half only in the door under test.
+            let others = [EntityState(entityId: "lock.demo_unit", state: "locked"), EntityState(entityId: "cover.demo_unit", state: "closed")]
+            host.pageContext.store.apply(others.filter { $0.entityId != scenario.entity } + [EntityState(entityId: scenario.entity, state: scenario.state)])
             let landed = await HostedPage.settle { (view.accessibilityValue ?? "").hasPrefix(scenario.words) }
             XCTAssertTrue(landed, "\(scenario.name) read \(view.accessibilityValue ?? "nil")")
             try await capture(scenario.name, view, window)
