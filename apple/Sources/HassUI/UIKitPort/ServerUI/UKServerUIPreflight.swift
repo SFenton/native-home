@@ -77,11 +77,9 @@ enum UKServerUIPreflight {
     private static func check(_ publication: ServerUICompositionPublication,
                               collections: [String: ServerUIRowCollection]) throws {
         let document = publication.document
-        // The canonical shell is dark; system appearance is supported by modal hosts, not the wallpaper shell.
-        if document.theme.appearance != .dark { try reject("/document/theme/appearance") }
-        if case .downloaded(_, _, _, let scrim, _, _) = document.theme.background, scrim != .canonical {
-            try reject("/document/theme/background/scrim")
-        }
+        // The rules that depend only on the document (a dark shell, the canonical scrim, one horizontal policy per chrome side, at most
+        // five tabs with an initial one, readable chip colours) are `ServerUIAcceptance`'s, which the draft tool also runs.
+        if let refusal = ServerUIAcceptance.refusal(in: document) { try reject(refusal.pointer) }
         for (index, route) in (document.extensions?.routes ?? []).enumerated() {
             if let degrade = facts.degradation(symbol: route.icon, at: "/document/extensions/routes/\(index)/icon") { found.append(degrade) }
         }
@@ -95,10 +93,6 @@ enum UKServerUIPreflight {
         }
         for (index, tab) in document.navigation.tabs.enumerated() {
             try symbol(tab.icon, at: "/document/navigation/tabs/\(index)/icon")
-        }
-        if document.navigation.tabs.count > 5 { try reject("/document/navigation/tabs") }
-        if document.navigation.initialTabId == nil, !document.navigation.tabs.isEmpty {
-            try reject("/document/navigation/initialTabId")
         }
         for (index, page) in document.pages.enumerated() {
             try surface(page.surface, at: "/document/pages/\(index)", collections: collections)
@@ -124,10 +118,6 @@ enum UKServerUIPreflight {
     }
 
     private static func groups(_ groups: [D.ChromeGroup], at pointer: String) throws {
-        for placement in [D.Placement.leading, .trailing] {
-            let policies = Set(groups.filter { $0.placement == placement }.map(\.horizontal))
-            if policies.count > 1 { try reject(pointer) }
-        }
         found += facts.degradations(groups: groups, at: pointer)
         for (index, group) in groups.enumerated() {
             let path = pointer + "/\(index)"
@@ -258,17 +248,6 @@ enum UKServerUIPreflight {
     private static func status(_ chip: D.StatusChip, at pointer: String) throws {
         func appearance(_ value: D.StatusAppearance, _ path: String) throws {
             try symbol(value.icon, at: path + "/icon")
-            // Both members of a light and dark pair must read, so each is checked as the chip would draw it in that appearance.
-            if let fill = UKServerUIHomeViews.pair(value.fill) {
-                let glyphs = value.glyph.flatMap { UKServerUIHomeViews.pair($0) } ?? AppearanceFill(0xFFFFFF)
-                for (rgb, glyph) in [(fill.light, glyphs.light), (fill.dark, glyphs.dark)] {
-                    let tint = ChipTint(fill: rgb, glyph: glyph)
-                    if ChipTint.contrast(0xFFFFFF, tint.liftedFill) < ChipTint.textContrast { try reject(path + "/fill") }
-                    if min(ChipTint.contrast(glyph, rgb), ChipTint.contrast(glyph, tint.liftedFill)) < ChipTint.glyphContrast {
-                        try reject(path + "/glyph")
-                    }
-                }
-            }
         }
         try appearance(chip.fallback, pointer + "/fallback")
         for (index, state) in chip.states.enumerated() {

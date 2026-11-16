@@ -21,6 +21,7 @@ from parity_loop.common import Result  # noqa: E402
 LIVE = {"DEVCAP_HELD": "simulator", "PARITY_LIVE_GO": "1"}
 TOKEN = "FAKE-TOKEN-VALUE-1234"
 SERVER = "https://ha.example.invalid"
+PARTITION_DIGEST = "061360d23f8d83ab0d03db3dc31451c58c90760ff2436e2c9ebfd956e76ce509"
 CERT = Path(__file__)  # any existing file stands in for the certificate where nothing reads it
 ASSET_A, ASSET_B = b"asset-a-bytes", b"asset-b-bytes"
 SHA_A, SHA_B = hashlib.sha256(ASSET_A).hexdigest(), hashlib.sha256(ASSET_B).hexdigest()
@@ -128,8 +129,11 @@ class StageTests(unittest.TestCase):
         draft = event(revision=9, assets=(SHA_A,))["envelope"]
         draft["document"]["id"] = "demo_draft"
         local.write_text(json.dumps(draft))
-        out = self.run_stage(event(revision=7), {SHA_A: ASSET_A}, publication=local)
         folder = self.dir / "container" / stage.PREVIEW_SUBPATH
+        (folder / "publications" / "demo_partition").mkdir(parents=True)
+        (folder / "publications" / "demo_partition" / "record.json").write_text("{}")
+        out = self.run_stage(event(revision=7), {SHA_A: ASSET_A}, publication=local)
+        self.assertFalse((folder / "publications" / "demo_partition").exists())  # the last-good a newer record would shadow is gone
         staged = json.loads((folder / "publication.json").read_text())
         self.assertEqual((staged["revision"], staged["document"]["id"]), (9, "demo_draft"))
         self.assertEqual((folder / "assets" / SHA_A).read_bytes(), ASSET_A)
@@ -188,6 +192,25 @@ class StageTests(unittest.TestCase):
         with self.assertRaises(stage.StageError):
             stage.asset_hashes({"document": {"assets": [{"sha256": "nothex"}]}})
         self.assertEqual(stage.asset_hashes(event()["envelope"]), [SHA_A, SHA_B])  # lowercased, distinct
+
+    def test_every_stage_clears_the_persisted_last_good(self) -> None:
+        folder = self.dir / "c" / stage.PREVIEW_SUBPATH
+        record = folder / "publications" / stage.preview_partition_digest() / "record.json"
+        for _ in range(2):  # a draft stage, then a live stage at a lower revision: no record is left to shadow it
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_text("{}")
+            stage.write_container(self.dir / "c", SERVER, "a", b"{}", {})
+            self.assertFalse(record.exists())
+            self.assertTrue((folder / "publication.json").exists())
+            # the partition directory is left private, as the asset stager requires, never as another writer's default mode
+            partition = folder / "publications" / stage.preview_partition_digest()
+            self.assertEqual(partition.stat().st_mode & 0o777, 0o700)
+
+    def test_the_partition_digest_is_the_apps(self) -> None:
+        # ServerUIDraftCompileTests asserts the same constant against ServerUIPublicationPartition.digest.
+        self.assertEqual(stage.preview_partition_digest(),
+                         hashlib.sha256(b"23:https://preview.invalid").hexdigest())
+        self.assertEqual(stage.preview_partition_digest(), PARTITION_DIGEST)
 
     def test_restaging_clears_stale_assets_and_the_receipt(self) -> None:
         folder = self.dir / "c" / stage.PREVIEW_SUBPATH

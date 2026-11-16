@@ -2,7 +2,7 @@
 """Apply an edit file to a publication and compile the result with the app's own compiler, entirely offline.
 
     draft.py apply   --source PUBLICATION --edits EDITS --out DRAFT            # edit, check the envelope, write
-    draft.py compile DRAFT [--result FILE]                                      # compile with ServerUICompositionPublication
+    draft.py compile DRAFT [--result FILE]                                      # accept with the app's acceptance
     draft.py build   --source PUBLICATION --edits EDITS --out DRAFT             # apply, then compile
 
 The publication, the edit file and the draft are house data: they live only under the git-ignored ``build/parity-loop-draft/``
@@ -11,9 +11,14 @@ the repository. Nothing here talks to Home Assistant or to the Studio. Stage the
 ``stage.py --publication DRAFT`` (or ``launch.py live --side candidate --publication DRAFT``).
 
 **Compiler entry point.** ``compile`` runs ``swift test --filter ServerUIDraftCompileTests/compilesTheNamedPublication`` in ``apple/``
-with ``PARITY_DRAFT_PUBLICATION`` and ``PARITY_DRAFT_RESULT`` set. That test (``ServerUIDraftCompileTests.swift``) calls
-``ServerUICompositionPublication.decode`` and writes ``{"ok": true}`` or the compiler's first issue (code, pointer, capability), never
-an authored value. The first run builds the package (minutes); later runs are incremental. Run it through ``tools/bg_run.py``.
+with ``PARITY_DRAFT_PUBLICATION`` and ``PARITY_DRAFT_RESULT`` set. That test (``ServerUIDraftCompileTests.swift``) runs the preview's acceptance: the
+``published`` event
+(``ServerUIAcceptance.publishedEvent``, the function ``UKServerUIPreview`` calls) judged by ``ServerUIPublicationEvent.judge``, the
+document-only refusals of ``ServerUIAcceptance.refusal(in:)`` (the same function ``UKServerUIPreflight`` calls: dark shell, canonical
+scrim, one horizontal policy per chrome side, tab count, initial tab, chip colour contrast), then a ``ServerUIPublicationStore``. It
+writes ``{"ok": true, "unchecked": [...]}`` or the first refusal (stage, code, pointer, capability), never an authored value. A pass
+does not cover what needs a provider, a record, the shell header, the assets or the OS's symbols; ``unchecked`` names them and
+``describe`` prints them. The first run builds the package (minutes); later runs are incremental. Run it through ``tools/bg_run.py``.
 
 **Edit file.** JSON: ``{"edits": [ ... ]}``. Each edit picks targets and runs ops. A pointer is RFC 6901 and is relative to the
 target. Every edit must match at least one target; an ``ifEquals`` guard skips a target whose value differs (counted).
@@ -296,9 +301,11 @@ def compile_publication(path: Path, result_file: Optional[Path] = None, timeout:
 
 def describe(report: Dict[str, Any]) -> str:
     if report.get("ok"):
-        return "compiles: no rejection"
+        unchecked = report.get("unchecked") or []
+        return "compiles: no rejection" + (f" (unchecked, device only: {', '.join(unchecked)})" if unchecked else "")
     extra = f" capability {report['capability']}" if report.get("capability") else ""
-    return f"rejected: {report.get('code')} at {report.get('pointer')}{extra}"
+    stage = f" [{report['stage']}]" if report.get("stage") else ""
+    return f"rejected{stage}: {report.get('code')} at {report.get('pointer')}{extra}"
 
 
 def main(argv: Optional[List[str]] = None) -> int:

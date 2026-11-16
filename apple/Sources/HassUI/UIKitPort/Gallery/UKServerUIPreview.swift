@@ -1,5 +1,4 @@
 #if os(iOS) && DEBUG
-import CryptoKit
 import HassCore
 import HassDesign
 import ImageIO
@@ -282,14 +281,8 @@ final class UKServerUIPreview: UIViewController {
 
     /// The `published` event for an envelope's bytes.
     static func publishedEvent(envelope bytes: Data) throws -> ServerUIPublicationEvent {
-        guard bytes.count <= 2_162_688,
-              let envelope = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
-              let revision = envelope["revision"] as? Int else { throw Failure.publication }
-        let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-        let reply = try JSONSerialization.data(withJSONObject: [
-            "state": "published", "epoch": "preview", "revision": revision, "envelopeSha256": hash, "envelope": envelope,
-        ] as [String: Any])
-        return ServerUIPublicationEvent.judge(.success(reply))
+        do { return try ServerUIAcceptance.publishedEvent(envelope: bytes) }
+        catch is ServerUIAcceptance.EnvelopeError { throw Failure.publication }
     }
 
     private func report(_ diagnostic: String) {
