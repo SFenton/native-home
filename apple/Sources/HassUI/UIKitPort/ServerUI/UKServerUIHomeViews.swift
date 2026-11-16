@@ -14,14 +14,17 @@ enum UKServerUIHomeViews {
         return nil
     }
 
-    static func appearance(_ chip: D.StatusChip, value: ServerUIHomeStatus.Value) -> (D.StatusAppearance, String) {
+    /// The look and text a status chip draws for `value`: the authored look of its state, after any rule or entity color in it has
+    /// answered (`sh.rules@1`). `previous` is what the chip showed, kept for a slot whose value is still loading.
+    static func appearance(_ chip: D.StatusChip, value: ServerUIHomeStatus.Value, in environment: some ServerUIReading,
+                           keeping previous: ServerUIResolvedAppearance? = nil) -> (ServerUIResolvedAppearance, String) {
         let state = chip.states.first { $0.state == value.state }
-        return (state?.appearance ?? chip.fallback, value.state == "hidden" ? value.text : state?.text ?? value.text)
+        let look = (state?.appearance ?? chip.fallback).resolve(in: environment, keeping: previous)
+        return (look, value.state == "hidden" ? value.text : state?.text ?? value.text)
     }
 
     static func configure(_ view: UKStatusChipView, chip: D.StatusChip, value: ServerUIHomeStatus.Value,
-                          action: (() -> Void)?) {
-        let (appearance, text) = appearance(chip, value: value)
+                          appearance: ServerUIResolvedAppearance, text: String, action: (() -> Void)?) {
         let computed = value.color.map { ChipTint.fromWeb($0.rgb, preferredGlyph: rgb(appearance.glyph ?? .standard)) }
         let fill = computed?.fill ?? rgb(appearance.fill)
         let glyph = computed?.glyph ?? appearance.glyph.flatMap { rgb($0) }

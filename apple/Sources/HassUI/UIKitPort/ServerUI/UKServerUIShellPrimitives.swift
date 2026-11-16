@@ -223,6 +223,7 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     private var enable: (Bool) -> Void = { _ in }
     private var sliderWork: Task<Void, Never>?
     private var lastSent: D.LocalValue?
+    private var ruleDisabled = false
 
     init() { super.init(frame: .zero) }
 
@@ -251,7 +252,7 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     }
 
     /// Draws `binding`'s control (rebuilt only when what it draws changes) and shows its value; `nil` is unavailable.
-    func apply(_ binding: some UKServerUIControlBinding, surface: TileSurface) {
+    func apply(_ binding: some UKServerUIControlBinding, surface: TileSurface, enabled: Bool = true) {
         let spec = binding.spec
         let send: (D.LocalValue) -> Void = { [weak self] value in
             guard let self else { return }
@@ -266,6 +267,27 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         let value = binding.value()
         setAvailable(value != nil, spec: spec)
         if let value { show(value) }
+        setEnabledByRule(enabled, spec: spec)
+    }
+
+    /// `enabledWhen`: while it says no the control cannot be touched and reads as dimmed and not enabled; when it says yes again the
+    /// control goes back to whatever availability alone gave it.
+    private func setEnabledByRule(_ enabled: Bool, spec: UKServerUIControlSpec) {
+        if !enabled {
+            ruleDisabled = true
+            control?.isUserInteractionEnabled = false
+            control?.alpha = 0.5
+            enable(false)
+            control?.accessibilityTraits.insert(.notEnabled)
+        } else if ruleDisabled {
+            ruleDisabled = false
+            if spec.unavailableText == nil {
+                control?.isUserInteractionEnabled = true
+                control?.alpha = 1
+                enable(true)
+            }
+            control?.accessibilityTraits.remove(.notEnabled)
+        }
     }
 
     /// A slider reports every detent while it is dragged; the call goes out once the thumb has rested.

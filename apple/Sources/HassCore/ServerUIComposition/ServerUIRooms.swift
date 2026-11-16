@@ -156,8 +156,9 @@ public enum ServerUIRooms {
         }
     }
 
-    /// Converts the closed authored state fields to the existing room formatter's value model.
-    public static func card(_ definition: D.RoomCard, entityId: String) -> RoomCard {
+    /// Converts the closed authored state fields to the existing room formatter's value model. With an `environment`, a state color that
+    /// follows a rule or an entity (`sh.rules@1`) is resolved against it; without one it draws its fallback.
+    public static func card(_ definition: D.RoomCard, entityId: String, in environment: (any ServerUIReading)? = nil) -> RoomCard {
         var card = RoomCard(definition.node.title, entityId, icon: definition.icon.name, kind: definition.kind,
                             sheet: definition.action == nil ? nil : definition.node.id)
         card.showState = definition.showState
@@ -166,7 +167,8 @@ public enum ServerUIRooms {
         card.stateLabels = Dictionary(uniqueKeysWithValues: definition.stateLabels.map { ($0.state, $0.label) })
         card.climateActionTone = definition.climateActionTone
         card.stateColors = Dictionary(uniqueKeysWithValues: definition.stateColors.compactMap { item -> (String, RoomColor)? in
-            guard case .solidRGB(let red, let green, let blue) = item.fill else { return nil }
+            let fill = environment.map { item.resolvedFill(in: $0) } ?? item.fill
+            guard case .solidRGB(let red, let green, let blue) = fill else { return nil }
             return (item.state, RoomColor(Double(red), Double(green), Double(blue)))
         })
         return card

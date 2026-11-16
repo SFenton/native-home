@@ -54,7 +54,7 @@ enum UKServerUIRooms {
             let selected = ServerUIRooms.display(definition, read: bindings.roomEntity)
             let entity = bindings.roomEntity(selected.sourceId)
             let id = bindings.entityID(for: selected.sourceId).value ?? ""
-            var card = ServerUIRooms.card(definition, entityId: id)
+            var card = ServerUIRooms.card(definition, entityId: id, in: renderer.reader())
             if let p = definition.personalization, let viewer = renderer.roomResidentId(), !ScreenshotPrivacy.isRedacting {
                 card.title = viewer == p.residentId ? p.ownTitle : p.otherTitle
             }

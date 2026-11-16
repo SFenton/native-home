@@ -77,7 +77,7 @@ final class ServerUIRendererBindingsTests: XCTestCase {
         let caller = HostedCaller()
         let bindings = UKServerUIBindings(sources: publication.document.dataSources, context: UKContext(store: store, caller: caller))
         guard case .text(let text) = publication.document.pages[2].surface.components[0],
-              case .read(let status) = text.value,
+              case .read(let status, _) = text.value,
               case .some(.sprinklerState(_, let configuration)) = publication.document.dataSources.last else {
             return XCTFail("Expected configured sprinkler read")
         }

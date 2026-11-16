@@ -363,6 +363,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .statusChip(let chip):
                 if let view = entry.view as? UKStatusChipView {
+                    var shown: ServerUIResolvedAppearance?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer, let value = renderer.bindings.status(chip.sourceId) else { return }
                         let action: (() -> Void)? = chip.action.map { intent in
@@ -371,14 +372,18 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                 self.renderer?.activate(intent, from: self, source: view)
                             }
                         }
-                        UKServerUIHomeViews.configure(view, chip: chip, value: value, action: action)
+                        let (look, text) = UKServerUIHomeViews.appearance(chip, value: value, in: renderer.reader(), keeping: shown)
+                        shown = look
+                        UKServerUIHomeViews.configure(view, chip: chip, value: value, appearance: look, text: text, action: action)
                     }
                 }
             case .roomOverviewTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
+                    var shown: ServerUIResolvedAppearance?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer, let value = renderer.bindings.status(tile.chip.sourceId) else { return }
-                        let (appearance, text) = UKServerUIHomeViews.appearance(tile.chip, value: value)
+                        let (appearance, text) = UKServerUIHomeViews.appearance(tile.chip, value: value, in: renderer.reader(), keeping: shown)
+                        shown = appearance
                         let hiddenSubtitle: Bool
                         let family: ColorFamily
                         if case .homeStatus(_, let config) = renderer.bindings.definitions[tile.chip.sourceId] {
@@ -601,7 +606,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         guard let renderer, let view else { return }
                         let text: String
                         var pending = false
-                        var tone = value.tone.native
+                        var tone = value.resolvedTone(in: renderer.reader()).native
                         switch renderer.bindings.string(value.value) {
                         case .ready(let value): text = value
                         case .loading: text = ""; pending = true
@@ -646,7 +651,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let renderer, let view else { return }
                         view.apply(row, bindings: renderer.bindings, surface: self.context.surface,
-                                   enabled: row.action.map { renderer.isEnabled($0, from: self) } ?? false) { [weak self, weak view] in
+                                   enabled: row.action.map { renderer.isEnabled($0, from: self) && renderer.isEnabled(node: row.node) } ?? false) { [weak self, weak view] in
                             guard let self, let action = row.action else { return }
                             self.renderer?.activate(action, from: self, source: view, symbol: row.icon?.drawn ?? "")
                         }
@@ -715,7 +720,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         wrapper.button.title = button.node.title
                         wrapper.button.accessibilityIdentifier = button.node.id
                         wrapper.button.systemImage = button.icon?.drawn
-                        wrapper.button.isEnabled = renderer.isEnabled(button.action, from: self)
+                        wrapper.button.isEnabled = renderer.isEnabled(button.action, from: self) && renderer.isEnabled(node: button.node)
                         wrapper.button.action = { [weak self, weak wrapper] in
                             guard let self else { return }
                             self.renderer?.activate(button.action, from: self, source: wrapper?.button, symbol: button.icon?.drawn ?? "")
@@ -751,6 +756,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             case .navigationTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
                     var first = true
+                    var shownFill: D.TileFill?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer else { return }
                         let subtitle: String?
@@ -764,7 +770,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         if let presentation = tile.presentation {
                             environment.layout = presentation.layout == .anchoredBottom ? .anchoredBottom : .standard
                             environment.titleLines = presentation.titleLines
-                            if case .solidRGB(let red, let green, let blue) = presentation.fill {
+                            // A fill that follows a rule or an entity's color is read here, inside this observation.
+                            let fill = presentation.resolvedFill(in: renderer.reader(), keeping: shownFill)
+                            shownFill = fill
+                            if case .solidRGB(let red, let green, let blue) = fill {
                                 fillRGB = UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
                             }
                         }

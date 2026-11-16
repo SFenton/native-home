@@ -77,9 +77,15 @@ enum UKServerUIStateTileViews {
             var face = face(for: tile, library: renderer.publication.document.stateStyles, capability: renderer.stateStylesEnabled, state: state,
                             request: .init(isInFlight: busy, failed: !hidden && failed, isUnknown: hidden || loading || unavailable))
             face.model.reapplyGeneration = page.context.store.reapplyGeneration
+            // `enabledWhen`: while it says no, the action's disc dims in place and the tap does nothing.
+            let allowed = renderer.isEnabled(node: tile.node)
+            if !allowed, let spec = face.spec {
+                face.spec = spec.with(phase: .unavailable)
+                face.model.actions = face.spec.map { [$0].items } ?? []
+            }
             view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,
                            perform: { [weak page, weak renderer, weak view] _ in
-                guard let page, let renderer, let call = face.spec?.call else { return }
+                guard let page, let renderer, allowed, let call = face.spec?.call else { return }
                 // The tile asked the question it carries before this runs.
                 let authored = ServerUICallService(domain: call.domain, service: call.service,
                                                    target: ["entity_id": .literal(.string(tile.binding.entityId))])

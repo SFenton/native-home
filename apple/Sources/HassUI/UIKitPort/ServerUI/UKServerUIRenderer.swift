@@ -31,6 +31,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The push-notification state the bootstrap notice nodes read.
     let notificationSource: UKServerUINotificationSource
     /// Sends authored `call-service` actions and holds the optimistic values they show.
+    let enabledMemory = UKEnabledMemory()
     let callRunner: UKServerUICallRunner
     /// Whether this device negotiated `sh.state-style@1`. False makes every `state-tile` use its built-in style alone; the app
     /// negotiates it, so only a test or an older host turns it off.
@@ -236,6 +237,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         notificationSource = UKServerUINotificationSource(push: context.push)
         callRunner = UKServerUICallRunner(context: pageContext)
         super.init(nibName: nil, bundle: nil)
+        bindings.readerProvider = { [unowned self] in self.reader() }
         nativeExitGate = .init(blocksExit: { [weak self] page in
             guard let self else { return true }
             return self.attachedSettingsProviders(from: page).contains(where: \.blocksExit)
@@ -1070,6 +1072,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - confirmed: The sender already asked the question (a tile presents the action's confirmation itself).
     func activate(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                   control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) {
+        // An action chosen by rule is resolved here, once, from the house as it is now; no case holding runs nothing.
+        guard let action = action.resolved(reader(control: control)) else { return }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) {
             requestSettingsExit(from: page) { [weak self, weak page, weak source] in
                 guard let self, let page else { return }
@@ -1104,6 +1108,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The same intent boundary is available to hosted tests and the parent's integration adapter.
     func perform(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                  control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) throws {
+        guard let action = action.resolved(reader(control: control)) else { return }
         guard let nav = senderStack(page), activeAlert == nil else { throw blocked() }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) { throw blocked() }
         if action.leavesForm, nativeExitGate?.blocksExit(page) == true { throw blocked("/document/form") }
@@ -1173,6 +1178,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             case .domain(let action): try power(action, from: page, source: source, symbol: symbol)
             case .callService(let call):
                 try runCall(call, from: page, source: source, control: control, site: site, confirmed: confirmed)
+            case .conditional: break  // resolved to a plain action before this switch
             }
             if settingsExit(action) { attachedSettingsProviders(from: page).forEach { $0.didExit() } }
         } catch is ServerUINavigationState.Failure { throw blocked() }
@@ -1193,7 +1199,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         case .present(let id, _, let policy):
             pages = policy == .replace ? modal?.viewControllers.compactMap { $0 as? UKServerUIPage } ?? adaptive?.pages ?? []
                 : publication.document.modals.first(where: { $0.id == id })?.presentation.adaptive == true ? adaptive?.pages ?? [] : []
-        case .domain, .setLocal, .callService: pages = []
+        case .domain, .setLocal, .callService, .conditional: pages = []
         }
         return pages.compactMap(\.formView)
     }
@@ -1235,6 +1241,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         case .callService: return pageContext.caller != nil
         case .setLocal(let id, let value):
             return publication.document.localState.first(where: { $0.id == id })?.accepts(value) == true
+        case .conditional(let rule):
+            // Resolved at the tap; the control is enabled while any action it could run can run.
+            return rule.actions.contains { isEnabled($0, from: page) }
         }
     }
 
@@ -1637,6 +1646,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         switch action {
         case .back, .dismiss, .dismissThenPush, .selectTab: true
         case .present(_, _, .replace): true
+        case .conditional(let rule): rule.actions.contains(where: settingsExit)
         default: false
         }
     }
@@ -1802,7 +1812,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             }
             self.callRunner.run(site: identifier, call: call, resolved: resolved, entities: entities)
         }
-        guard !confirmed, call.asksConfirmation(of: reader().viewer),
+        guard !confirmed, call.asksConfirmation(of: reader().viewer, in: reader()),
               case .additional(let style, let title, let message, let confirmLabel, let cancelLabel, let destructive) = call.confirmation else {
             send(resolved)
             return
@@ -1875,6 +1885,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         guard spec.phase == .ready else { throw blocked("/document/dataSources") }
         switch action.confirmation {
         case .policy: try model.perform(entityID: id, spec: spec)
+        case .additional where !ServerUIControlRules.asksFirst(action.confirmWhen, in: reader()):
+            try model.perform(entityID: id, spec: spec)
         case .additional(let style, let title, let message, let confirmLabel, let cancelLabel, let destructive):
             let revision = publication.revision
             let alert = UIAlertController(title: title, message: message, preferredStyle: style == .dialog ? .actionSheet : .alert)
