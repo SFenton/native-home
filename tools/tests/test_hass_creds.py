@@ -4,7 +4,6 @@ import os
 import shutil
 import subprocess
 import tempfile
-import sys
 import unittest
 from pathlib import Path
 
