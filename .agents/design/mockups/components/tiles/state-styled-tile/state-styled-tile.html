@@ -61,7 +61,7 @@
           sec('Lock', [LK.locked, LK.unlocking, LK.unlocked, LK.jammed, LK.open], 'Open (unlatched) is a warning.'),
           sec('Blind', [BL.closed, BL.opening, BL.open]),
           sec('Alarm', [AL.disarmed, AL.arming, AL.armed, AL.disarming, AL.triggered, AL.pending], 'Pending (the entry delay) is a warning; Disarm stays on its disc.'),
-          sec('Robot', [M.robotCleaning, M.robotReturning, M.robotPaused], 'Paused is a warning.'),
+          sec('Robot', [M.robotDocked, M.robotCleaning, M.robotReturning, M.robotPaused], 'The glyph follows the state: the house while docked, the robot otherwise. Paused is a warning.'),
           sec('Detector and Notice', [M.leak, M.battery, M.batteryOk]),
         ]); } },
       'lifecycle': { title: 'Request phase: in the app, or a Home Assistant script', render: function (ctx) {
@@ -134,7 +134,7 @@
       'The Studio side is proposals/state-style-library.',
       'Generic names only; no house data.',
     ],
-    changelog: [{ date: '2026-11-14', note: 'Shipped as a component (lane L7a): StateTile promoted to the kit, the proposal moved here.' }, { date: '2026-11-14', note: 'First pass: classes, storyboard, built-in styles, request phase, Reduce Motion, offline, long text and AX5.' }, { date: '2026-11-14', note: 'Owner picks: the arc replaces the disc (option D); alarm pending, lock open and vacuum paused are warnings.' }],
+    changelog: [{ date: '2026-11-16', note: 'Robot glyph follows the state: the house while docked, the robot otherwise (parity-loop design1).' }, { date: '2026-11-14', note: 'Shipped as a component (lane L7a): StateTile promoted to the kit, the proposal moved here.' }, { date: '2026-11-14', note: 'First pass: classes, storyboard, built-in styles, request phase, Reduce Motion, offline, long text and AX5.' }, { date: '2026-11-14', note: 'Owner picks: the arc replaces the disc (option D); alarm pending, lock open and vacuum paused are warnings.' }],
   });
 })();
 </script></body></html>

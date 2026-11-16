@@ -12,6 +12,10 @@ import XCTest
 /// The golden file was recorded from the bespoke `door-tile` atom (`UKServerUISecurityViews`, `UKServerUIDoorSource`) before it was
 /// deleted. The same journeys now run through the compile-time lowering onto a `state-tile` over the built-in `garage-door` or `lock`
 /// style. Every key must equal the golden value, except the Designer's revised expectations in ``revised``, which are exact.
+///
+/// The golden's `fill` is `-` for every state that is not active (parity-loop design1, item 2): the old atom painted the resting
+/// state's colour as a solid face, which the lowered tile no longer does; the colour inks the disc's glyph instead
+/// (`ServerUIDoorUnlitHostedTests`).
 @MainActor
 final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
     typealias Snapshot = [String: String]

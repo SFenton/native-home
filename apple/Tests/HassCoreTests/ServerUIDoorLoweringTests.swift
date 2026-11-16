@@ -66,11 +66,31 @@ struct ServerUIDoorLoweringTests {
         let (style, _) = try lowered("demo-garage-control")
         let id = "cover.demo_unit"
         func fill(_ state: String) -> UInt32? { read(style, state, id).0.fill }
-        #expect(fill("closed") == 0x43A047 && fill("open") == 0xE53935 && fill("opening") == 0x1E88E5 && fill("closing") == 0x1E88E5)
-        #expect(fill("unavailable") == 0x546E7A && fill("stopped") == 0x546E7A, "the unknown rule and the fallback take the door's fallback fill")
+        // A lit state draws its authored colour as the face; an unlit one has no fill (see `anUnlitStateInksTheDiscGlyphInsteadOfTheFace`).
+        #expect(fill("open") == 0xE53935 && fill("opening") == 0x1E88E5 && fill("closing") == 0x1E88E5)
+        #expect(fill("closed") == nil && fill("unavailable") == nil && fill("stopped") == nil)
         #expect(style.hiddenWords == "Hidden")
         #expect(style.keepsDiscWhenUnknown, "the dimmed disc the door drew while unavailable stays")
         #expect(StateStyle.garageDoor.rules.allSatisfy { $0.fill == nil } && StateStyle.garageDoor.hiddenWords == nil, "built-ins carry none")
+    }
+
+    /// A state that is not `active` draws the unlit face, and its authored colour inks the disc's glyph; an active one draws the colour as
+    /// the face and leaves the disc's ink alone (state-styled-tile, "the family fill when `active`").
+    @Test func anUnlitStateInksTheDiscGlyphInsteadOfTheFace() throws {
+        let garage = try lowered("demo-garage-control").0
+        let lock = try lowered("demo-lock-control").0
+        let cases: [(StateStyle, String, String, Bool, UInt32)] = [
+            (garage, "cover.demo_unit", "closed", false, 0x43A047), (garage, "cover.demo_unit", "open", true, 0xE53935),
+            (garage, "cover.demo_unit", "unavailable", false, 0x546E7A), (garage, "cover.demo_unit", "stopped", false, 0x546E7A),
+            (lock, "lock.demo_unit", "locked", false, 0x43A047), (lock, "lock.demo_unit", "unlocked", true, 0xE53935),
+        ]
+        for (style, id, state, active, colour) in cases {
+            let resolution = read(style, state, id).0
+            #expect(resolution.isActive == active, "\(id) \(state)")
+            #expect(resolution.fill == (active ? colour : nil), "\(id) \(state): the face fill is drawn only when active")
+            #expect(resolution.discGlyph == (active ? nil : colour), "\(id) \(state): an unlit state inks the disc glyph")
+        }
+        #expect(StateStyle.builtIn.allSatisfy { $0.rules.allSatisfy { $0.discGlyph == nil } }, "no built-in style carries a disc ink")
     }
 
     @Test func theLockReadsAsTheDoorDid() throws {

@@ -105,13 +105,6 @@ public struct DynamicGridMetrics: Equatable, Sendable {
         return share > 0 ? min(minCellWidth, share) : minCellWidth
     }
 
-    /// The most tracks a tile takes by its content when the grid keeps `minimumColumns` columns: its share of the `columns`, so that many
-    /// tiles still sit in a row. Without a floor a tile may take the whole row.
-    public static func shareOfTracks(columns: Int, minimumColumns: Int?) -> Int {
-        guard let least = minimumColumns, least >= 2 else { return max(columns, 1) }
-        return max(columns / least, 1)
-    }
-
     /// The count rounded down to an even number, never below two: 5 becomes 4, 3 becomes 2. One track (a window
     /// too narrow for two) stays one. Hinge-aware grids use it (`.agents/patterns/dynamic-grid.md`).
     public static func evenRounded(_ columns: Int) -> Int {

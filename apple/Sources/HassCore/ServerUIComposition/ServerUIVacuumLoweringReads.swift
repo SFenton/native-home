@@ -37,7 +37,8 @@ extension ServerUIVacuumLowering {
         /// The button icons of a resting robot: the family's off glyph, the glyph mixed 72% with grey (`ColorFamily.offGlyphToken`, read by
         /// `TileActionInk.resolveTokens` on a `.dark` disc face, `TileActionInk.swift:28-33`). Dark `#B88DDD`, light `#8F6DAC`.
         static let discGlyphTint = (dark: ServerUIRGB(red: 0xB8, green: 0x8D, blue: 0xDD), light: ServerUIRGB(red: 0x8F, green: 0x6D, blue: 0xAC))
-        /// How many robots sit across a row at least.
+        /// The columns a robot grid keeps at least (`sh.grid-min-columns@1`): it sets the track count and never caps a card's span, so a card
+        /// wider than a track takes the row.
         static let robotsAcross = 2
         /// How long a shown value stands in for Home Assistant's answer (`VacuumController.optimisticRevert`).
         static let revert = 8.0

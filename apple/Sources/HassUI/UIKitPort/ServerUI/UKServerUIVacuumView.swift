@@ -7,7 +7,7 @@ import UIKit
 
 /// One configured atomic control. It owns neither a feature sheet nor a parallel map/state client.
 @MainActor
-final class UKServerUIVacuumView: UIView, UKGridMeasuring {
+final class UKServerUIVacuumView: UIView, UKGridWrapping {
     typealias D = ServerUICompositionDocument
     private let column = UIStackView()
     private let error = UILabel.uk(.footnote, ink: UKDesignInk.primary)

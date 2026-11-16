@@ -2,7 +2,7 @@ import CoreGraphics
 @testable import HassDesign
 import Testing
 
-/// A tile grid's least columns (`sh.grid-min-columns@1`): the floor on the cell minimum and the share a wide tile may take.
+/// A tile grid's least columns (`sh.grid-min-columns@1`): the floor on the cell minimum. The floor sets the track count only; it never caps a tile's span.
 struct DynamicGridMinimumColumnsTests {
     private let spacing: CGFloat = 12
 
@@ -37,14 +37,5 @@ struct DynamicGridMinimumColumnsTests {
         #expect(DynamicGridMetrics.floorMinimum(width: 343, minCellWidth: 400, minimumColumns: 2, spacing: spacing) == 165.5)
         #expect(DynamicGridMetrics.floorMinimum(width: 343, minCellWidth: 400, minimumColumns: 3, spacing: spacing) == 319.0 / 3)
         #expect(columns(width: 343, minimum: 400, least: 3) == 3)
-    }
-
-    @Test func aTileThatWidensToItsContentTakesAtMostItsShareOfTheTracks() {
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 4, minimumColumns: 2) == 2)
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 4, minimumColumns: 4) == 1)
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 2, minimumColumns: 2) == 1)
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 3, minimumColumns: 2) == 1)
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 4, minimumColumns: nil) == 4, "without a floor a tile may take the row")
-        #expect(DynamicGridMetrics.shareOfTracks(columns: 1, minimumColumns: 3) == 1, "never below one track")
     }
 }

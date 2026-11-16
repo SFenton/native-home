@@ -200,9 +200,11 @@
     battery: L('Hall Sensor', 'Battery Low', 'battery.25percent', 'warning', { action: null, behavior: 'inert' }),
     batteryOk: L('Hall Sensor', 'Normal', 'battery.25percent', 'resting', { action: null, behavior: 'inert' }),
     leak: L('Laundry Leak Sensor', 'Wet', 'drop.fill', 'error', { action: null, behavior: 'inert', family: 'water' }),
-    robotCleaning: L('Robot Vacuum', 'Cleaning', 'play.fill', 'resting', { active: true, indicator: 'breathe', family: 'cleaning', action: { verb: 'Pause' } }),
-    robotPaused: L('Robot Vacuum', 'Paused', 'play.fill', 'warning', { family: 'cleaning', action: { verb: 'Resume' } }),
-    robotReturning: L('Robot Vacuum', 'Returning', 'house.fill', 'in-progress', { active: true, family: 'cleaning', action: null }),
+    /* The built-in Robot style: the house while docked, the robot in every other state; the discs keep Start, Pause and Resume. */
+    robotDocked: L('Robot Vacuum', 'Docked', 'house', 'resting', { family: 'cleaning', action: { symbol: 'play.fill', verb: 'Start' } }),
+    robotCleaning: L('Robot Vacuum', 'Cleaning', 'robotic.vacuum', 'resting', { active: true, indicator: 'breathe', family: 'cleaning', action: { symbol: 'pause.fill', verb: 'Pause' } }),
+    robotPaused: L('Robot Vacuum', 'Paused', 'robotic.vacuum', 'warning', { family: 'cleaning', action: { symbol: 'play.fill', verb: 'Resume' } }),
+    robotReturning: L('Robot Vacuum', 'Returning', 'robotic.vacuum', 'in-progress', { active: true, family: 'cleaning', action: null }),
     sensorOpening: L('Side Gate', 'Opening', 'door.garage.open', 'in-progress', { active: true, behavior: 'inert', action: null }),
   };
 })();

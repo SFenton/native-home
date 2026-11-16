@@ -29,14 +29,17 @@ struct ServerUIDoorTileProps: Equatable, Sendable {
 /// The compile-time rewrite of a `door-tile` into a `state-tile` and the saved style that carries its authored words.
 ///
 /// What the door authored is kept where the generic tile has a place for it:
-/// - **icon and text per state** become the style's rules, and the state's own `active` and `error` flags set the rule's;
+/// - **icon and text per state** become the style's rules, and the state's own `active` and `error` flags set the rule's; the colour is
+///   the rule's fill when the state is active and its disc glyph ink when it is not;
 /// - **the open, close and reverse labels** become the verbs of the disc (Reverse is the disc a moving door shows where its cover
 ///   does not support Stop);
 /// - **the sending words** become the request's pending words, the error text its error words;
 /// - **the unavailable and fallback appearances** become the unknown rule and the fallback rule.
 ///
 /// The fills and the hidden words ride on the saved style (`sh.state-style-fills@1`), and the loading words are a subtitle that reads the
-/// door source's `phase` and speaks only while it says `loading`. The one difference left is named in the hosted equivalence test.
+/// door source's `phase` and speaks only while it says `loading`. A state's authored colour is the face only when the state is
+/// active; a state that is not active draws the unlit face and the colour inks the disc's glyph (``StateRule/discGlyph``). The hosted
+/// equivalence test names that difference from the old atom.
 enum ServerUIDoorLowering {
     typealias D = ServerUICompositionDocument
 
@@ -103,7 +106,9 @@ enum ServerUIDoorLowering {
             rule.glyph = icon
             rule.action?.symbol = icon
             rule.words = states.isEmpty ? props.fallback.text : props.unavailableText
-            rule.fill = rgb(props.fallback.fill)
+            // The fallback is never lit: its colour inks the disc's glyph and the face stays unlit.
+            rule.fill = nil
+            rule.discGlyph = rgb(props.fallback.fill)
             if var action = rule.action { action.verb = verb(for: action.service, props); rule.action = action }
             rules.append(rule)
         }
@@ -134,8 +139,12 @@ enum ServerUIDoorLowering {
         }
         rule.glyph = appearance.icon.name
         rule.words = appearance.text
-        rule.fill = rgb(appearance.fill)
-        if rule.isActive != (authored?.active ?? false) {
+        // The authored colour is the face while the state is active; while it is not, the face stays unlit and the colour inks the disc's
+        // glyph (state-styled-tile: the fill is drawn only when `active`).
+        let lit = authored?.active ?? false
+        rule.fill = lit ? rgb(appearance.fill) : nil
+        rule.discGlyph = lit ? nil : rgb(appearance.fill)
+        if rule.isActive != lit {
             // The tile follows the door's own flag; the disc keeps the style's reading.
             rule.discOn = rule.isActive
             rule.isActive = authored?.active ?? false

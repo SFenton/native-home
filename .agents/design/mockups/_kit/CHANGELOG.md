@@ -2,6 +2,11 @@
 
 > **What:** what changed in `_kit/`, newest first, so a mockup author knows which local workaround can go. Existing mockups keep rendering; the entries below list what looks different.
 
+## Unreleased (2026-11-16, parity-loop robot glyph)
+
+**`StateTile` (`components/StateTile.js`)**
+- The Robot tiles follow the built-in style: `robotCleaning`, `robotPaused` and `robotReturning` draw `robotic.vacuum` (were `play.fill`, `play.fill`, `house.fill`), the new `robotDocked` draws `house`; the discs keep Start, Pause and Resume. `vac.robotTile` (`modals/vacuums/_devices-vacuums.js`) and the Vacuums page's cleaning step draw the same.
+
 ## Unreleased (2026-11-06, house-config-states)
 
 **Symbols (`lib/symbols.js`)**

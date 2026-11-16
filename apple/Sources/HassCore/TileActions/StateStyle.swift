@@ -107,7 +107,7 @@ public struct StateStyle: Equatable, Sendable, Identifiable {
         return StateResolution(stateClass: rule.stateClass, isActive: rule.isActive, glyph: authored ?? "circle",
                                words: rule.words ?? Self.title(value), indicator: indicator, action: action, hasGlyph: authored != nil,
                                colour: rule.colour, fill: rule.fill, fillDark: rule.fillDark,
-                               fillInk: rule.fillInk ?? .white)
+                               fillInk: rule.fillInk ?? .white, discGlyph: rule.discGlyph)
     }
 
     /// The disc's spec for `state`, or nil when the state has no action.

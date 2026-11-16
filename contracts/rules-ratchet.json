@@ -936,7 +936,7 @@
   ".agents/patterns/dynamic-grid.md": {
    "forbidden": 16,
    "long_lines": 10,
-   "over_words": 12
+   "over_words": 9
   },
   ".agents/patterns/entity-tile.md": {
    "forbidden": 27,

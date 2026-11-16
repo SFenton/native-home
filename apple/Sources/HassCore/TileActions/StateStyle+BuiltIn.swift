@@ -85,16 +85,24 @@ extension StateStyle {
     private static let disarm = StateAction(verb: "Disarm", symbol: "shield.slash", service: "alarm_disarm",
                                             confirmation: alarmDisarmConfirmation)
 
+    /// The glyph of a docked robot: the house, as the reference derives it.
+    public static let robotDockedGlyph = "house"
+    /// The glyph of a robot in any other state, and of one that cannot be read.
+    public static let robotGlyph = "robotic.vacuum"
+
     /// A robot: docked and idle rest; cleaning and mowing rest lit and breathe; paused warns; returning is in progress; error fails.
+    /// The glyph follows the state: the house while docked, the robot otherwise and when unavailable; a tile's authored symbol stays the
+    /// fallback where this OS draws neither.
     public static let robot = StateStyle(
         id: "robot", name: "Robot", domain: "vacuum", actionId: "robot",
         rules: [
-            StateRule(["docked", "idle"], .resting),
-            StateRule(["cleaning", "mowing"], .resting, active: true, indicator: .breathe),
-            StateRule(["paused"], .warning),
-            StateRule(["returning"], .inProgress),
-            StateRule(["error"], .error),
-            StateRule(["unavailable", "unknown"], .unknown),
+            StateRule(["docked"], .resting, glyph: robotDockedGlyph),
+            StateRule(["idle"], .resting, glyph: robotGlyph),
+            StateRule(["cleaning", "mowing"], .resting, active: true, glyph: robotGlyph, indicator: .breathe),
+            StateRule(["paused"], .warning, glyph: robotGlyph),
+            StateRule(["returning"], .inProgress, glyph: robotGlyph),
+            StateRule(["error"], .error, glyph: robotGlyph),
+            StateRule(["unavailable", "unknown"], .unknown, glyph: robotGlyph),
         ])
 
     /// A detector (smoke, gas, carbon monoxide, moisture, problem, tamper, safety): off rests, on is an error.
