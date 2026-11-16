@@ -81,11 +81,16 @@ final class LoginJourneyTests: JourneyTestCase {
         fill(app)
         submit(app)
         XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
-        // The recovery view exists behind the sign-in layer while the arrival plays (up to 1.5 s waiting for a layout, then the
-        // 0.4 s lift): its elements are held back from assistive technologies until then. Audited early, the page reads as an
-        // empty tree and the audit reports element-less "no description" issues (CI iPad, 2026-11-15: five). Audit the settled page.
+        // The page is built once per state and stays in the accessibility tree. It was rebuilt on every frame (an observation
+        // that tracked UIKit's own layout-time reads), so queries and the audit met elements that had just been torn down: three
+        // element-less "no description" issues on CI's iPhone. Sampled before the audit, so the cause shows as itself.
         XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 15), "The recovery page's actions are reachable.")
         XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+        let retry = app.buttons["server-ui.production.retry"], signOut = app.buttons["server-ui.production.signOut"]
+        for sample in 0..<15 {
+            XCTAssertTrue(retry.exists && signOut.exists, "The page's actions stay in the tree (sample \(sample)): it is not rebuilt")
+            usleep(100_000)
+        }
         settleScreen()
         try FentonHomeApp.audit(app)
     }
