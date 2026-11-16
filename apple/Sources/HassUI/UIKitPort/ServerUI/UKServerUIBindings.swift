@@ -57,7 +57,7 @@ final class UKServerUIBindings {
          cameraPool: CameraStreamPool = .shared,
          weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil) {
         self.context = context
-        appState = UKServerUIAppStateSource(push: context.push)
+        appState = context.appState ?? UKServerUIAppStateSource(push: context.push)
         self.weatherReader = weatherReader
         self.cameraReader = cameraReader
         roomVisits = context.caller.map { ServerUIRoomVisits(caller: $0) }
@@ -501,7 +501,7 @@ final class UKServerUIBindings {
             default: return .unavailable
             }
         case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .bedroom,
-             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState:
+             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState, .pipeline:
             return .unavailable
         case .homeStatus, .homeWeather, .homeLight: return .unavailable
         }

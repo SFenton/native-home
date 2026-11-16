@@ -331,12 +331,19 @@ public struct ServerUINumberFormat: Equatable, Sendable {
     public let maximumFractionDigits: Int
     /// The fewest digits after the decimal point, 0 to ``maximumFractionDigits`` (`sh.pipeline-operands@1`): 1 keeps `72` as `72.0`.
     public let minimumFractionDigits: Int
+    /// Whether the document wrote a minimum at all (even `0`), which is what needs `sh.pipeline-operands@1`. Not part of equality.
+    public let declaresMinimum: Bool
 
     /// Creates a format; the maximum is clamped to 0...6 and the minimum to 0...maximum.
-    public init(maximumFractionDigits: Int, minimumFractionDigits: Int = 0) {
+    public init(maximumFractionDigits: Int, minimumFractionDigits: Int? = nil) {
         let most = max(0, min(6, maximumFractionDigits))
         self.maximumFractionDigits = most
-        self.minimumFractionDigits = max(0, min(most, minimumFractionDigits))
+        self.minimumFractionDigits = max(0, min(most, minimumFractionDigits ?? 0))
+        declaresMinimum = minimumFractionDigits != nil
+    }
+
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.maximumFractionDigits == rhs.maximumFractionDigits && lhs.minimumFractionDigits == rhs.minimumFractionDigits
     }
 
     /// `number` rounded to at most ``maximumFractionDigits`` digits (the exact binary value, an exact tie to the even digit, as C `printf`

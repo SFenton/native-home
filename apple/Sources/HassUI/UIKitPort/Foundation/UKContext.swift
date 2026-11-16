@@ -20,6 +20,9 @@ struct UKContext {
     /// The people's photos (`PersonAvatars` in the environment); nil draws every monogram. A gallery passes its fixture's.
     var avatars: PersonAvatars?
     var push: PushCoordinator?
+    /// The window's `app-state@1` source, when something outside the page already holds it (the Data Flows of the window read its ticking
+    /// clock); the page makes its own when this is nil.
+    var appState: UKServerUIAppStateSource?
     var location: LocationCoordinator?
     var backdrop: HouseBackdropStore?
     var motion: MotionPolicy?

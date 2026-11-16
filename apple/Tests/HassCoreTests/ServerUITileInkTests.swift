@@ -129,9 +129,9 @@ struct ServerUITileInkTests {
         }
     }
 
-    @Test func theIdIsShippedOnceAndNothingElseMoved() {
+    @Test func theIdIsShippedOnceAndTheFlowIdsAreListedOnce() {
         #expect(ServerUIIngestedCapabilities.tileInk == ["sh.tile-ink@1"])
         #expect(ServerUIIngestedCapabilities.all.filter { $0 == "sh.tile-ink@1" }.count == 1)
-        #expect(!ServerUIIngestedCapabilities.all.contains("sh.pipeline-operands@1"))
+        #expect(ServerUIIngestedCapabilities.all.filter { $0 == "sh.pipeline-operands@1" }.count == 1)
     }
 }

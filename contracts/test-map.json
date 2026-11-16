@@ -2566,6 +2566,28 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Sources/HassCore/ServerUIFlow/",
+   "swift": [
+    "ServerUIFlowSessionTests",
+    "ServerUIPipelineCorpusTests",
+    "ServerUIContractCorpusTests"
+   ],
+   "hosted": [
+    "ServerUIFlowListHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFlowWindows",
+   "swift": [
+    "ServerUIFlowSessionTests"
+   ],
+   "hosted": [
+    "ServerUIFlowListHostedTests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUITileInk",
    "swift": [
     "ServerUITileInkTests",

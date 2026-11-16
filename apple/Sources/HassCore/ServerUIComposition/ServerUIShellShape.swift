@@ -80,7 +80,10 @@ extension ServerUICompositionShape {
                                                        "enabledWhen": .optional(enabledWhen)]),
             "row-collection": node("row-collection", [
                 "props": object(["providerId": id, "loadingText": title, "emptyText": title,
-                                 "unavailableText": title, "errorText": title, "staleText": title])
+                                 "unavailableText": title, "errorText": title, "staleText": title,
+                                 // The list's own parts (`sh.list-parts@1`), each optional.
+                                 "rowAction": .optional(ruledAction), "refreshable": .optional(.bool),
+                                 "emptyMessage": .optional(textValue(.text(2_000, blank: true)))])
             ]),
             "collection": node("collection", [
                 "props": object(["providerId": id, "template": .choice(["rows", "todo", "inventory", "recipes", "carousel"]),

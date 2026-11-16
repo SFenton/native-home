@@ -768,9 +768,18 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .rowCollection(let collection):
                 if let view = entry.view as? UKServerUIRowCollection, let model = renderer.collections[collection.providerId] {
-                    entry.bag.observe { [weak self, weak view] in
+                    entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self else { return }
-                        view?.apply(collection, model: model, surface: self.context.surface)
+                        var detail: String?
+                        if let message = collection.emptyMessage, case .ready(let text) = renderer?.bindings.string(message) { detail = text }
+                        var select: ((ServerUIRowItem) -> Void)?
+                        if let action = collection.rowAction {
+                            select = { [weak self, weak view] _ in
+                                guard let self else { return }
+                                self.renderer?.activate(action, from: self, source: view)
+                            }
+                        }
+                        view?.apply(collection, model: model, surface: self.context.surface, emptyDetail: detail, onSelect: select)
                     }
                 }
             case .navigationTile(let tile):
@@ -938,7 +947,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         }
         nodes = retained
         let collections = nodes.values.compactMap { $0.view as? UKServerUICollectionView }.filter(\.pullsToRefresh)
-        if !collections.isEmpty, let scroll = pageScroll {
+        let rowLists = nodes.values.compactMap { $0.view as? UKServerUIRowCollection }.filter(\.pullsToRefresh)
+        if !collections.isEmpty || !rowLists.isEmpty, let scroll = pageScroll {
             UKScrollFit.allowsPullToRefresh(scroll)
             let refresh = scroll.refreshControl ?? UIRefreshControl()
             let identifier = UIAction.Identifier("server-ui-refresh")
@@ -946,6 +956,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             refresh.addAction(UIAction(identifier: identifier) { [weak refresh] _ in
                 Task {
                     for collection in collections { await collection.refresh() }
+                    for list in rowLists { await list.refresh() }
                     refresh?.endRefreshing()
                 }
             }, for: .valueChanged)

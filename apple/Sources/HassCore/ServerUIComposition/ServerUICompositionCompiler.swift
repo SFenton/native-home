@@ -32,7 +32,10 @@ struct ServerUICompositionCompiler {
     private var settingsRefs: [(ServerUISettingsControl, String)] = []
     private var cameraRefs: [(String, String, Bool)] = []
     private var cameraPresentations: [(String, String, String)] = []
-    private var dependencies: [(String, String, String)] = []
+    var dependencies: [(String, String, String)] = []
+    /// The Data Flows compiled so far, and the nodes that name a flow (or any source) as the provider of their rows (`sh.pipeline@1`).
+    var flowCount = 0
+    var providerRefs: [ServerUIFlowProviderRef] = []
     private var nodeCount = 0
     private var localFields: [D.LocalField] = []
     /// The document's decoded style library, which `state-tile` nodes check their bindings against.
@@ -704,6 +707,7 @@ struct ServerUICompositionCompiler {
             require("inventory-list")
             return try .inventoryList(id: id, space: c.field("inputs").e("space"))
         }
+        if model == "pipeline@1" { return try flowSource(id: id, c) }
         if model == "todo-collection@1" {
             require("todo-collection")
             return try .todoCollection(id: id, configuration: todoCollection(c.field("inputs")))
@@ -928,7 +932,7 @@ struct ServerUICompositionCompiler {
     }
 
     /// Checks each plain action a slot can run against `allowed`, blaming the `type` of the case that fails.
-    private mutating func check(_ intent: D.Action, at pointer: String, allowed: (D.Action) -> Bool) {
+    mutating func check(_ intent: D.Action, at pointer: String, allowed: (D.Action) -> Bool) {
         if case .conditional(let rule) = intent {
             for (index, item) in rule.cases.enumerated() where !allowed(item.then) {
                 add(.invalidCombination, pointer + "/cases/\(index)/then/type")
@@ -1485,6 +1489,8 @@ struct ServerUICompositionCompiler {
                 add(.invalidCombination, props.path("bedroomLinks"))
             }
             let refreshes = try props.value["pullToRefresh"] == nil ? false : props.b("pullToRefresh")
+            providerRefs.append(.init(id: try props.s("providerId"), isCollection: true, template: props.value["template"]?.string, refreshable: false,
+                                      pointer: props.pointer))
             return try .collection(.init(node: node, providerId: props.s("providerId"), template: props.e("template"),
                 loadingText: props.s("loadingText"), emptyText: props.s("emptyText"),
                 selection: c.value["selection"].map { _ in try navigationAction(c.field("selection")) }, bedroomLinks: links,
@@ -1596,10 +1602,12 @@ struct ServerUICompositionCompiler {
                                       action: intent))
         case "row-collection":
             require("row-collection")
+            let parts = try listParts(props)
             return try .rowCollection(.init(node: node, providerId: props.s("providerId"),
                                              loadingText: props.s("loadingText"), emptyText: props.s("emptyText"),
                                              unavailableText: props.s("unavailableText"), errorText: props.s("errorText"),
-                                             staleText: props.s("staleText")))
+                                             staleText: props.s("staleText"), rowAction: parts.rowAction,
+                                             refreshable: parts.refreshable, emptyMessage: parts.emptyMessage))
         case "alarm-panel":
             require("alarm-panel"); require("alarm-mode"); require("bindings")
             let source = try props.s("sourceId")
@@ -2398,7 +2406,7 @@ struct ServerUICompositionCompiler {
                 } else if read.kind != .string {
                     add(.bindingType, pointer + "/as")
                 }
-            case .homeStatus, .appState:
+            case .homeStatus, .appState, .pipeline:
                 switch ServerUIModelReads.check(source, path: read.path, kind: read.kind) {
                 case .issue(let code, let suffix)?: add(code, pointer + suffix)
                 case .needs(let capability)?: require(capability)
@@ -2413,6 +2421,7 @@ struct ServerUICompositionCompiler {
                 add(.invalidReference, pointer + "/from/path")
             }
         }
+        checkFlowProviders(sources)
         validateSourceCycles()
         var referencedAssets: Set<String> = []
         if case .downloaded(let id, _, _, _, _, _) = document.theme.background {

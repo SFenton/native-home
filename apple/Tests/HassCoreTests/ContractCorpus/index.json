@@ -1205,12 +1205,6 @@
       "outcome": "reject",
       "note": "A document that carries a component library must list sh.component-ref@1.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
@@ -1220,12 +1214,6 @@
       "outcome": "reject",
       "note": "The key alone needs the capability, even with no entry, because an older app refuses the unknown key either way.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
@@ -2763,6 +2751,61 @@
       }
     },
     {
+      "file": "accept/pipeline-overdue-chores.json",
+      "outcome": "accept",
+      "note": "Overdue Chores over a live to-do subscription: no refresh, rows with a days-late subtitle, shown by a collection with the rows template."
+    },
+    {
+      "file": "accept/pipeline-upcoming-chores.json",
+      "outcome": "accept",
+      "note": "Upcoming Chores over a service with a response: a parameter from the viewer, an entity-keyed answer, refresh on open, pull to refresh and either list changing."
+    },
+    {
+      "file": "accept/pipeline-expired-food.json",
+      "outcome": "accept",
+      "note": "Expired Food over an entity attribute the app already holds: the entity is watched implicitly, so refresh names none."
+    },
+    {
+      "file": "accept/pipeline-forecast-live.json",
+      "outcome": "accept",
+      "note": "A live weather forecast: the closed subscription list, a forecast type, no refresh."
+    },
+    {
+      "file": "accept/pipeline-scalar-read.json",
+      "outcome": "accept",
+      "note": "A scalar flow read by a text node through the path [\"value\"]."
+    },
+    {
+      "file": "accept/pipeline-record-read.json",
+      "outcome": "accept",
+      "note": "A record flow read by field name: a text node binds the title field."
+    },
+    {
+      "file": "accept/pipeline-without-operands.json",
+      "outcome": "accept",
+      "note": "A flow that uses none of the four flow operands needs only sh.pipeline@1."
+    },
+    {
+      "file": "accept/pipeline-every-step.json",
+      "outcome": "accept",
+      "note": "flatten, default, unique, group and count in one flow."
+    },
+    {
+      "file": "accept/pipeline-sum.json",
+      "outcome": "accept",
+      "note": "sum over a flattened list."
+    },
+    {
+      "file": "accept/pipeline-parameters.json",
+      "outcome": "accept",
+      "note": "A parameter that reads another source, a parameter built on another parameter, and a filter on them."
+    },
+    {
+      "file": "accept/pipeline-source-without-node.json",
+      "outcome": "accept",
+      "note": "A flow no node uses is accepted; it costs nothing."
+    },
+    {
       "file": "accept/grammar-call-service-button.json",
       "outcome": "accept",
       "note": "A button calls any domain and service with a literal target and optimistic state."
@@ -3220,186 +3263,35 @@
       }
     },
     {
-      "file": "reject/pending-pipeline-overdue-chores.json",
-      "outcome": "reject",
-      "note": "Overdue Chores over a live to-do subscription: no refresh, rows with a days-late subtitle, shown by a collection with the rows template.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-upcoming-chores.json",
-      "outcome": "reject",
-      "note": "Upcoming Chores over a service with a response: a parameter from the viewer, an entity-keyed answer, refresh on open, pull to refresh and either list changing.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-expired-food.json",
-      "outcome": "reject",
-      "note": "Expired Food over an entity attribute the app already holds: the entity is watched implicitly, so refresh names none.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-forecast-live.json",
-      "outcome": "reject",
-      "note": "A live weather forecast: the closed subscription list, a forecast type, no refresh.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-scalar-read.json",
-      "outcome": "reject",
-      "note": "A scalar flow read by a text node through the path [\"value\"].",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-record-read.json",
-      "outcome": "reject",
-      "note": "A record flow read by field name: a text node binds the title field.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-without-operands.json",
-      "outcome": "reject",
-      "note": "A flow that uses none of the four flow operands needs only sh.pipeline@1.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-every-step.json",
-      "outcome": "reject",
-      "note": "flatten, default, unique, group and count in one flow.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-sum.json",
-      "outcome": "reject",
-      "note": "sum over a flattened list.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-parameters.json",
-      "outcome": "reject",
-      "note": "A parameter that reads another source, a parameter built on another parameter, and a filter on them.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
-      "file": "reject/pending-pipeline-source-without-node.json",
-      "outcome": "reject",
-      "note": "A flow no node uses is accepted; it costs nothing.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
-    },
-    {
       "file": "accept/pipeline-node-without-source.json",
       "outcome": "accept",
       "note": "A collection naming a provider no source defines still compiles: the app has a compiled provider by that name or shows nothing."
     },
     {
-      "file": "reject/pending-pipeline-todo-get-items-service.json",
-      "outcome": "reject",
-      "note": "A service request for get_items of the to-do domain is accepted; the Studio will later suggest the live todo-items source for it.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/pipeline-todo-get-items-service.json",
+      "outcome": "accept",
+      "note": "A service request for get_items of the to-do domain is accepted; the Studio will later suggest the live todo-items source for it."
     },
     {
-      "file": "reject/pending-pipeline-entities-count.json",
-      "outcome": "reject",
-      "note": "Lights On: an entities request over three literal entities with one attribute, a filter on state and a count; no refresh.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/pipeline-entities-count.json",
+      "outcome": "accept",
+      "note": "Lights On: an entities request over three literal entities with one attribute, a filter on state and a count; no refresh."
     },
     {
-      "file": "reject/pending-pipeline-none-rule.json",
-      "outcome": "reject",
-      "note": "A none request: a scalar from a parameter only, worded by a rule (choose), so the flow needs sh.rules@1.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/pipeline-none-rule.json",
+      "outcome": "accept",
+      "note": "A none request: a scalar from a parameter only, worded by a rule (choose), so the flow needs sh.rules@1."
     },
     {
-      "file": "reject/pending-pipeline-choose-in-step.json",
-      "outcome": "reject",
-      "note": "A rule inside a step: choose builds a field of each row.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/pipeline-choose-in-step.json",
+      "outcome": "accept",
+      "note": "A rule inside a step: choose builds a field of each row."
     },
     {
       "file": "reject/pipeline-unknown-input.json",
       "outcome": "reject",
       "note": "A flow takes the fields of its schema and no others.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/2/inputs/colour"
       }
@@ -3409,12 +3301,6 @@
       "outcome": "reject",
       "note": "A request never carries a URL: it names a Home Assistant service, and Home Assistant holds the key.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/2/inputs/request/url"
       }
@@ -3424,12 +3310,6 @@
       "outcome": "reject",
       "note": "A request never carries headers or a key.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/2/inputs/request/headers"
       }
@@ -3439,12 +3319,6 @@
       "outcome": "reject",
       "note": "The request kinds are a service response, an entity attribute and a subscription.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/2/inputs/request/type"
       }
@@ -3454,12 +3328,6 @@
       "outcome": "reject",
       "note": "A subscription kind is from a closed list of two: an app must not send any other websocket command.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/2/inputs/request/kind"
       }
@@ -3469,12 +3337,6 @@
       "outcome": "reject",
       "note": "A to-do subscription takes no forecast type.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/2/inputs/request/forecastType"
       }
@@ -3484,12 +3346,6 @@
       "outcome": "reject",
       "note": "A forecast subscription names its forecast type.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/dataSources/2/inputs/request/forecastType"
       }
@@ -3499,12 +3355,6 @@
       "outcome": "reject",
       "note": "The forecast types are daily, hourly and twice_daily.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/2/inputs/request/forecastType"
       }
@@ -3514,12 +3364,6 @@
       "outcome": "reject",
       "note": "A live source takes no refresh: its steps run again on every push.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh"
       }
@@ -3529,12 +3373,6 @@
       "outcome": "reject",
       "note": "A to-do subscription names a to-do entity.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/entityId/value"
       }
@@ -3544,12 +3382,6 @@
       "outcome": "reject",
       "note": "A forecast subscription names a weather entity.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/entityId/value"
       }
@@ -3559,12 +3391,6 @@
       "outcome": "reject",
       "note": "A service or an attribute says when it runs again.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/dataSources/2/inputs/refresh"
       }
@@ -3574,12 +3400,6 @@
       "outcome": "reject",
       "note": "There is no timer: refresh is open, manual and entity-change.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/2/inputs/refresh/on/0"
       }
@@ -3589,12 +3409,6 @@
       "outcome": "reject",
       "note": "A service that refreshes on entity change names what to watch.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh/on"
       }
@@ -3604,12 +3418,6 @@
       "outcome": "reject",
       "note": "Watched entities mean nothing without the entity-change trigger.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh/entityIds"
       }
@@ -3619,12 +3427,6 @@
       "outcome": "reject",
       "note": "A flow watches at most 8 entities.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/refresh/entityIds"
       }
@@ -3634,12 +3436,6 @@
       "outcome": "reject",
       "note": "An attribute watches its own entity, so it names none.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh/entityIds"
       }
@@ -3649,12 +3445,6 @@
       "outcome": "reject",
       "note": "A trigger is listed once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh/on"
       }
@@ -3664,12 +3454,6 @@
       "outcome": "reject",
       "note": "A flow is not out of date sooner than 30 seconds.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/refresh/staleAfterSeconds"
       }
@@ -3679,12 +3463,6 @@
       "outcome": "reject",
       "note": "A watched entity has the form domain.object.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/dataSources/2/inputs/refresh/entityIds/0/value"
       }
@@ -3694,12 +3472,6 @@
       "outcome": "reject",
       "note": "An entities flow runs when an observed entity changes: it takes no refresh.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh"
       }
@@ -3709,12 +3481,6 @@
       "outcome": "reject",
       "note": "An entity is listed once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/entityIds/1/value"
       }
@@ -3724,12 +3490,6 @@
       "outcome": "reject",
       "note": "An entities request lists at most 64 entities.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/entityIds"
       }
@@ -3739,12 +3499,6 @@
       "outcome": "reject",
       "note": "An entities request lists at least one entity.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/entityIds"
       }
@@ -3754,12 +3508,6 @@
       "outcome": "reject",
       "note": "An entities request names at most 8 attributes.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/attributes"
       }
@@ -3769,12 +3517,6 @@
       "outcome": "reject",
       "note": "A row already has entityId and state: an attribute cannot take either name.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/request/attributes/0"
       }
@@ -3784,12 +3526,6 @@
       "outcome": "reject",
       "note": "A listed entity has the form domain.object.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/dataSources/2/inputs/request/entityIds/0/value"
       }
@@ -3799,12 +3535,6 @@
       "outcome": "reject",
       "note": "A none flow has no data to refresh.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/refresh"
       }
@@ -3814,12 +3544,6 @@
       "outcome": "reject",
       "note": "A none flow has no item: its value reads parameters, the viewer and the clock.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/value"
       }
@@ -3829,12 +3553,6 @@
       "outcome": "reject",
       "note": "A none value reads a parameter, never another source directly.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/value"
       }
@@ -3844,12 +3562,6 @@
       "outcome": "reject",
       "note": "The branches of a rule give one kind: text and a number are refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/request/value/otherwise"
       }
@@ -3859,12 +3571,6 @@
       "outcome": "reject",
       "note": "A rule always has an otherwise.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/dataSources/2/inputs/request/value/otherwise"
       }
@@ -3874,12 +3580,6 @@
       "outcome": "reject",
       "note": "A rule has at most 16 cases.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/value/cases"
       }
@@ -3889,12 +3589,6 @@
       "outcome": "reject",
       "note": "The control value exists only on a bound control: a flow refuses it.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/value"
       }
@@ -3904,12 +3598,6 @@
       "outcome": "reject",
       "note": "A flow condition compares operands: the document leaves that read a source by name are refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/steps/1/where"
       }
@@ -3919,12 +3607,6 @@
       "outcome": "reject",
       "note": "A request waits at most 30 seconds.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/timeoutSeconds"
       }
@@ -3934,12 +3616,6 @@
       "outcome": "reject",
       "note": "A flow declares at most 8 parameters.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/parameters"
       }
@@ -3949,12 +3625,6 @@
       "outcome": "reject",
       "note": "A flow has at most 32 steps.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/steps"
       }
@@ -3964,12 +3634,6 @@
       "outcome": "reject",
       "note": "A limit keeps at least one item.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/steps/4/count"
       }
@@ -3979,12 +3643,6 @@
       "outcome": "reject",
       "note": "A list shows at most 100 rows.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/output/max"
       }
@@ -3994,12 +3652,6 @@
       "outcome": "reject",
       "note": "A document has at most 128 flows.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/130"
       }
@@ -4009,12 +3661,6 @@
       "outcome": "reject",
       "note": "A parameter name is declared once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/dataSources/2/inputs/parameters/1/name"
       }
@@ -4024,12 +3670,6 @@
       "outcome": "reject",
       "note": "A param operand names a declared parameter.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/request/target/entity_id/name"
       }
@@ -4039,12 +3679,6 @@
       "outcome": "reject",
       "note": "Parameters are acyclic: two that build on each other cannot be evaluated.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value/name"
       }
@@ -4054,12 +3688,6 @@
       "outcome": "reject",
       "note": "A parameter cannot read itself.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value/name"
       }
@@ -4069,12 +3697,6 @@
       "outcome": "reject",
       "note": "A parameter's value is of its declared kind.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value"
       }
@@ -4084,12 +3706,6 @@
       "outcome": "reject",
       "note": "An entity-id parameter holds an entity id.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value/value"
       }
@@ -4099,12 +3715,6 @@
       "outcome": "reject",
       "note": "A parameter is evaluated before any item exists.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value"
       }
@@ -4114,12 +3724,6 @@
       "outcome": "reject",
       "note": "A request is made before any item exists.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/data/fields/status"
       }
@@ -4129,12 +3733,6 @@
       "outcome": "reject",
       "note": "A step reads only the flow's data and parameters; another source is read through a parameter.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/steps/0/where/right"
       }
@@ -4144,12 +3742,6 @@
       "outcome": "reject",
       "note": "A step reads the viewer through a parameter, never directly.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/steps/1/where/of/0/right"
       }
@@ -4159,12 +3751,6 @@
       "outcome": "reject",
       "note": "A parameter reads a source the document defines.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value/from/sourceId"
       }
@@ -4174,12 +3760,6 @@
       "outcome": "reject",
       "note": "A parameter that reads another flow, which reads this one back, cannot be evaluated.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/parameters/0/value/from/sourceId"
       }
@@ -4189,12 +3769,6 @@
       "outcome": "reject",
       "note": "A literal target entity has the form domain.object.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/dataSources/2/inputs/request/target/entity_id/value"
       }
@@ -4204,12 +3778,6 @@
       "outcome": "reject",
       "note": "A target key is not repeated in the data.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/request/target/entity_id"
       }
@@ -4219,12 +3787,6 @@
       "outcome": "reject",
       "note": "A path cannot index a list: no segment is all digits.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/request/path/1"
       }
@@ -4234,12 +3796,6 @@
       "outcome": "reject",
       "note": "A shape is at most 6 levels deep.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/request/responseShape/of/of/of/of/of/of"
       }
@@ -4249,12 +3805,6 @@
       "outcome": "reject",
       "note": "A step id is used once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/dataSources/2/inputs/steps/1/id"
       }
@@ -4264,12 +3814,6 @@
       "outcome": "reject",
       "note": "The step list is closed.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/dataSources/2/inputs/steps/0/op"
       }
@@ -4279,12 +3823,6 @@
       "outcome": "reject",
       "note": "A get names a field the data has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/steps/0/path"
       }
@@ -4294,12 +3832,6 @@
       "outcome": "reject",
       "note": "A filter needs a list.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/0/op"
       }
@@ -4309,12 +3841,6 @@
       "outcome": "reject",
       "note": "An item operand names a field the items have.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/steps/1/where/of/0/left/path"
       }
@@ -4324,12 +3850,6 @@
       "outcome": "reject",
       "note": "eq compares values of a kind in common.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/1/where/of/0/right"
       }
@@ -4339,12 +3859,6 @@
       "outcome": "reject",
       "note": "above compares numbers.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/1/where/of/2/left"
       }
@@ -4354,12 +3868,6 @@
       "outcome": "reject",
       "note": "A number sort key is a number.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/2/by/0/value"
       }
@@ -4369,12 +3877,6 @@
       "outcome": "reject",
       "note": "sum adds numbers.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/1/value"
       }
@@ -4384,12 +3886,6 @@
       "outcome": "reject",
       "note": "A literal key is one the answer has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/steps/0/key/value"
       }
@@ -4399,12 +3895,6 @@
       "outcome": "reject",
       "note": "flatten follows a path to a list.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/0/path"
       }
@@ -4414,12 +3904,6 @@
       "outcome": "reject",
       "note": "A date operand takes dates.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/steps/3/fields/late/from"
       }
@@ -4429,12 +3913,6 @@
       "outcome": "reject",
       "note": "A format hole names an argument.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/output/row/subtitle/otherwise/pattern"
       }
@@ -4444,12 +3922,6 @@
       "outcome": "reject",
       "note": "subtract takes two arguments.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/steps/3/fields/late/args"
       }
@@ -4459,12 +3931,6 @@
       "outcome": "reject",
       "note": "An operand is at most 8 levels deep.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/steps/3/fields/late/args/0/args/0/args/0/args/0/args/0/args/0/args/0/args/0"
       }
@@ -4474,12 +3940,6 @@
       "outcome": "reject",
       "note": "A map step builds at least one field.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/steps/3/fields"
       }
@@ -4489,12 +3949,6 @@
       "outcome": "reject",
       "note": "A default fills a field whose parent exists.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/steps/1/path"
       }
@@ -4504,12 +3958,6 @@
       "outcome": "reject",
       "note": "A rows output needs a list.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/output/kind"
       }
@@ -4519,12 +3967,6 @@
       "outcome": "reject",
       "note": "A row's texts are scalars.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/output/row/title"
       }
@@ -4534,12 +3976,6 @@
       "outcome": "reject",
       "note": "A row operand names a field of the final items.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/dataSources/2/inputs/output/row/title/path"
       }
@@ -4549,12 +3985,6 @@
       "outcome": "reject",
       "note": "A record output needs one object.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/output/kind"
       }
@@ -4564,12 +3994,6 @@
       "outcome": "reject",
       "note": "A scalar output needs one value.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/output/kind"
       }
@@ -4579,12 +4003,6 @@
       "outcome": "reject",
       "note": "The authored schema is what the steps produce: a title that is text cannot be declared a number.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/schema"
       }
@@ -4594,12 +4012,6 @@
       "outcome": "reject",
       "note": "The authored schema may not promise a field the steps do not produce.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/2/inputs/schema"
       }
@@ -4609,12 +4021,6 @@
       "outcome": "reject",
       "note": "A rows flow declares a list.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/schema"
       }
@@ -4624,12 +4030,6 @@
       "outcome": "reject",
       "note": "The schema says what the flow gives; any says nothing.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/dataSources/2/inputs/schema"
       }
@@ -4639,12 +4039,6 @@
       "outcome": "reject",
       "note": "A shape is at most 6 levels deep.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/dataSources/2/inputs/schema/of/of/of/of/of/of"
       }
@@ -4654,12 +4048,6 @@
       "outcome": "reject",
       "note": "A union holds each kind once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/dataSources/2/inputs/schema/of/of/1"
       }
@@ -4669,12 +4057,6 @@
       "outcome": "reject",
       "note": "A read names a field the record's schema has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/value/from/path"
       }
@@ -4684,12 +4066,6 @@
       "outcome": "reject",
       "note": "A read of a number field as text is refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/value/as"
       }
@@ -4699,12 +4075,6 @@
       "outcome": "reject",
       "note": "A list cannot be indexed: a rows flow is shown by a node's provider, not read.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/value/from/path"
       }
@@ -4714,12 +4084,6 @@
       "outcome": "reject",
       "note": "A scalar flow is read at [\"value\"].",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/value/from/path"
       }
@@ -4729,12 +4093,6 @@
       "outcome": "reject",
       "note": "Only a rows flow is a provider.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/providerId"
       }
@@ -4744,12 +4102,6 @@
       "outcome": "reject",
       "note": "A collection shows a flow with the rows template.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/props/template"
       }
@@ -4759,12 +4111,6 @@
       "outcome": "reject",
       "note": "A document that carries a flow must list sh.pipeline@1.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
@@ -4774,12 +4120,6 @@
       "outcome": "reject",
       "note": "A flow that uses item, param, clock or date must list sh.pipeline-operands@1.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
@@ -4982,15 +4322,9 @@
       "note": "in and exists leaves, combined with the old leaves and not."
     },
     {
-      "file": "reject/pending-conditions-compare-dates.json",
-      "outcome": "reject",
-      "note": "before and after compare dates; the clock operand gives today.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/conditions-compare-dates.json",
+      "outcome": "accept",
+      "note": "before and after compare dates; the clock operand gives today."
     },
     {
       "file": "accept/conditions-model-read-operand.json",
@@ -5116,12 +4450,6 @@
       "outcome": "reject",
       "note": "item exists only inside a Data Flow.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -5131,12 +4459,6 @@
       "outcome": "reject",
       "note": "param exists only inside a Data Flow.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/9",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/visibleWhen/left"
       }
@@ -5611,15 +4933,9 @@
       "note": "A navigation tile that opens a page chosen by rule."
     },
     {
-      "file": "reject/pending-action-rules-list-row.json",
-      "outcome": "reject",
-      "note": "A list whose rows run a rule when tapped.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true
+      "file": "accept/action-rules-list-row.json",
+      "outcome": "accept",
+      "note": "A list whose rows run a rule when tapped."
     },
     {
       "file": "reject/action-rules-nested.json",
@@ -5736,49 +5052,25 @@
       }
     },
     {
-      "file": "reject/pending-list-parts-row-action.json",
-      "outcome": "reject",
-      "note": "A list whose rows open a page, with a message under its empty title.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true
+      "file": "accept/list-parts-row-action.json",
+      "outcome": "accept",
+      "note": "A list whose rows open a page, with a message under its empty title."
     },
     {
-      "file": "reject/pending-list-parts-refreshable.json",
-      "outcome": "reject",
-      "note": "A list that can be pulled, over a flow that has \"When pulled\".",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true
+      "file": "accept/list-parts-refreshable.json",
+      "outcome": "accept",
+      "note": "A list that can be pulled, over a flow that has \"When pulled\"."
     },
     {
-      "file": "reject/pending-list-parts-built-in-provider.json",
-      "outcome": "reject",
-      "note": "The list parts do not need a flow: an app list takes a row action too.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true
+      "file": "accept/list-parts-built-in-provider.json",
+      "outcome": "accept",
+      "note": "The list parts do not need a flow: an app list takes a row action too."
     },
     {
       "file": "reject/list-parts-refreshable-live-flow.json",
       "outcome": "reject",
       "note": "A live flow has no refresh, so the list cannot be pulled.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/props/refreshable"
       }
@@ -5788,12 +5080,6 @@
       "outcome": "reject",
       "note": "A power action stays off a row.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/props/rowAction/type"
       }
@@ -5803,12 +5089,6 @@
       "outcome": "reject",
       "note": "refreshable is true or false.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/pages/2/components/0/props/refreshable"
       }
@@ -5818,38 +5098,20 @@
       "outcome": "reject",
       "note": "The three parts belong to the rows list, not to collection.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/7",
-        "capability": "sh.list-parts@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/props/rowAction"
       }
     },
     {
-      "file": "reject/pending-date-format-all-styles.json",
-      "outcome": "reject",
-      "note": "A format with each of the six date styles on a date from an entity.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/date-format-all-styles.json",
+      "outcome": "accept",
+      "note": "A format with each of the six date styles on a date from an entity."
     },
     {
       "file": "reject/date-format-unknown-style.json",
       "outcome": "reject",
       "note": "The style is one of the six names, never a pattern.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/d"
       }
@@ -5859,12 +5121,6 @@
       "outcome": "reject",
       "note": "A date style draws text: a number argument is refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/d"
       }
@@ -5874,12 +5130,6 @@
       "outcome": "reject",
       "note": "One argument has one format.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/d"
       }
@@ -5889,49 +5139,25 @@
       "outcome": "reject",
       "note": "A format names an argument the pattern has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/e"
       }
     },
     {
-      "file": "reject/pending-number-format-fixed-digits.json",
-      "outcome": "reject",
-      "note": "A temperature drawn with exactly one fraction digit: 72 reads \"72.0\".",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/number-format-fixed-digits.json",
+      "outcome": "accept",
+      "note": "A temperature drawn with exactly one fraction digit: 72 reads \"72.0\"."
     },
     {
-      "file": "reject/pending-number-format-minimum-below-maximum.json",
-      "outcome": "reject",
-      "note": "The minimum may be below the maximum: at least one digit and at most three.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/number-format-minimum-below-maximum.json",
+      "outcome": "accept",
+      "note": "The minimum may be below the maximum: at least one digit and at most three."
     },
     {
       "file": "reject/number-format-minimum-above-maximum.json",
       "outcome": "reject",
       "note": "The minimum cannot exceed the maximum.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/t/number/minimumFractionDigits"
       }
@@ -5941,12 +5167,6 @@
       "outcome": "reject",
       "note": "At most six fraction digits, minimum too.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/t/number/minimumFractionDigits"
       }
@@ -5956,49 +5176,25 @@
       "outcome": "reject",
       "note": "A count of digits is not negative.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "limit_exceeded",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/t/number/minimumFractionDigits"
       }
     },
     {
-      "file": "reject/pending-text-format-title-case.json",
-      "outcome": "reject",
-      "note": "An entity state such as heat_cool drawn as words: \"Heat Cool\".",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/text-format-title-case.json",
+      "outcome": "accept",
+      "note": "An entity state such as heat_cool drawn as words: \"Heat Cool\"."
     },
     {
-      "file": "reject/pending-text-format-title-case-attribute.json",
-      "outcome": "reject",
-      "note": "A text attribute drawn in title case beside a fixed digits number.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true
+      "file": "accept/text-format-title-case-attribute.json",
+      "outcome": "accept",
+      "note": "A text attribute drawn in title case beside a fixed digits number."
     },
     {
       "file": "reject/text-format-number-argument.json",
       "outcome": "reject",
       "note": "Title case draws text: a number argument is refused.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/t"
       }
@@ -6008,12 +5204,6 @@
       "outcome": "reject",
       "note": "The case is title, never a pattern.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
       }
@@ -6023,12 +5213,6 @@
       "outcome": "reject",
       "note": "One argument has one format.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
       }
@@ -6038,12 +5222,6 @@
       "outcome": "reject",
       "note": "A format names an argument the pattern has.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/n"
       }
@@ -6053,12 +5231,6 @@
       "outcome": "reject",
       "note": "The text format has only a case.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/8",
-        "capability": "sh.pipeline-operands@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/props/value/value/formats/m/text/locale"
       }

@@ -50,8 +50,12 @@ enum ServerUIModelReads {
     /// Checks a read of a model source by an operand or a condition leaf. `kind` is what a `read` operand asked for; a condition leaf
     /// passes none. `nil` when the read is sound and needs nothing beyond the source's own capability.
     static func check(_ source: D.Source, path: [String], kind: D.ScalarKind?) -> Outcome? {
-        guard let fields = fields(source) else { return .notReadable }
         let at = kind == nil ? "/path" : "/from/path"
+        if case .pipeline(_, let flow) = source {
+            guard let found = ServerUIFlowCompiler.checkRead(flow, path: path, as: kind ?? .string) else { return nil }
+            return .issue(found.code, suffix: found.suffix == "/as" ? "/as" : at)
+        }
+        guard let fields = fields(source) else { return .notReadable }
         guard path.count == 1, let found = fields[path[0]] else { return .issue(.invalidReference, suffix: at) }
         if let kind, found != kind { return .issue(.bindingType, suffix: "/as") }
         if case .homeStatus = source, homeStatusCountFields.contains(path[0]) { return .needs(homeStatusCounts) }

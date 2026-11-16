@@ -197,6 +197,12 @@ extension ServerUICompositionDocument {
         public let unavailableText: String
         public let errorText: String
         public let staleText: String
+        /// What a tap on a row does (`sh.list-parts@1`); never a domain action.
+        public var rowAction: Action?
+        /// Whether pulling the list runs its flow again (`sh.list-parts@1`).
+        public var refreshable = false
+        /// The line under the empty title (`sh.list-parts@1`).
+        public var emptyMessage: StringValue?
     }
 }
 
@@ -231,6 +237,7 @@ extension ServerUICompositionDocument.Component {
         case .button(let value): return [value.action]
         case .boundControl(let value): return value.actions.map { .callService($0) }
         case .collection(let value): return value.selection.map { [$0] } ?? []
+        case .rowCollection(let value): return value.rowAction.map { [$0] } ?? []
         case .form(let value): return value.success.map { [$0] } ?? []
         case .pinnedActions(let value): return value.items.map(\.action)
         case .statusChip(let value): return value.action.map { [$0] } ?? []
