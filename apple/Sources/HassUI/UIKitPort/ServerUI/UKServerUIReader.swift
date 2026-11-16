@@ -78,6 +78,20 @@ struct UKServerUIReader: ServerUIReading {
         }
     }
 
+    /// The state text of the source's entity box, `unknown` and `unavailable` included (`raw-state`, `sh.raw-state@1`). It reads the
+    /// store, not the optimistic overlay: the point is what Home Assistant says. A source that is not an `ha-entity` has no raw state.
+    func readRaw(sourceId: String) -> ServerUIReadResult {
+        MainActor.assumeIsolated {
+            guard case .haEntity? = bindings.definitions[sourceId] else { return .unavailable }
+            switch bindings.entityID(for: sourceId) {
+            case .loading: return .loading
+            case .unavailable: return .unavailable
+            case .ready(let id):
+                return .rawState(of: bindings.context.store.entity(id).state, statesLoaded: !bindings.context.valuesPending)
+            }
+        }
+    }
+
     func read(sourceId: String, path: [String]) -> ServerUIReadResult {
         MainActor.assumeIsolated {
             guard let source = bindings.definitions[sourceId] else { return .unavailable }

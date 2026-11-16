@@ -1,8 +1,6 @@
 [
   "sh.list-parts@1",
-  "sh.list-read@1",
   "sh.pipeline-operands@1",
   "sh.pipeline@1",
-  "sh.raw-state@1",
   "sh.state-style-fills@1"
 ]
