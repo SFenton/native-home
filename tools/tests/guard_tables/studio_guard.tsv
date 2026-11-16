@@ -99,3 +99,4 @@ git -c diff.external='curl -X PUT http://127.0.0.1:4801/native/api/draft' diff	b
 git grep -O'curl -X PUT http://127.0.0.1:4801/native/api/draft' foo	block	git grep -O runs a command	agent
 git diff --ext-diff -- /native/api/draft	block	--ext-diff	agent
 git -c color.ui=never log -S/native/api --oneline	allow	a read-only -c key	agent
+git grep -nO'curl -X PUT http://127.0.0.1:4801/native/api/draft' foo	block	-O bundled in a short-option word	agent

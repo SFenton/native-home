@@ -22,10 +22,12 @@ Blocked, in an agent session:
   ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
   in a headless session; ``status`` and ``check`` run for every agent.
 
-Prose in a ``git commit -m`` or ``gh --body`` value is not read, and neither is a heredoc body unless the line that opens it runs code (an
-interpreter, shell, network client or task runner: ``python3 - <<EOF``, ``cat <<EOF | node``), when the body is read for routes, ports, the data
-directory and the tool's name. A command that is piped into or out of code counts as part of it; separate commands (``a && python3 x.py``) do not. Same limits as ``signing_guard``: a path or URL built at run
-time, a script file that opens the URL, and a Write whose content runs later are not seen. Exit 2 sends the message back.
+Prose in a ``git commit -m`` or ``gh --body`` value is not read. Heredocs: when any simple command in the line runs code (an interpreter, shell,
+network client or task runner), every heredoc body is read for routes, ports, the data directory and the tool's name, whichever line opens it
+(``python3 - <<EOF``, ``cat <<EOF | python3 -``, ``cat > x.py <<EOF`` then ``python3 x.py``). Only a heredoc whose own command is ``git`` or ``gh``
+(``git commit -F - <<EOF``) is skipped. A command piped into or out of code has its ports read too; a separate command (``lsof -i :4801 && python3 x.py``)
+does not. Same limits as ``signing_guard``: a path or URL built at run time, a script file that opens the URL, and a Write whose content runs later
+are not seen. Exit 2 sends the message back.
 """
 
 from __future__ import annotations
@@ -122,7 +124,9 @@ def tool_reason(args: List[str], payload: dict) -> str:
 #: ``git -c KEY=VALUE`` keys that cannot run a command (``diff.external``, ``core.pager``, ``alias.*`` and ``core.sshCommand`` can).
 GIT_SAFE_CONFIG = re.compile(r"(?:color\.[\w.]+|core\.quotepath|diff\.(?:renames|algorithm|context))=", re.I)
 #: Options of the read subcommands that run a program.
-GIT_RUNS = re.compile(r"^(?:-O|--open-files-in-pager|--ext-diff|--textconv|--exec|--upload-pack)", re.I)
+GIT_RUNS = re.compile(r"^(?:--open-files-in-pager|--ext-diff|--textconv|--exec|--upload-pack)", re.I)
+#: ``-O`` alone or bundled anywhere in a short-option word (``-nO'cmd'``): git grep's pager option, which runs a program.
+GIT_PAGER_SHORT = re.compile(r"^-(?!-)[A-Za-z]*O")
 
 
 def git_reads(words: List[str]) -> bool:
@@ -142,7 +146,7 @@ def git_reads(words: List[str]) -> bool:
             return False
         else:
             rest = rest[1:]
-    return bool(rest) and rest[0] in GIT_READS and not any(GIT_RUNS.match(w) for w in rest[1:])
+    return bool(rest) and rest[0] in GIT_READS and not any(GIT_RUNS.match(w) or GIT_PAGER_SHORT.match(w) for w in rest[1:])
 
 
 def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, interp: bool = False) -> str:

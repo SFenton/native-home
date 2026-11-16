@@ -601,6 +601,20 @@ class Round3Tests(Base):
         self.assertIn("not_stuck", self.output)
         self.assertEqual(self.record()["state"], "published")
 
+    def test_r4_1_draft_moved_change_can_be_marked_owner_action(self):
+        """Fails if: a change that ended in draft_moved cannot be marked --owner-action (the draftMoved flag is not saved), or an ordinary applied one can."""
+        self.lost_put()
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t", "--owner-action"), 1)  # recorded, nothing moved yet
+        self.assertIn("not_stuck", self.output)
+        self.stub.owner_saves({**BASE_DOC, "ownerEdit": 1})
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertIn("draft_moved", self.output)
+        self.assertTrue(self.record()["draftMoved"])
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t", "--owner-action"), 0, self.output)
+        self.assertEqual(self.record()["state"], "owner_action")
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        self.assertEqual(json.loads(self.output)["ownerAction"], [{"change": "c1", "state": "owner_action"}])
+
     def test_r3_2_read_back_hash_proves_a_normalized_write(self):
         """Fails if: a write the Studio normalised (so it differs from the candidate) cannot be restored, or an owner edit at that revision is restored over."""
         self.stub.normalize = True
