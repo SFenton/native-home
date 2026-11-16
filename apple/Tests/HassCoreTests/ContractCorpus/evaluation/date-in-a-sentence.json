@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-in-a-sentence",
+  "note": "A date style sits in a pattern beside other text.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Due {d}.",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "weekday-date"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Due Thu, Nov 12."
+  }
+}

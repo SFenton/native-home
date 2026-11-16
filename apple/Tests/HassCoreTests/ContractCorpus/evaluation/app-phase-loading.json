@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "app-phase-loading",
+  "note": "A topic that has not answered yet is unknown to a condition that reads its field, and says loading in its phase.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "app-window",
+          "path": [
+            "widthClass"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": "compact"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "app-window/widthClass": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "tri": "unknown"
+  }
+}

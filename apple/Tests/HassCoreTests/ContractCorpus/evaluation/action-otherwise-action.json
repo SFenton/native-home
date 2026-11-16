@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "action-otherwise-action",
+  "note": "otherwise may be an action.",
+  "subject": {
+    "action": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "then": {
+            "type": "push",
+            "pageId": "page-lattice",
+            "arguments": {},
+            "origin": "sender",
+            "duplicate": "reuse-nearest"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "push",
+        "pageId": "page-echo",
+        "arguments": {},
+        "origin": "sender",
+        "duplicate": "reuse-nearest"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "50"
+      }
+    }
+  },
+  "expected": {
+    "pick": "otherwise",
+    "runs": "push"
+  }
+}

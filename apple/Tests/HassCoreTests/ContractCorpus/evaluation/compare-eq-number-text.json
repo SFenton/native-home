@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-eq-number-text",
+  "note": "A number and the text of that number are equal: 1 and \"1\".",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "literal",
+        "value": 1
+      },
+      "right": {
+        "type": "literal",
+        "value": "1"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

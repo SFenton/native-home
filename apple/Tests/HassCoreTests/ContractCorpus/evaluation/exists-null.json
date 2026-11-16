@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "exists-null",
+  "note": "exists is no for a null value.",
+  "subject": {
+    "condition": {
+      "type": "exists",
+      "value": {
+        "type": "literal",
+        "value": null
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

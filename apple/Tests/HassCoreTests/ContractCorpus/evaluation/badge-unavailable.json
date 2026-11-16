@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "badge-unavailable",
+  "note": "An unavailable value draws no badge.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "n",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

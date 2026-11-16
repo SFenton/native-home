@@ -1,0 +1,109 @@
+{
+  "format": 1,
+  "name": "divergence-number-text",
+  "note": "JavaScript prints 123456789012345680000 and 0.000001 in full; Swift prints 1.2345678901234568e+20 and 1e-06. A flow prints as Swift does.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {
+          "big": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "small": {
+            "shape": {
+              "kind": "number"
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "big": {
+            "type": "format",
+            "pattern": "{n}",
+            "args": {
+              "n": {
+                "type": "item",
+                "path": [
+                  "big"
+                ]
+              }
+            }
+          },
+          "small": {
+            "type": "format",
+            "pattern": "{n}",
+            "args": {
+              "n": {
+                "type": "item",
+                "path": [
+                  "small"
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "record"
+    },
+    "schema": {
+      "kind": "object",
+      "fields": {
+        "big": {
+          "shape": {
+            "kind": "string"
+          }
+        },
+        "small": {
+          "shape": {
+            "kind": "string"
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {
+    "big": 123456789012345680000,
+    "small": 0.000001
+  },
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": {
+      "big": "1.2345678901234568e+20",
+      "small": "1e-06"
+    }
+  },
+  "compiles": true
+}

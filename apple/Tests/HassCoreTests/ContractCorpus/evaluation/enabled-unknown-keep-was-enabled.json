@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "enabled-unknown-keep-was-enabled",
+  "note": "Unknown with keep repeats the last answer: it was enabled.",
+  "subject": {
+    "enabled": {
+      "condition": {
+        "type": "compare",
+        "op": "above",
+        "left": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        "right": {
+          "type": "literal",
+          "value": 75
+        }
+      },
+      "whenUnknown": "keep"
+    },
+    "previous": true
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "enabled": true
+  }
+}

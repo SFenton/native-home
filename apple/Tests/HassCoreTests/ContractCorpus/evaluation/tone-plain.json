@@ -1,0 +1,12 @@
+{
+  "format": 1,
+  "name": "tone-plain",
+  "note": "A plain tone is the tone.",
+  "subject": {
+    "tone": "active"
+  },
+  "env": {},
+  "expected": {
+    "tone": "active"
+  }
+}

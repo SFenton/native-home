@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "exists-value",
+  "note": "exists is yes for a value.",
+  "subject": {
+    "condition": {
+      "type": "exists",
+      "value": {
+        "type": "literal",
+        "value": "a"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

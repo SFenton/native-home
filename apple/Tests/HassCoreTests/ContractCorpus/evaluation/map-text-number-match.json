@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "map-text-number-match",
+  "note": "A case matches the text of a number: \"1\" matches 1.",
+  "subject": {
+    "operand": {
+      "type": "map",
+      "of": {
+        "type": "literal",
+        "value": "1"
+      },
+      "cases": [
+        {
+          "equals": 1,
+          "then": {
+            "type": "literal",
+            "value": "one"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": "other"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "one"
+  }
+}

@@ -1,0 +1,168 @@
+{
+  "format": 1,
+  "name": "default-fills-missing-and-null",
+  "note": "default sets a field that is missing or null, keeps one that has a value, and does nothing under a parent that is not an object.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "a": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "number",
+                    "integer": true
+                  },
+                  {
+                    "kind": "object",
+                    "fields": {
+                      "n": {
+                        "shape": {
+                          "kind": "union",
+                          "of": [
+                            {
+                              "kind": "null"
+                            },
+                            {
+                              "kind": "number",
+                              "integer": true
+                            }
+                          ]
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "optional": true
+            },
+            "b": {
+              "shape": {
+                "kind": "number",
+                "integer": true
+              },
+              "optional": true
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "d",
+        "op": "default",
+        "path": [
+          "a",
+          "n"
+        ],
+        "value": {
+          "type": "literal",
+          "value": 0
+        }
+      },
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "n": {
+            "type": "item",
+            "path": [
+              "a",
+              "n"
+            ]
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "rows",
+      "max": 100,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": [
+            "n"
+          ]
+        },
+        "title": {
+          "type": "item",
+          "path": [
+            "n"
+          ]
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "n": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "a": {
+        "n": null
+      }
+    },
+    {
+      "a": {
+        "n": 4
+      }
+    },
+    {
+      "a": 5
+    },
+    {
+      "b": 1
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "0",
+        "title": "0"
+      },
+      {
+        "id": "4",
+        "title": "4"
+      }
+    ]
+  },
+  "compiles": true
+}

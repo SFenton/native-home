@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "name": "flatten-lists-of-lists",
+  "note": "An empty flatten path joins an outer list of lists.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "union",
+          "of": [
+            {
+              "kind": "number",
+              "integer": true
+            },
+            {
+              "kind": "array",
+              "of": {
+                "kind": "number",
+                "integer": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "f",
+        "op": "flatten",
+        "path": []
+      },
+      {
+        "id": "c",
+        "op": "count"
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number",
+      "integer": true
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    [
+      1,
+      2
+    ],
+    3,
+    [
+      4
+    ]
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 3
+  },
+  "compiles": true
+}

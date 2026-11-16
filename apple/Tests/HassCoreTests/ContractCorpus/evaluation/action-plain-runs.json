@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "action-plain-runs",
+  "note": "An action that is not a rule is itself.",
+  "subject": {
+    "action": {
+      "type": "push",
+      "pageId": "page-lattice",
+      "arguments": {},
+      "origin": "sender",
+      "duplicate": "reuse-nearest"
+    }
+  },
+  "env": {},
+  "expected": {
+    "pick": "plain",
+    "runs": "push"
+  }
+}

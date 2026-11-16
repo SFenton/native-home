@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-ne-null-is-no",
+  "note": "A null value gives no, for ne as for eq: ne is not \"not eq\".",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "ne",
+      "left": {
+        "type": "literal",
+        "value": null
+      },
+      "right": {
+        "type": "literal",
+        "value": "a"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

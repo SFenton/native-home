@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "viewer-before-known",
+  "note": "A viewer fact is loading before the connection knows the person.",
+  "subject": {
+    "operand": {
+      "type": "viewer",
+      "field": "userId"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

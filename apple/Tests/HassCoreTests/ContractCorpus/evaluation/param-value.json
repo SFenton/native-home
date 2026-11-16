@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "param-value",
+  "note": "param reads a declared parameter.",
+  "subject": {
+    "operand": {
+      "type": "param",
+      "name": "p"
+    }
+  },
+  "env": {
+    "params": {
+      "p": "x"
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "x"
+  }
+}

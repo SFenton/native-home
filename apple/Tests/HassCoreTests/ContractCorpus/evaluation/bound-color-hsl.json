@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-hsl",
+  "note": "hsl() with a unitless hue: hsl(210, 50%, 40%) is #336699.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "hsl(210, 50%, 40%)"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 37,
+      "green": 74,
+      "blue": 112
+    },
+    "status": "value"
+  }
+}

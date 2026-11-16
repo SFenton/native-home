@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "action-stalled-runs-nothing",
+  "note": "A case that cannot be answered yet stops the rule: nothing runs, and a later case cannot stand in.",
+  "subject": {
+    "action": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "then": {
+            "type": "push",
+            "pageId": "page-lattice",
+            "arguments": {},
+            "origin": "sender",
+            "duplicate": "reuse-nearest"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "literal",
+              "value": 1
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "call-service",
+            "domain": "light",
+            "service": "turn_on",
+            "target": {
+              "entity_id": {
+                "type": "literal",
+                "value": "light.demo_lamp"
+              }
+            }
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "push",
+        "pageId": "page-echo",
+        "arguments": {},
+        "origin": "sender",
+        "duplicate": "reuse-nearest"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "pick": "stalled",
+    "runs": "none"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "bound-symbol-name",
+  "note": "A text that names a symbol the app can draw becomes the symbol, the fallback's other fields kept.",
+  "subject": {
+    "symbol": {
+      "type": "bound-symbol",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "s",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "sf-symbol",
+        "name": "lightbulb",
+        "rendering": "canonical",
+        "unavailable": "fallback"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "s/state": {
+        "status": "value",
+        "value": "flame.fill"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "sf-symbol",
+      "name": "flame.fill",
+      "rendering": "canonical",
+      "unavailable": "fallback"
+    },
+    "status": "value"
+  }
+}

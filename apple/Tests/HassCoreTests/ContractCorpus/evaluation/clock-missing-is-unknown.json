@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "clock-missing-is-unknown",
+  "note": "Without a clock, the clock operand is unavailable and the comparison unknown.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "before",
+      "left": {
+        "type": "clock",
+        "part": "today"
+      },
+      "right": {
+        "type": "literal",
+        "value": "2026-12-01"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

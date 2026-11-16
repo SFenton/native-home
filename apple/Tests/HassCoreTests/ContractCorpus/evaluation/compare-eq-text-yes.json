@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "compare-eq-text-yes",
+  "note": "eq on equal text is yes.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "literal",
+        "value": "on"
+      },
+      "right": {
+        "type": "literal",
+        "value": "on"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "name": "choose-flow-gap-falls-through",
+  "note": "In flow mode a gap is no, so the rule moves on.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "n",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "string",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": "a"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "first"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "literal",
+              "value": 1
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "second"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": "none"
+      }
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "status": "value",
+    "value": "second"
+  }
+}

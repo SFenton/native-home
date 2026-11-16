@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "object-gap-flow",
+  "note": "In flow mode the gap is null and the object stands.",
+  "subject": {
+    "operand": {
+      "type": "object",
+      "fields": {
+        "a": {
+          "type": "literal",
+          "value": 1
+        },
+        "b": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "x",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      }
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "status": "value",
+    "value": {
+      "a": 1,
+      "b": null
+    }
+  }
+}

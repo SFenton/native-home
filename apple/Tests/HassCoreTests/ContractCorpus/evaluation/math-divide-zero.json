@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "math-divide-zero",
+  "note": "Dividing by zero is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "divide",
+      "args": [
+        {
+          "type": "literal",
+          "value": 1
+        },
+        {
+          "type": "literal",
+          "value": 0
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

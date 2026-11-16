@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "progress-unavailable",
+  "note": "An unavailable value draws no progress.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {},
+  "expected": {
+    "progress": null
+  }
+}

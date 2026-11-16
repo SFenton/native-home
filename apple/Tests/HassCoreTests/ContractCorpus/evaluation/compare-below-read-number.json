@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "compare-below-read-number",
+  "note": "A read as a number turns a state text into a number.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "below",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "number",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": 60
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "55.5"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

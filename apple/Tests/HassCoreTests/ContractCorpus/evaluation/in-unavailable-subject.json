@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "in-unavailable-subject",
+  "note": "A subject that is unavailable is unknown.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "off"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

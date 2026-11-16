@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "in-match-beats-unavailable",
+  "note": "A match settles in even when another option is unavailable.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "literal",
+        "value": "off"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "off"
+        },
+        {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "choose-nested",
+  "note": "A rule inside a rule.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "literal",
+              "value": 1
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "choose",
+            "cases": [
+              {
+                "when": {
+                  "type": "compare",
+                  "op": "eq",
+                  "left": {
+                    "type": "literal",
+                    "value": 1
+                  },
+                  "right": {
+                    "type": "literal",
+                    "value": 2
+                  }
+                },
+                "then": {
+                  "type": "literal",
+                  "value": "a"
+                }
+              }
+            ],
+            "otherwise": {
+              "type": "literal",
+              "value": "b"
+            }
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": "c"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "b"
+  }
+}

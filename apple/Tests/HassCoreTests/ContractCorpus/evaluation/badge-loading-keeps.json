@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "badge-loading-keeps",
+  "note": "While loading the badge keeps what it showed.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "n",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "n/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

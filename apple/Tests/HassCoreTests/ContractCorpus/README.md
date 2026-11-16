@@ -9,6 +9,10 @@ Both repositories carry this directory byte for byte; change it in one and copy 
   `unsupported_capability`. The files are raw bytes; some (duplicate keys) are not producible by `JSON.stringify`.
 - `index.json`: every file once, its expected outcome and a note. A few older entries still carry a `houseScripts` list;
   it is ignored now that the app accepts any script (no house document is needed).
+- `capabilities.pending.json`: Studio-owned, sorted. Capabilities the Studio compiles and the corpus exercises that the app does not list
+  yet. Shipped and pending are disjoint and the Studio's supported list is their union. When the app ships a capability, one app change
+  adds it to its list, regenerates `capabilities.json`, moves its `pending-*` cases from `reject/` to `accept/` with the real expectation
+  and drops it from this file.
 - `capabilities.json`: the capability strings the app compiler supports, sorted, generated from
   `ServerUICompositionPublication.supportedCapabilities`. The Studio asserts its own list equals this file; the app asserts
   its Swift list equals it. Adding or renaming a capability on one side fails the other side's test until the file and
@@ -41,3 +45,38 @@ actions, request settings, the closed indicator list, the arc refused on a state
 (style id, the tile's built-in style, per-state overrides). They are written by `scripts/generate-state-style-corpus.ts`; do not
 edit them by hand. `state-styles/built-in.json` is the eight built-in styles as data: not a case, but a fixture the Studio and the
 app both test their own built-in data against.
+
+**Pending cases.** An envelope that declares a pending capability is refused by the app's shipped list at the first capability it does not
+list, before anything else (`unsupported_capability`, pointer `/capabilities/<n>`). Such a case lives in `reject/`, is marked `"pending": true`,
+and records that refusal as its `issue`, so the app's test already passes with no native change. A case the Studio compiles is named
+`reject/pending-<family>-*.json`; a case the Studio refuses for its own reason also records `studioIssue`, the Studio's first issue (the app
+reads `file`, `outcome`, `issue` and ignores the other keys). The Studio test holds both: the shipped list gives `issue`, the Studio gives
+`studioIssue` (or none). Every pending capability must appear in a case the Studio compiles.
+
+The `pipeline-*` files (16 compile, 93 refused; a compiled case is `reject/pending-pipeline-*`, except one that uses no pending capability) cover `sh.pipeline@1` and `sh.pipeline-operands@1`, the Data Flow data source: its
+three request kinds (a service with a response, an entity attribute, a live subscription from the closed list `todo-items` and
+`weather-forecast`), refresh, parameters, the closed step list, the output, the authored `schema` the steps must produce, and the reads
+and nodes that name a flow. The accepted files rebuild Overdue Chores (live), Upcoming Chores and Expired Food with demo entity ids.
+They are written by `scripts/generate-pipeline-corpus.ts`; do not edit them by hand.
+
+The `conditions-`, `rules-`, `app-state-` and `home-status-` files (and their `pending-` twins) cover the one expression grammar outside a flow:
+the `compare`, `in` and `exists` leaves and reads of any model source (`sh.conditions@1`), the `choose` rule, the `expr` authored string and the
+`conditional` look (`sh.rules@1`), the `app-state@1` source (`sh.app-state@1`) and the `count`, `total` and `unavailableCount` fields of a home status
+(`sh.home-status-counts@1`). They are written by `scripts/generate-expression-corpus.ts`; do not edit them by hand.
+
+The `enabled-when-`, `tile-look-`, `bound-color-`, `bound-symbol-`, `text-fallback-`, `badge-`, `action-rules-`, `confirm-when-`, `tab-fallback-`, `list-parts-` and `date-format-` files (and their `pending-` twins) cover the lane L-asks ids (`sh.enabled-when@1`, `sh.tile-look@1`, `sh.rules@1` colors and symbols, `sh.badges@1`, `sh.action-rules@1`, `sh.confirm-when@1`, `sh.tab-fallback@1`, `sh.list-parts@1`, and the date format under `sh.pipeline-operands@1`). They are written by `scripts/asks-corpus.ts` through the same generator. Evaluation cases name a subject kind (`operand`, `condition`, `fill`, `symbol`, `text`, `badge`, `enabled`, `faces`, `action`, `asks`) with its answer.
+
+`evaluation/*.json` is the expression **evaluation** corpus: an operand or a condition, an environment (`reads` keyed `<source>/<path>`, a
+viewer, a clock, an item, parameters, and `flow` for flow mode) and the exact answer (`yes`, `no` or `unknown` for a condition; `value`, `loading`
+or `unavailable` for an operand). The Studio runs it in `tests/expression-corpus.test.ts`; the app's evaluator must agree byte for byte.
+
+`pipelines/*.json` is the Data Flow **evaluation** corpus, a new kind: not envelopes but a flow, the data its request returned, a clock, and
+the exact answer (`{status: "ok", output}` or `{status: "over-budget"}`, with the step cost where it matters). The Studio runs it in
+`tests/pipeline-corpus.test.ts`; the app's evaluator must give the same answers byte for byte. The cases pin the four places JavaScript
+and Swift disagree (text order, text equality, number text, rounding) and the step budget. `compiles: false` marks the few cases that run
+a step on data the compiler refuses, to pin that evaluation is total; `expectedShape` is the hand-written shape after the steps. Written by
+the same generator, with hand-written expectations: do not edit by hand.
+
+The `component-`, `ref-`, `param-` and `body-` files (and their `pending-` twins) cover the lane L-linked id `sh.component-ref@1`: the `componentLibrary`
+key, the `component-ref` node, parameters, bindings and `args`. They are written by `scripts/generate-component-corpus.ts` through the same generator. The
+accepted ones are pending (the app's list refuses them with `unsupported_capability`); the rejected ones name the code the Studio's compiler gives.

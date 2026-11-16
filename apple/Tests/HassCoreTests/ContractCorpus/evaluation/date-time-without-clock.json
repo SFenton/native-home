@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "date-time-without-clock",
+  "note": "The time needs no clock: it reads the value on offset 0.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T09:41:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "time"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US"
+  },
+  "expected": {
+    "status": "value",
+    "value": "9:41 AM"
+  }
+}

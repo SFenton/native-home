@@ -1,0 +1,166 @@
+{
+  "format": 1,
+  "name": "parameter-from-viewer-and-read",
+  "note": "Parameters are evaluated in dependency order: one reads the viewer, one reads a source, one builds on both.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [
+      {
+        "name": "label",
+        "type": "string",
+        "value": {
+          "type": "format",
+          "pattern": "{who} at {level}",
+          "args": {
+            "who": {
+              "type": "param",
+              "name": "who"
+            },
+            "level": {
+              "type": "param",
+              "name": "level"
+            }
+          }
+        }
+      },
+      {
+        "name": "who",
+        "type": "string",
+        "value": {
+          "type": "viewer",
+          "field": "userId"
+        }
+      },
+      {
+        "name": "level",
+        "type": "number",
+        "value": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "source-entity",
+            "path": [
+              "attributes",
+              "level"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        }
+      }
+    ],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {}
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "who": {
+            "type": "param",
+            "name": "who"
+          },
+          "level": {
+            "type": "param",
+            "name": "level"
+          },
+          "label": {
+            "type": "param",
+            "name": "label"
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "record"
+    },
+    "schema": {
+      "kind": "object",
+      "fields": {
+        "label": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          }
+        },
+        "level": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "number"
+              }
+            ]
+          }
+        },
+        "who": {
+          "shape": {
+            "kind": "union",
+            "of": [
+              {
+                "kind": "null"
+              },
+              {
+                "kind": "string"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {},
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    },
+    "viewer": {
+      "userId": "user-1"
+    },
+    "reads": {
+      "source-entity": {
+        "attributes": {
+          "level": "3"
+        }
+      }
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": {
+      "who": "user-1",
+      "level": 3,
+      "label": "user-1 at 3"
+    }
+  },
+  "compiles": true
+}

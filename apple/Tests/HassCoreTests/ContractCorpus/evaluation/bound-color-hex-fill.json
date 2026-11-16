@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-hex-fill",
+  "note": "A hex color is scaled toward black until white text reads on it: #009688 gives #006E63 (the app's own anchor, ChipTint.swift:50-52).",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "#009688"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 0,
+      "green": 110,
+      "blue": 99
+    },
+    "status": "value"
+  }
+}

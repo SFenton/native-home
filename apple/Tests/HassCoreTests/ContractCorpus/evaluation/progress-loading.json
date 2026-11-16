@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "progress-loading",
+  "note": "A value that is loading draws no progress.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "progress": null
+  }
+}

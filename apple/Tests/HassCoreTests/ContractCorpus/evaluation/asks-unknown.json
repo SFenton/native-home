@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "asks-unknown",
+  "note": "A condition that cannot be answered asks: a gap never skips a question the author wanted.",
+  "subject": {
+    "asks": {
+      "when": {
+        "type": "compare",
+        "op": "above",
+        "left": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        "right": {
+          "type": "literal",
+          "value": 75
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "asks": true
+  }
+}

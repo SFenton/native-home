@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "badge-empty-text",
+  "note": "Empty text draws no badge.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": ""
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

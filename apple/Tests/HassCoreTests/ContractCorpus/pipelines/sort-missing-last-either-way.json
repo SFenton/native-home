@@ -1,0 +1,181 @@
+{
+  "format": 1,
+  "name": "sort-missing-last-either-way",
+  "note": "A missing or wrongly typed key sorts last whichever the direction.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "id": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c",
+                  "d"
+                ]
+              }
+            },
+            "n": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number",
+                    "integer": true
+                  },
+                  {
+                    "kind": "string",
+                    "format": "numeric"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "s",
+        "op": "sort",
+        "by": [
+          {
+            "value": {
+              "type": "item",
+              "path": [
+                "n"
+              ]
+            },
+            "direction": "descending",
+            "kind": "number"
+          }
+        ]
+      }
+    ],
+    "output": {
+      "kind": "rows",
+      "max": 100,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": [
+            "id"
+          ]
+        },
+        "title": {
+          "type": "item",
+          "path": [
+            "id"
+          ]
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "id": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                "a",
+                "b",
+                "c",
+                "d"
+              ]
+            }
+          },
+          "n": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "number",
+                  "integer": true
+                },
+                {
+                  "kind": "string",
+                  "format": "numeric"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "id": "a",
+      "n": 2
+    },
+    {
+      "id": "b",
+      "n": null
+    },
+    {
+      "id": "c",
+      "n": 9
+    },
+    {
+      "id": "d",
+      "n": "7"
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "c",
+        "title": "c"
+      },
+      {
+        "id": "a",
+        "title": "a"
+      },
+      {
+        "id": "b",
+        "title": "b"
+      },
+      {
+        "id": "d",
+        "title": "d"
+      }
+    ]
+  },
+  "compiles": true
+}
