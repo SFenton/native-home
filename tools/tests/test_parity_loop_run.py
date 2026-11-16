@@ -83,6 +83,14 @@ class ReachTests(unittest.TestCase):
         self.assertEqual((plan.method, plan.steps), ("steps", ["Home", "Quick Links", "Vacuums"]))
         self.assertEqual(capture.plan_reach(BY_ID["room-kitchen"], "reference", "live").method, "deeplink")
 
+    def test_button_centre_prefers_exact_labels_then_badged_ones(self) -> None:
+        def button(label, x):
+            return {"type": "Button", "label": label, "rect": {"x": x, "y": 10, "width": 20, "height": 10}}
+        nodes = [button("Security, Armed Home", 0), button("Security", 100), button("Chores, 6 overdue", 200)]
+        self.assertEqual(capture.button_centre(nodes, "Security"), (110.0, 15.0))
+        self.assertEqual(capture.button_centre(nodes, "Chores"), (210.0, 15.0))
+        self.assertIsNone(capture.button_centre(nodes, "Climate"))
+
     def test_ax_normalisation_drops_status_bar_and_masks_dynamic_text(self) -> None:
         rules = [build_surfaces.CLOCK_MASK, build_surfaces.RELATIVE_TIME_MASK]
         rows = capture.normalize_ax([

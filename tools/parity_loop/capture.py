@@ -11,7 +11,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from .common import DEFAULT_DENSITY, Runner, png_size, run, parse_json, write_json
 
@@ -49,6 +49,12 @@ class Agent:
         return self.call("open", url)
 
     def press(self, label: str) -> Dict[str, Any]:
+        """Press the button called ``label``. A bare selector fails when two buttons share a name (the Quick Links button is in the
+        header and the toolbar) or when the label carries a badge ("Chores, 6 overdue"), so resolve the button in the tree first and
+        tap its centre; fall back to the selector when the tree has none."""
+        point = button_centre(self.snapshot(), label)
+        if point:
+            return self.call("press", f"{point[0]:g}", f"{point[1]:g}")
         return self.call("press", f'label="{label}"')
 
     def settle(self) -> Dict[str, Any]:
@@ -67,6 +73,18 @@ class Agent:
 
     def screenshot(self, path: Path, density: int = DEFAULT_DENSITY) -> Dict[str, Any]:
         return self.call("screenshot", str(path), "--normalize-status-bar", "--pixel-density", str(density))
+
+
+def button_centre(nodes: Sequence[Mapping[str, Any]], label: str) -> Optional[Tuple[float, float]]:
+    """Centre (points) of the button named ``label``: an exact label first, then one with a badge suffix after a comma."""
+    buttons = [n for n in nodes if _node_role(n).lower() == "button" and _node_rect(n) and _label(n)]
+    exact = [n for n in buttons if _label(n) == label]
+    badged = [n for n in buttons if _label(n).startswith(label + ",")]
+    for node in exact or badged:
+        rect = _node_rect(node)
+        if rect and rect["width"] > 0 and rect["height"] > 0:
+            return rect["x"] + rect["width"] / 2, rect["y"] + rect["height"] / 2
+    return None
 
 
 # MARK: - Reaching a surface
