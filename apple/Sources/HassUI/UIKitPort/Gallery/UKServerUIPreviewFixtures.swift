@@ -119,7 +119,9 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
                     configuration: DemoHouse.config, document: publication.document, store: store, caller: caller, current: current)
             case .away:
                 let away = try UKServerUIHouseholdProviders.away(id: definition.providerId,
-                    configuration: DemoHouse.config, authenticatedUserID: configuration.viewerUserID,
+                    configuration: UKServerUIPreviewPlaceholders.houseConfig(for: publication.document,
+                                                                             awayProviderId: definition.providerId),
+                    authenticatedUserID: configuration.viewerUserID,
                     store: store, caller: caller, current: current)
                 try away.addPresentations(to: &records)
                 provider = away

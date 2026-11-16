@@ -286,8 +286,10 @@ final class UKServerUIPreview: UIViewController {
             return try Prepared(publication: publication,
                 context: live?.context ?? fixtures?.context ?? UKContext(store: entities, caller: caller),
                 assets: assets, backdrop: backdrop, renderDirectory: directory,
-                weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document),
-                cameraReader: live?.cameraReader(for: publication.document), fixtures: fixtures)
+                weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document)
+                    ?? UKServerUIPreviewPlaceholders.weatherReader(for: publication.document),
+                cameraReader: live?.cameraReader(for: publication.document)
+                    ?? UKServerUIPreviewPlaceholders.cameraReader(for: publication.document), fixtures: fixtures)
         } catch {
             try await stager.discard(assets, retaining: context.protected.map(\.assets))
             try Self.removeRender(directory, retaining: context.protected)
