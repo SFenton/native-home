@@ -119,6 +119,13 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         for _ in 0..<60 where !condition() { HostedPage.wait(0.05) }
     }
 
+    /// Waits on the main actor without spinning the run loop inside the test's own task, so the session's tasks run.
+    private func pause(_ seconds: TimeInterval) async { try? await Task.sleep(for: .seconds(seconds)) }
+
+    private func settleAsync(_ condition: () -> Bool) async {
+        for _ in 0..<60 where !condition() { await pause(0.05) }
+    }
+
     /// Writes the page as a still when a shot directory is set.
     private func shoot(_ view: UIView, _ name: String, width: CGFloat) {
         guard let directory = ProcessInfo.processInfo.environment["FENTON_SHOT_DIR"], !directory.isEmpty else { return }
@@ -145,8 +152,8 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             let session = ServerUIFlowSession(flow: flow, collection: ServerUIRowCollection(), host: host)
             let (renderer, root, list) = try open(publication, id: "upcoming", session: session, width: width)
             session.start()
-            settle { list.rows.count == 2 }
-            HostedPage.wait(0.1)
+            await settleAsync { list.rows.count == 2 }
+            await pause(0.1)
             XCTAssertEqual(list.rows.count, 2, "width \(width): phase \(session.collection.phase), calls \(calls), publications \(session.publications), model rows \(session.collection.rows.count)")
 
             let buttons = all(UKRowButton.self, in: list)
@@ -164,16 +171,16 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             // A tap runs the row's action (a push).
             let before = renderer.stacks[.tab("tab-alpha")]?.viewControllers.count ?? 0
             try XCTUnwrap(buttons.first).sendActions(for: .touchUpInside)
-            HostedPage.wait(0.5)
+            await pause(0.5)
             XCTAssertEqual(renderer.stacks[.tab("tab-alpha")]?.viewControllers.count, before + 1, "width \(width): the row action pushed a page")
             renderer.stacks[.tab("tab-alpha")]?.popViewController(animated: false)
-            HostedPage.wait(0.2)
+            await pause(0.2)
 
             // The flow runs again on a pull, and a failed call keeps the rows.
             let asked = calls
             answer = .failure(Dropped())
             await session.refresh()
-            HostedPage.wait(0.1)
+            await pause(0.1)
             XCTAssertEqual(calls, asked + 1, "width \(width)")
             XCTAssertEqual(session.collection.phase, .stale)
             XCTAssertEqual(list.rows.count, 2, "width \(width): the rows stay when the call fails")
@@ -183,7 +190,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
             // An empty answer says so, and its line under the title.
             answer = .success(.object([:]))
             await session.refresh()
-            HostedPage.wait(0.1)
+            await pause(0.1)
             XCTAssertEqual(session.collection.phase, .ready)
             XCTAssertTrue(list.rows.isEmpty, "width \(width)")
             let said = spoken(list)
