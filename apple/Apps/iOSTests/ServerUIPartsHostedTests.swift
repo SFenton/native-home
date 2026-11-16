@@ -361,7 +361,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         let (_, root) = try page("parts-check-explicit-switch-face", width: 390, entities: [autoClean("on")])
         let node = try XCTUnwrap(root.nodes["auto-clean-row"]?.view as? UKServerUILocalControl)
         XCTAssertNil(find(UKModuleToggleRow.self, in: node), "no module row")
-        XCTAssertNotNil(find(UISwitch.self, in: node), "the plain switch row")
+        XCTAssertTrue(node.drawnControl is UKControllerToggle, "the plain switch row: \(String(describing: node.drawnControl))")
     }
 
     func testTheGlyphTintFollowsARuleAndFormMetricsDrawTheFormRow() throws {
