@@ -12,7 +12,13 @@ import UIKit
 /// Launch with `--server-ui-preview`. `Application Support/ServerUIPreview/bootstrap.json` supplies either synthetic entities or
 /// `live` connection metadata, and `publication.json` beside it is the published envelope. Assets are read from `assets/<sha256>`.
 /// The preview is fed by those local files through the same store the app uses, as if the integration had sent a `published`
-/// event: there is no publisher HTTP endpoint. The `ha-credential` file is consumed once; bearers stay in memory only.
+/// event: there is no publisher HTTP endpoint.
+///
+/// The live bearer comes from the launch environment: ``environmentCredentialName`` (`simctl launch` sets it as
+/// `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`). It is read once at preview start, removed from the process environment with
+/// `unsetenv` so child processes and later reads cannot see it, and kept in memory only: never logged, written, or put in a
+/// diagnostic string. The older `ha-credential` file under ``directory`` stays as a fallback used only when the variable is
+/// absent, because ``consumeCredential(at:)`` and its test predate the environment source; it is consumed once and deleted.
 /// Compiled out of release builds.
 @MainActor
 final class UKServerUIPreview: UIViewController {
@@ -113,6 +119,32 @@ final class UKServerUIPreview: UIViewController {
         }
     }
 
+    /// Name of the launch-environment variable that carries the live preview's Home Assistant bearer.
+    static let environmentCredentialName = "FENTON_PREVIEW_HA_TOKEN"
+
+    /// Reads the bearer from the process environment once, then removes it with `unsetenv`.
+    ///
+    /// The variable is removed even when its value is malformed, so a bad value cannot linger. Returns `nil` when it is unset.
+    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` for an empty value or one containing whitespace.
+    static func consumeEnvironmentCredential(named name: String = environmentCredentialName) throws -> String? {
+        guard let raw = getenv(name) else { return nil }
+        let value = String(cString: raw)
+        unsetenv(name)
+        guard !value.isEmpty, !value.contains(where: \.isWhitespace) else {
+            throw UKServerUIPreviewLiveData.Failure.credential
+        }
+        return value
+    }
+
+    /// The live bearer: the environment first, else the legacy `ha-credential` file in `directory`.
+    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` when neither source supplies a valid token.
+    static func liveCredential(environmentName: String = environmentCredentialName,
+                               fallbackFile: URL) throws -> String {
+        if let token = try consumeEnvironmentCredential(named: environmentName) { return token }
+        if let token = try consumeCredential(at: fallbackFile) { return token }
+        throw UKServerUIPreviewLiveData.Failure.credential
+    }
+
     /// Credentials are consumed before use, including invalid UTF-8/empty files, and never written into a receipt.
     static func consumeCredential(at file: URL) throws -> String? {
         guard FileManager.default.fileExists(atPath: file.path) else { return nil }
@@ -138,9 +170,7 @@ final class UKServerUIPreview: UIViewController {
             let stager = try ServerUIAssetStager(partition: partition, partitionDirectory: root,
                 transport: UKServerUIPreviewAssetFiles(directory: Self.directory.appendingPathComponent("assets", isDirectory: true)))
             if let liveConfiguration = configuration.live {
-                guard let token = try Self.consumeCredential(at: Self.directory.appendingPathComponent("ha-credential")) else {
-                    throw UKServerUIPreviewLiveData.Failure.credential
-                }
+                let token = try Self.liveCredential(fallbackFile: Self.directory.appendingPathComponent("ha-credential"))
                 live = try UKServerUIPreviewLiveData(configuration: liveConfiguration, credential: token,
                                                     directory: root.appendingPathComponent("live"), store: entities)
             } else if let fixtures = configuration.entities {

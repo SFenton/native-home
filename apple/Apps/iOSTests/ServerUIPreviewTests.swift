@@ -227,6 +227,90 @@ final class ServerUIPreviewTests: XCTestCase {
         }
     }
 
+    // MARK: Environment credential
+
+    private static let secret = "env-only-secret-token-9f3a"
+
+    func testEnvironmentTokenIsUsedAndRemovedFromTheProcessEnvironment() throws {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        let token = try UKServerUIPreview.liveCredential(environmentName: name,
+                                                         fallbackFile: directory.appendingPathComponent("ha-credential"))
+        XCTAssertEqual(token, Self.secret)
+        XCTAssertNil(getenv(name), "The bearer must not stay visible to child processes or later reads")
+        XCTAssertNil(try UKServerUIPreview.consumeEnvironmentCredential(named: name), "A second read finds nothing")
+        XCTAssertEqual(UKServerUIPreview.environmentCredentialName, "FENTON_PREVIEW_HA_TOKEN")
+    }
+
+    func testEnvironmentTokenTakesPrecedenceOverTheLegacyFile() throws {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        let file = directory.appendingPathComponent("ha-credential")
+        try Data("file-token".utf8).write(to: file)
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        XCTAssertEqual(try UKServerUIPreview.liveCredential(environmentName: name, fallbackFile: file), Self.secret)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: file.path), "The file is untouched when the environment supplies the bearer")
+    }
+
+    func testMalformedEnvironmentTokenIsRemovedAndFailsWithTheCredentialErrorWithoutEchoingIt() {
+        for bad in ["", "two tokens"] {
+            let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+            setenv(name, bad, 1)
+            defer { unsetenv(name) }
+            XCTAssertThrowsError(try UKServerUIPreview.consumeEnvironmentCredential(named: name)) { error in
+                XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
+                XCTAssertFalse("\(error)".contains("tokens"))
+            }
+            XCTAssertNil(getenv(name))
+        }
+    }
+
+    func testMissingTokenFailsWithTheBootstrapCredentialErrorNotACrash() {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        XCTAssertNil(getenv(name))
+        XCTAssertThrowsError(try UKServerUIPreview.liveCredential(
+            environmentName: name, fallbackFile: directory.appendingPathComponent("ha-credential"))) { error in
+            XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .credential)
+            XCTAssertEqual((error as? UKServerUIPreviewLiveData.Failure)?.errorDescription?.contains("FENTON_PREVIEW_HA_TOKEN"), true)
+        }
+    }
+
+    func testTheTokenNeverAppearsInAnyStringTheLiveTypeProduces() async throws {
+        let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
+                                               credential: Self.secret, directory: directory, store: EntityStore())
+        var strings = ["\(live)", String(reflecting: live), "\(live.receipt)", "\(live.caller)", String(reflecting: live.caller),
+                       "\(live.connection)", "\(live.lifecycle)", "\(live.context)"]
+        for failure in [UKServerUIPreviewLiveData.Failure.configuration, .credential, .commandsDisabled] {
+            strings += ["\(failure)", failure.localizedDescription, failure.errorDescription ?? ""]
+        }
+        do { try await live.caller.callService("light", "turn_on", data: [:]) }
+        catch { strings += ["\(error)", error.localizedDescription] }
+        do { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+        catch { strings += ["\(error)", error.localizedDescription] }
+        strings += ["\(live.receipt)"]
+        for value in strings { XCTAssertFalse(value.contains(Self.secret), "Token leaked into: \(value.prefix(80))") }
+    }
+
+    func testLiveModeStillRejectsEveryServiceCallWhenBuiltFromTheEnvironmentToken() async throws {
+        let name = "FENTON_TEST_\(UUID().uuidString.prefix(8))"
+        setenv(name, Self.secret, 1)
+        defer { unsetenv(name) }
+        let token = try UKServerUIPreview.liveCredential(environmentName: name,
+                                                         fallbackFile: directory.appendingPathComponent("ha-credential"))
+        let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
+                                               credential: token, directory: directory, store: EntityStore())
+        for index in 1...3 {
+            do {
+                if index == 2 { _ = try await live.caller.callServiceWithResponse("script", "run", data: [:]) }
+                else { try await live.caller.callService("light", "turn_on", data: ["entity_id": "light.x"]) }
+                XCTFail("A live service call was accepted")
+            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled) }
+            XCTAssertEqual(live.caller.blockedCommands, index)
+        }
+        XCTAssertEqual(live.connection.status, .disconnected)
+    }
+
     func testLiveContextUsesConnectionBoxesAndKeepsValuesDuringDisconnect() throws {
         let store = EntityStore()
         let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
