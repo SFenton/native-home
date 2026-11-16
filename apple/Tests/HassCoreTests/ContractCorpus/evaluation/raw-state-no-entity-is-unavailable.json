@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "raw-state-no-entity-is-unavailable",
+  "note": "A source that has no entity is unavailable, the one case that is.",
+  "subject": {
+    "operand": {
+      "type": "raw-state",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

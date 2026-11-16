@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "raw-state-no-entity-is-unknown",
+  "note": "A source with no entity makes a comparison unknown.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "raw-state",
+        "sourceId": "sensor"
+      },
+      "right": {
+        "type": "literal",
+        "value": "unknown"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

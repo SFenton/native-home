@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "raw-state-unknown-is-text",
+  "note": "An entity whose state is unknown gives the text \"unknown\", a value.",
+  "subject": {
+    "operand": {
+      "type": "raw-state",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "unknown"
+  }
+}

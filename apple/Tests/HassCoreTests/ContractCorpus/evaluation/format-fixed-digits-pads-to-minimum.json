@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-pads-to-minimum",
+  "note": "The minimum pads: 72.5 with two is \"72.50\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 72.5
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 2,
+            "minimumFractionDigits": 2
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "72.50"
+  }
+}

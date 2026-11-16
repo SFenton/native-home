@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "format-title-case-empty-parts",
+  "note": "Empty parts stay: \"a__b\" is \"A  B\" (two spaces) and \"_x\" is \" X\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}|{b}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": "a__b"
+        },
+        "b": {
+          "type": "literal",
+          "value": "_x"
+        }
+      },
+      "formats": {
+        "a": {
+          "text": {
+            "case": "title"
+          }
+        },
+        "b": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "A  B| X"
+  }
+}

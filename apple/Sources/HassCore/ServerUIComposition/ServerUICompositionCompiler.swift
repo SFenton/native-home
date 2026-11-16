@@ -2296,8 +2296,15 @@ struct ServerUICompositionCompiler {
                !videoSources(modal.surface.components).contains(source) { add(.invalidCombination, pointer) }
         }
         for ref in expressionRefs {
-            let sourcePointer = ref.pointer + (ref.kind == nil ? "/sourceId" : "/from/sourceId")
+            let nested = ref.access == .list || (ref.access == .value && ref.kind != nil)
+            let sourcePointer = ref.pointer + (nested ? "/from" : "") + "/sourceId"
             guard let source = sources[ref.sourceId] else { add(.invalidReference, sourcePointer); continue }
+            if ref.access != .value {
+                // `raw-state` and the list reads stand on an `ha-entity` only; a list read names one attribute (`attributes`, name).
+                guard case .haEntity = source else { add(.bindingType, sourcePointer); continue }
+                if ref.access == .list, ref.path.count != 2 || ref.path.first != "attributes" { add(.invalidReference, ref.pointer + "/from/path") }
+                continue
+            }
             guard case .haEntity = source else {
                 // Any model that has read fields can be read by an operand or a condition, through the slot-read vocabulary.
                 switch ServerUIModelReads.check(source, path: ref.path, kind: ref.kind) {

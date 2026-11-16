@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "list-includes-number-text",
+  "note": "Equality is the grammar's: the text \"2\" matches the number 2.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "literal",
+        "value": "2"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "1",
+          2
+        ]
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": true
+  }
+}

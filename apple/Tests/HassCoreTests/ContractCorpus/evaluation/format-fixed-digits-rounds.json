@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-rounds",
+  "note": "72.26 with one fraction digit is \"72.3\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 72.26
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 1,
+            "minimumFractionDigits": 1
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "72.3"
+  }
+}

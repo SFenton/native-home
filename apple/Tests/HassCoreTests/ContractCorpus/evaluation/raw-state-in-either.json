@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "raw-state-in-either",
+  "note": "A condition that holds for either word.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "raw-state",
+        "sourceId": "sensor"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "unknown"
+        },
+        {
+          "type": "literal",
+          "value": "unavailable"
+        }
+      ]
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

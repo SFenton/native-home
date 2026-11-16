@@ -24,6 +24,18 @@ struct ServerUIExpressionParser {
         let pointer: String
         /// The kind a `read` operand asked for; `nil` for a predicate, which compares text or numbers itself.
         let kind: ServerUICompositionDocument.ScalarKind?
+        /// What the expression does with the source: read a value (the default), read its raw state or read a list attribute.
+        var access: Access = .value
+
+        /// The way an expression reads a source, which decides how the compiler checks it.
+        enum Access: Equatable {
+            /// A `read` operand or a condition leaf: the state or an attribute as a scalar.
+            case value
+            /// `raw-state`: the entity's state text, on an `ha-entity` only (`sh.raw-state@1`).
+            case raw
+            /// `list-count` and `list-includes`: one attribute, on an `ha-entity` only (`sh.list-read@1`).
+            case list
+        }
     }
 
     private(set) var issues: [Issue] = []
@@ -196,6 +208,15 @@ struct ServerUIExpressionParser {
             let to = operand(object["to"] ?? .null, pointer + "/to", depth: depth + 1)
             guard let from, let to, object["op"] == .string("days-between") else { return nil }
             return .date(from: from, to: to)
+        case "raw-state":
+            needs.insert("raw-state")
+            guard let object = fields(json, pointer, ["type", "sourceId"]) else { return nil }
+            if flow { add(.invalidCombination, pointer) }
+            guard let sourceId = sourceIdentifier(object["sourceId"], pointer + "/sourceId") else { return nil }
+            references.append(.init(sourceId: sourceId, path: ["state"], pointer: pointer, kind: nil, access: .raw))
+            return .rawState(sourceId: sourceId)
+        case "list-count", "list-includes":
+            return listRead(json, pointer, depth: depth, includes: type == "list-includes")
         case "math":
             guard let object = fields(json, pointer, ["type", "op", "args"]) else { return nil }
             guard case .string(let raw)? = object["op"], let op = ServerUIOperand.MathOp(rawValue: raw) else {
@@ -257,29 +278,75 @@ struct ServerUIExpressionParser {
                 let at = ServerUICompositionJSON.pointer(pointer + "/formats", key)
                 if rawArgs[key] == nil { add(.invalidReference, at) }
                 guard case .object(let spec) = item else { add(.invalidValue, at); continue }
-                if spec["date"] != nil, spec.count == 1 {
-                    needs.insert("pipeline-operands")
-                    guard let wrapper = fields(spec["date"] ?? .null, at + "/date", ["style"]),
-                          case .string(let raw)? = wrapper["style"], let style = ServerUIDateStyle(rawValue: raw) else {
-                        if issues.last?.pointer.hasPrefix(at) != true { add(.unknownVariant, at + "/date/style") }
-                        continue
-                    }
-                    // A date style draws a date or a date and time: text. A kind that is known and is not text cannot be one.
-                    if let kind = args[key].flatMap(Self.kind), kind != .string { add(.bindingType, at) }
-                    formats[key] = .date(style)
-                    continue
-                }
-                guard let wrapper = fields(item, at, ["number"]), let number = fields(wrapper["number"] ?? .null, at + "/number",
-                                                                                       ["maximumFractionDigits"]),
-                      case .number(let digits)? = number["maximumFractionDigits"], digits.rounded() == digits, (0...6).contains(digits)
-                else {
-                    if issues.last?.pointer.hasPrefix(at) != true { add(.invalidValue, at + "/number/maximumFractionDigits") }
-                    continue
-                }
-                formats[key] = .number(ServerUINumberFormat(maximumFractionDigits: Int(digits)))
+                if let parsed = formatSpec(spec, at, argument: args[key]) { formats[key] = parsed }
             }
         }
         return args.count == rawArgs.count ? .format(pattern: pattern, args: args, formats: formats) : nil
+    }
+
+    /// One `formats[name]`: exactly one of `number`, `date` and `text`, else `unknown_variant` at the spec.
+    private mutating func formatSpec(_ spec: [String: JSONValue], _ at: String, argument: ServerUIOperand?) -> ServerUIFormatSpec? {
+        guard spec.count == 1, let (tag, body) = spec.first, ["number", "date", "text"].contains(tag) else {
+            add(.unknownVariant, at)
+            return nil
+        }
+        let kind = argument.flatMap(Self.kind)
+        switch tag {
+        case "date":
+            needs.insert("pipeline-operands")
+            guard let wrapper = fields(body, at + "/date", ["style"]) else { return nil }
+            guard case .string(let raw)? = wrapper["style"], let style = ServerUIDateStyle(rawValue: raw) else {
+                add(.unknownVariant, at)
+                return nil
+            }
+            // A date style draws a date or a date and time: text. A kind that is known and is not text cannot be one.
+            if let kind, kind != .string { add(.bindingType, at) }
+            return .date(style)
+        case "text":
+            needs.insert("pipeline-operands")
+            guard let wrapper = fields(body, at + "/text", ["case"]) else { return nil }
+            guard case .string(let raw)? = wrapper["case"], let letterCase = ServerUITextCase(rawValue: raw) else {
+                add(.unknownVariant, at)
+                return nil
+            }
+            if let kind, kind != .string { add(.bindingType, at) }
+            return .text(letterCase)
+        default:
+            let pointer = at + "/number"
+            guard let number = fields(body, pointer, ["maximumFractionDigits"], ["minimumFractionDigits"]),
+                  let most = fractionDigits(number["maximumFractionDigits"], pointer + "/maximumFractionDigits") else { return nil }
+            var least = 0
+            if let raw = number["minimumFractionDigits"] {
+                // A fixed count of fraction digits needs `sh.pipeline-operands@1`, and it cannot exceed the most the number may have.
+                needs.insert("pipeline-operands")
+                guard let digits = fractionDigits(raw, pointer + "/minimumFractionDigits") else { return nil }
+                if digits > most { add(.invalidCombination, pointer + "/minimumFractionDigits") }
+                least = digits
+            }
+            return .number(ServerUINumberFormat(maximumFractionDigits: most, minimumFractionDigits: least))
+        }
+    }
+
+    /// A count of fraction digits: a whole number, 0 to 6 (`limit_exceeded` outside it).
+    private mutating func fractionDigits(_ value: JSONValue?, _ pointer: String) -> Int? {
+        guard case .number(let digits)? = value, digits.rounded() == digits else { add(.invalidValue, pointer); return nil }
+        guard (0...6).contains(digits) else { add(.limitExceeded, pointer); return nil }
+        return Int(digits)
+    }
+
+    /// `list-count` and `list-includes`: a source and a path, and for `includes` the value to look for (`sh.list-read@1`).
+    private mutating func listRead(_ json: JSONValue, _ pointer: String, depth: Int, includes: Bool) -> ServerUIOperand? {
+        needs.insert("list-read")
+        guard let object = fields(json, pointer, includes ? ["type", "from", "value"] : ["type", "from"]) else { return nil }
+        if flow { add(.invalidCombination, pointer) }
+        guard let from = fields(object["from"] ?? .null, pointer + "/from", ["type", "sourceId", "path"]) else { return nil }
+        if from["type"] != .string("source") { add(.unknownVariant, pointer + "/from/type") }
+        guard let (sourceId, path) = source(from, pointer + "/from") else { return nil }
+        references.append(.init(sourceId: sourceId, path: path, pointer: pointer, kind: nil, access: .list))
+        guard includes else { return .listCount(sourceId: sourceId, path: path) }
+        guard let value = operand(object["value"] ?? .null, pointer + "/value", depth: depth + 1) else { return nil }
+        if Self.kind(value) == .structure { add(.bindingType, pointer + "/value") }
+        return .listIncludes(sourceId: sourceId, path: path, value: value)
     }
 
     private mutating func map(_ json: JSONValue, _ pointer: String, depth: Int) -> ServerUIOperand? {
@@ -348,8 +415,9 @@ struct ServerUIExpressionParser {
             case .boolean: .boolean
             }
         case .viewer(let field): field == .isAdmin ? .boolean : .string
-        case .format, .clock: .string
-        case .math, .date: .number
+        case .format, .clock, .rawState: .string
+        case .math, .date, .listCount: .number
+        case .listIncludes: .boolean
         case .object, .list: .structure
         case .map(_, _, let otherwise), .choose(_, let otherwise): kind(otherwise)
         case .control, .item, .param: nil

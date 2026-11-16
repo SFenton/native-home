@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-title-case-empty-text",
+  "note": "Empty text is empty.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": ""
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": ""
+  }
+}

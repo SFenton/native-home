@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-title-case-one-word",
+  "note": "One word: \"auto\" is \"Auto\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "auto"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Auto"
+  }
+}

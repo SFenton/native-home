@@ -40,10 +40,13 @@ the empty state and the resident variant. They are written by `scripts/generate-
 fixture; do not edit them by hand. `todo-collection-collection-without-source` records that a todo collection node whose
 source is not defined still compiles: the app shows nothing for it and never reads house configuration.
 
-The `state-style-*` files (8 accept, 26 reject) cover `sh.state-style@1`: the document-level style library (rules, fallback,
+The `state-style-*` files (8 accept, 26 reject, and the `fills` cases below) cover `sh.state-style@1`: the document-level style library (rules, fallback,
 actions, request settings, the closed indicator list, the arc refused on a state with an action) and the `state-tile` node
 (style id, the tile's built-in style, per-state overrides). They are written by `scripts/generate-state-style-corpus.ts`; do not
-edit them by hand. `state-styles/built-in.json` is the eight built-in styles as data: not a case, but a fixture the Studio and the
+edit them by hand. The `state-style-fills-*` files (6 compiled, 12 refused; a compiled case is `reject/pending-state-style-fills-*`) cover `sh.state-style-fills@1`, still pending:
+a per-state `fill` (the document's `solid-rgb`) on a rule or the fallback, and the style's `hiddenWords`. The refused ones are a bad channel, a
+fill that is not a `solid-rgb`, a fill on a tile override, a rule that gives `unavailable` a class other than unknown, and bad hidden words.
+`state-styles/built-in.json` is the eight built-in styles as data: not a case, but a fixture the Studio and the
 app both test their own built-in data against.
 
 **Pending cases.** An envelope that declares a pending capability is refused by the app's shipped list at the first capability it does not
@@ -52,6 +55,14 @@ and records that refusal as its `issue`, so the app's test already passes with n
 `reject/pending-<family>-*.json`; a case the Studio refuses for its own reason also records `studioIssue`, the Studio's first issue (the app
 reads `file`, `outcome`, `issue` and ignores the other keys). The Studio test holds both: the shipped list gives `issue`, the Studio gives
 `studioIssue` (or none). Every pending capability must appear in a case the Studio compiles.
+
+**Promotion.** Once the app ships a capability, a case that declares no other pending id is an ordinary case: a compiled one is
+`accept/<family>-*.json` (the `pending-` prefix dropped), a refused one stays `reject/<family>-*.json` with `issue` set to what was `studioIssue`
+(the app must give the same first issue), and neither carries `pending`. A case that also declares a still-pending id stays pending and its
+`issue` points at the first id the app does not list. The generators decide this from `capabilities.json` through `scripts/corpus-handshake.ts`,
+so shipping an id is: update `capabilities.json` and `capabilities.pending.json`, move the id from `pending.ts` into the explicit list in
+`compiler.ts`, and rerun the generators. Shipped through native-ingest L0 to L3, NT1 and L1b: every capability but `sh.pipeline@1`,
+`sh.pipeline-operands@1`, `sh.list-parts@1`, `sh.list-read@1` and `sh.raw-state@1`, and `sh.state-style-fills@1` (added by the Studio after: lane TC2).
 
 The `pipeline-*` files (16 compile, 93 refused; a compiled case is `reject/pending-pipeline-*`, except one that uses no pending capability) cover `sh.pipeline@1` and `sh.pipeline-operands@1`, the Data Flow data source: its
 three request kinds (a service with a response, an entity attribute, a live subscription from the closed list `todo-items` and
@@ -66,6 +77,11 @@ the `compare`, `in` and `exists` leaves and reads of any model source (`sh.condi
 
 The `enabled-when-`, `tile-look-`, `bound-color-`, `bound-symbol-`, `text-fallback-`, `badge-`, `action-rules-`, `confirm-when-`, `tab-fallback-`, `list-parts-` and `date-format-` files (and their `pending-` twins) cover the lane L-asks ids (`sh.enabled-when@1`, `sh.tile-look@1`, `sh.rules@1` colors and symbols, `sh.badges@1`, `sh.action-rules@1`, `sh.confirm-when@1`, `sh.tab-fallback@1`, `sh.list-parts@1`, and the date format under `sh.pipeline-operands@1`). They are written by `scripts/asks-corpus.ts` through the same generator. Evaluation cases name a subject kind (`operand`, `condition`, `fill`, `symbol`, `text`, `badge`, `enabled`, `faces`, `action`, `asks`) with its answer.
 
+The `number-format-`, `text-format-`, `list-read-` and `raw-state-` files (and their `pending-` twins) cover the four grammar additions the climate controls need
+(`minimumFractionDigits` and the title-case format under `sh.pipeline-operands@1`, the list reads `sh.list-read@1`, the raw state read `sh.raw-state@1`). They are written
+by `scripts/grammar2-corpus.ts` through the same generator. Their evaluation cases add one environment key: `env.raw` maps a source id to what the host's raw state read
+gives (`{status: 'value', value: 'unknown'}`); a source not listed has no entity and is unavailable. `env.reads` may hold arrays for a list attribute.
+
 `evaluation/*.json` is the expression **evaluation** corpus: an operand or a condition, an environment (`reads` keyed `<source>/<path>`, a
 viewer, a clock, an item, parameters, and `flow` for flow mode) and the exact answer (`yes`, `no` or `unknown` for a condition; `value`, `loading`
 or `unavailable` for an operand). The Studio runs it in `tests/expression-corpus.test.ts`; the app's evaluator must agree byte for byte.
@@ -78,5 +94,6 @@ a step on data the compiler refuses, to pin that evaluation is total; `expectedS
 the same generator, with hand-written expectations: do not edit by hand.
 
 The `component-`, `ref-`, `param-` and `body-` files (and their `pending-` twins) cover the lane L-linked id `sh.component-ref@1`: the `componentLibrary`
-key, the `component-ref` node, parameters, bindings and `args`. They are written by `scripts/generate-component-corpus.ts` through the same generator. The
+key, the `component-ref` node, parameters (kinds `entity-id` and `state-id`, `label`, `origin`), bindings, template-owned `sources` and `args`; the `component-example-*` files are the four
+template examples (light button, vent tile, humidifier sheet, bed sheet), compiled with placeholder entity ids. They are written by `scripts/generate-component-corpus.ts` through the same generator. The
 accepted ones are pending (the app's list refuses them with `unsupported_capability`); the rejected ones name the code the Studio's compiler gives.

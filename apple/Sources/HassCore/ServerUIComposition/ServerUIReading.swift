@@ -54,6 +54,9 @@ public protocol ServerUIReading {
     func read(sourceId: String, path: [String]) -> ServerUIReadResult
     /// The signed-in person; `nil` before the connection knows them.
     var viewer: ServerUIViewer? { get }
+    /// The state text of an `ha-entity` source exactly as Home Assistant reports it: `unknown` and `unavailable` are values
+    /// (`raw-state`, `sh.raw-state@1`). `.unavailable` only when the source has no entity; `.loading` before the first states arrive.
+    func readRaw(sourceId: String) -> ServerUIReadResult
     /// The state of the viewer's person entity.
     func viewerPersonState() -> ServerUIReadResult
     /// The new value of the control that sent the action being resolved; `nil` outside an action.
@@ -75,6 +78,7 @@ public protocol ServerUIReading {
 }
 
 public extension ServerUIReading {
+    func readRaw(sourceId: String) -> ServerUIReadResult { .unavailable }
     var controlValue: JSONValue? { nil }
     var clock: ServerUIClock? { nil }
     var item: JSONValue? { nil }

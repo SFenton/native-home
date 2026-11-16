@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "raw-state-not-unavailable",
+  "note": "A condition that holds for an entity that is anything but unavailable.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "ne",
+      "left": {
+        "type": "raw-state",
+        "sourceId": "sensor"
+      },
+      "right": {
+        "type": "literal",
+        "value": "unavailable"
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unknown"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

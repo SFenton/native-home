@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "list-includes-null-value",
+  "note": "null is not a value to look for: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "literal",
+        "value": null
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "heat",
+          "cool",
+          "heat_cool",
+          "off"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

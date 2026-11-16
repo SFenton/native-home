@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "list-count-empty",
+  "note": "An empty list has zero items.",
+  "subject": {
+    "operand": {
+      "type": "list-count",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": []
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}
