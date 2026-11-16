@@ -535,14 +535,43 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
                 pending.completion(.success(items))
             }
             await loading.value
+            let shown = await FeatureHost.settleAsync(until: { !page.records.isEmpty }, timeout: 5)
+            let diagnosis = Self.diagnosis(of: page, viewer: rig.providers.user?.id)
+            XCTAssertTrue(shown, "\(rig.family): the page shows rows. \(diagnosis)")
             let provider = try XCTUnwrap(page.records.compactMap { record -> ServerUITodoProvider? in
                 if case .todo(_, let provider) = record { provider } else { nil }
-            }.first, "\(rig.family): the supplied admin to-do provider")
+            }.first, "\(rig.family): the supplied admin to-do provider. \(diagnosis)")
             XCTAssertTrue(provider.configuration.allowsAttachments, "\(rig.family): it is the admin list, which takes attachments")
             let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
             do { try await provider.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
             catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
             await rig.assertRefused(1, "admin to-do upload")
+            XCTAssertFalse(provider.hasPendingIntent, "\(rig.family): the pending flag clears")
+        }
+    }
+
+    /// What the admin page held when it was read: the facts that decide whether a row shows.
+    @MainActor private static func diagnosis(of page: UKServerUIChoresCollection, viewer: String?) -> String {
+        let lists = page.configuration.lists.map { list in
+            "\(list.entityId) userIds=\(list.userIds) state=\(page.store.entity(list.entityId).state?.state ?? "nil") "
+                + "items=\(page.model.todos.controller(for: list.entityId).items?.count.description ?? "nil")"
+        }
+        return "viewer=\(viewer ?? "nil") sections=\(page.sections.count) records=\(page.records.count) lists=\(lists)"
+    }
+
+    /// The same write, driven through the todo provider the preview's own record registry built over the preview's own services,
+    /// without relying on rows showing.
+    func testTheAdminTodoUploadFromTheRegistrysProviderIsRefusedCountedAndSendsNothing() async throws {
+        try await drive { rig in
+            let page = try XCTUnwrap(rig.supply.records.collections.values.compactMap { $0 as? UKServerUIChoresCollection }
+                .first { $0.configuration.editsAdminTodo }, rig.family)
+            XCTAssertTrue((page.model.service as AnyObject) === rig.providers.services,
+                          "\(rig.family): the registry's to-do service is the preview's read-only services")
+            let provider = try XCTUnwrap(page.sources.values.first { $0.provider.configuration.allowsAttachments }?.provider, rig.family)
+            let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
+            do { try await provider.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(rig.family): an upload went out") }
+            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, rig.family) }
+            await rig.assertRefused(1, "admin to-do upload through the registry")
             XCTAssertFalse(provider.hasPendingIntent, "\(rig.family): the pending flag clears")
         }
     }
