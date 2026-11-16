@@ -201,5 +201,63 @@ class ProxyEndToEndTests(unittest.TestCase):
         return seen_ws, seen_http, replies, statuses, [r for r in rows if r["label"] in ("POST", "call_service", "GET")]
 
 
+class FixRoundTests(unittest.TestCase):
+    def test_camera_and_sign_path_reads_pass_but_writes_stay_refused(self) -> None:
+        for kind in ("camera/stream", "auth/sign_path"):
+            self.assertTrue(gp.ws_decide({"id": 1, "type": kind, "entity_id": "camera.x"}).allowed, kind)
+        for kind in ("call_service", "camera/webrtc/offer", "camera/update", "auth/delete_token"):
+            self.assertFalse(gp.ws_decide({"id": 1, "type": kind}).allowed, kind)
+
+    def test_image_serve_and_camera_proxy_paths_are_get_only_reads(self) -> None:
+        for path in ("/api/image/serve/abc123/512x512", "/api/camera_proxy/camera.x", "/api/camera_proxy_stream/camera.x?token=1",
+                     "/api/camera_proxy"):
+            self.assertTrue(gp.http_decide("GET", path).allowed, path)
+            for method in ("POST", "PUT", "DELETE", "PATCH"):
+                self.assertFalse(gp.http_decide(method, path).allowed, (method, path))
+        self.assertFalse(gp.http_decide("GET", "/api/image/upload").allowed)
+        self.assertFalse(gp.http_decide("GET", "/api/image").allowed)
+
+    def test_a_refused_call_service_logs_domain_and_service_only(self) -> None:
+        message = {"id": 4, "type": "call_service", "domain": "script", "service": "record_visit",
+                   "service_data": {"room": "SECRETROOM"}, "target": {"entity_id": "light.SECRETLIGHT"}}
+        verdict = gp.ws_decide(message)
+        self.assertEqual(verdict.detail, {"domain": "script", "service": "record_visit"})
+        with tempfile.TemporaryDirectory() as tmp:
+            log = gp.RejectionLog(Path(tmp) / "r.jsonl")
+            log.record(verdict, "/api/websocket")
+            log.record(gp.ws_decide({"type": "fire_event", "event_type": "x"}), "/api/websocket")
+            text = (Path(tmp) / "r.jsonl").read_text()
+        rows = [json.loads(line) for line in text.splitlines()]
+        self.assertNotIn("SECRET", text)
+        self.assertEqual((rows[0]["domain"], rows[0]["service"]), ("script", "record_visit"))
+        self.assertNotIn("domain", rows[1])
+        self.assertEqual(gp.ws_decide({"type": "call_service", "domain": 5}).detail, None)
+
+    def test_allowed_traffic_is_counted_by_type_in_the_summary_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            log = gp.RejectionLog(Path(tmp) / "run" / "rej.jsonl")
+            forward, _ = gp.filter_ws_payload(json.dumps([{"id": 1, "type": "fenton_home/house_config/subscribe", "token": "SECRET"},
+                                                          {"id": 2, "type": "get_states"}]))
+            for label in gp.allowed_labels(forward):
+                log.record_allowed("ws", label)
+            log.record_allowed("ws", "get_states")
+            log.record_allowed("http", gp.http_bucket("/api/states/light.secret?x=1"))
+            text = (Path(tmp) / "run" / "allowed-summary.json").read_text()
+        summary = json.loads(text)
+        self.assertEqual(summary["ws"], {"fenton_home/house_config/subscribe": 1, "get_states": 2})
+        self.assertEqual(summary["http"], {"/api/states": 1})
+        self.assertNotIn("light.secret", text)
+
+    def test_proxy_end_to_end_writes_the_summary_and_the_service_name(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            asyncio.run(ProxyEndToEndTests().scenario(Path(tmp) / "rej.jsonl"))
+            summary = json.loads((Path(tmp) / "allowed-summary.json").read_text())
+            rows = [json.loads(line) for line in (Path(tmp) / "rej.jsonl").read_text().splitlines()]
+        self.assertEqual(summary["ws"], {"get_states": 1, "ping": 1})
+        self.assertEqual(summary["http"], {"/api/config": 1})
+        service = [r for r in rows if r["label"] == "call_service"][0]
+        self.assertEqual((service["domain"], service["service"]), ("light", "turn_on"))
+
+
 if __name__ == "__main__":
     unittest.main()

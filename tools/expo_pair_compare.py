@@ -30,7 +30,8 @@ Parity-loop checks (manifest entries from ``tools/parity_loop/run.py``; each is 
   pair is ``drift`` (and the candidate must also be inside the gate of the second reference shot);
 * ``--require-ax``: both halves need a recorded AX tree (``*_ax_file``) and the normalised sequences must be equal;
 * mask files (``mask_files``: JSON lists of live regions) are added to ``live_regions``;
-* ``--status-bar-equal``: the unmasked status-bar band must match between the halves, else the pair is ``statusbar``.
+* ``--status-bar-equal``: the status-bar items (clock, signal, battery; rectangles per device profile, not the whole band or the
+  page behind it) must match between the halves, else the pair is ``statusbar``.
 
 Every record carries ``class: "unclassified"`` for the judge. Verdicts: ``pass``, ``fail``, ``drift``, ``statusbar``,
 ``refused``, ``skipped``.
@@ -317,19 +318,47 @@ def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
     return regions
 
 
-def status_bar_difference(ref_path: Path, cand_path: Path, density: float, status_bar_pt: float, tolerance: int) -> Optional[float]:
-    """Percent of the status-bar band's pixels that differ between two shots (before any mask), or ``None`` when sizes differ."""
+#: Status-bar item rectangles per device profile, in points: ``(label, x0, y0, x1, y1)``; a negative ``x`` counts from the right
+#: edge. Only these items are compared (clock, signal and battery), never the page behind the bar. The Duo rectangles follow the
+#: iPhone layout (clock on the left, indicators on the right) and are an approximation to calibrate on a screenshot that
+#: shows the bar; ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
+STATUS_BAR_ITEMS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
+    "duo": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
+    "iphone": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
+    "ipad": [("clock", 24, 8, 124, 36), ("indicators", -144, 8, -24, 36)],
+}
+
+
+def status_bar_rects(profile: str, size: Tuple[int, int], density: float,
+                     override: Optional[Dict[str, List[float]]] = None) -> List[Tuple[str, Rect]]:
+    """Pixel rectangles of the status-bar items for ``profile``; an unknown profile uses the ``duo`` layout."""
+    items = ([(k, v[0], v[1], v[2], v[3]) for k, v in override.items()] if override
+             else STATUS_BAR_ITEMS.get(profile, STATUS_BAR_ITEMS["duo"]))
+    rects: List[Tuple[str, Rect]] = []
+    for label, x0, y0, x1, y1 in items:
+        left, right = (x0, x1)
+        if x0 < 0:
+            left, right = size[0] / density + x0, size[0] / density + x1
+        rects.append((label, (max(0, int(left * density)), max(0, int(y0 * density)),
+                              min(size[0], int(right * density)), min(size[1], int(y1 * density)))))
+    return rects
+
+
+def status_bar_difference(ref_path: Path, cand_path: Path, density: float, profile: str, tolerance: int,
+                          override: Optional[Dict[str, List[float]]] = None) -> Optional[float]:
+    """Percent of the status-bar *item* pixels (clock, signal, battery) that differ between two shots, or ``None`` on a size mismatch."""
     ref, cand = png_raster.read(ref_path), png_raster.read(cand_path)
-    if ref.size != cand.size or status_bar_pt <= 0:
+    if ref.size != cand.size:
         return None
-    band = min(ref.size[1], int(status_bar_pt * density))
-    differing = 0
-    for y in range(band):
-        rr, cr = ref.row(y), cand.row(y)
-        if rr != cr:
-            differing += sum(1 for a, b, c, d, e, f in zip(rr[0::3], cr[0::3], rr[1::3], cr[1::3], rr[2::3], cr[2::3])
-                             if max(abs(a - b), abs(c - d), abs(e - f)) > tolerance)
-    return 100.0 * differing / max(1, band * ref.size[0])
+    differing = total = 0
+    for _, (x0, y0, x1, y1) in status_bar_rects(profile, ref.size, density, override):
+        for y in range(y0, y1):
+            rr, cr = ref.row(y)[x0 * 3:x1 * 3], cand.row(y)[x0 * 3:x1 * 3]
+            total += x1 - x0
+            if rr != cr:
+                differing += sum(1 for a, b, c, d, e, f in zip(rr[0::3], cr[0::3], rr[1::3], cr[1::3], rr[2::3], cr[2::3])
+                                 if max(abs(a - b), abs(c - d), abs(e - f)) > tolerance)
+    return 100.0 * differing / total if total else None
 
 
 def slug(text: str) -> str:
@@ -384,7 +413,7 @@ def pairs_from_manifest(path: Path) -> List[Dict[str, Any]]:
                              for k in ("reference", "candidate", "reference2")},
                 "ax_files": {k: base / entry[f"{k}_ax_file"] if entry.get(f"{k}_ax_file") else None
                              for k in ("reference", "candidate", "reference2")},
-                "skipped": entry.get("skipped"), "surface": entry.get("surface", name)})
+                "skipped": entry.get("skipped"), "surface": entry.get("surface", name), "device": entry.get("device")})
     return specs
 
 
@@ -458,7 +487,8 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
                 verdict_hint = "drift"
                 failures.extend(f"drift: {f}" for f in drift["failures"])
         if getattr(args, "status_bar_equal", False):
-            percent = status_bar_difference(Path(ref_png), Path(cand_png), spec["density"], status_pt, args.tolerance)
+            percent = status_bar_difference(Path(ref_png), Path(cand_png), spec["density"], spec.get("device") or "duo",
+                                            args.tolerance, getattr(args, "status_bar_rects", None))
             record["statusBarDifferencePercent"] = percent
             if percent is None or percent > getattr(args, "status_bar_max_percent", 0.5):
                 failures.append("status bar differs between the halves (normalisation failed)")
@@ -525,9 +555,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--require-ax", action="store_true", help="fail a pair with no recorded AX tree or unequal AX sequences")
     ap.add_argument("--status-bar-equal", action="store_true", help="the status-bar band must match between the halves before masking")
     ap.add_argument("--status-bar-max-percent", type=float, default=0.5, help="status-bar band pixels allowed to differ (percent)")
+    ap.add_argument("--status-bar-rects", type=Path, help="JSON {label: [x0, y0, x1, y1]} in points (negative x from the right) replacing the profile")
     ap.add_argument("--reference-pin", type=Path, help="reference-pin.json: the reference's bundleSHA256 must match")
     args = ap.parse_args(argv)
     args.reference_pin_hash = None
+    if args.status_bar_rects:
+        args.status_bar_rects = _json(args.status_bar_rects)
     try:
         if args.reference_pin:
             args.reference_pin_hash = _json(args.reference_pin)["bundleSHA256"]

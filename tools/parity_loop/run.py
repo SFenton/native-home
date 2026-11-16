@@ -94,7 +94,7 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
     sid = surface["id"]
     folder = ctx.run_dir / sid
     entry: Dict[str, Any] = {"id": sid, "capture": sid, "state": ",".join(surface.get("state_tags") or []), "surface": sid,
-                             "density": ctx.family["scale"], "pose": ctx.family["pose"]}
+                             "density": ctx.family["scale"], "pose": ctx.family["pose"], "device": ctx.device}
     plans = {side: plan_reach(surface, side, ctx.mode) for side in APPS}
     skipped = [f"{side}: {p.reason}" for side, p in plans.items() if p.method == "skip"]
     if skipped:

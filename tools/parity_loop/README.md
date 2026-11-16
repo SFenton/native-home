@@ -29,7 +29,7 @@ python3 tools/parity_loop/run.py --mode gallery --device duo --run NAME --surfac
 
 - Needs `PARITY_LIVE_GO=1` and an output folder git ignores (checked with `git check-ignore`).
 - The reference is launched only through the guard proxy: `launch.py proxy --log RUN/proxy-rejections.jsonl` (upstream from the credentials file, loaded in a bash child), then `launch.py live --side reference --udid U --proxy-url URL`. The token never enters Python, an argument, a log or a file.
-- The proxy allows WebSocket `auth`, `ping`, `get_states`, `get_config`, `get_services`, `subscribe_events`, `subscribe_entities`, `render_template`, registry and list reads, and `fenton_home/*` `/subscribe`, `/get`, `/list`; HTTP `GET` on a short read allow-list. `call_service`, `mobile_app` registration, webhooks and every non-GET are refused and logged (kind, type, path without query; never a body).
+- The proxy allows WebSocket `auth`, `auth/sign_path`, `camera/stream`, `ping`, `get_states`, `get_config`, `get_services`, `subscribe_events`, `subscribe_entities`, `render_template`, registry and list reads, and `fenton_home/*` `/subscribe`, `/get`, `/list`; HTTP `GET` on a short read allow-list (including `/api/image/serve/*` and `/api/camera_proxy*`). `call_service`, `mobile_app` registration, webhooks and every non-GET are refused and logged (kind, type, path without query; for `call_service` also domain and service; never a body, service data or target). Allowed traffic is counted by type in `allowed-summary.json` beside the log.
 - The candidate's read-only live preview needs a one-time credential file, which would write the token to disk. `launch_live` refuses it until the owner allows that.
 
 ## Not done yet

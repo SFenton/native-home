@@ -12,7 +12,8 @@ path that is not named is refused.
   forwarded and the client gets a ``result`` error with code ``read_only``. Server frames pass through untouched.
 * HTTP: only ``GET`` to a path :func:`http_decide` allows is forwarded; every other method and path gets ``403``.
 
-The rejection log records the kind, message type or method, the path without its query string and the reason. It never
+The rejection log records the kind, message type or method, the path without its query string, the reason and, for a refused
+``call_service``, its domain and service; allowed traffic is only counted by type in ``allowed-summary.json`` beside the log. It never
 records a body, a header or a token, and nothing here prints the upstream address. Python 3 standard library only.
 """
 
@@ -41,7 +42,7 @@ WS_ALLOWED_TYPES = frozenset({
     "subscribe_events", "subscribe_entities", "unsubscribe_events", "render_template",
     "config/entity_registry/list", "config/entity_registry/list_for_display", "config/device_registry/list",
     "config/area_registry/list", "config/floor_registry/list", "config/label_registry/list",
-    "person/list", "schedule/list", "todo/item/list",
+    "person/list", "schedule/list", "todo/item/list", "camera/stream", "auth/sign_path",
     "fenton_home/house_config/subscribe", "fenton_home/ui_publication/subscribe", "fenton_home/ui_publication/get",
 })
 #: Types under ``fenton_home/`` ending in one of these are reads too (``fenton_home`` reads), whatever their middle part.
@@ -50,8 +51,10 @@ FENTON_READ_SUFFIXES = ("/subscribe", "/get", "/list")
 HTTP_ALLOWED_PREFIXES = (
     "/api/websocket", "/api/config", "/api/states", "/api/fenton_home/ui_assets", "/api/fenton_home/config",
     "/api/camera_proxy", "/api/image_proxy", "/api/media_player_proxy", "/api/history/period", "/local", "/static",
-    "/frontend_latest", "/hacsfiles",
+    "/frontend_latest", "/hacsfiles", "/api/image/serve",
 )
+#: ``/api/camera_proxy*``: a raw string prefix, so ``/api/camera_proxy_stream/...`` (a streamed GET) is a read too.
+HTTP_STARTSWITH = ("/api/camera_proxy",)
 #: ``/api/`` alone (the connectivity probe) is allowed as an exact path, not as a prefix of everything under ``/api``.
 HTTP_EXACT_PATHS = frozenset({"/api/", "/api", "/manifest.json", "/api/services"})
 #: Prefixes that are refused even for ``GET`` or when a caller widens the allow-list.
@@ -68,6 +71,8 @@ class Decision:
     kind: str  # "ws" | "http"
     label: str  # message type, or HTTP method
     reason: str = ""
+    #: Non-secret facts worth logging for a refusal: only ``domain`` and ``service`` of a ``call_service``.
+    detail: Optional[Dict[str, str]] = None
 
 
 def ws_decide(message: Any, extra_types: Iterable[str] = ()) -> Decision:
@@ -79,6 +84,10 @@ def ws_decide(message: Any, extra_types: Iterable[str] = ()) -> Decision:
         return Decision(False, "ws", "<untyped>", "message has no type")
     if kind in WS_ALLOWED_TYPES or kind in set(extra_types):
         return Decision(True, "ws", kind)
+    if kind == "call_service":
+        # Which service was tried is the one thing worth keeping; service_data and target are never read here.
+        names = {k: message[k][:80] for k in ("domain", "service") if isinstance(message.get(k), str)}
+        return Decision(False, "ws", kind, "type is not on the read allow-list", names or None)
     if kind.startswith("fenton_home/") and kind.endswith(FENTON_READ_SUFFIXES):
         return Decision(True, "ws", kind)
     return Decision(False, "ws", kind, "type is not on the read allow-list")
@@ -95,7 +104,7 @@ def http_decide(method: str, path: str, extra_prefixes: Iterable[str] = ()) -> D
         return Decision(False, "http", "GET", "path is never allowed")
     if bare.startswith("/api/services/"):
         return Decision(False, "http", "GET", "service paths are never allowed")
-    if bare in HTTP_EXACT_PATHS or any(_under(bare, p) for p in tuple(HTTP_ALLOWED_PREFIXES) + tuple(extra_prefixes)):
+    if bare in HTTP_EXACT_PATHS or bare.startswith(HTTP_STARTSWITH) or any(_under(bare, p) for p in tuple(HTTP_ALLOWED_PREFIXES) + tuple(extra_prefixes)):
         return Decision(True, "http", "GET")
     return Decision(False, "http", "GET", "path is not on the read allow-list")
 
@@ -129,6 +138,12 @@ def filter_ws_payload(text: str, extra_types: Iterable[str] = ()) -> Tuple[Optio
     return (json.dumps(keep if isinstance(value, list) else keep[0], separators=(",", ":")), refused)
 
 
+def allowed_labels(forward_text: str) -> List[str]:
+    """The message types in a forwarded frame, for the allowed-traffic counts (types only)."""
+    value = json.loads(forward_text)
+    return [str(m.get("type")) for m in (value if isinstance(value, list) else [value]) if isinstance(m, dict)]
+
+
 def refusal_frame_text(message_id: Any) -> str:
     """The ``result`` error sent to the client in place of a refused message."""
     body: Dict[str, Any] = {"type": "result", "success": False,
@@ -141,11 +156,18 @@ def refusal_frame_text(message_id: Any) -> str:
 # MARK: - Rejection log
 
 class RejectionLog:
-    """An append-only JSONL log of refusals: kind, type or method, path and reason, plus running counts. No bodies, no tokens."""
+    """An append-only JSONL log of refusals plus running counts of what passed.
 
-    def __init__(self, path: Optional[Path]) -> None:
+    A refusal row holds the kind, type or method, the path without its query string, the reason and, for a refused
+    ``call_service``, its ``domain`` and ``service``. Allowed traffic is only counted by type (``allowed-summary.json``, written
+    beside the log). No bodies, headers, service data, targets or tokens are ever recorded.
+    """
+
+    def __init__(self, path: Optional[Path], summary_path: Optional[Path] = None) -> None:
         self.path = Path(path) if path else None
+        self.summary_path = Path(summary_path) if summary_path else (self.path.with_name("allowed-summary.json") if self.path else None)
         self.counts: Dict[str, int] = {}
+        self.allowed: Dict[str, Dict[str, int]] = {"ws": {}, "http": {}}
         if self.path:
             self.path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -154,10 +176,25 @@ class RejectionLog:
         self.counts[key] = self.counts.get(key, 0) + 1
         if self.path is None:
             return
-        row = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "kind": decision.kind, "label": decision.label,
-               "path": path.split("?", 1)[0], "reason": decision.reason}
+        row: Dict[str, Any] = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "kind": decision.kind,
+                               "label": decision.label, "path": path.split("?", 1)[0], "reason": decision.reason}
+        if decision.detail:
+            row.update(decision.detail)
         with self.path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(row) + "\n")
+
+    def record_allowed(self, kind: str, label: str) -> None:
+        """Count one forwarded message type (``ws``) or one read path prefix (``http``) and rewrite the summary file."""
+        bucket = self.allowed.setdefault(kind, {})
+        bucket[label] = bucket.get(label, 0) + 1
+        if self.summary_path:
+            self.summary_path.parent.mkdir(parents=True, exist_ok=True)
+            self.summary_path.write_text(json.dumps(self.allowed, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def http_bucket(path: str) -> str:
+    """The first two path segments (``/api/states``): enough to count reads without logging an entity id or a token."""
+    return "/" + "/".join(path.split("?", 1)[0].split("/")[1:3])
 
 
 # MARK: - WebSocket frames
@@ -241,6 +278,7 @@ class GuardProxy:
                 else:
                     await self._websocket(reader, writer, target, headers)
             else:
+                self.log.record_allowed("http", http_bucket(target))
                 await self._forward_http(writer, target, headers)
         except (asyncio.IncompleteReadError, ConnectionError, ValueError, asyncio.LimitOverrunError):
             pass
@@ -258,27 +296,35 @@ class GuardProxy:
         skip = {"host", "connection", "upgrade", "accept-encoding", "content-length", "transfer-encoding", "proxy-connection"}
         send = {k: v for k, v in headers.items() if k not in skip}
 
-        def call() -> Tuple[int, List[Tuple[str, str]], bytes]:
+        def call() -> Tuple[Any, Any]:
             up = self.upstream
             conn = (http.client.HTTPSConnection(up.host, up.port, timeout=60, context=self._ssl()) if up.tls
                     else http.client.HTTPConnection(up.host, up.port, timeout=60))
-            try:
-                conn.request("GET", target, headers=send)
-                resp = conn.getresponse()
-                return resp.status, resp.getheaders(), resp.read()
-            finally:
-                conn.close()
+            conn.request("GET", target, headers=send)
+            return conn, conn.getresponse()
 
+        loop = asyncio.get_running_loop()
         try:
-            status, response_headers, body = await asyncio.get_running_loop().run_in_executor(None, call)
+            conn, resp = await loop.run_in_executor(None, call)
         except (OSError, http.client.HTTPException):
             await self._plain(writer, 502, "upstream unreachable")
             return
-        drop = {"transfer-encoding", "connection", "content-length", "content-encoding"}
-        out = [f"HTTP/1.1 {status} OK"] + [f"{k}: {v}" for k, v in response_headers if k.lower() not in drop]
-        out += [f"Content-Length: {len(body)}", "Connection: close", "", ""]
-        writer.write("\r\n".join(out).encode("latin-1") + body)
-        await writer.drain()
+        try:
+            drop = {"transfer-encoding", "connection", "content-encoding"}
+            out = [f"HTTP/1.1 {resp.status} OK"] + [f"{k}: {v}" for k, v in resp.getheaders() if k.lower() not in drop]
+            out += ["Connection: close", "", ""]
+            writer.write("\r\n".join(out).encode("latin-1"))
+            # Streamed in chunks, so a camera stream (``/api/camera_proxy_stream``) flows instead of waiting for an end.
+            while True:
+                chunk = await loop.run_in_executor(None, resp.read1, 65536)
+                if not chunk:
+                    break
+                writer.write(chunk)
+                await writer.drain()
+        except (OSError, http.client.HTTPException):
+            pass
+        finally:
+            conn.close()
 
     async def _websocket(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, target: str,
                          headers: Dict[str, str]) -> None:
@@ -327,6 +373,8 @@ class GuardProxy:
                         writer.write(encode_frame(1, refusal_frame_text(message_id).encode(), False))
                     await writer.drain()
                     if forward is not None:
+                        for label in allowed_labels(forward):
+                            self.log.record_allowed("ws", label)
                         uwriter.write(encode_frame(first_opcode, forward.encode(), True))
                         await uwriter.drain()
 

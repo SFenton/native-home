@@ -108,6 +108,25 @@ class CompareTests(unittest.TestCase):
         same = epc.judge(self.spec(), self.dir, args(status_bar_equal=True))
         self.assertEqual(same["verdict"], "pass")
 
+    def test_status_bar_check_compares_only_the_items_not_the_band(self) -> None:
+        size = (466, 300)  # a Duo-wide frame at density 1, so the profile rectangles fit
+
+        def pair(cand_paint: tuple) -> dict:
+            return self.spec(reference_png=solid(self.dir / "wr.png", size=size), candidate_png=solid(self.dir / "wc.png", paint=cand_paint, size=size),
+                             reference2_png=solid(self.dir / "wr2.png", size=size))
+        centre = ((150, 0, 300, 54), (255, 255, 255))  # page background between the clock and the indicators
+        clock = ((30, 15, 60, 35), (255, 255, 255))
+        battery = ((400, 15, 430, 35), (255, 255, 255))
+        ok = epc.judge(pair((centre,)), self.dir, args(status_bar_equal=True))
+        self.assertEqual((ok["verdict"], ok["statusBarDifferencePercent"]), ("pass", 0.0))
+        for item in (clock, battery):
+            bad = epc.judge(pair((item,)), self.dir, args(status_bar_equal=True))
+            self.assertEqual(bad["verdict"], "statusbar")
+        self.assertEqual([n for n, _ in epc.status_bar_rects("duo", size, 1.0)], ["clock", "indicators"])
+        self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[1][1][0], 218)  # (466 px / 2 - 124 pt) * 2
+        override = {"only": [0, 0, 10, 10]}
+        self.assertEqual(epc.status_bar_rects("duo", size, 1.0, override), [("only", (0, 0, 10, 10))])
+
     def test_skipped_entry_and_exit_codes(self) -> None:
         manifest = {"pairs": [{"id": "s", "reference_png": "", "candidate_png": "", "skipped": "writes_on_reach and no deep link"}]}
         (self.dir / "m.json").write_text(json.dumps(manifest))
