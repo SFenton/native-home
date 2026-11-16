@@ -144,6 +144,7 @@
   "sh.shell@1",
   "sh.sprinkler-controller@1",
   "sh.sprinkler-state@1",
+  "sh.state-style-fills@1",
   "sh.state-style@1",
   "sh.status-chip@1",
   "sh.status-pill@1",
