@@ -128,6 +128,16 @@ class RunTests(unittest.TestCase):
         car = read_json(folder / "candidate.sidecar.json")
         self.assertEqual((car["side"], car["surface"], car["scale"], car["source"]), ("candidate", "chores", 1, "fixture"))
 
+    def test_status_bar_rects_reach_the_compare(self) -> None:
+        rects = self.dir / "rects.json"
+        rects.write_text(json.dumps({"clock": [0, 0, 10, 10]}))
+        ctx = self.context()
+        ctx.status_bar_rects = rects
+        with mock.patch.object(plrun.expo_pair_compare, "main", return_value=0) as compare:
+            plrun.run_all(ctx, plrun.select(SURFACES, ["chores"]), self.pin, pin_path=self.pin_path)
+        flags = compare.call_args[0][0]
+        self.assertEqual(flags[flags.index("--status-bar-rects") + 1], str(rects))
+
     def test_reference_drift_is_reported_as_drift(self) -> None:
         self.world.reference2_paint = (BIG,)
         ctx, status = self.run_surfaces(["chores"])

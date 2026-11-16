@@ -69,6 +69,7 @@ class Context:
     tool_sha: str = ""
     bundle_hashes: Dict[str, str] = field(default_factory=dict)
     launcher: Optional[Callable[[Half, Mapping[str, Any], ReachPlan, "Context"], None]] = None
+    status_bar_rects: Optional[Path] = None
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -177,6 +178,8 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
     write_json(ctx.run_dir / "manifest.json", {"pairs": entries})
     flags = ["--manifest", str(ctx.run_dir / "manifest.json"), "--out", str(ctx.run_dir / "compare"),
              "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax", "--status-bar-equal"]
+    if ctx.status_bar_rects:
+        flags += ["--status-bar-rects", str(ctx.status_bar_rects)]
     status = expo_pair_compare.main(flags + (["--reference-pin", str(pin_path)] if pin_hash else []))
     results = ctx.run_dir / "compare" / "results.json"
     if results.is_file():
@@ -197,13 +200,15 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--reference-agent", required=True, help="the bound agent-device command for the reference simulator")
     ap.add_argument("--candidate-udid", required=True)
     ap.add_argument("--candidate-agent", required=True, help="the bound agent-device command for the candidate simulator")
+    ap.add_argument("--status-bar-rects", type=Path, help="calibrated status-bar item rectangles (points) passed to the compare")
     ap.add_argument("--publication", type=Path, help="candidate preview publication directory to feed before the run")
     ap.add_argument("--reference-pin", type=Path, default=DEFAULT_PIN, help="reference-pin.json ('none' to skip the pin check)")
     args = ap.parse_args(argv)
     halves = {REFERENCE: Half(REFERENCE, args.reference_udid, Agent(args.reference_agent)),
               CANDIDATE: Half(CANDIDATE, args.candidate_udid, Agent(args.candidate_agent))}
     sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
-    ctx = Context(args.out / args.run, args.mode, args.device, halves, appearance=args.appearance, tool_sha=sha)
+    ctx = Context(args.out / args.run, args.mode, args.device, halves, appearance=args.appearance, tool_sha=sha,
+                  status_bar_rects=args.status_bar_rects)
     try:
         pin = None if str(args.reference_pin) == "none" else read_json(args.reference_pin)["bundleSHA256"]
         surfaces = select(read_json(args.surfaces_file), args.surfaces.split(",") if args.surfaces else None)
