@@ -23,7 +23,7 @@ Two input forms (the second also accepts ``--scan ROOT``)::
 A case may declare ``liveRegions``: ``[{"label", "x", "y", "width", "height", "unit": "pt"|"px"}]`` (points by default).
 
 Writes ``OUT/<pair>.json`` and ``OUT/<pair>-diff.png`` per pair, plus ``OUT/results.json``. Exits 1 when any pair fails,
-2 on unusable input. Python 3 standard library plus Pillow.
+2 on unusable input. Python 3 standard library only (``tools/png_raster.py`` reads and writes the PNGs).
 """
 
 from __future__ import annotations
@@ -35,7 +35,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from PIL import Image, ImageChops
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import png_raster  # noqa: E402
+from png_raster import Raster  # noqa: E402
 
 #: Default gate numbers (``build/decisions/native-ingest.md`` default 2).
 TOLERANCE = 8
@@ -130,16 +132,33 @@ def mask_rects(size: Tuple[int, int], density: float, status_bar_pt: float,
 
 # MARK: - Pixels
 
-def diff_mask(ref: Image.Image, cand: Image.Image, tolerance: int, masks: List[Tuple[str, Rect]]) -> Tuple[Image.Image, int]:
-    """An ``L`` image, 255 where any channel differs by more than ``tolerance`` outside the masks, and the max channel delta."""
-    delta = ImageChops.difference(ref.convert("RGB"), cand.convert("RGB"))
-    r, g, b = delta.split()
-    peak = ImageChops.lighter(ImageChops.lighter(r, g), b)
-    maximum = peak.getextrema()[1]
-    flagged = peak.point([255 if i > tolerance else 0 for i in range(256)])
-    for _, rect in masks:
-        flagged.paste(0, rect)
+def diff_mask(ref: Raster, cand: Raster, tolerance: int, masks: List[Tuple[str, Rect]]) -> Tuple[bytearray, int]:
+    """A ``width * height`` mask, 255 where any channel differs by more than ``tolerance`` outside the masks, and the max channel delta."""
+    width, height = ref.size
+    flagged = bytearray(width * height)
+    maximum = 0
+    for y in range(height):
+        rr, cr = ref.row(y), cand.row(y)
+        if rr == cr:
+            continue
+        peaks = [max(abs(a - b), abs(c - d), abs(e - f)) for a, b, c, d, e, f in
+                 zip(rr[0::3], cr[0::3], rr[1::3], cr[1::3], rr[2::3], cr[2::3])]
+        maximum = max(maximum, max(peaks))
+        flagged[y * width:(y + 1) * width] = bytes(255 if peak > tolerance else 0 for peak in peaks)
+    for _, (x0, y0, x1, y1) in masks:
+        for y in range(y0, y1):
+            flagged[y * width + x0:y * width + x1] = bytes(x1 - x0)
     return flagged, maximum
+
+
+def mask_bounds(flagged: bytearray, width: int, height: int) -> Optional[Rect]:
+    """The bounding box (x0, y0, x1, y1 exclusive) of the flagged pixels, or ``None`` when none are flagged."""
+    rows = [y for y in range(height) if 255 in flagged[y * width:(y + 1) * width]]
+    if not rows:
+        return None
+    lefts = [flagged.find(b"\xff", y * width, (y + 1) * width) - y * width for y in rows]
+    rights = [flagged.rfind(b"\xff", y * width, (y + 1) * width) - y * width + 1 for y in rows]
+    return min(lefts), rows[0], max(rights), rows[-1] + 1
 
 
 def _runs(data: bytes, width: int, height: int) -> List[List[Tuple[int, int]]]:
@@ -147,11 +166,9 @@ def _runs(data: bytes, width: int, height: int) -> List[List[Tuple[int, int]]]:
     return [[m.span() for m in pattern.finditer(data, y * width, (y + 1) * width)] for y in range(height)]
 
 
-def largest_block(flagged: Image.Image) -> int:
+def largest_block(flagged: bytearray, width: int, height: int) -> int:
     """Size in pixels of the largest 8-connected block of flagged pixels (run-length union-find, no numpy)."""
-    width, height = flagged.size
-    data = flagged.tobytes()
-    rows = _runs(data, width, height)
+    rows = _runs(bytes(flagged), width, height)
     parent: List[int] = []
     size: List[int] = []
 
@@ -188,13 +205,29 @@ def largest_block(flagged: Image.Image) -> int:
     return max((size[i] for i in range(len(parent)) if find(i) == i), default=0)
 
 
-def write_diff_png(cand: Image.Image, flagged: Image.Image, masks: List[Tuple[str, Rect]], path: Path) -> None:
+def _blend_table(target: int, alpha: float) -> bytes:
+    """A 256-entry lookup that mixes each channel value toward ``target`` by ``alpha``."""
+    return bytes(round(v * (1 - alpha) + target * alpha) for v in range(256))
+
+
+def write_diff_png(cand: Raster, flagged: bytearray, masks: List[Tuple[str, Rect]], path: Path) -> None:
     """The candidate dimmed, masked regions tinted blue, differing pixels red."""
-    base = Image.blend(cand.convert("RGB"), Image.new("RGB", cand.size, (0, 0, 0)), 0.65)
-    for _, rect in masks:
-        base.paste(Image.blend(base.crop(rect), Image.new("RGB", (rect[2] - rect[0], rect[3] - rect[1]), (40, 80, 200)), 0.5), rect[:2])
-    base.paste(Image.new("RGB", cand.size, (255, 40, 40)), mask=flagged)
-    base.save(path)
+    width, height = cand.size
+    dim = bytearray(cand.data.translate(_blend_table(0, 0.65)))
+    tints = [_blend_table(channel, 0.5) for channel in (40, 80, 200)]
+    stride = width * 3
+    for _, (x0, y0, x1, y1) in masks:
+        for y in range(y0, y1):
+            seg = dim[y * stride + x0 * 3:y * stride + x1 * 3]
+            for channel, table in enumerate(tints):
+                seg[channel::3] = seg[channel::3].translate(table)
+            dim[y * stride + x0 * 3:y * stride + x1 * 3] = seg
+    for y in range(height):
+        for match in re.finditer(rb"\xff+", bytes(flagged[y * width:(y + 1) * width])):
+            start, end = match.span()
+            dim[y * stride + start * 3:y * stride + end * 3] = b"\xff\x28\x28" * (end - start)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    png_raster.write(Raster(width, height, bytes(dim)), path)
 
 
 # MARK: - Comparing a pair
@@ -203,7 +236,7 @@ def compare_images(ref_path: Path, cand_path: Path, out_png: Path, *, density: f
                    live_regions: List[Dict[str, Any]], home_indicator_pt: float = HOME_INDICATOR_PT, tolerance: int = TOLERANCE,
                    max_diff_percent: float = MAX_DIFF_PERCENT, max_block_percent: float = MAX_BLOCK_PERCENT) -> Dict[str, Any]:
     """Measure one image pair; the result holds the numbers, the gate flags and ``failures`` (empty when it passes)."""
-    ref, cand = Image.open(ref_path), Image.open(cand_path)
+    ref, cand = png_raster.read(ref_path), png_raster.read(cand_path)
     result: Dict[str, Any] = {"first": str(ref_path), "second": str(cand_path), "failures": []}
     if ref.size != cand.size:
         result.update(sizeFirst=list(ref.size), sizeSecond=list(cand.size), changedPixels=None, totalPixels=None)
@@ -212,9 +245,9 @@ def compare_images(ref_path: Path, cand_path: Path, out_png: Path, *, density: f
     masks = mask_rects(ref.size, density, status_bar_pt, live_regions, home_indicator_pt)
     flagged, maximum = diff_mask(ref, cand, tolerance, masks)
     total = ref.size[0] * ref.size[1]
-    changed = flagged.histogram()[255]
-    block = largest_block(flagged) if changed else 0
-    bounds = flagged.getbbox()
+    changed = flagged.count(255)
+    block = largest_block(flagged, *ref.size) if changed else 0
+    bounds = mask_bounds(flagged, *ref.size)
     pct, block_pct = 100.0 * changed / total, 100.0 * block / total
     result.update(
         changedPixels=changed, totalPixels=total, changedPercent=round(pct, 4), largestBlockPixels=block,
