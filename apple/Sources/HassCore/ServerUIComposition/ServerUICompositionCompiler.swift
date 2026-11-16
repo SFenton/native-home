@@ -1632,7 +1632,7 @@ struct ServerUICompositionCompiler {
                 sendingOpenText: props.s("sendingOpenText"), sendingCloseText: props.s("sendingCloseText"),
                 openLabel: props.s("openLabel"), closeLabel: props.s("closeLabel"), reverseLabel: props.s("reverseLabel")
             ), entityId: doorSources[source]?.entityId ?? "")
-            if !loweredStyles.contains(where: { $0.style.id == lowered.style.id }) { loweredStyles.append(lowered.style) }
+            if !loweredStyles.contains(where: { $0.style.id == lowered.style.style.id }) { loweredStyles.append(lowered.style) }
             return .stateTile(lowered.tile)
         case "climate-control":
             require("bindings"); require("climate-source")
