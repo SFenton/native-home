@@ -939,9 +939,9 @@
    "over_words": 12
   },
   ".agents/patterns/entity-tile.md": {
-   "forbidden": 28,
+   "forbidden": 27,
    "long_lines": 18,
-   "over_words": 1220
+   "over_words": 1208
   },
   ".agents/patterns/floating-actions.md": {
    "forbidden": 7,
