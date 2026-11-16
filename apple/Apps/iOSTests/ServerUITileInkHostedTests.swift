@@ -342,7 +342,7 @@ final class ServerUITileInkHostedTests: XCTestCase {
     }
 
     /// What the base tree draws for a default state tile with one button at 260 pt wide (see the probe).
-    private static let base: (height: CGFloat, icon: UInt32, discGlyph: UInt32, discGround: UInt32, discAlpha: Double) = (0, 0, 0, 0, 0)
+    private static let base: (height: CGFloat, icon: UInt32, discGlyph: UInt32, discGround: UInt32, discAlpha: Double) = (72, 0x9C9CA0, 0x7B7B80, 0xFFFFFF, 0.16)
 
     func testADocumentWithNoInkFieldIsNotDeclaredAndDrawsNoTint() async throws {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
