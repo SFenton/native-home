@@ -129,7 +129,8 @@ struct UKGlassTileModel {
     func faceContent(trailingInset: CGFloat, bottomInset: CGFloat, hidesGlyph: Bool = false, textFit: TileTextFit = .natural) -> UKTileFaceContent {
         UKTileFaceContent(
             title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB,
-            glyphTint: glyphTint, softFillInk: softFillInk, isActive: isActive,
+            // An unavailable tile draws the muted grey at 50%, as the old atom did: the tint is not applied then (`sh.tile-ink@1`).
+            glyphTint: isUnavailable ? nil : glyphTint, softFillInk: softFillInk, isActive: isActive,
             isUnavailable: isUnavailable && !isInert, isError: isError, isWarning: isWarning,
             showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,

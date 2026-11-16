@@ -136,17 +136,23 @@ final class ServerUITileInkHostedTests: XCTestCase {
         }
     }
 
-    func testAnUnavailableTileDrawsTheIconColourAtHalfOpacityAsItDrawsTheGrey() async throws {
+    func testAnUnavailableTileKeepsTheMutedGreyAndIgnoresTheIconColourAtEveryWidth() async throws {
         for width in Self.widths {
             let (root, tile, store) = try await page("glyph-tint-pair", width: width, state: "docked")
             store.apply([EntityState(entityId: "vacuum.demo_robot", state: "unavailable")])
             await HostedPage.settle { tile.model.isUnavailable }
             setStyle(.dark, root)
             XCTAssertTrue(tile.model.isUnavailable)
-            XCTAssertEqual(packed(tile.face.drawnGlyphColor, in: tile), Self.glyphDark, "still the authored colour (width \(width))")
-            XCTAssertEqual(tile.face.drawnGlyphAlpha, 0.5, accuracy: 0.001, "dimmed to 50%, as the grey icon is")
+            XCTAssertNotEqual(packed(tile.face.drawnGlyphColor, in: tile), Self.glyphDark, "glyphTint is not applied when unavailable (width \(width))")
             HostedPage.hideTracked()
         }
+        // A tile that can be tapped draws the grey at 50%, exactly as it does with no tint at all.
+        let item = TileActionItem(id: "pause", verb: "Pause", symbol: "pause.fill")
+        let tinted = tile(model(isUnavailable: true, actions: [item], glyphTint: Self.pair), width: 260)
+        let bare = tile(model(isUnavailable: true, actions: [item]), width: 260)
+        XCTAssertEqual(tinted.face.drawnGlyphColor.resolvedColor(with: tinted.traitCollection), bare.face.drawnGlyphColor.resolvedColor(with: bare.traitCollection))
+        XCTAssertEqual(tinted.face.drawnGlyphAlpha, 0.5, accuracy: 0.001)
+        XCTAssertEqual(tinted.face.drawnGlyphAlpha, bare.face.drawnGlyphAlpha, accuracy: 0.001)
     }
 
     func testTheIconColourFollowsTheLiveStateWithNoReload() async throws {

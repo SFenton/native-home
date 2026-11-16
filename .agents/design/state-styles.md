@@ -78,7 +78,7 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 
 `sh.tile-ink@1` gives the generic state tile four options so a lowered tile can match the atom it replaces. Each is optional and the default draws what the tile always drew. A pair (`solid-appearance`) resolves with the trait collection, with no clamp.
 
-- **`glyphTint`:** the icon colour on a face that is neither filled (`filledWhen` or a style `fill`) nor an error, at 50% while unavailable. Old: the off glyph of a family face (`TileFaceInk.glyphToken`).
+- **`glyphTint`:** the icon colour on a face that is neither filled (`filledWhen` or a style `fill`) nor an error, and not applied while unavailable (the muted grey at 50%, as before). Old: the off glyph of a family face (`TileFaceInk.glyphToken`).
 - **`discGlyphTint`:** the button icons on a dark face, an error face included, while the disc is off. A filled face keeps its black 18% disc and white glyph (`TileActionInk.resolveTokens`).
 - **`fillInk`** (a rule or the fallback, beside a `fill`): `soft` is white at 92% for the state line, as the family fill drew; the title stays white.
 - **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell (`UKDynamicGridView.layoutSubviews`); the row is still as tall as its tallest cell.
