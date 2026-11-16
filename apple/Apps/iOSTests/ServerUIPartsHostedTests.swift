@@ -360,7 +360,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         HostedPage.hideTracked()
         let (_, form) = try page("parts-row-form-metrics", width: 390, entities: [autoClean("on")])
         let formRow = try row(form)
-        XCTAssertEqual(formRow.row.style, .form)
+        XCTAssertEqual(formRow.row.rowContent.style, .form)
         XCTAssertGreaterThanOrEqual(formRow.bounds.height, 44)
     }
 
