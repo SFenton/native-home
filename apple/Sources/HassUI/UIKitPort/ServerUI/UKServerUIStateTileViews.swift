@@ -26,9 +26,12 @@ enum UKServerUIStateTileViews {
     ///   - library: The document's style library.
     ///   - capability: Whether this device negotiated the capability.
     ///   - state: The entity's live state.
-    ///   - phase: Where the request stands, the screen's privacy and the first load.
+    ///   - request: Where the request stands, the screen's privacy and the first load.
+    ///   - shown: The state a call put on the entity until Home Assistant's own arrives (`StateRequest.pendingStates`); the look follows it
+    ///     while the disc and the words of a call in flight still follow the live state.
+    ///   - sending: Whether the call is on the wire, which is when the pending words show; defaults to `request.isInFlight`.
     static func face(for tile: D.StateTile, library: ServerUIStateStyleLibrary?, capability: Bool, state: EntityState?,
-                     request: UKStateTileLooks.Request, pendingWords: Bool = false) -> Face {
+                     request: UKStateTileLooks.Request, shown: String? = nil, sending: Bool? = nil) -> Face {
         let entityId = tile.binding.entityId
         guard let style = tile.binding.resolve(in: library, capability: capability) else {
             // No authored style and no built-in one: the tile is unavailable, with the node's own icon.
@@ -39,7 +42,7 @@ enum UKServerUIStateTileViews {
             model.look = look
             return Face(model: model, spec: nil)
         }
-        let resolution = style.resolve(state, entityId: entityId)
+        let resolution = style.resolve(state?.showing(shown), entityId: entityId)
         var spec = style.spec(for: state, entityId: entityId, requestInFlight: request.isInFlight)
         // An authored action symbol this OS cannot draw degrades to the fallback glyph; the call it runs is untouched.
         if let drawn = spec.map({ ServerUISymbolFallback.resolve($0.symbol) }) { spec?.symbol = drawn }
@@ -47,7 +50,7 @@ enum UKServerUIStateTileViews {
         let glyph = resolution.hasGlyph && UKServerUIPreflight.facts.drawsSymbol(resolution.glyph) ? resolution.glyph : tile.icon.drawn
         var words = resolution.words
         if request.failed { words = style.request?.errorWords ?? "Error" }
-        else if request.isInFlight, let service = spec?.call?.service, let pending = style.request?.pendingWords[service] { words = pending }
+        else if sending ?? request.isInFlight, let service = spec?.call?.service, let pending = style.request?.pendingWords[service] { words = pending }
         let look = UKStateTileLooks.look(resolution, request: request, icon: glyph, text: words, isActive: resolution.isActive,
                                          hasDisc: spec != nil)
         let hasDisc = spec != nil && !request.isUnknown
@@ -74,9 +77,11 @@ enum UKServerUIStateTileViews {
             let loading = page.context.valuesPending
             let unavailable = state?.isUnavailable != false
             let busy = renderer.callRunner.isBusy(node: tile.node.id)
+            let sending = renderer.callRunner.isSending(node: tile.node.id)
             let failed = renderer.callRunner.isFailed(node: tile.node.id)
             var face = face(for: tile, library: renderer.publication.document.stateStyles, capability: renderer.stateStylesEnabled, state: state,
-                            request: .init(isInFlight: busy, failed: !hidden && failed, isUnknown: hidden || loading || unavailable))
+                            request: .init(isInFlight: busy, failed: !hidden && failed, isUnknown: hidden || loading || unavailable),
+                            shown: busy ? renderer.callRunner.pendingState(tile.binding.entityId) : nil, sending: sending)
             face.model.reapplyGeneration = page.context.store.reapplyGeneration
             // `enabledWhen`: while it says no, the action's disc dims in place and the taps do nothing.
             let allowed = renderer.isEnabled(node: tile.node)
@@ -103,8 +108,15 @@ enum UKServerUIStateTileViews {
                 }
                 guard let call = face.spec?.call else { return }
                 // The tile asked the question it carries before this runs.
+                // The style's own feedback: the state the entity shows once the call is on its way, until the real one arrives.
+                let request = tile.binding.resolve(in: renderer.publication.document.stateStyles, capability: renderer.stateStylesEnabled)?.request
+                let optimistic = request?.pendingStates[call.service].map {
+                    [ServerUICallService.Optimistic(sourceId: tile.binding.entityId, value: $0,
+                                                    revertAfterSeconds: Double(request?.settleTimeout.components.seconds ?? 45),
+                                                    failsOnTimeout: request?.onTimeout == .error)]
+                } ?? []
                 let authored = ServerUICallService(domain: call.domain, service: call.service,
-                                                   target: ["entity_id": .literal(.string(tile.binding.entityId))])
+                                                   target: ["entity_id": .literal(.string(tile.binding.entityId))], optimistic: optimistic)
                 renderer.activate(.callService(authored), from: page, source: view, site: tile.node.id, confirmed: true)
             })
             first = false

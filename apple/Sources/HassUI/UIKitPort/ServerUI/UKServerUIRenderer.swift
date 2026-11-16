@@ -1799,6 +1799,11 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// Operands are evaluated here, from the boxes as they are now, never observed; a call that cannot be resolved sends nothing and
     /// reports an unavailable source. The call goes through the one connection (`HassServiceCalling`) and its declared optimistic
     /// values are feedback only.
+    /// A state tile's own optimistic value names its entity directly, with no declared source: `domain.object` is the entity.
+    private static func entityId(_ id: String) -> String? {
+        id.range(of: "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$", options: .regularExpression) == id.startIndex..<id.endIndex ? id : nil
+    }
+
     private func runCall(_ call: ServerUICallService, from page: UKServerUIPage, source: UIView?, control: JSONValue?,
                          site: String?, confirmed: Bool) throws {
         guard pageContext.caller != nil, let resolved = call.resolve(reader(control: control)) else {
@@ -1808,7 +1813,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let send: (ServerUICallService.Resolved) -> Void = { [weak self] resolved in
             guard let self else { return }
             let entities = call.optimistic.compactMap { entry in
-                self.bindings.entityID(for: entry.sourceId).value.map { (entityID: $0, value: entry) }
+                (self.bindings.entityID(for: entry.sourceId).value ?? Self.entityId(entry.sourceId)).map { (entityID: $0, value: entry) }
             }
             self.callRunner.run(site: identifier, call: call, resolved: resolved, entities: entities)
         }
