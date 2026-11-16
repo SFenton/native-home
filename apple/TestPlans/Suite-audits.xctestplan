@@ -39,6 +39,7 @@
         "LiveActivityJourneyTests/testLiveActivityVacuumsPassesAccessibilityAudit()",
         "LiveActivityJourneyTests/testStackPassesAccessibilityAudit()",
         "LoginJourneyTests/testLoginScreenPassesAccessibilityAudit()",
+        "LoginJourneyTests/testRejectedRecoveryPassesAccessibilityAudit()",
         "LoginJourneyTests/testTheServerRowPassesTheAudit()",
         "LoginJourneyTests/testTheWelcomeBackScreenPassesTheAudit()",
         "LoginJourneyTests/testUnpublishedRecoveryPassesAccessibilityAudit()",
