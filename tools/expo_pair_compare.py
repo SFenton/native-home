@@ -323,7 +323,8 @@ def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
 #: iPhone layout (clock on the left, indicators on the right) and are an approximation to calibrate on a screenshot that
 #: shows the bar; ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
 STATUS_BAR_ITEMS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
-    "duo": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
+    # Folded Duo: the status items sit in the right-hand rail (calibrated on a live shot, 2026-11-16).
+    "duo": [("clock", -72, 82, -26, 102), ("indicators", -74, 104, -24, 154)],
     "iphone": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
     "ipad": [("clock", 24, 8, 124, 36), ("indicators", -144, 8, -24, 36)],
 }
