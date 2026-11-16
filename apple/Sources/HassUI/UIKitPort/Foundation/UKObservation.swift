@@ -11,13 +11,29 @@ import UIKit
 /// controller); dropping it stops the updates.
 @MainActor
 public final class UKObservation {
-    private let apply: @MainActor () -> Void
+    private let track: @MainActor () -> Void
+    private let apply: (@MainActor () -> Void)?
     private var isScheduled = false
     private var isCancelled = false
 
     /// Starts observing.
     /// - Parameter apply: Reads observable state and writes it into views. Runs now and after every change it read.
     public init(_ apply: @escaping @MainActor () -> Void) {
+        track = apply
+        self.apply = nil
+        run()
+    }
+
+    /// Starts observing only what `track` reads; `apply` runs after it, outside the tracking scope.
+    ///
+    /// Use it when `apply` builds or rebuilds UIKit views. Reads UIKit makes while views are built and laid out are observable
+    /// to Observation too, and UIKit mutates them on every layout pass: inside the tracking scope they re-run the rebuild on
+    /// every frame, which tears the accessibility tree down about sixty times a second.
+    /// - Parameters:
+    ///   - track: Reads the observable state that should re-run `apply`, and nothing else.
+    ///   - apply: Writes into views. Runs now and after every change `track` read.
+    public init(track: @escaping @MainActor () -> Void, apply: @escaping @MainActor () -> Void) {
+        self.track = track
         self.apply = apply
         run()
     }
@@ -27,11 +43,12 @@ public final class UKObservation {
 
     private func run() {
         guard !isCancelled else { return }
-        withObservationTracking { apply() } onChange: { [weak self] in
+        withObservationTracking { track() } onChange: { [weak self] in
             // `onChange` fires in the mutation's `willSet`, on whatever thread mutated: hop to the main actor and read the
             // new value on the next turn, once for any number of changes.
             Task { @MainActor [weak self] in self?.schedule() }
         }
+        apply?()
     }
 
     private func schedule() {
@@ -57,6 +74,11 @@ public final class UKObservationBag {
     /// Observes `apply` (``UKObservation``) for the bag's lifetime.
     public func observe(_ apply: @escaping @MainActor () -> Void) {
         observations.append(UKObservation(apply))
+    }
+
+    /// Observes what `track` reads and runs `apply` after it, outside the tracking scope (``UKObservation/init(track:apply:)``).
+    public func observe(track: @escaping @MainActor () -> Void, apply: @escaping @MainActor () -> Void) {
+        observations.append(UKObservation(track: track, apply: apply))
     }
 
     /// Ends every observation, for a reused cell before it binds to another model.

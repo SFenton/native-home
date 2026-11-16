@@ -88,14 +88,17 @@ final class UKServerUIProductionHost: UIViewController {
             statusPanel.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             statusPanel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
         ])
-        bag.observe { [weak self] in
+        // Only the store's state re-runs it: the boundary is rebuilt as views, and UIKit mutates what that reads on every layout
+        // pass, which inside the tracking scope rebuilt it every frame (the accessibility tree churned, the audit saw
+        // element-less "no description" issues).
+        bag.observe(track: { [weak self] in
             guard let self else { return }
             _ = self.runtime.store?.status
             _ = self.runtime.store?.remote
             _ = self.runtime.store?.rejection
+            _ = self.runtime.store?.current
             _ = self.runtime.providerFailure
-            self.showStatus()
-        }
+        }, apply: { [weak self] in self?.showStatus() })
         bag.observe { [weak self] in
             guard let self else { return }
             _ = self.session.houseConfig?.current
