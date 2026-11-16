@@ -17,6 +17,8 @@ import XCTest
 final class ServerUIPartsHostedTests: XCTestCase {
     /// The widths of the three families: iPhone, folded Duo and iPad.
     private static let widths: [CGFloat] = [390, 744, 1024]
+    /// The store of the page opened last.
+    private var store = EntityStore()
 
     override func tearDown() async throws {
         HostedPage.hideTracked()
@@ -41,7 +43,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
     /// Opens `file` at `width` over a store holding `entities`.
     private func page(_ file: String, width: CGFloat, entities: [EntityState] = [], caller: HostedCaller = HostedCaller(),
                       change: (inout [String: JSONValue]) -> Void = { _ in }) throws -> (UKServerUIRenderer, UKServerUIPage) {
-        let store = EntityStore()
+        store = EntityStore()
         store.replaceAll(entities)
         let host = try UKServerUIRenderer(publication: publication(file, change: change), context: UKContext(store: store, caller: caller),
                                           backdrop: ServerUIRendererFixture.backdrop())
@@ -86,7 +88,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
             let (_, root) = try page("parts-disc-all-three", width: width, entities: [robot("docked")])
             let tile = try XCTUnwrap(root.nodes["main-floor"]?.view as? UKGlassTileView, "width \(width)")
             for step in expected {
-                tile.environmentStore?.apply([robot(step.state)])
+                store.apply([robot(step.state)])
                 let landed = tile.model.actions.first { $0.id == "disc:start-pause" }
                 let reached = HostedPage.until(2) { tile.model.actions.first { $0.id == "disc:start-pause" }?.verb == step.verb }
                 XCTAssertTrue(reached, "\(step.state) at \(width): \(String(describing: landed))")
@@ -242,7 +244,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         XCTAssertEqual(caller.calls, ["select.select_option"])
         XCTAssertEqual(caller.data.first?["option"] as? String, "max_power", "the call carries the item as the entity holds it")
         // A new list arrives: the control follows it, in place.
-        host.pageContext.store.apply([speed("quiet", options: .array([.string("low"), .string("high")]))])
+        store.apply([speed("quiet", options: .array([.string("low"), .string("high")]))])
         XCTAssertTrue(HostedPage.until(2) {
             guard let again = self.find(UKSegmentedChoice<String>.self, in: node) else { return false }
             return again.options == ["low", "high"]
@@ -291,7 +293,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
             XCTAssertEqual(row.row.rowContent.symbol, "clock.arrow.circlepath")
             XCTAssertEqual(row.row.rowContent.subtitle, "Paused")
             XCTAssertEqual(row.row.rowContent.glyph, UIColor(red: 175 / 255, green: 82 / 255, blue: 222 / 255, alpha: 1))
-            XCTAssertEqual(row.row.rowContent.style, .module)
+            XCTAssertEqual(row.row.style, .module)
             XCTAssertTrue(row.isOn)
             XCTAssertEqual(row.accessibilityHint, "Turns automatic cleaning on or off.")
             XCTAssertTrue(row.accessibilityTraits.contains(.toggleButton), "a switch to VoiceOver")
@@ -309,7 +311,6 @@ final class ServerUIPartsHostedTests: XCTestCase {
         let row = try self.row(root)
         XCTAssertEqual(row.row.rowContent.subtitle, "Off")
         XCTAssertFalse(row.isOn)
-        let store = try XCTUnwrap(root.context.store as EntityStore?)
         store.apply([autoClean("on")])
         XCTAssertTrue(HostedPage.until(2) { row.row.rowContent.subtitle == "Paused" && row.isOn })
         XCTAssertTrue(try self.row(root) === row, "the row is updated in place, never rebuilt")
@@ -359,7 +360,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         HostedPage.hideTracked()
         let (_, form) = try page("parts-row-form-metrics", width: 390, entities: [autoClean("on")])
         let formRow = try row(form)
-        XCTAssertEqual(formRow.row.rowContent.style, .form)
+        XCTAssertEqual(formRow.row.style, .form)
         XCTAssertGreaterThanOrEqual(formRow.bounds.height, 44)
     }
 
@@ -379,8 +380,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
 
     private func roomRow(_ root: UKServerUIPage) throws -> UKCheckRow {
         let node = try XCTUnwrap(root.nodes["room-check"]?.view as? UKServerUILocalControl)
-        let toggle = try XCTUnwrap(node.drawnControl as? UKCheckToggle, "the check face draws a check row")
-        return try XCTUnwrap(toggle.superview?.superview as? UKCheckRow ?? find(UKCheckRow.self, in: node))
+        return try XCTUnwrap(find(UKCheckRow.self, in: node), "the check face draws a check row")
     }
 
     private func room(_ state: String) -> EntityState { EntityState(entityId: "input_boolean.demo_room", state: state) }
@@ -424,7 +424,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         check.toggle.sendActions(for: .touchUpInside)
         await host.callRunner.waitForCalls()
         XCTAssertEqual(caller.calls, ["homeassistant.toggle"])
-        host.pageContext.store.apply([room("on")])
+        store.apply([room("on")])
         XCTAssertTrue(HostedPage.until(2) { check.rowContent.check?.isChecked == true })
     }
 
