@@ -225,14 +225,14 @@ struct ServerUIFlowSessionTests {
         let snapshot = EntitySnapshotCache(fileURL: FileManager.default.temporaryDirectory.appending(path: "snap-\(UUID()).json"))
         let connection = HassConnection(server: .example, store: EntityStore(), snapshotCache: snapshot, connection: mock)
         let received = Locked<[Result<JSONValue, Error>]>([])
-        let cancel = HassFlowFeed(connection: connection).subscribe(.weatherForecast(entityId: "weather.demo", forecastType: .hourly)) { result in
+        let cancel = HassFlowFeed(connection: connection).subscribe(.weatherForecast(entityId: "weather.demo_home", forecastType: .hourly)) { result in
             received.withLock { $0.append(result) }
         }
         let subscription = try #require(mock.pendingSubscriptions.first)
         #expect(subscription.request.type == .webSocket("weather/subscribe_forecast"))
         #expect(subscription.request.shouldRetry)
         #expect(subscription.request.retryDuration == nil)
-        #expect(subscription.request.data["entity_id"] as? String == "weather.demo")
+        #expect(subscription.request.data["entity_id"] as? String == "weather.demo_home")
         #expect(subscription.request.data["forecast_type"] as? String == "hourly")
 
         subscription.handler(subscription.cancellable, HAData(value: ["type": "hourly", "forecast": []]))
@@ -244,8 +244,8 @@ struct ServerUIFlowSessionTests {
     }
 
     @Test func theTodoSubscriptionUsesTheItemCommand() {
-        #expect(ServerUIFlowSubscriptionCommand.command(.todoItems(entityId: "todo.x")) == "todo/item/subscribe")
-        #expect(ServerUIFlowSubscriptionCommand.data(.todoItems(entityId: "todo.x")) == ["entity_id": "todo.x"])
+        #expect(ServerUIFlowSubscriptionCommand.command(.todoItems(entityId: "todo.demo_chores")) == "todo/item/subscribe")
+        #expect(ServerUIFlowSubscriptionCommand.data(.todoItems(entityId: "todo.demo_chores")) == ["entity_id": "todo.demo_chores"])
     }
 
     @Test func aResubscribeAfterAReconnectKeepsTheLastGoodRows() async throws {

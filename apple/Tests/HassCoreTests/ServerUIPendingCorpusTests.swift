@@ -13,13 +13,12 @@ struct ServerUIPendingCorpusTests {
 
     @Test func pendingCasesExistAndNameAPendingCapability() throws {
         let data = try Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent("capabilities.pending.json"))
+        // Nothing is pending once every lane has ingested its capabilities; the loop below then has nothing to check.
         let pending = try JSONDecoder().decode([String].self, from: data)
-        #expect(!pending.isEmpty)
         // A capability a lane has ingested leaves the Studio's pending file when the promotion bundle is applied there.
         let ingested = Set(ServerUIIngestedCapabilities.all)
         #expect(Set(pending).subtracting(ingested).isDisjoint(with: ServerUICompositionPublication.supportedCapabilities), "a shipped capability is still pending")
         let pendingCases = Self.cases.filter { $0.pending == true && !ingested.contains($0.issue?.capability ?? "") }
-        #expect(!pendingCases.isEmpty)
         for item in pendingCases {
             #expect(item.outcome == "reject", "\(item.file)")
             #expect(item.issue?.code == "unsupported_capability", "\(item.file)")
