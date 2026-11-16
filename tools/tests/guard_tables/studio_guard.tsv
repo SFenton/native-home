@@ -57,3 +57,28 @@ python3 tools/tests/test_studio_publish.py	allow	running the tool's tests	agent
 python3 -m unittest tools.tests.test_studio_publish	allow	running the tool's tests by module	agent
 ls build/studio-publish	allow	listing the bundles	agent
 lsof -i :4801	allow	lsof is not a network client	agent
+python3 - <<'EOF'\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF	block	heredoc fed to python3 -	agent
+python3 - <<EOF\nimport requests\nrequests.post('http://localhost:4801/x')\nEOF	block	heredoc with a port only	agent
+node - <<'EOF'\nfetch('http://127.0.0.1:4801/native/api/ha/publish',{method:'POST'})\nEOF	block	heredoc fed to node	agent
+cat <<'EOF' | python3 -\nimport studio_publish\nEOF	block	heredoc piped to python that imports the tool	agent
+echo "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4801/x')" | python3 -	block	a port in text piped to an interpreter	agent
+python3 tools/studio_publish.py --log x.jsonl status apply build/studio-publish/c1 --reason x	block	global option before the subcommand: a coder may not apply	agent
+python3 tools/studio_publish.py --lo x.jsonl status publish build/studio-publish/c1 --reason x	block	abbreviated global option	agent
+python3 tools/studio_publish.py --log=x.jsonl status rollback build/studio-publish/c1 --reason x	block	--log=VALUE form	agent
+python3 -m tools.studio_publish apply build/studio-publish/c1 --reason x	block	-m import of the tool	agent
+uv run tools/studio_publish.py apply build/studio-publish/c1 --reason x	block	uv run	agent
+uvx --from . python tools/studio_publish.py publish c1 --reason x	block	uvx	agent
+python3 -c "import sys;sys.path.insert(0,'tools');import studio_publish;studio_publish.main(['apply'])"	block	-c import of the tool	agent
+./tools/studio_publish.py apply build/studio-publish/c1 --reason x	block	run directly: a coder may not apply	agent
+python3 -B tools/studio_publish.py status	block	only the exact exempt form is allowed (-B is not -I)	agent
+./tools/studio_publish.py status	allow	status run directly from this checkout	agent
+python3 tools/studio_publish.py --log x.jsonl status	allow	status with a global option	agent
+grep -rn "/native/api" docs	allow	searching docs for a route	agent
+rg 'ha/publish' build/research	allow	rg for a route name	agent
+git log -S/native/api --oneline	allow	git log -S for a route	agent
+git log -S ha/publish --oneline	allow	git log -S with a separate pattern	agent
+git add tools/studio_publish.py tools/tests/test_studio_publish.py	allow	staging the tool	agent
+grep -n studio_publish .agents/workflow/agent-roster.md	allow	searching for the tool's name	agent
+cat /Users/x/.t3/worktrees/ha-native-home-app/studio-ux2/src/workspace2/data/Row.tsx	allow	Studio source folder named data below src	agent
+python3 - <<'EOF'\nprint(1 + 1)\nEOF	allow	an ordinary heredoc to python	agent
+cp x.json /Users/x/.t3/worktrees/ha-native-home-app/data/draft.json	block	data folder at the root of the Studio checkout	agent

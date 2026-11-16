@@ -18,7 +18,7 @@ House data is anything that identifies the home: entity ids, addresses and hosts
 
 - **The owner keeps credentials and signing.** Agents never read, print, copy, log or commit a token, key, password, certificate or provisioning profile.
 - **Agents are refused** signing material, app keys, the owner's admin login and the credentials folder by `tools/hooks/signing_guard.py`. It detects and refuses; it is not a wall, so the rule holds even where the hook cannot see.
-- **The Studio at port 4801** runs local-only with no token, by owner choice, and holds the Home Assistant credential, so any local process could publish with it. `tools/hooks/studio_guard.py` is what protects it: agents reach the Studio only through `tools/studio_publish.py`. The Studio draft, its saved copies under `build/studio-publish/` and its data directory are house data.
+- **The Studio at port 4801** runs local-only with no token and holds the Home Assistant credential, so any local process could publish with it. `tools/hooks/studio_guard.py` is what protects it: agents reach the Studio only through `tools/studio_publish.py`. The Studio draft, its saved copies under `build/studio-publish/` and its data directory are house data.
 - **The app** never stores the password and never ships a long-lived token ([auth](../platforms/apple/auth.md)).
 - **Env files** are git-ignored; `tools/ship_guard.sh` refuses a commit that carries env files, keys or profiles.
 - **Live-server validation** loads credentials in-process through `tools/hass_creds.sh`, from outside the repository; they are never exported, and host tests ignore them.

@@ -44,6 +44,9 @@ class StubStudio:
         self.fail_publish = 0
         self.age_out = False
         self.throttle = 0
+        self.drop_publish_reply = False
+        self.fail_get_after_put = 0
+        self._put_seen = False
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self.port = self.server.server_address[1]
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
@@ -91,6 +94,9 @@ class StubStudio:
                     return self.reply(429)
                 d = stub.draft
                 if (method, path) == ("GET", "/native/api/draft"):
+                    if stub._put_seen and stub.fail_get_after_put:
+                        stub.fail_get_after_put -= 1
+                        return self.reply(500)
                     return self.reply(200, d)
                 if (method, path) == ("PUT", "/native/api/draft"):
                     if body["expectedRevision"] != d["revision"]:
@@ -98,6 +104,7 @@ class StubStudio:
                     if body["document"].get("reject"):
                         return self.reply(422, {"error": "invalid"})
                     stub.draft = {**d, "revision": d["revision"] + 1, "document": body["document"]}
+                    stub._put_seen = True
                     return self.reply(200, stub.draft)
                 if (method, path) == ("GET", "/native/api/ha/open-check"):
                     return self.reply(200, {"action": "start" if d["document"] == stub.live_doc else "ask"})
@@ -114,6 +121,8 @@ class StubStudio:
                     stub.live_rev += 1
                     stub.live_doc = json.loads(json.dumps(d["document"]))
                     stub.history[stub.live_rev] = {"revision": stub.live_rev, "doc": stub.live_doc, "envelopeSha256": sha(stub.live_doc)}
+                    if stub.drop_publish_reply:
+                        return self.reply(502)
                     return self.reply(200, {"epoch": 1, "revision": stub.live_rev, "envelopeSha256": sha(stub.live_doc)})
                 if (method, path) == ("POST", "/native/api/ha/rollback"):
                     entry = stub.history.get(body["revision"])
@@ -431,6 +440,92 @@ class RollbackTests(Base):
         self.assertFalse([c for c in self.stub.calls if c[1].endswith("/ha/rollback")])
 
 
+class RollbackRound2Tests(Base):
+    def test_b1_aged_out_republish_never_ships_owner_edits(self):
+        """Fails if: a second rollback, after a failed republish and an owner edit, publishes the owner's draft."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 0, self.output)
+        self.stub.age_out = True
+        self.stub.fail_publish = 1
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)  # restored, republish failed
+        self.stub.owner_saves({**BASE_DOC, "ownerEdit": 1})
+        publishes = sum(1 for c in self.stub.calls if c[1].endswith("/ha/publish"))
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("rollback_failed", self.output)
+        self.assertEqual(sum(1 for c in self.stub.calls if c[1].endswith("/ha/publish")), publishes)
+        self.assertEqual(self.stub.draft["document"]["ownerEdit"], 1)
+
+    def test_b1_retry_with_untouched_draft_republishes(self):
+        """Fails if: a rollback retried with the draft still at the prior document cannot finish the republish."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 0, self.output)
+        self.stub.age_out = True
+        self.stub.fail_publish = 1
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 0, self.output)
+        self.assertEqual(self.stub.live_doc, BASE_DOC)
+
+    def test_m1_unconfirmed_publish_is_rolled_back_live(self):
+        """Fails if: a publish whose reply was lost is treated as never published, leaving the change on the phones."""
+        self.stub.drop_publish_reply = True
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 1)
+        self.assertEqual(self.stub.live_rev, 2)
+        self.assertTrue(self.record()["publishAttempted"])
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 0, self.output)
+        self.assertEqual(self.stub.live_doc, BASE_DOC)
+        self.assertEqual(self.record()["state"], "rolled_back")
+
+    def test_m1_publish_that_never_took_effect_needs_no_live_rollback(self):
+        """Fails if: a publish refused before it took effect triggers ha/rollback."""
+        self.stub.fail_publish = 1
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 1)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 0, self.output)
+        self.assertFalse([c for c in self.stub.calls if c[1].endswith("/ha/rollback")])
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)
+
+    def test_m2_later_owner_publish_is_not_undone(self):
+        """Fails if: rollback undoes a publication made after this tool's."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 0, self.output)
+        self.stub.live_rev = 3
+        self.stub.history[3] = {"revision": 3, "doc": {"id": "doc-1", "owner": 1}, "envelopeSha256": "owner"}
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("live_moved", self.output)
+        self.assertFalse([c for c in self.stub.calls if c[1].endswith("/ha/rollback")])
+        self.assertEqual(self.stub.live_rev, 3)
+
+    def test_m3_unconfirmed_draft_write_is_rolled_back(self):
+        """Fails if: a draft written but not read back cannot be restored, or status hides the open record."""
+        self.stub.fail_get_after_put = 1
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.record()["state"], "recorded")
+        self.assertEqual(self.record()["pendingDraftRevision"], 6)
+        self.assertEqual(self.stub.draft["document"], candidate())
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        self.assertEqual(json.loads(self.output)["openChanges"], [{"change": "c1", "state": "recorded"}])
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("unresolved", self.output)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)
+        self.assertEqual(self.record()["state"], "rolled_back")
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        self.assertEqual(json.loads(self.output)["openChanges"], [])
+
+    def test_m3_refused_record_rolls_back_as_unchanged(self):
+        """Fails if: rollback refuses a record in the refused state, or touches a draft that never changed."""
+        doc = candidate()
+        doc["reject"] = True
+        self.write_bundle(doc=doc, scope=("/tiles/0/label", "/reject"))
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t"), 0, self.output)
+        self.assertEqual(self.stub.draft["revision"], 5)
+        self.assertEqual(sum(1 for c in self.stub.calls if c[0] == "PUT"), 1)
+
+    def test_empty_scope_path_refused(self):
+        """Fails if: a scope of [""] (the whole document) is accepted."""
+        self.write_bundle(scope=("",))
+        self.assertEqual(self.run_cli("check", str(self.dir)), 1)
+        self.assertIn("bad_bundle", self.output)
+
+
 class SecretsAndFilesTests(Base):
     def test_no_token_or_document_text_in_output_log_or_status(self):
         """Fails if: the Studio token or a document value appears in stdout, stderr, the log or status --json."""
@@ -464,7 +559,7 @@ class SecretsAndFilesTests(Base):
         """Fails if: status prints more than revisions, flags and the last change."""
         self.assertEqual(self.run_cli("status", "--json"), 0)
         info = json.loads(self.output)
-        self.assertEqual(set(info), {"draftRevision", "liveRevision", "draftIsLive", "openCheck", "historyRevisions", "lastChange"})
+        self.assertEqual(set(info), {"draftRevision", "liveRevision", "draftIsLive", "openCheck", "historyRevisions", "lastChange", "openChanges"})
 
     def test_tool_never_opens_a_path_under_native_v2(self):
         """Fails if: the tool opens any file under the Studio's data directory during a full flow."""
@@ -504,6 +599,15 @@ class GuardRoleTests(unittest.TestCase):
         for role in ("coder", "reviewer", "researcher", "verifier", "steward", "designer"):
             self.assertEqual(self.verdict(command, role), 2, role)
         self.assertEqual(self.verdict(command, "orchestrator", headless=True), 2)
+
+    def test_role_gate_cannot_be_bypassed_by_other_forms(self):
+        """Fails if: any form other than the exact exempt one runs for the orchestrator, or a global option hides a mutating subcommand from a coder."""
+        for command in ("python3 -m tools.studio_publish apply c --reason x", "uv run tools/studio_publish.py apply c --reason x",
+                        "python3 -c \"import studio_publish\"", "python3 -B tools/studio_publish.py apply c --reason x"):
+            self.assertEqual(self.verdict(command, "orchestrator"), 2, command)
+        self.assertEqual(self.verdict("python3 -I tools/studio_publish.py --log x.jsonl apply c --reason x", "orchestrator"), 0)
+        self.assertEqual(self.verdict("python3 tools/studio_publish.py --log x.jsonl status apply c --reason x", "coder"), 2)
+        self.assertEqual(self.verdict("python3 tools/studio_publish.py --log x.jsonl status", "coder"), 0)
 
     def test_file_tools(self):
         """Fails if: a file tool reaches native-v2 or the studio lock, or an ordinary path is blocked."""

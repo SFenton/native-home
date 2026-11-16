@@ -59,7 +59,15 @@ NATIVE_V2 = re.compile(r"native-v2[/\\]|[/\\]native-v2", re.I)
 BARE_NATIVE_V2 = re.compile(r"^native-v2$", re.I)
 LOCK = re.compile(r"\.studio\.lock", re.I)
 DATA_DIR_VAR = re.compile(r"\$\{?DATA_DIR(?![A-Za-z0-9_])")
-STUDIO_DATA = re.compile(r"(?:ha-native-home-app|studio-releases)(?:[/\\][^/\\]+)*[/\\]data(?:[/\\]|$)", re.I)
+#: The data folder at the root of a Studio checkout only (``<checkout>/data``): source folders such as ``src/workspace2/data`` stay open.
+STUDIO_DATA = re.compile(r"(?:ha-native-home-app|studio-releases)(?:[/\\][^/\\]+)?[/\\]data(?:[/\\]|$)", re.I)
+#: A word that names the tool (``-m tools.studio_publish``, ``import studio_publish``, ``tools/studio_publish.py``) but not ``test_studio_publish``.
+TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_])studio_publish(?![A-Za-z0-9_])")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|\Z)", re.S)
+#: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
+RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
+#: Searchers and git read text; a route named as their pattern is not a call.
+SEARCH_ONLY = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "git"}
 NETWORK = {"curl", "wget", "http", "https", "xh", "httpie", "nc", "ncat", "netcat", "telnet", "socat", "ssh", "node", "nodejs", "deno",
            "bun", "ruby", "perl", "php", "npx", "tsx", "ts-node", "pwsh", "osascript", "python", "python2", "python3", "lua", "go"}
 SEARCHERS = {"grep", "egrep", "fgrep", "rg", "ag", "ack", "sed", "awk"}
@@ -95,7 +103,9 @@ def is_tool_call(words: List[str], project: str) -> Optional[List[str]]:
 
 def tool_reason(args: List[str], payload: dict) -> str:
     """Why a call of the tool is refused: a mutating subcommand outside the publisher roles, or an unknown subcommand."""
-    sub = next((a for a in args if not a.startswith("-")), "")
+    words = [a for a in args if not a.startswith("-")]
+    # argparse takes global options (``--log PATH``, and abbreviations of it) before the subcommand: any mutating word is a mutating call.
+    sub = next((a for a in words if a in MUTATING), "") or next((a for a in words if a in ("status", "check")), "")
     if sub in MUTATING:
         if os.environ.get("FENTON_HEADLESS") == "1" or payload.get("agent_type") not in PUBLISHERS:
             return f"`{sub}` runs only in the orchestrator's dispatched publish step"
@@ -104,7 +114,7 @@ def tool_reason(args: List[str], payload: dict) -> str:
     return ""
 
 
-def words_reason(words: List[str], payload: dict, project: str, depth: int = 0) -> str:
+def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, interp: bool = False) -> str:
     """Why one simple command is refused (empty when it passes)."""
     words = strip_prefixes(words)
     if not words or depth > 3:
@@ -114,8 +124,14 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0) 
     args = is_tool_call(words, project)
     if args is not None:
         return tool_reason(args, payload)
-    if program.startswith("python") and any(os.path.basename(w) == TOOL for w in words[1:3]):
+    if base == TOOL:  # run directly (``./tools/studio_publish.py``): the same exemption, from this checkout only
+        given = os.path.expanduser(words[0])
+        script = os.path.realpath(given if os.path.isabs(given) else os.path.join(project or os.getcwd(), given))
+        if project and script == os.path.realpath(os.path.join(project, "tools", TOOL)):
+            return tool_reason(words[1:], payload)
         return "a copy of studio_publish.py outside this checkout"
+    if (program in NETWORK or program in RUNNERS or program in SHELLS) and any(TOOL_WORD.search(w) for w in words[1:]):
+        return "studio_publish named other than as `python3 [-I] tools/studio_publish.py <sub>`"
     if program == "xargs":
         return words_reason(unwrap_xargs(words[1:]), payload, project, depth + 1)
     if program in SHELLS or program == "eval":
@@ -131,6 +147,7 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0) 
                 if why:
                     return why
     searcher = program in SEARCHERS
+    reads_text = program in SEARCH_ONLY
     prose = False
     network = program in NETWORK
     for i, word in enumerate(words[1:], 1):
@@ -140,9 +157,9 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0) 
         if word in PROSE_OPTIONS:
             prose = True
             continue
-        if ROUTE.search(word):
+        if ROUTE.search(word) and not reads_text:
             return "a Studio API route"
-        if network and (PORT.search(word) or PORT_WORD.match(word)):
+        if (network or interp) and not reads_text and (PORT.search(word) or PORT_WORD.match(word)):
             return "a Studio port"
         if NATIVE_V2.search(word) or LOCK.search(word):
             return "the Studio's data directory"
@@ -153,12 +170,31 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0) 
     return ""
 
 
+def runs_code(words: List[str]) -> bool:
+    """Does this simple command run code (an interpreter, a shell, a network client or a task runner)?"""
+    words = strip_prefixes(words)
+    if not words:
+        return False
+    program = program_of(os.path.basename(words[0]))
+    return program in NETWORK or program in SHELLS or program in RUNNERS
+
+
 def command_reason(command: str, payload: dict, project: str) -> str:
-    """Why a Bash command is refused (empty when it passes)."""
-    for _op, words in tokenize(command):
-        why = words_reason(words, payload, project)
+    """Why a Bash command is refused (empty when it passes).
+
+    A heredoc body is code when the command runs an interpreter (``python3 - <<EOF``, ``node``): its text is read for routes, ports, the data
+    directory and the tool's name. A port named in a command line that also runs code (``echo '...:4801...' | python3 -``) counts too."""
+    segments = tokenize(command)
+    interp = any(runs_code(words) for _op, words in segments)
+    for _op, words in segments:
+        why = words_reason(words, payload, project, interp=interp)
         if why:
             return why
+    if interp:
+        for match in HEREDOC.finditer(command):
+            body = match.group(3)
+            if ROUTE.search(body) or PORT.search(body) or NATIVE_V2.search(body) or LOCK.search(body) or TOOL_WORD.search(body) or DATA_DIR_VAR.search(body):
+                return "a heredoc fed to an interpreter names the Studio"
     return ""
 
 

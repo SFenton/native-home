@@ -156,7 +156,7 @@ def diff(old: Any, new: Any, pointer: str = "") -> List[Tuple[str, Any, Any]]:
 def in_scope(pointer: str, scope: Sequence[str]) -> bool:
     """Is ``pointer`` equal to, or below, one of the ``scope`` pointers (whole segments, never a string prefix)?"""
     for allowed in scope:
-        if pointer == allowed or pointer.startswith(allowed.rstrip("/") + "/") or allowed == "":
+        if allowed and (pointer == allowed or pointer.startswith(allowed.rstrip("/") + "/")):
             return True
     return False
 
@@ -342,8 +342,8 @@ class Publisher:
             raise Refusal("bad_bundle", "change.json base needs an integer liveRevision")
         if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}", change["id"]):
             raise Refusal("bad_bundle", "change id must be letters, digits, dot, dash or underscore")
-        if not all(isinstance(s, str) and (s == "" or s.startswith("/")) for s in change["scope"]):
-            raise Refusal("bad_bundle", "scope must hold JSON pointers")
+        if not all(isinstance(s, str) and len(s) > 1 and s.startswith("/") for s in change["scope"]):
+            raise Refusal("bad_bundle", "scope must hold non-empty JSON pointers (an empty path would allow the whole document)")
         return change
 
     def scope_check(self, change: Dict[str, Any]) -> Tuple[List[Tuple[str, Any, Any]], bool]:
@@ -432,10 +432,24 @@ class Publisher:
             "draftRevision": draft.get("revision"), "liveRevision": live_revision,
             "draftIsLive": publication.get("draftIsLive"), "openCheck": open_check.get("action"),
             "historyRevisions": [h.get("revision") for h in history if isinstance(h, dict)] if isinstance(history, list) else [],
-            "lastChange": self.last_logged(),
+            "lastChange": self.last_logged(), "openChanges": self.open_changes(),
         }
         self.say(json.dumps(info, sort_keys=True) if as_json else "\n".join(f"{k}: {v}" for k, v in info.items()))
         return 0
+
+    def open_changes(self) -> List[Dict[str, Any]]:
+        """Every ``build/studio-publish/*/record.json`` that is not final (change id and state only): a write that was never confirmed or rolled back."""
+        found = []
+        for path in sorted((self.root / "build" / "studio-publish").glob("*/record.json")):
+            try:
+                record = _read_json(path, "record.json")
+            except Refusal:
+                found.append({"change": path.parent.name, "state": "unreadable"})
+                continue
+            state = record.get("state")
+            if state in ("recorded", "applied", "rollback_failed") or (state == "refused" and record.get("draftWritten")):
+                found.append({"change": record.get("change", path.parent.name), "state": state})
+        return found
 
     def last_logged(self) -> Optional[Dict[str, Any]]:
         """The newest log line (change id, command, result and time only)."""
@@ -497,6 +511,8 @@ class Publisher:
         if state in ("applied", "published"):
             self.say(f"already {state}: {existing['change']}")  # type: ignore[index]
             return self.publish(given, base, reason, as_json) if publish and state == "applied" else 0
+        if existing and (state in ("recorded", "rollback_failed") or (state == "refused" and existing.get("draftWritten"))):
+            raise Refusal("unresolved", f"an earlier run left this change {state}: run rollback --draft-only first")
         change, context = self.check(given, base, as_json, rebase_identical, command="apply", reason=reason)
         draft = context["draft"]
         record = {"change": change["id"], "state": "recorded", "base": self.studio.base if self.studio else None, "priorRevision": context["revision"],
@@ -504,19 +520,24 @@ class Publisher:
                   "candidateSha256": context["candidateSha256"], "security": context["security"], "reason": self.scrub(reason),
                   "rebased": context["rebased"], "recordedAt": _now()}
         _write_private(directory / "prior.json", {"document": draft["document"], "revision": context["revision"]})
+        record["pendingDraftRevision"] = context["revision"] + 1
         _write_private(self.record_path(directory), record)
         assert self.studio is not None
         status, data = self.studio.request("PUT", "/native/api/draft", {"document": change["document"], "expectedRevision": context["revision"]})
         if status == 409:
+            record["pendingDraftRevision"] = None
             self.finish_record(directory, record, "refused")
             raise Refusal("stale_base", "the draft moved before the write (409): the owner or another tool saved; rebuild, do not retry")
         if status == 422 or status >= 400 or status == 0:
+            record["pendingDraftRevision"] = None
             self.finish_record(directory, record, "refused")
             raise Refusal("rejected", f"the Studio refused the draft write (HTTP {status}); the draft is unchanged")
         after = self.get("/native/api/draft", "studio_unreachable")
         stored = after.get("document")
         expected = _read_json(directory / "evidence.json", "evidence.json").get("storedSha256")
         if not (doc_sha256(stored) == expected if expected else jeq(stored, change["document"])):
+            record["draftWritten"] = True
+            record["afterDraftRevision"] = after.get("revision")
             self.finish_record(directory, record, "refused")
             raise Refusal("store_mismatch", "the draft the Studio stored differs from the candidate; run rollback --draft-only")
         record.update({"afterDraftRevision": after.get("revision"), "state": "applied"})
@@ -554,6 +575,9 @@ class Publisher:
         if live_revision != record["liveBefore"]["revision"]:
             raise Refusal("ha_moved", "the live publication moved since the check; not publishing")
         assert self.studio is not None
+        record["publishAttempted"] = True
+        record["expectedPublishRevision"] = record["afterDraftRevision"]
+        self.finish_record(directory, record, "applied")
         status, result = self.studio.request("POST", "/native/api/ha/publish", {"expectedRevision": record["afterDraftRevision"]})
         if status == 409:
             raise Refusal("owner_edits", "the draft moved before the publish (409); not publishing")
@@ -574,15 +598,16 @@ class Publisher:
 
     def rollback(self, given: str, base: Optional[str], reason: str, live_only: bool, draft_only: bool, as_json: bool) -> int:
         """Put the live publication and the draft back. The live side first (``ha/rollback``, else republish the prior document), then the draft
-        (only while it still sits at the revision this tool left)."""
+        (only while it still sits at the revision this tool left). Works from any record that wrote or tried to write: ``recorded``, ``applied``,
+        ``published``, ``refused`` (after a write that was not confirmed), ``rollback_failed`` and ``rolled_back`` (a no-op)."""
         directory = self.change_dir(given)
         record = self.load_record(directory)
-        if not record or record.get("state") not in ("applied", "published", "rolled_back", "rollback_failed"):
+        if not record or record.get("state") not in ("recorded", "applied", "published", "refused", "rolled_back", "rollback_failed"):
             raise Refusal("not_applied", "nothing to roll back for this change")
         change = self.load_change(directory)
         prior = _read_json(directory / "prior.json", "prior.json")
         self.client(change, base)
-        was_published = bool(record.get("publishedRevision")) or record.get("state") == "published"
+        was_published = bool(record.get("publishedRevision")) or record.get("state") == "published" or bool(record.get("publishAttempted"))
         want_live = was_published and not draft_only and not record.get("liveRolledBack")
         want_draft = not live_only and not record.get("draftRolledBack")
         outcome: Dict[str, Any] = {"change": change["id"]}
@@ -606,9 +631,24 @@ class Publisher:
         return 0
 
     def rollback_live(self, record: Dict[str, Any], outcome: Dict[str, Any]) -> bool:
-        """``POST ha/rollback`` to the revision recorded before the publish. True when done; False when the entry aged out (404): republish instead."""
+        """``POST ha/rollback`` to the revision recorded before the publish. True when done (or when the publish never took effect); False when
+        the entry aged out (404): republish instead.
+
+        Refuses ``live_moved`` unless the live revision is still the one this tool published, so the owner's later publish is never undone. A publish that
+        was attempted but never confirmed counts as ours only when the live revision is exactly one past the recorded one and the draft equals it."""
         assert self.studio is not None
         before = record["liveBefore"]
+        publication = self.get("/native/api/ha/publication", "ha_unreachable")
+        current, _ = self.live_of(publication)
+        ours = record.get("publishedRevision")
+        if ours is None and current == before["revision"]:
+            record["liveRolledBack"] = True  # the publish never took effect
+            outcome["live"] = "never_published"
+            return True
+        if ours is not None and current != ours:
+            raise Refusal("live_moved", "the live publication is no longer the one this tool published (the owner published since); leaving it")
+        if ours is None and not (current == before["revision"] + 1 and publication.get("draftIsLive") is True):
+            raise Refusal("live_moved", "the live publication after an unconfirmed publish is not provably this tool's; leaving it")
         status, _ = self.studio.request("POST", "/native/api/ha/rollback", {"revision": before["revision"]})
         if status == 404:
             return False
@@ -624,23 +664,39 @@ class Publisher:
     def rollback_draft(self, record: Dict[str, Any], prior: Dict[str, Any], outcome: Dict[str, Any], publish_after: bool) -> None:
         """``PUT`` the saved prior document while the draft still sits at the revision this tool left; otherwise report ``draft_moved``.
 
-        With ``publish_after`` (the live entry aged out) the restored draft is then published to put the live side back."""
+        With ``publish_after`` (the live entry aged out) the restored draft is then published to put the live side back. Before that publish the
+        draft must equal the saved prior document and the live revision must still be this tool's, so the owner's edits are never published."""
         assert self.studio is not None
         draft = self.get("/native/api/draft", "studio_unreachable")
-        if draft.get("revision") != record.get("afterDraftRevision") and not (record.get("draftRolledBack") and publish_after):
-            outcome["draft"] = "draft_moved"
-            if publish_after:
-                raise Refusal("rollback_failed", "the live entry aged out and the draft moved: nothing safe to republish; report to the owner")
-            return
         revision = draft.get("revision")
+        left = record.get("afterDraftRevision") or record.get("pendingDraftRevision")
         if not record.get("draftRolledBack"):
-            status, _ = self.studio.request("PUT", "/native/api/draft", {"document": prior["document"], "expectedRevision": revision})
-            if status != 200:
-                raise Refusal("rollback_failed", f"restoring the draft answered {status}")
-            revision = self.get("/native/api/draft", "studio_unreachable").get("revision")
-            record["draftRolledBack"] = True
-            outcome.update({"draft": "restored", "draftRevision": revision})
+            if revision == record.get("priorRevision") and jeq(draft.get("document"), prior["document"]):
+                record["draftRolledBack"] = True  # the write never landed
+                outcome["draft"] = "unchanged"
+            elif revision != left:
+                outcome["draft"] = "draft_moved"
+                if publish_after:
+                    raise Refusal("rollback_failed", "the live entry aged out and the draft moved: nothing safe to republish; report to the owner")
+                return
+            else:
+                if publish_after:
+                    self.require_serving(self.get("/native/api/ha/open-check", "ha_unreachable"), self.get("/native/api/ha/publication", "ha_unreachable"))
+                status, _ = self.studio.request("PUT", "/native/api/draft", {"document": prior["document"], "expectedRevision": revision})
+                if status != 200:
+                    raise Refusal("rollback_failed", f"restoring the draft answered {status}")
+                draft = self.get("/native/api/draft", "studio_unreachable")
+                revision = draft.get("revision")
+                record["draftRolledBack"] = True
+                outcome.update({"draft": "restored", "draftRevision": revision})
         if publish_after:
+            publication = self.get("/native/api/ha/publication", "ha_unreachable")
+            ours = record.get("publishedRevision")
+            current, _ = self.live_of(publication)
+            if not jeq(draft.get("document"), prior["document"]):
+                raise Refusal("rollback_failed", "the draft no longer equals the saved prior document (the owner edited); not republishing")
+            if ours is not None and current != ours:
+                raise Refusal("live_moved", "the live publication is no longer the one this tool published; not republishing")
             status, result = self.studio.request("POST", "/native/api/ha/publish", {"expectedRevision": revision})
             if status != 200 or not isinstance(result, dict):
                 raise Refusal("rollback_failed", f"republishing the prior document answered {status}")
