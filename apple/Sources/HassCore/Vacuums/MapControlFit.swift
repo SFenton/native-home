@@ -29,8 +29,11 @@ public enum MapControlFit {
 
     /// A group as the rule takes it: where it sits, how it runs, and how many buttons it holds.
     public struct Group: Equatable, Sendable {
+        /// The corner the group sits in.
         public let corner: MapControlCorner
+        /// Whether the buttons run in a row or a column.
         public let axis: MapControlAxis
+        /// How many buttons the group holds.
         public let count: Int
         public init(corner: MapControlCorner, axis: MapControlAxis, count: Int) {
             self.corner = corner
@@ -41,6 +44,7 @@ public enum MapControlFit {
 
     /// What the rule gives one group.
     public struct Result: Equatable, Sendable {
+        /// The corner the group sits in.
         public let corner: MapControlCorner
         /// The buttons drawn before More (all of them when there is no More).
         public let shown: Int

@@ -92,13 +92,13 @@ public enum MapAreaEdit {
 
     /// Moves or resizes `rect` by half the minimum side (at least 2 cells), kept inside the map.
     ///
-    /// A move means the direction as seen: with `screen` (the map's matrix) the step goes through the inverse of its linear part, so a flipped or
-    /// rotated map still moves "left" to the left of the screen. Without it the step is in grid directions. Larger and smaller grow the grid corner.
+    /// The step is the same at every fit and zoom. On a flipped map (`flip`, after the `rotation`) a move is mirrored on screen only, so it keeps the
+    /// way it moves the area on screen without a flip; with no flip the grid directions are exactly as before. Larger and smaller grow the grid corner.
     public static func nudge(_ rect: MapGridRect, _ nudge: Nudge, interaction: MapStageGeometry, minimum: Double,
-                             screen: Affine = .identity) -> MapGridRect {
+                             rotation: Double = 0, flip: MapOrientation = .none) -> MapGridRect {
         let step = max(2, minimum / 2)
         func move(_ x: Double, _ y: Double) -> MapGridRect {
-            MapGeometry.translate(interaction, rect, by: MapGeometry.gridStep(matrix: screen, screen: .init(x: x, y: y)))
+            MapGeometry.translate(interaction, rect, by: MapGeometry.gridStep(.init(x: x, y: y), rotation: rotation, flip: flip))
         }
         switch nudge {
         case .left: return move(-step, 0)

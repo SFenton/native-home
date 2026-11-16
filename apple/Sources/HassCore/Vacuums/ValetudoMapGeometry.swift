@@ -172,13 +172,15 @@ public enum MapGeometry {
         return clamp(g, frame: frame, viewport: .init(panX: point.x - rendered.x, panY: point.y - rendered.y, zoom: zoom), rotation: rotation, flip: flip)
     }
 
-    /// A step on screen as a step on the grid: the screen step through the inverse of the matrix's linear part (no translation).
+    /// A VoiceOver move of `step` cells, in the grid directions it has on an unflipped map, carried over a flipped one.
     ///
-    /// "Move left" on a rotated or flipped map means left as seen, so the area editor's VoiceOver moves convert here. With the identity
-    /// matrix the step is unchanged.
-    public static func gridStep(matrix: Affine, screen: MapPoint) -> MapPoint {
-        let m = matrix.inverted
-        return .init(x: m.a * screen.x + m.c * screen.y, y: m.b * screen.x + m.d * screen.y)
+    /// "Move area right" does what it does without a flip (its step is the same length at every fit and zoom, and the same direction); a flip only
+    /// mirrors it, in the screen's own axes (the flip follows the rotation), so on a mirrored map the area still moves the way it always has
+    /// on screen. With no flip the step is returned unchanged.
+    public static func gridStep(_ step: MapPoint, rotation: Double, flip: MapOrientation) -> MapPoint {
+        guard flip.flips else { return step }
+        let g = Affine.rotation(degrees: rotation).inverted.then(flip.affine).then(.rotation(degrees: rotation))
+        return .init(x: g.a * step.x + g.c * step.y, y: g.b * step.x + g.d * step.y)
     }
 
     /// Frame point → global grid.

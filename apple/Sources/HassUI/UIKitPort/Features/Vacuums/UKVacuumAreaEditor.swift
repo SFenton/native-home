@@ -357,7 +357,7 @@ final class UKVacuumAreaEditorContent: UIView, UIGestureRecognizerDelegate {
                 actions.append(UIAccessibilityCustomAction(name: nudge.title) { [weak self] _ in
                     guard let self else { return false }
                     self.setSelection(MapAreaEdit.nudge(rect, nudge, interaction: scene.interactionGeometry, minimum: self.minimumCells,
-                                                       screen: scene.matrix(size: size, viewport: self.viewport)))
+                                                       rotation: scene.rotation, flip: scene.flip))
                     return true
                 })
             }

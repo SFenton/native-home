@@ -104,24 +104,47 @@ struct MapOrientationTests {
         #expect(close(rendered, .init(x: 100, y: 100), 1e-3) || zoomed.panX != 0, "the anchor stays under the point, unless the clamp moved it")
     }
 
-    @Test func aScreenStepIsAGridStepThroughTheInverseLinearPart() {
-        let identity = MapGeometry.gridStep(matrix: .identity, screen: .init(x: -4, y: 2))
-        #expect(identity == .init(x: -4, y: 2))
-        let flipped = MapGeometry.gridStep(matrix: matrix(horizontal), screen: .init(x: 4, y: 0))
-        #expect(flipped.x < 0 && abs(flipped.y) < 1e-9, "screen right is grid left on a mirrored map")
-        let upsideDown = MapGeometry.gridStep(matrix: matrix(vertical), screen: .init(x: 0, y: 4))
-        #expect(upsideDown.y < 0 && abs(upsideDown.x) < 1e-9)
-        let quarter = MapGeometry.gridStep(matrix: matrix(.none, rotation: 90), screen: .init(x: 4, y: 0))
-        #expect(abs(quarter.x) < 1e-9 && abs(quarter.y) > 0)
+    @Test func aFlipOnlyMirrorsTheStepAndKeepsItsLength() {
+        let step = MapPoint(x: -4, y: 2)
+        #expect(MapGeometry.gridStep(step, rotation: 0, flip: .none) == step, "no flip: the step is returned as it was")
+        #expect(MapGeometry.gridStep(step, rotation: 180, flip: .none) == step, "a rotation alone never changes it")
+        let h = MapGeometry.gridStep(step, rotation: 0, flip: horizontal)
+        #expect(abs(h.x - 4) < 1e-9 && abs(h.y - 2) < 1e-9, "mirrored across the vertical axis")
+        let v = MapGeometry.gridStep(step, rotation: 0, flip: vertical)
+        #expect(abs(v.x + 4) < 1e-9 && abs(v.y + 2) < 1e-9)
+        let both = MapGeometry.gridStep(step, rotation: 0, flip: self.both)
+        #expect(abs(both.x - 4) < 1e-9 && abs(both.y + 2) < 1e-9)
+        // After a quarter turn the screen's horizontal mirror reverses the grid's vertical step.
+        let turned = MapGeometry.gridStep(.init(x: 0, y: 3), rotation: 90, flip: horizontal)
+        #expect(abs(turned.x) < 1e-9 && abs(abs(turned.y) - 3) < 1e-9, "a mirror in screen space, carried back through the rotation")
+        for flip in [horizontal, vertical, self.both] {
+            for rotation in [0.0, 90, 180, 270] {
+                let out = MapGeometry.gridStep(step, rotation: rotation, flip: flip)
+                #expect(abs(hypot(out.x, out.y) - hypot(step.x, step.y)) < 1e-9, "the length never changes (rotation \(rotation))")
+            }
+        }
     }
 
-    @Test func theAreaEditorMovesMeanScreenDirections() {
+    /// The VoiceOver step was and is "half the minimum side, at least 2 cells", in grid directions, whatever the map's fit or zoom: nothing about
+    /// the viewport reaches it. A rotated map (as the Main Floor's is) still moves the grid the way it always has.
+    @Test func theNudgeStepIsThePlainStepAtEveryRotation() {
+        let area = MapGridRect(x0: 600, x1: 620, y0: 700, y1: 720)
+        let plain = MapAreaEdit.nudge(area, .right, interaction: g, minimum: 10)
+        #expect(plain == .init(x0: 605, x1: 625, y0: 700, y1: 720), "five cells")
+        for rotation in [0.0, 90, 180, 270] {
+            #expect(MapAreaEdit.nudge(area, .right, interaction: g, minimum: 10, rotation: rotation) == plain, "rotation \(rotation) alone changes nothing")
+        }
+        #expect(MapAreaEdit.nudge(area, .right, interaction: g, minimum: 2) == .init(x0: 602, x1: 622, y0: 700, y1: 720), "at least two cells")
+        #expect(MapAreaEdit.nudge(area, .down, interaction: g, minimum: 40) == .init(x0: 600, x1: 620, y0: 720, y1: 740), "half of a large minimum")
+    }
+
+    @Test func theAreaEditorMirrorsItsMovesOnAFlippedMap() {
         let area = MapGridRect(x0: 600, x1: 620, y0: 700, y1: 720)
         func nudge(_ n: MapAreaEdit.Nudge, _ flip: MapOrientation) -> MapGridRect {
-            MapAreaEdit.nudge(area, n, interaction: g, minimum: 10, screen: matrix(flip))
+            MapAreaEdit.nudge(area, n, interaction: g, minimum: 10, flip: flip)
         }
         #expect(nudge(.left, .none) == .init(x0: 595, x1: 615, y0: 700, y1: 720), "no flip: grid directions, as before")
-        #expect(nudge(.left, horizontal) == .init(x0: 605, x1: 625, y0: 700, y1: 720), "flipped: left on screen is grid right")
+        #expect(nudge(.left, horizontal) == .init(x0: 605, x1: 625, y0: 700, y1: 720), "flipped: the move is mirrored")
         #expect(nudge(.up, vertical) == .init(x0: 600, x1: 620, y0: 705, y1: 725))
         #expect(nudge(.up, horizontal) == .init(x0: 600, x1: 620, y0: 695, y1: 715), "the other axis is not mirrored")
         #expect(nudge(.larger, both) == MapAreaEdit.nudge(area, .larger, interaction: g, minimum: 10), "size edits grow the grid corner")

@@ -81,6 +81,10 @@ final class UKVacuumMapFrame: UIView {
     private let fallback = UIStackView()
     private let controls = UKMapControlsView()
     private let bag = UKObservationBag()
+    private let controlsBag = UKObservationBag()
+    /// How many times the buttons were redrawn and how many times the map was rebuilt, for tests (an entity only a button reads must not move the second).
+    private(set) var controlRenderCount = 0
+    private(set) var mapRenderCount = 0
     private var capConstraint: NSLayoutConstraint!
     private var aspectConstraint: NSLayoutConstraint?
     private var aspectRatio: Double = 0
@@ -108,6 +112,8 @@ final class UKVacuumMapFrame: UIView {
         buildFallback()
         buildControls()
         bag.observe { [weak self] in self?.render() }
+        // The buttons observe on their own: what a button reads (a rule's entity, a command's state) re-runs only this, never the map's layers.
+        controlsBag.observe { [weak self] in self?.renderControls() }
     }
 
     @available(*, unavailable)
@@ -160,7 +166,7 @@ final class UKVacuumMapFrame: UIView {
         controls.ukPin(to: self)
         controls.onPress = { [weak self] id in
             guard let self, let button = self.buttons[id] else { return }
-            UKTapFeedback.tap()
+            // The buttons give the tap feedback themselves.
             if let onControl = self.onControl { onControl(button) } else if button.action == .locate { self.controller.locate() }
         }
     }
@@ -193,11 +199,16 @@ final class UKVacuumMapFrame: UIView {
         return Set(controller.vacuum.zones.filter { titles.contains($0.title) }.map(\.entityId))
     }
 
-    private func render() {
-        let scene = mapState.scene
+    private func renderControls() {
+        controlRenderCount += 1
         let groups = controlGroups()
         controls.apply(groups)
         if presentation.authored { reserveControlRows(groups) }
+    }
+
+    private func render() {
+        mapRenderCount += 1
+        let scene = mapState.scene
         if let scene {
             let onAutoClean = presentation.autoCleanOverlay ?? (state.displayed.tab == .autoClean)
             let rooms = onAutoClean ? [:] : roomOrders

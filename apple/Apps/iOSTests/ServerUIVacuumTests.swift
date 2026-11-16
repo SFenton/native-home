@@ -6,7 +6,7 @@ import XCTest
 // MARK: - Synthetic configured source
 
 @MainActor
-private final class ConfiguredVacuumCaller: HassServiceCalling {
+final class ConfiguredVacuumCaller: HassServiceCalling {
     var calls: [String] = []
     var targets: [String?] = []
     var hold = false
@@ -39,7 +39,7 @@ private final class ConfiguredVacuumCaller: HassServiceCalling {
 }
 
 @MainActor
-private enum ConfiguredVacuumFixture {
+enum ConfiguredVacuumFixture {
     static func descriptor() throws -> ServerUIVacuumDescriptor {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         return try JSONDecoder().decode(ServerUIVacuumDescriptor.self,
@@ -50,9 +50,15 @@ private enum ConfiguredVacuumFixture {
         try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8))
     }
 
-    static func publication(_ primitive: String, autoClean: Bool = false, revision: Double = 1) throws -> ServerUICompositionPublication {
+    /// - Parameters:
+    ///   - orientation: The source's `orientation` (`sh.surface-orientation@1`), when authored.
+    ///   - extra: Capability ids the content needs beyond the kind's own (the map's `controls` adds its own).
+    static func publication(_ primitive: String, autoClean: Bool = false, revision: Double = 1, orientation: String? = nil, rotation: Double? = nil,
+                            extra needs: [String] = []) throws -> ServerUICompositionPublication {
         var root = try ServerUIRendererFixture.json()
         var descriptor = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(descriptor()))
+        if let rotation { descriptor = try ServerUIRendererFixture.changing(descriptor, path: "/mapRotationDegrees", to: .number(rotation)) }
+        if let orientation { descriptor = try ServerUIRendererFixture.changing(descriptor, path: "/orientation", to: json(orientation)) }
         if autoClean {
             descriptor = try ServerUIRendererFixture.changing(descriptor, path: "/autoCleanControl",
                 to: .object(["title": "Demo Auto-Clean", "entityId": "switch.demo_pause", "kind": "pause"]))
@@ -70,7 +76,11 @@ private enum ConfiguredVacuumFixture {
         let extra = kind == "auto-clean" ? ["sh.vacuum-auto-clean@1"] : kind == "map" ? ["sh.vacuum-map@1"]
             : kind == "area-editor" ? ["sh.vacuum-map@1", "sh.vacuum-area@1"]
             : kind == "outcomes" || kind == "report" ? ["sh.vacuum-outcomes@1"] : ["sh.vacuum-controls@1"]
-        let capabilities = ServerUICompositionPublication.firstSliceCapabilities + ["sh.vacuum@1"] + extra
+        var capabilities = ServerUICompositionPublication.firstSliceCapabilities + ["sh.vacuum@1"] + extra + needs
+        if primitive.contains("\"controls\"") { capabilities.append("sh.surface-controls@1") }
+        if primitive.contains("source-command") { capabilities.append("sh.vacuum-controls@1") }
+        if orientation != nil { capabilities.append("sh.surface-orientation@1") }
+        capabilities = Array(Set(capabilities))
         root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(capabilities.sorted().map(JSONValue.string)))
         root = try ServerUIRendererFixture.changing(root, path: "/revision", to: .number(revision))
         return try ServerUIRendererFixture.publication(root)
@@ -91,10 +101,14 @@ private enum ConfiguredVacuumFixture {
         return store
     }
 
-    static func loader() -> ValetudoMapLoader {
+    /// - Parameter leftOnly: The segment covers only the left 20 of the map's 50 columns, so a flip is visible in where a tap lands.
+    static func loader(leftOnly: Bool = false) -> ValetudoMapLoader {
         let loader = ValetudoMapLoader { _ in throw URLError(.notConnectedToInternet) }
-        let pixels = (0...50).flatMap { y in (0...50).flatMap { x in [Int32(x), Int32(y)] } }
-        loader.show(ValetudoMap(layers: [.init(type: "segment", pixels: pixels, name: "Demo Segment", segmentId: "1")],
+        let pixels = (0...50).flatMap { y in (0...(leftOnly ? 20 : 50)).flatMap { x in [Int32(x), Int32(y)] } }
+        // A second, unconfigured segment on the right keeps the map's bounds the full width when the room covers only the left part.
+        let right = (0...50).flatMap { y in (40...50).flatMap { x in [Int32(x), Int32(y)] } }
+        let edge: [ValetudoMap.Layer] = leftOnly ? [.init(type: "segment", pixels: right, name: "Demo Extra", segmentId: "2")] : []
+        loader.show(ValetudoMap(layers: [.init(type: "segment", pixels: pixels, name: "Demo Segment", segmentId: "1")] + edge,
             entities: [.init(type: "robot_position", points: [100, 100])], pixelSize: 5, size: (500, 500)), provenance: .live)
         return loader
     }

@@ -51,7 +51,8 @@ extension ServerUICompositionCompiler {
             require("vacuum-controls")
             guard let kind = VacuumController.Action.Kind(rawValue: try c.s("command")) else {
                 add(.invalidCombination, c.path("command"))
-                return (.locate, true)
+                // A placeholder that is not Locate, so the refused command is not also counted as a Locate button.
+                return (.sourceCommand(.dock), true)
             }
             return (.sourceCommand(kind), true)
         case "call-service":

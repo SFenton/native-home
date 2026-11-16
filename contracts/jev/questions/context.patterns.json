@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 11,
+  "version": 12,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",

@@ -19,6 +19,7 @@ public struct ServerUIMapControlButton: Equatable, Sendable {
     public let id: String
     /// What VoiceOver adds after the label.
     public let hint: String?
+    /// What the button does when pressed.
     public let action: ServerUIMapControlAction
     /// The symbol, label, `visibleWhen` and `enabledWhen`, each plain or following a rule (`sh.tile-disc-rules@1`, as a tile's buttons do).
     /// Its own `action` is not used: ``action`` is the button's action.
@@ -37,8 +38,11 @@ public struct ServerUIMapControlButton: Equatable, Sendable {
 
 /// One corner's group: a row or a column of buttons in authored order.
 public struct ServerUIMapControlGroup: Equatable, Sendable {
+    /// The corner the group sits in.
     public let corner: MapControlCorner
+    /// Whether the buttons run in a row or a column.
     public let axis: MapControlAxis
+    /// The buttons in authored order.
     public let buttons: [ServerUIMapControlButton]
 
     public init(corner: MapControlCorner, axis: MapControlAxis, buttons: [ServerUIMapControlButton]) {
