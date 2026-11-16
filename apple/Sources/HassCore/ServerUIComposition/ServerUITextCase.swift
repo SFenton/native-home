@@ -29,8 +29,8 @@ public enum ServerUITextCase: String, Sendable, CaseIterable {
     /// Splits at `_` and at U+0020 (a tab or a newline stays inside its word), keeps every empty part, makes each part's first scalar upper
     /// case when it is an ASCII `a` to `z`, leaves the rest, and joins the parts with one space. Empty text stays empty.
     ///
-    /// It works on `unicodeScalars`, never `capitalized` or `Character.uppercased()`, so it is byte-equal with `wordsCase` in the Studio's
-    /// `text.ts`: `a  b` is `A  B`, `_x` is ` X`, `x ` is `X `, `élan vital` is `élan Vital`.
+    /// It works on `unicodeScalars`, never `capitalized` or `Character.uppercased()`, so it is byte-equal with `wordsCase` in the Studio's pipeline
+    /// text step: `a  b` is `A  B`, `_x` is ` X`, `x ` is `X `, `élan vital` is `élan Vital`.
     static func wordsCase(_ text: String) -> String {
         var parts: [String.UnicodeScalarView] = [.init()]
         for scalar in text.unicodeScalars {

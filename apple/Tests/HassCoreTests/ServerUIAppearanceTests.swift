@@ -143,7 +143,7 @@ struct ServerUIAppearanceTests {
             if case .roomCard(let card) = component { return card }
             return nil
         }.first)
-        let color = try #require(ServerUIRooms.card(definition, entityId: "light.x").stateColors["on"])
+        let color = try #require(ServerUIRooms.card(definition, entityId: "light.demo_x").stateColors["on"])
         #expect(color.red == 1 && color.green == 204.0 / 255 && color.blue == 0)
         #expect(color.dark == RoomColor.Dark(255, 214, 10))
         let same = try Self.publication("appearance-identical-colors")
@@ -156,7 +156,7 @@ struct ServerUIAppearanceTests {
         let rule = try #require(publication.document.stateStyles?.entries.first?.style.rules.first)
         #expect(rule.fill == 0x9C6DC3 && rule.fillDark == 0xC88CFA)
         let resolved = StateStyle(id: "s", name: "S", domain: "switch", actionId: "a", rules: [rule]).resolve(
-            EntityState(entityId: "switch.x", state: rule.states.first ?? "on"), entityId: "switch.x")
+            EntityState(entityId: "switch.demo_x", state: rule.states.first ?? "on"), entityId: "switch.demo_x")
         #expect(resolved.fill == 0x9C6DC3 && resolved.fillDark == 0xC88CFA)
     }
 
