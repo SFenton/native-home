@@ -172,6 +172,10 @@ public final class ServerUIRowCollection {
     /// Where the collection is in loading.
     private(set) public var phase: Phase = .loading
 
+    /// Runs the provider again and returns when the new result is published, or `nil` when the collection has nothing to pull
+    /// (`sh.list-parts@1` `refreshable`). A flow session sets it.
+    public var refresher: (@MainActor () async -> Void)?
+
     /// Creates an empty collection in its loading phase.
     public init() {}
 

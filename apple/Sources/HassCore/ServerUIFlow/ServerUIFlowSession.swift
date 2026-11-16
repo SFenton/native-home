@@ -14,6 +14,8 @@ public struct ServerUIFlowHost {
     public var held: (_ entityId: String) -> ServerUIFlowSources.HeldEntity?
     /// The value of a declared source's field (a parameter's `read`), as the app's operand evaluator reads it.
     public var read: (_ sourceId: String, _ path: [String]) -> JSONValue?
+    /// Whether the app has received its first entity states. Until it has, a flow over held entities waits instead of drawing them unavailable.
+    public var statesReady: () -> Bool
     /// The clock, the viewer and the locale. Read inside an observation.
     public var environment: () -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?)
 
@@ -22,11 +24,13 @@ public struct ServerUIFlowHost {
                 call: @escaping (String, String, [String: JSONValue], [String: JSONValue]) async throws -> JSONValue = { _, _, _, _ in .null },
                 held: @escaping (String) -> ServerUIFlowSources.HeldEntity? = { _ in nil },
                 read: @escaping (String, [String]) -> JSONValue? = { _, _ in nil },
+                statesReady: @escaping () -> Bool = { true },
                 environment: @escaping () -> (clock: ServerUIClock?, viewer: ServerUIViewer?, locale: Locale?) = { (nil, nil, nil) }) {
         self.feed = feed
         self.call = call
         self.held = held
         self.read = read
+        self.statesReady = statesReady
         self.environment = environment
     }
 }
@@ -100,6 +104,7 @@ public final class ServerUIFlowSession {
         self.flow = flow
         self.collection = collection
         self.host = host
+        collection.refresher = { [weak self] in await self?.refresh() }
     }
 
     deinit {
@@ -168,7 +173,8 @@ public final class ServerUIFlowSession {
     }
 
     /// Everything the run reads on the main actor, as plain values. Called inside an observation.
-    private func snapshot() -> (context: ServerUIFlowContext, response: JSONValue?) {
+    private func snapshot() -> (context: ServerUIFlowContext, response: JSONValue?, waiting: Bool) {
+        let ready = host.statesReady()
         let environment = host.environment()
         var values: [ReadKey: JSONValue] = [:]
         for key in flow.parameters.flatMap(\.value.flowReads) where values[key] == nil {
@@ -178,11 +184,12 @@ public final class ServerUIFlowSession {
         let context = ServerUIFlowContext(clock: environment.clock, viewer: environment.viewer, locale: environment.locale) { id, path in
             held[.init(sourceId: id, path: path)]
         }
-        let response = localResponse()
+        let waiting = !ready && flow.readsHeldEntities
+        let response = waiting ? nil : localResponse()
         if case .serviceResponse = flow.request, flow.refresh?.on.contains(.entityChange) == true {
             for id in flow.watchedEntityIds { _ = host.held(id) }
         }
-        return (context, response)
+        return (context, response, waiting)
     }
 
     /// Takes the snapshot under an observation that runs the flow again on the next change, then runs it.
@@ -199,6 +206,7 @@ public final class ServerUIFlowSession {
                 self.evaluate()
             }
         })
+        if taken.waiting { return }
         let flow = flow, host = host
         runTask = Task { @MainActor [weak self] in
             var response = taken.response

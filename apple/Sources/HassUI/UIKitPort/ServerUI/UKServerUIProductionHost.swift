@@ -190,7 +190,7 @@ final class UKServerUIProductionHost: UIViewController {
     func validate(_ publication: ServerUICompositionPublication) throws {
         let supplied = runtime.providers.supplementalProviders(for: publication)
         let settings = try runtime.providers.settings(for: publication, sceneID: sceneID)
-        try renderer?.validateUpdate(publication, collections: runtime.providers.presentationCollections(settings),
+        try renderer?.validateUpdate(publication, collections: runtime.providers.presentationCollections(settings, for: publication),
                                      records: runtime.providers.records(for: publication, sceneID: sceneID),
                                      settingsProviders: settings,
                                      bedroomProviders: supplied.bedrooms,
@@ -218,7 +218,7 @@ final class UKServerUIProductionHost: UIViewController {
         let preparedBlurPercent = backdrop.blur.percent
         let records = try runtime.providers.records(for: publication, sceneID: sceneID)
         let settings = try runtime.providers.settings(for: publication, sceneID: sceneID, blur: backdrop.blur)
-        let collections = try runtime.providers.presentationCollections(settings)
+        let collections = try runtime.providers.presentationCollections(settings, for: publication, sceneID: sceneID)
         let (bedrooms, remotes) = runtime.providers.supplementalProviders(for: publication)
         let canEditBedroom = runtime.providers.canEditBedroom
         if let renderer {

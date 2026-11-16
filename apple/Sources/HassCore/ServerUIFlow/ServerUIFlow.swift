@@ -202,6 +202,14 @@ public struct ServerUIFlow: Equatable, Sendable {
         operands.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) }.union(predicates.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) })
     }
 
+    /// Whether the flow's data is the entities the app holds (an `entities` or `entity-attribute` request), so it has none before the first states arrive.
+    public var readsHeldEntities: Bool {
+        switch request {
+        case .entities, .entityAttribute: true
+        default: false
+        }
+    }
+
     /// The entities the flow watches while it runs: an `entities` request lists them, and a refresh may name more.
     public var watchedEntityIds: [String] {
         switch request {

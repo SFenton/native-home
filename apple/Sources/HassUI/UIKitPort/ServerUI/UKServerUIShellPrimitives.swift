@@ -154,45 +154,76 @@ final class UKServerUISection: UIView, UKGridMeasuring {
 }
 
 /// A bounded collection uses the existing module rows, retaining each row instance by provider key.
+///
+/// With a `rowAction` (`sh.list-parts@1`) each row is a ``UKRowButton`` that reports its tap; without one the rows are the plain rows.
 @MainActor
 final class UKServerUIRowCollection: UKServerUIFittingView {
     private let stack = UIStackView()
     private let list = UKModuleListView(hasGlyphs: false)
     private let message = UILabel.uk(.body, ink: UKDesignInk.secondary)
+    private let detail = UILabel.uk(.footnote, ink: UKDesignInk.secondary)
     private(set) var rows: [String: UKRowView] = [:]
+    private var buttons: [String: UKRowButton] = [:]
     private var order: [String] = []
+    private var tappable = false
+    private weak var model: ServerUIRowCollection?
+    /// Whether pulling the page runs the provider again (`refreshable`).
+    private(set) var pullsToRefresh = false
 
     init() {
         super.init(frame: .zero)
         stack.axis = .vertical
         stack.spacing = HassTokens.Spacing.s
         stack.addArrangedSubview(message)
+        stack.addArrangedSubview(detail)
         stack.addArrangedSubview(list)
         addSubview(stack)
         stack.ukPin(to: self)
         message.accessibilityTraits = .staticText
+        detail.accessibilityTraits = .staticText
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func apply(_ value: ServerUICompositionDocument.RowCollection, model: ServerUIRowCollection, surface: TileSurface) {
+    /// Runs the provider again, for the page's pull to refresh.
+    func refresh() async { await model?.refresher?() }
+
+    /// Draws the rows of `model`.
+    /// - Parameters:
+    ///   - emptyDetail: The line under the empty title (`emptyMessage`), resolved by the caller.
+    ///   - onSelect: A tap on a row, when the collection has a `rowAction`.
+    func apply(_ value: ServerUICompositionDocument.RowCollection, model: ServerUIRowCollection, surface: TileSurface,
+               emptyDetail: String? = nil, onSelect: ((ServerUIRowItem) -> Void)? = nil) {
+        self.model = model
+        pullsToRefresh = value.refreshable && model.refresher != nil
         var retained: [String: UKRowView] = [:]
+        var retainedButtons: [String: UKRowButton] = [:]
+        if (onSelect != nil) != tappable { tappable = onSelect != nil; order = []; buttons = [:] }
         for item in model.rows {
             var content = UKRowContent(item.title, subtitle: item.subtitle, value: item.value)
             content.identifier = value.node.id + "." + item.id
+            content.showsChevron = onSelect != nil
             let row = rows[item.id] ?? UKRowView(content, surface: surface)
             row.update(content)
             row.surface = surface
             row.accessibilityIdentifier = value.node.id + "." + item.id
             retained[item.id] = row
+            if let onSelect {
+                let button = buttons[item.id] ?? UKRowButton(row)
+                button.onTap = { onSelect(item) }
+                button.surface = surface
+                button.accessibilityIdentifier = value.node.id + "." + item.id
+                retainedButtons[item.id] = button
+            }
         }
         let nextOrder = model.rows.map(\.id)
         if nextOrder != order {
-            list.setRows(nextOrder.compactMap { retained[$0] })
+            list.setRows(nextOrder.compactMap { onSelect == nil ? retained[$0] : retainedButtons[$0] })
             order = nextOrder
         }
         rows = retained
+        buttons = retainedButtons
         list.surface = surface
         switch model.phase {
         case .loading: message.text = value.loadingText
@@ -202,6 +233,8 @@ final class UKServerUIRowCollection: UKServerUIFittingView {
         case .unavailable: message.text = value.unavailableText
         }
         message.isHidden = message.text == nil
+        detail.text = model.phase == .ready && model.rows.isEmpty ? emptyDetail : nil
+        detail.isHidden = detail.text == nil
         list.isHidden = model.rows.isEmpty
         ukRemeasureContainers(includingSelf: true)
     }
