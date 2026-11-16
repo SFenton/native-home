@@ -23,7 +23,8 @@ extension StateStyle {
                       action: StateAction(verb: "Open", symbol: "door.garage.closed", service: nil, isTappable: false)),
         ],
         request: StateRequest(lockout: .seconds(2), ackTimeout: .seconds(10), settleTimeout: .seconds(45), errorHold: .seconds(8),
-                              pendingWords: ["open_cover": "Sending Open…", "close_cover": "Sending Close…", "stop_cover": "Stopping…"]),
+                              pendingWords: ["open_cover": "Sending Open…", "close_cover": "Sending Close…", "stop_cover": "Stopping…"],
+                              pendingStates: ["open_cover": "opening", "close_cover": "closing"]),
         togglesDisc: true)
 
     /// A lock: locked and unlocked rest; moving states (locking, unlocking, opening) ignore taps; `open` warns; `jammed` is an error and a tap locks.
@@ -40,7 +41,7 @@ extension StateStyle {
                       action: StateAction(verb: "Unlock", symbol: "lock.fill", service: "unlock", isTappable: false)),
         ],
         request: StateRequest(lockout: .seconds(0), ackTimeout: .seconds(10), settleTimeout: .seconds(2), errorHold: .seconds(4),
-                              onTimeout: .revert, errorWords: "Didn't Respond"),
+                              onTimeout: .revert, pendingStates: ["lock": "locking", "unlock": "unlocking"], errorWords: "Didn't Respond"),
         togglesDisc: true, drawsErrorDisc: true)
 
     /// A blind: open and closed rest; opening and closing keep the disc as Stop where the cover supports it, else the arc stands in.
