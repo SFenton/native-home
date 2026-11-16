@@ -20,7 +20,8 @@
       "add_item",
       "remove_item",
       "update_item",
-      "install"
+      "install",
+      "run"
     ],
     "object_ids": [
       "alarm_control_panel.alarm_arm_home",
