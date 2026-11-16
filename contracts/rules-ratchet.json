@@ -1108,7 +1108,7 @@
   ".agents/platforms/apple/ha-operations.md": {
    "forbidden": 4,
    "long_lines": 10,
-   "over_words": 812
+   "over_words": 809
   },
   ".agents/platforms/apple/live-activities-ha-automations.md": {
    "forbidden": 11,

@@ -45,16 +45,7 @@ A one-off for schema-2 fields the app used to derive from names (a climate room'
 
 Prefer a package file under `/config/packages/` over `automations.yaml` for anything the agents own (the Live Activity package is the model: [live-activities-ha-automations](live-activities-ha-automations.md)). A restart takes the house's automations offline for a minute or two: batch config changes into one `apply`, do not restart at night for a cosmetic change, and never restart twice in a row to retry.
 
-## The Studio publication: `tools/studio_publish.py`
-
-A publish from the owner's Studio reaches every phone at once, so it is a live change too. It goes only through [`tools/studio_publish.py`](../../../tools/studio_publish.py) (stdlib, tested against a stub Studio), never by calling the Studio API, never by editing its data directory; [`studio_guard.py`](../../../tools/hooks/studio_guard.py) refuses both. Commands: `status`, `check`, `apply [--publish]`, `publish`, `rollback`, each with `CHANGE_DIR` under `build/studio-publish/`; `apply`, `publish` and `rollback` need `--reason`.
-
-- **Who.** Lanes build a change and its evidence; only the orchestrator's dispatched publish step (the orchestrator or the menial) runs `apply`, `publish` and `rollback`. `status` and `check` are open to every agent.
-- **Scope guard.** A publish ships the whole draft. The tool refuses unless `open-check` and `draftIsLive` say the draft equals what the app serves, so the owner's unpublished edits are never shipped; while they exist, publishes wait.
-- **Order.** `check` (read only: identity, revision, base document, scope, validation, evidence bound to the candidate's hash), then `apply` (record the prior document and live revision, then `PUT draft` with `expectedRevision`), then `publish` (re-read, `ha/publish` with `expectedRevision`, confirm). A 409 means rebuild: never retried.
-- **Rollback.** The Studio keeps no draft history and `ha/rollback` leaves the draft alone, so `rollback` restores both sides from the saved prior copy (`build/studio-publish/<id>/prior.json`, mode 600, git-ignored). The draft is restored only while it still sits at the revision the tool left; an aged-out live entry is republished from the prior document.
-- **Log.** One line per attempt in `~/hass-agents/studio-publish.jsonl` (revisions, hashes, result, security flag; no document, no secret). The same security flag as `apply` applies.
-- **Auth.** The Studio at 4801 runs without a token; the tool sends `STUDIO_AUTH_TOKEN` only when that variable is set and the Studio answers 401. It never reads a credential file.
+Studio publication: [studio-publication](studio-publication.md).
 
 ## The log
 
@@ -66,8 +57,8 @@ Locks, alarm panels, garage doors and sirens use the same path (backup, check, l
 
 ## Guardrails that stay
 
-- The HA SSH add-on runs busybox (`tar` 1.37.0): its `find -exec cksum {} +` and `tar --exclude=__pycache__ -cf …` (either option order) were checked on the live add-on on 2026-11-03.
-- Back up first; the check must pass before any reload or restart; a failed check restores the old files and stops. Never skip `check`.
+- The HA SSH add-on runs busybox (`tar` 1.37.0): its `find -exec cksum {} +` and `tar --exclude=__pycache__ -cf …` were checked on the live add-on on 2026-11-03.
+- Back up first; the check must pass before any reload or restart; a failed check restores the old files and stops.
 - Never read or print `secrets.yaml`, `.storage`, tokens or the cloud config; a secret an automation needs is named (`!secret name`) and the owner adds it.
 - One purpose per change, a real `--reason`, and after a restart confirm Core is back (`tools/ha_change.py check`, then one entity read) before the next step.
 - Core/Supervisor updates, OS updates, add-on installs or removals and network settings are not covered here: file them for the owner.

@@ -49,8 +49,7 @@ A guard is a tripwire for accident and habit. Answer a refusal by changing the w
 | `signing_guard.py`, `owner_prompt_log.py`, `owner_prompt_guard.py` | [Credentials](security.md#credentials) and the owner's typed requests |
 | `orchestrator_guard.py`, `research_write_guard.py`, `agent_model.py`, `subagent_report.py` | Role scope, spawn models, the status block |
 | `no_poll.py`, `bg_timeout_guard.py`, `stop_continue_guard.py`, `tier_guard.py` | [Waiting](token-economy.md#waiting) and test tiers |
-| `studio_guard.py` | The Studio API and data directory: only `tools/studio_publish.py`, and its `apply`, `publish` and `rollback` only in the orchestrator's publish step ([ha-operations](../platforms/apple/ha-operations.md)) |
-| `kill_guard.py` | Process kills ([capacity](token-economy.md#capacity)) |
+| `kill_guard.py`, `studio_guard.py` | Process kills ([capacity](token-economy.md#capacity)); the Studio API ([studio-publication](../platforms/apple/studio-publication.md)) |
 | `mockup_hub_guard.py` | A session with mockup changes ends with a hub publish |
 | `rules_guard.py` | [What a rule is](docs-conventions.md#what-a-rule-is), at write time |
 | `triage_session.py`, `triage_deny.py` | A headless session's deny list ([triage-agent](triage-agent.md)) |
