@@ -45,6 +45,7 @@ class StubStudio:
         self.age_out = False
         self.throttle = 0
         self.drop_publish_reply = False
+        self.normalize = False
         self.fail_get_after_put = 0
         self._put_seen = False
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
@@ -103,7 +104,8 @@ class StubStudio:
                         return self.reply(409, {"currentRevision": d["revision"]})
                     if body["document"].get("reject"):
                         return self.reply(422, {"error": "invalid"})
-                    stub.draft = {**d, "revision": d["revision"] + 1, "document": body["document"]}
+                    stored = {**body["document"], "normalized": True} if stub.normalize else body["document"]
+                    stub.draft = {**d, "revision": d["revision"] + 1, "document": stored}
                     stub._put_seen = True
                     return self.reply(200, stub.draft)
                 if (method, path) == ("GET", "/native/api/ha/open-check"):
@@ -587,7 +589,50 @@ class Round3Tests(Base):
         self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "needs the owner", "--owner-action"), 0, self.output)
         self.assertEqual(self.record()["state"], "owner_action")
         self.assertIn("owner_action_needed", self.log_text())
-        self.assertEqual(json.loads((self.run_cli("status", "--json"), self.output)[1])["openChanges"], [])
+        self.assertEqual(self.run_cli("status", "--json"), 0)
+        info = json.loads(self.output)
+        self.assertEqual(info["openChanges"], [])
+        self.assertEqual(info["ownerAction"], [{"change": "c1", "state": "owner_action"}])  # listed until a human clears it
+
+    def test_r3_3_owner_action_only_for_a_stuck_change(self):
+        """Fails if: --owner-action can hide a live change that rollback could still handle."""
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 0)
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t", "--owner-action"), 1)
+        self.assertIn("not_stuck", self.output)
+        self.assertEqual(self.record()["state"], "published")
+
+    def test_r3_2_read_back_hash_proves_a_normalized_write(self):
+        """Fails if: a write the Studio normalised (so it differs from the candidate) cannot be restored, or an owner edit at that revision is restored over."""
+        self.stub.normalize = True
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("store_mismatch", self.output)
+        self.assertTrue(self.record()["readBackSha256"])
+        self.stub.normalize = False
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)
+        self.assertEqual(self.record()["state"], "rolled_back")
+
+    def test_r3_2_read_back_hash_does_not_cover_a_different_document(self):
+        """Fails if: the read-back hash lets rollback overwrite a draft that no longer matches it."""
+        self.stub.normalize = True
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t"), 1)
+        self.stub.draft = {**self.stub.draft, "document": {**BASE_DOC, "ownerEdit": 1}}  # same revision, different content
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertIn("draft_moved", self.output)
+        self.assertEqual(self.stub.draft["document"]["ownerEdit"], 1)
+
+    def test_r3_2_resolve_refuses_an_unconfirmed_publish_that_may_be_live(self):
+        """Fails if: resolve marks a record final while an unconfirmed publish may still be live (draft already restored)."""
+        self.stub.drop_publish_reply = True
+        self.assertEqual(self.run_cli("apply", str(self.dir), "--reason", "t", "--publish"), 1)
+        self.assertEqual(self.run_cli("rollback", str(self.dir), "--reason", "t", "--draft-only"), 0, self.output)
+        self.assertEqual(self.stub.draft["document"], BASE_DOC)
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t"), 1)
+        self.assertIn("still_ours", self.output)
+        record = self.record()
+        record["liveRolledBack"] = True  # the owner reverted the live side by hand and recorded it
+        (self.dir / "record.json").write_text(json.dumps(record))
+        self.assertEqual(self.run_cli("resolve", str(self.dir), "--reason", "t"), 0, self.output)
 
 
 class SecretsAndFilesTests(Base):
@@ -623,7 +668,7 @@ class SecretsAndFilesTests(Base):
         """Fails if: status prints more than revisions, flags and the last change."""
         self.assertEqual(self.run_cli("status", "--json"), 0)
         info = json.loads(self.output)
-        self.assertEqual(set(info), {"draftRevision", "liveRevision", "draftIsLive", "openCheck", "historyRevisions", "lastChange", "openChanges"})
+        self.assertEqual(set(info), {"draftRevision", "liveRevision", "draftIsLive", "openCheck", "historyRevisions", "lastChange", "openChanges", "ownerAction"})
 
     def test_tool_never_opens_a_path_under_native_v2(self):
         """Fails if: the tool opens any file under the Studio's data directory during a full flow."""

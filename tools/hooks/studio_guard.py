@@ -46,7 +46,7 @@ except Exception:  # noqa: BLE001
 
 MESSAGE = (
     "Blocked: the owner's Studio draft and publication change only through `python3 tools/studio_publish.py` "
-    "(status, check, apply, publish, rollback), run by the dispatched publish step. Do not call the Studio API or touch its data directory "
+    "(status, check, apply, publish, rollback, resolve), run by the dispatched publish step. Do not call the Studio API or touch its data directory "
     "yourself. If the tool cannot do what you need, report `needs_decision`."
 )
 TOOL = "studio_publish.py"
@@ -69,7 +69,7 @@ TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_])studio_publish(?![A-Za-z0-9_])")
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|\Z)", re.S)
 #: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
 RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
-#: Searchers and git read text; a route named as their pattern is not a call.
+#: Searchers read text; a route named as their pattern is not a call (``git`` reads are judged by ``git_reads``).
 SEARCH_ONLY = {"grep", "egrep", "fgrep", "rg", "ag", "ack"}
 #: ``git`` subcommands that only read; ``git config alias.x "!curl ..."`` and ``git -c alias.x=...`` are not among them.
 GIT_READS = {"log", "grep", "show", "diff"}
@@ -119,20 +119,30 @@ def tool_reason(args: List[str], payload: dict) -> str:
     return ""
 
 
+#: ``git -c KEY=VALUE`` keys that cannot run a command (``diff.external``, ``core.pager``, ``alias.*`` and ``core.sshCommand`` can).
+GIT_SAFE_CONFIG = re.compile(r"(?:color\.[\w.]+|core\.quotepath|diff\.(?:renames|algorithm|context))=", re.I)
+#: Options of the read subcommands that run a program.
+GIT_RUNS = re.compile(r"^(?:-O|--open-files-in-pager|--ext-diff|--textconv|--exec|--upload-pack)", re.I)
+
+
 def git_reads(words: List[str]) -> bool:
-    """Is this ``git`` call a read (``log``, ``grep``, ``show``, ``diff``) with no ``-c alias.*`` or ``-c core.*`` override?"""
+    """Is this ``git`` call a read (``log``, ``grep``, ``show``, ``diff``) that cannot run a program?
+
+    ``-c`` is allowed only for keys in ``GIT_SAFE_CONFIG``; ``-O``, ``--open-files-in-pager``, ``--ext-diff`` and ``--textconv`` anywhere refuse."""
     rest = words[1:]
     while rest and rest[0].startswith("-"):
         option = rest[0]
-        if option in ("-c", "-C", "--git-dir", "--work-tree") and len(rest) > 1:
-            if option == "-c" and re.match(r"(?:alias|core|pager|include)", rest[1], re.I):
+        if option == "-c" and len(rest) > 1:
+            if not GIT_SAFE_CONFIG.match(rest[1]):
                 return False
+            rest = rest[2:]
+        elif option in ("-C", "--git-dir", "--work-tree") and len(rest) > 1:
             rest = rest[2:]
         elif option.startswith("-c") and len(option) > 2:
             return False
         else:
             rest = rest[1:]
-    return bool(rest) and rest[0] in GIT_READS
+    return bool(rest) and rest[0] in GIT_READS and not any(GIT_RUNS.match(w) for w in rest[1:])
 
 
 def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, interp: bool = False) -> str:
@@ -200,11 +210,24 @@ def runs_code(words: List[str]) -> bool:
     return program in NETWORK or program in SHELLS or program in RUNNERS
 
 
+def prose_heredoc(command: str, match: "re.Match[str]") -> bool:
+    """Is the command that opens this heredoc prose (``git commit -F - <<EOF``, ``gh ... --body-file - <<EOF``), whose body is a message, not code?"""
+    start = command.rfind("\n", 0, match.start()) + 1
+    end = command.find("\n", match.start())
+    for _op, words in tokenize(command[start:end if end >= 0 else len(command)]):
+        if any(w.startswith("<<") for w in words):
+            words = strip_prefixes(words)
+            return bool(words) and os.path.basename(words[0]) in ("git", "gh")
+    return False
+
+
 def command_reason(command: str, payload: dict, project: str) -> str:
     """Why a Bash command is refused (empty when it passes).
 
-    A heredoc body is code when the command runs an interpreter (``python3 - <<EOF``, ``node``): its text is read for routes, ports, the data
-    directory and the tool's name. A port named in a command line that also runs code (``echo '...:4801...' | python3 -``) counts too."""
+    When any simple command runs code (an interpreter, shell, network client or task runner), every heredoc body is read for routes, ports, the data
+    directory and the tool's name, whatever line opens it: ``python3 - <<EOF``, ``cat <<EOF | python3 -``, and ``cat > x.py <<EOF`` followed by
+    ``python3 x.py`` (write, then run). Only a heredoc whose own command is prose (``git commit -F -``, ``gh ... --body-file -``) is skipped.
+    A command piped into or out of code has its ports read too (``echo '...:4801...' | python3 -``)."""
     segments = tokenize(command)
     code = [runs_code(words) for _op, words in segments]
     for i, (_op, words) in enumerate(segments):
@@ -213,14 +236,13 @@ def command_reason(command: str, payload: dict, project: str) -> str:
         why = words_reason(words, payload, project, interp=bool(piped))
         if why:
             return why
-    for match in HEREDOC.finditer(command):
-        start = command.rfind("\n", 0, match.start()) + 1
-        end = command.find("\n", match.start())
-        line = command[start:end if end >= 0 else len(command)]
-        if any(runs_code(words) for _op, words in tokenize(line)):
+    if any(code):
+        for match in HEREDOC.finditer(command):
+            if prose_heredoc(command, match):
+                continue
             body = match.group(3)
             if ROUTE.search(body) or PORT.search(body) or NATIVE_V2.search(body) or LOCK.search(body) or TOOL_WORD.search(body) or DATA_DIR_VAR.search(body):
-                return "a heredoc fed to an interpreter names the Studio"
+                return "a heredoc in a command that runs code names the Studio"
     return ""
 
 

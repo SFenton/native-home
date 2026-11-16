@@ -433,7 +433,7 @@ class Publisher:
             "draftRevision": draft.get("revision"), "liveRevision": live_revision,
             "draftIsLive": publication.get("draftIsLive"), "openCheck": open_check.get("action"),
             "historyRevisions": [h.get("revision") for h in history if isinstance(h, dict)] if isinstance(history, list) else [],
-            "lastChange": self.last_logged(), "openChanges": self.open_changes(),
+            "lastChange": self.last_logged(), "openChanges": self.open_changes(), "ownerAction": self.owner_actions(),
         }
         self.say(json.dumps(info, sort_keys=True) if as_json else "\n".join(f"{k}: {v}" for k, v in info.items()))
         return 0
@@ -450,6 +450,16 @@ class Publisher:
             state = record.get("state")
             if state in ("recorded", "applied", "rollback_failed") or (state == "refused" and record.get("draftWritten")):
                 found.append({"change": record.get("change", path.parent.name), "state": state})
+        return found
+
+    def owner_actions(self) -> List[Dict[str, Any]]:
+        """Records marked ``owner_action``: stuck changes the owner must finish. They stay listed until ``resolve`` (checks pass) clears them."""
+        found = []
+        for path in sorted((self.root / "build" / "studio-publish").glob("*/record.json")):
+            with contextlib.suppress(Refusal):
+                record = _read_json(path, "record.json")
+                if record.get("state") == "owner_action":
+                    found.append({"change": record.get("change", path.parent.name), "state": "owner_action"})
         return found
 
     def last_logged(self) -> Optional[Dict[str, Any]]:
@@ -607,10 +617,12 @@ class Publisher:
         if not record:
             raise Refusal("not_applied", "no record for this change")
         change = self.load_change(directory)
-        if record.get("state") in ("resolved", "owner_action", "rolled_back"):
+        if record.get("state") in ("resolved", "rolled_back"):
             self.say(f"already final: {change['id']} ({record['state']})")
             return 0
         if owner_action:
+            if record.get("state") not in ("rollback_failed", "owner_action") and not record.get("draftMoved"):
+                raise Refusal("not_stuck", "--owner-action is for a rollback that failed or a draft that moved; otherwise run rollback")
             self.finish_record(directory, record, "owner_action")
             self.log("resolve", reason, change["id"], "owner_action_needed", security=record.get("security"))
             self.say(f"{change['id']}: marked owner_action; the owner must finish it by hand")
@@ -714,6 +726,7 @@ class Publisher:
             elif revision != left or not (jeq(draft.get("document"), candidate) or (
                     record.get("readBackSha256") and doc_sha256(draft.get("document")) == record["readBackSha256"])):
                 outcome["draft"] = "draft_moved"
+                record["draftMoved"] = True
                 if publish_after:
                     raise Refusal("rollback_failed", "the live entry aged out and the draft moved: nothing safe to republish; report to the owner")
                 return
