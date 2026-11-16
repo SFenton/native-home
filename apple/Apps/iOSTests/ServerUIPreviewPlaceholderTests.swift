@@ -45,8 +45,13 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
         root = try ServerUIRendererFixture.changing(root, path: "/document/dataSources",
             to: .array(sources + [try XCTUnwrap(camera["source"]), away]))
         guard case .object(var tileFields)? = camera["tile"] else { throw NSError(domain: "PlaceholderFixture", code: 1) }
-        tileFields["action"] = .object(["type": "present", "modalId": "fixture-overview", "arguments": .object([:]), "ifPresented": "reject"])
+        tileFields["action"] = .object(["type": "present", "modalId": "fixture-camera-viewer", "arguments": .object([:]), "ifPresented": "reject"])
         let tile: JSONValue = .object(tileFields)
+        let modals = try XCTUnwrap(root["document"]?["modals"]?.array)
+        guard case .object(var viewerModal)? = modals.first else { throw NSError(domain: "PlaceholderFixture", code: 2) }
+        viewerModal["id"] = "fixture-camera-viewer"
+        viewerModal["components"] = .array([try XCTUnwrap(camera["viewer"])])
+        root = try ServerUIRendererFixture.changing(root, path: "/document/modals", to: .array(modals + [.object(viewerModal)]))
         let symbol: JSONValue = .object(["type": "sf-symbol", "name": "checkmark.circle", "rendering": "canonical", "unavailable": "reject"])
         let check: JSONValue = .object(["id": "fixture-vacation-check", "title": "Placeholder task", "type": "settings-control",
             "layout": .object(["span": .number(1)]), "icon": symbol,
@@ -55,7 +60,8 @@ final class ServerUIPreviewPlaceholderTests: XCTestCase {
         root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/components", to: .array(components + [tile, check]))
         let capabilities = try XCTUnwrap(root["capabilities"]?.array).compactMap(\.string)
             .filter { $0 != "sh.assets.publisher@1" }
-            + ["sh.camera-stream@1", "sh.camera-tile@1", "sh.settings-controls@1"]
+            + ["sh.camera-stream@1", "sh.camera-tile@1", "sh.camera-video@1", "sh.camera-controls@1",
+               "sh.camera-viewer@1", "sh.settings-controls@1"]
         return try ServerUIRendererFixture.changing(root, path: "/capabilities",
             to: .array(Set(capabilities).sorted().map(JSONValue.string)))
     }
