@@ -43,6 +43,23 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
         try await super.tearDown()
     }
 
+    /// The window's view tree, one line per view with what dims or tints it, so the two trees' tops can be compared line by line.
+    private func dump(_ window: UIWindow) -> String {
+        var lines = ["window tint=\(window.tintAdjustmentMode.rawValue) key=\(window.isKeyWindow) alpha=\(window.alpha) style=\(window.overrideUserInterfaceStyle.rawValue)"]
+        var controller = window.rootViewController
+        while let next = controller?.presentedViewController { lines.append("presented \(type(of: next))"); controller = next }
+        func walk(_ view: UIView, _ depth: Int) {
+            var line = String(repeating: " ", count: depth) + "\(type(of: view)) f=\(view.frame.integral) a=\(view.alpha) h=\(view.isHidden)"
+            if let scroll = view as? UIScrollView { line += " off=\(scroll.contentOffset) inset=\(scroll.adjustedContentInset) size=\(scroll.contentSize)" }
+            if view.tintAdjustmentMode != .automatic { line += " tint=\(view.tintAdjustmentMode.rawValue)" }
+            if view is UIVisualEffectView || view.layer.mask != nil || view.layer.opacity < 1 { line += " fx" }
+            lines.append(line)
+            for child in view.subviews { walk(child, depth + 1) }
+        }
+        walk(window, 0)
+        return lines.joined(separator: "\n")
+    }
+
     private func still(_ window: UIWindow, to url: URL) throws {
         window.layoutIfNeeded()
         let format = UIGraphicsImageRendererFormat()
@@ -64,6 +81,7 @@ final class ServerUIDoorPixelsHostedTests: XCTestCase {
         func capture(_ name: String, _ view: UKGlassTileView, _ window: UIWindow, tiles: [String: UKGlassTileView] = [:]) async throws {
             await HostedPage.pump(passes: 40)
             try still(window, to: directory.appendingPathComponent(name + ".png"))
+            try dump(window).write(to: directory.appendingPathComponent(name + ".tree.txt"), atomically: true, encoding: .utf8)
             ax[name] = [view.accessibilityLabel ?? "", view.accessibilityValue ?? ""]
             for (id, tile) in tiles {
                 let model = tile.model
