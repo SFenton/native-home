@@ -15,9 +15,12 @@ import UIKit
 /// event: there is no publisher HTTP endpoint.
 ///
 /// The live bearer comes from the launch environment: ``environmentCredentialName`` (`simctl launch` sets it as
-/// `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`). It is read once at preview start, removed from the process environment with
-/// `unsetenv` so child processes and later reads cannot see it, and kept in memory only: never logged, written, or put in a
-/// diagnostic string. There is no file source: a stray `ha-credential` file in ``directory`` is never read.
+/// `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`). It is taken and removed from the process environment with `unsetenv` in
+/// ``init(directory:environmentName:)``, before any step that can fail, so a failed bootstrap, fixtures mode or a late error
+/// cannot leave it in the environment. A launch without `--server-ui-preview` removes it at start through
+/// ``discardEnvironmentCredential(named:)`` (called from `UKGalleryRouter.requested()` first). The value is held in memory only
+/// until the live path takes it (or the load ends, which drops it); fixtures mode never uses it. It is never logged, written
+/// or put in a diagnostic string. There is no file source: a stray `ha-credential` file in the preview directory is never read.
 /// Compiled out of release builds.
 @MainActor
 final class UKServerUIPreview: UIViewController {
@@ -71,6 +74,9 @@ final class UKServerUIPreview: UIViewController {
     private var fixtures: UKServerUIPreviewFixtures?
     private let observations = UKObservationBag()
     private var loadTask: Task<Void, Never>?
+    private let directory: URL
+    /// The bearer taken from the environment at init; dropped by the live path or when the load ends.
+    private var credential: Result<String, UKServerUIPreviewLiveData.Failure>?
     nonisolated(unsafe) private var sceneObservers: [NSObjectProtocol] = []
 
     deinit {
@@ -78,6 +84,20 @@ final class UKServerUIPreview: UIViewController {
         sceneObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
+    /// Takes the bearer from the environment first thing, so nothing that fails later can leave it there.
+    /// - Parameters:
+    ///   - directory: Where the bootstrap, publication, assets and receipt live; tests inject a temporary one.
+    ///   - environmentName: The variable that carries the bearer.
+    init(directory: URL = UKServerUIPreview.directory, environmentName: String = UKServerUIPreview.environmentCredentialName) {
+        self.directory = directory
+        credential = Result { try Self.liveCredential(environmentName: environmentName) }
+            .mapError { $0 as? UKServerUIPreviewLiveData.Failure ?? .credential }
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// The preview's default folder, `Application Support/ServerUIPreview`.
     static var directory: URL {
         URL.applicationSupportDirectory.appendingPathComponent("ServerUIPreview", isDirectory: true)
     }
@@ -144,20 +164,29 @@ final class UKServerUIPreview: UIViewController {
         return token
     }
 
-    private func loadPublication() async {
+    /// Removes the bearer from the environment when the preview is not running, so no launch keeps it.
+    static func discardEnvironmentCredential(named name: String = environmentCredentialName) {
+        unsetenv(name)
+    }
+
+    /// Loads the bootstrap and publication, then mounts the renderer; failures show a diagnostic and write a receipt.
+    func loadPublication() async {
+        defer { credential = nil }
         do {
             try writeReceipt(status: "loading")
             let configuration = try JSONDecoder().decode(Configuration.self,
-                from: Data(contentsOf: Self.directory.appendingPathComponent("bootstrap.json")))
+                from: Data(contentsOf: directory.appendingPathComponent("bootstrap.json")))
             try configuration.validate()
             let account = configuration.live.map { "live-preview:\($0.server):\($0.accountID)" } ?? "isolated-preview"
             let partition = try ServerUIPublicationPartition(
                 server: HassServer(baseURL: URL(string: "https://preview.invalid")!))
-            let root = partition.storageDirectory(in: Self.directory.appendingPathComponent("publications", isDirectory: true))
+            let root = partition.storageDirectory(in: directory.appendingPathComponent("publications", isDirectory: true))
             let stager = try ServerUIAssetStager(partition: partition, partitionDirectory: root,
-                transport: UKServerUIPreviewAssetFiles(directory: Self.directory.appendingPathComponent("assets", isDirectory: true)))
+                transport: UKServerUIPreviewAssetFiles(directory: directory.appendingPathComponent("assets", isDirectory: true)))
             if let liveConfiguration = configuration.live {
-                let token = try Self.liveCredential()
+                guard let taken = credential else { throw UKServerUIPreviewLiveData.Failure.credential }
+                credential = nil
+                let token = try taken.get()
                 live = try UKServerUIPreviewLiveData(configuration: liveConfiguration, credential: token,
                                                     directory: root.appendingPathComponent("live"), store: entities)
             } else if let fixtures = configuration.entities {
@@ -180,7 +209,7 @@ final class UKServerUIPreview: UIViewController {
                 })
             publicationStore = store
             await store.bind(userID: "preview")
-            await store.apply(try Self.publishedEvent(from: Self.directory.appendingPathComponent("publication.json")))
+            await store.apply(try Self.publishedEvent(from: directory.appendingPathComponent("publication.json")))
             try Task.checkCancellation()
             guard let publication = store.current, let prepared = store.prepared else {
                 status.text = "Configuration unavailable: \(store.status)"
@@ -340,7 +369,7 @@ final class UKServerUIPreview: UIViewController {
         }
         value["assets"] = assets?.assets.map(\.sha256) ?? []
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .prettyPrinted])
-            .write(to: Self.directory.appendingPathComponent("receipt.json"), options: .atomic)
+            .write(to: directory.appendingPathComponent("receipt.json"), options: .atomic)
     }
 }
 #endif

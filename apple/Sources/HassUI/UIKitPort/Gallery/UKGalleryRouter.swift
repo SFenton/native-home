@@ -9,6 +9,7 @@ import UIKit
 enum UKGalleryRouter {
     /// The root controller for the requested gallery page, or nil when no gallery was requested.
     static func requested() -> UIViewController? {
+        if !ServerUIPreviewLaunch.isEnabled() { UKServerUIPreview.discardEnvironmentCredential() }
         if GalleryFixtureLaunch.isEnabled() {
             do {
                 try GalleryFixtureLaunch.prepare()
