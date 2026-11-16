@@ -74,10 +74,21 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
 
     // MARK: Catching writes on the mock
 
+    /// Whether `request` is exactly the weather panel's forecast read: `call_service` of `weather.get_forecasts` with
+    /// `return_response: true`, for one entity under `weather.` and one forecast kind. The weather reader builds nothing else
+    /// (`ServerUIWeatherReader` fixes the domain and service, and only approves the document's own weather entities).
+    @MainActor private static func isApprovedForecastRead(_ request: HARequest) -> Bool {
+        guard request.type.command == "call_service", request.data["domain"] as? String == "weather",
+              request.data["service"] as? String == "get_forecasts", request.data["return_response"] as? Bool == true,
+              let data = request.data["service_data"] as? [String: Any], Set(data.keys) == ["entity_id", "type"],
+              let entity = data["entity_id"] as? String, entity.hasPrefix("weather."),
+              let kind = data["type"] as? String, ["hourly", "daily", "twice_daily"].contains(kind) else { return false }
+        return true
+    }
+
     /// What the mock holds that would change something: a service call, a script, a schedule change, a to-do change or any REST
-    /// call. Reads (the current user, a to-do list, the schedule list, the state feed) are not writes. The one service call the
-    /// preview lets through is the approved weather entity's `weather.get_forecasts`, a read the weather panel makes once connected;
-    /// any other `call_service` is a write and is named with its domain and service.
+    /// call. Reads (the current user, a to-do list, the schedule list, the state feed) are not writes. The one service call let
+    /// through is ``isApprovedForecastRead(_:)``; any other `call_service` is a write and is named with its domain and service.
     @MainActor private static func writes(on mock: HAMockConnection) -> [String] {
         let writeCommands = ["execute_script", "schedule/update", "schedule/create", "schedule/delete", "todo/item/add",
                              "todo/item/update", "todo/item/remove", "fire_event", "input_boolean/toggle"]
@@ -85,8 +96,9 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         return held.compactMap { request in
             if case .rest = request.type { return "REST " + request.type.command }
             if request.type.command == "call_service" {
+                if isApprovedForecastRead(request) { return nil }
                 let domain = request.data["domain"] as? String ?? "?", service = request.data["service"] as? String ?? "?"
-                return domain == "weather" && service == "get_forecasts" ? nil : "call_service \(domain).\(service)"
+                return "call_service \(domain).\(service) return_response=\(String(describing: request.data["return_response"]))"
             }
             return writeCommands.contains(request.type.command) ? request.type.command : nil
         }
@@ -289,8 +301,16 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
                       control("w-signout", source: "settings-profile", kind: "sign-out", item: ""),
                       control("w-haweb", source: "settings-profile", kind: "ha-web", item: "profile"),
                       control("w-icon", source: "settings-preferences", kind: "app-icon-choice", item: AppIconChoice.midnightGold.rawValue)]
+        // The records providers are built when a page shows a collection, so the admin to-do page's collection is placed too.
+        let adminPage = try XCTUnwrap(house.chores.pages.first { $0.editsAdminTodo })
+        let collection: JSONValue = .object([
+            "id": "w-admin-records", "title": "To-Do", "type": "collection", "layout": .object(["span": .number(1)]),
+            "props": .object(["providerId": .string("records-" + adminPage.id), "template": "todo", "loadingText": "Loading", "emptyText": "Empty"]),
+        ])
         let components = try XCTUnwrap(json["document"]?["pages"]?.array?.first?["components"]?.array)
-        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components + placed))
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components + placed + [collection]))
+        let capabilities = try XCTUnwrap(json["capabilities"]?.array).compactMap(\.string) + ["sh.collection@1"]
+        json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(Set(capabilities).sorted().map(JSONValue.string)))
         return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
     }
 
@@ -385,7 +405,23 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         Task { try? await live.connection.callService("light", "turn_on", data: ["entity_id": "light.synthetic"]) }
         let sent = await FeatureHost.settleAsync(until: { !ServerUIPreviewLiveProvidersTests.writes(on: mock).isEmpty })
         XCTAssertTrue(sent, "The detector must see a write that goes to the connection, or the other tests prove nothing")
-        XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock), ["call_service light.turn_on"])
+        XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock).count, 1)
+        XCTAssertTrue(ServerUIPreviewLiveProvidersTests.writes(on: mock)[0].hasPrefix("call_service light.turn_on"))
+    }
+
+    func testTheOnlyServiceCallsOnTheConnectionAreTheDocumentsApprovedForecastReads() async throws {
+        try await drive { rig in
+            rig.mock.setState(.ready(version: "1.0-mock"), waitForQueue: false)
+            await FeatureHost.settleAsync(0.3)
+            let calls = rig.mock.pendingRequests.map(\.request).filter { $0.type.command == "call_service" }
+            XCTAssertFalse(calls.isEmpty, "\(rig.family): the weather panel reads its forecasts once connected")
+            for call in calls {
+                XCTAssertTrue(ServerUIPreviewLiveProvidersTests.isApprovedForecastRead(call), "\(rig.family): \(call.data)")
+                let data = call.data["service_data"] as? [String: Any]
+                XCTAssertEqual(data?["entity_id"] as? String, "weather.demo_forecast", "\(rig.family): only the document's weather entity")
+            }
+            XCTAssertEqual(rig.live.caller.blockedCommands, 0, "\(rig.family): they go through the weather reader, not the refusing caller")
+        }
     }
 
     func testAHouseholdToggleIsRefusedCountedAndSendsNothing() async throws {
@@ -511,8 +547,9 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         try await drive { rig in
             let room = self.house.bedroom
             guard case .wake(let wake)? = rig.supply.bedrooms[room.wakeLight.id] else { return XCTFail("\(rig.family): wake light") }
-            _ = await wake.delete(alarmId: "synthetic")
-            await rig.assertRefused(1, "wake light command")
+            let accepted = await wake.delete(alarmId: "synthetic")
+            XCTAssertFalse(accepted, "\(rig.family): the wake light command is not accepted")
+            await rig.assertNoWrite("wake light command")
             let bedID = try XCTUnwrap(room.beds.first).id
             guard case .bed(let bed)? = rig.supply.bedrooms[bedID] else { return XCTFail("\(rig.family): bed side") }
             bed.setPower(on: true)
@@ -538,8 +575,9 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             away.vacation.toggle(item)
             await away.vacation.drain()
             await rig.assertRefused(1, "vacation check")
-            _ = await away.solo.household.endNow()
-            await rig.assertRefused(2, "household away command")
+            let outcome = await away.solo.household.endNow()
+            if case .rejected = outcome {} else { XCTFail("\(rig.family): the household away command was accepted") }
+            await rig.assertNoWrite("household away command")
             XCTAssertFalse(away.protectsPublication, "\(rig.family): the away provider's pending flag clears")
         }
     }
