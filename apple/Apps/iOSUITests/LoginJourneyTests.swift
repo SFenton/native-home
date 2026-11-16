@@ -102,6 +102,24 @@ final class LoginJourneyTests: JourneyTestCase {
         try FentonHomeApp.audit(app, ax5Page: { self.unpublishedRecoveryPage(arguments: FentonHomeApp.ax5) })
     }
 
+    /// The failed boundary offers Clear as well as Try Again and Sign Out; "Clear Rejected Layout" is the longest title and must wrap, not
+    /// be cut off, at the largest text size. Every family (the stub answers with a publication the app rejects).
+    func testRejectedRecoveryPassesAccessibilityAudit() throws {
+        func page(_ arguments: [String] = []) -> XCUIApplication {
+            let app = launch(stub: "success", arguments: arguments, publication: "rejected")
+            fill(app)
+            submit(app)
+            XCTAssertTrue(element("server-ui.production.recovery", in: app).appears(timeout: 15))
+            XCTAssertTrue(app.buttons["server-ui.production.clear"].appears(timeout: 15), "A rejected layout offers Clear.")
+            XCTAssertTrue(app.buttons["server-ui.production.retry"].appears(timeout: 10))
+            XCTAssertTrue(app.buttons["server-ui.production.signOut"].appears(timeout: 10))
+            return app
+        }
+        let app = page()
+        settleScreen()
+        try FentonHomeApp.audit(app, ax5Page: { page(FentonHomeApp.ax5) })
+    }
+
     func testLoginScreenPassesAccessibilityAudit() throws {
         let app = launch()
         XCTAssertTrue(app.textFields["login.username"].appears(timeout: 10))

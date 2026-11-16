@@ -2,7 +2,7 @@
 import Foundation
 import HassCore
 
-/// A UI-test seam: `FENTON_UI_PUBLICATION=unpublished` or `incompatible` answers the publication subscription with that state
+/// A UI-test seam: `FENTON_UI_PUBLICATION=unpublished`, `incompatible` or `rejected` (an answer the app cannot read: the failed state with Clear) answers the publication subscription with that state
 /// at once, so a journey that signs in against the stubbed OAuth server (which has no websocket) reaches the recovery boundary
 /// a real integration would produce. Compiled out of release builds; absent unless the variable is set.
 @MainActor
@@ -14,6 +14,7 @@ struct UKServerUIPublicationStub: ServerUIPublicationTransport {
         switch environment["FENTON_UI_PUBLICATION"] {
         case "unpublished": object = ["state": "unpublished"]
         case "incompatible": object = ["state": "incompatible", "epoch": "stub", "revision": 1, "missing": ["sh.future@1"]]
+        case "rejected": object = ["state": "bogus"]
         default: return nil
         }
         guard let data = try? JSONSerialization.data(withJSONObject: object) else { return nil }
