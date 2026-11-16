@@ -74,14 +74,21 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
 
     // MARK: Catching writes on the mock
 
-    /// The commands of every request and subscription the mock holds that would change something: a service call, a script, a
-    /// schedule change, a to-do change or any REST call. Reads (the current user, a to-do list, the schedule list, the state feed) are not.
+    /// What the mock holds that would change something: a service call, a script, a schedule change, a to-do change or any REST
+    /// call. Reads (the current user, a to-do list, the schedule list, the state feed) are not writes. The one service call the
+    /// preview lets through is the approved weather entity's `weather.get_forecasts`, a read the weather panel makes once connected;
+    /// any other `call_service` is a write and is named with its domain and service.
     @MainActor private static func writes(on mock: HAMockConnection) -> [String] {
-        let writeCommands = ["call_service", "execute_script", "schedule/update", "schedule/create", "schedule/delete", "todo/item/add",
+        let writeCommands = ["execute_script", "schedule/update", "schedule/create", "schedule/delete", "todo/item/add",
                              "todo/item/update", "todo/item/remove", "fire_event", "input_boolean/toggle"]
-        return (mock.pendingRequests.map(\.request.type) + mock.pendingSubscriptions.map(\.request.type)).compactMap { type in
-            if case .rest = type { return "REST " + type.command }
-            return writeCommands.contains(type.command) ? type.command : nil
+        let held = mock.pendingRequests.map(\.request) + mock.pendingSubscriptions.map(\.request)
+        return held.compactMap { request in
+            if case .rest = request.type { return "REST " + request.type.command }
+            if request.type.command == "call_service" {
+                let domain = request.data["domain"] as? String ?? "?", service = request.data["service"] as? String ?? "?"
+                return domain == "weather" && service == "get_forecasts" ? nil : "call_service \(domain).\(service)"
+            }
+            return writeCommands.contains(request.type.command) ? request.type.command : nil
         }
     }
 
@@ -355,7 +362,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             let mock = lastMock!
             providers.user = HassUser(id: person.haUserId, name: person.name, isOwner: false, isAdmin: true)
             live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off"),
-                                      EntityState(entityId: item.entityId, state: "off")])
+                                      EntityState(entityId: item.entityId, state: "off")] + BedroomFixtures.states(.waking))
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
             let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
@@ -378,7 +385,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         Task { try? await live.connection.callService("light", "turn_on", data: ["entity_id": "light.synthetic"]) }
         let sent = await FeatureHost.settleAsync(until: { !ServerUIPreviewLiveProvidersTests.writes(on: mock).isEmpty })
         XCTAssertTrue(sent, "The detector must see a write that goes to the connection, or the other tests prove nothing")
-        XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock), ["call_service"])
+        XCTAssertEqual(ServerUIPreviewLiveProvidersTests.writes(on: mock), ["call_service light.turn_on"])
     }
 
     func testAHouseholdToggleIsRefusedCountedAndSendsNothing() async throws {
@@ -460,7 +467,8 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
 
     func testTheAdminTodoUploadFromTheSuppliedProviderIsRefusedCountedAndSendsNothing() async throws {
         try await drive { rig in
-            let page = try XCTUnwrap(rig.supply.records.collections["records-to-do"] as? UKServerUIChoresCollection, rig.family)
+            let page = try XCTUnwrap(rig.supply.records.collections.values.compactMap { $0 as? UKServerUIChoresCollection }
+                .first { $0.configuration.editsAdminTodo }, "\(rig.family): the admin to-do page among \(rig.supply.records.collections.keys.sorted())")
             let loading = Task { try? await page.load() }
             // The list reads the load sent are answered on the mock, so the supplied provider holds rows and can be driven.
             let asked = await FeatureHost.settleAsync(until: {
@@ -503,7 +511,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         try await drive { rig in
             let room = self.house.bedroom
             guard case .wake(let wake)? = rig.supply.bedrooms[room.wakeLight.id] else { return XCTFail("\(rig.family): wake light") }
-            _ = await wake.endEpisode()
+            _ = await wake.delete(alarmId: "synthetic")
             await rig.assertRefused(1, "wake light command")
             let bedID = try XCTUnwrap(room.beds.first).id
             guard case .bed(let bed)? = rig.supply.bedrooms[bedID] else { return XCTFail("\(rig.family): bed side") }
