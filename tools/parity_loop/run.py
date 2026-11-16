@@ -12,7 +12,8 @@ bar normalised, an AX dump and a sidecar (:mod:`parity_loop.sidecar`). A surface
 --status-bar-equal`` and writes ``results.json`` and ``results.md`` in the run folder.
 
 Live mode needs ``PARITY_LIVE_GO=1`` and an output folder that git ignores (the shots hold house data). It never launches the
-reference except through the guard proxy (see ``launch.py``); this driver only attaches, so start the apps with ``launch.py``.
+reference except through the guard proxy (see ``launch.py``); this driver only attaches, so start the apps with ``launch.py``. A live run
+also takes ``--proxy-url`` and ``--proxy-cert`` and records, in every sidecar, the hash of the HA user the token resolves to.
 """
 
 from __future__ import annotations
@@ -73,6 +74,11 @@ class Context:
     #: Labels whose press opens a ``writes_on_reach`` surface; :func:`run_all` always derives them from the full inventory, never
     #: from the surfaces selected for the run.
     guarded: FrozenSet[str] = frozenset()
+    #: The TLS write-guard proxy both halves read through (live mode) and the certificate it made.
+    proxy_url: Optional[str] = None
+    proxy_cert: Optional[Path] = None
+    #: Per half, the hash of the HA user id its session resolves to (``auth/current_user`` through the proxy); recorded in its sidecars.
+    user_id_hashes: Dict[str, str] = field(default_factory=dict)
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -124,7 +130,7 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
             half.udid, side, png=shot.png, scale=ctx.family["scale"], pose=ctx.family["pose"],  # appearance: measured, not requested
             source="live" if ctx.mode == "live" else "fixture", launch_args=launch_args, env_names=env_names,
             house=ctx.mode == "live", status_bar_normalized=shot.screenshot_ok, bundle_hash=ctx.bundle_hashes.get(side), runner=ctx.runner,
-            tool_sha=ctx.tool_sha, extra={"surface": sid, "shot": stem, "reachMethod": plan.method})
+            tool_sha=ctx.tool_sha, extra={"surface": sid, "shot": stem, "reachMethod": plan.method, "userIdHash": ctx.user_id_hashes.get(side)})
         write_json(folder / f"{stem}.sidecar.json", car)
         entry[f"{stem}_png"] = f"{sid}/{stem}.png"
         entry[f"{stem}_sidecar"] = f"{sid}/{stem}.sidecar.json"
@@ -176,6 +182,9 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
         launch_mod.require_go(environment)
         if not ensure_ignored(ctx.run_dir, ctx.runner):
             raise launch_mod.Refused("live captures hold house data: the output folder must be ignored by git")
+        for side in APPS:  # each half is asked as its own session, so a half signed in as another user is caught
+            if side not in ctx.user_id_hashes:
+                ctx.user_id_hashes[side] = launch_mod.resolve_identity(ctx.proxy_url, ctx.proxy_cert, ctx.runner, environment, side)
     ctx.guarded = ctx.guarded | write_opening_labels(read_json(SURFACES_FILE)["surfaces"] if inventory is None else inventory)
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
     error = verify_pin(ctx, pin_hash)
@@ -212,6 +221,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--reference-agent", required=True, help="the bound agent-device command for the reference simulator")
     ap.add_argument("--candidate-udid", required=True)
     ap.add_argument("--candidate-agent", required=True, help="the bound agent-device command for the candidate simulator")
+    ap.add_argument("--proxy-url", help="live mode: the TLS write-guard proxy both halves read through (https://127.0.0.1:PORT)")
+    ap.add_argument("--proxy-cert", type=Path, help="live mode: the certificate the proxy made")
     ap.add_argument("--status-bar-rects", type=Path, help="calibrated status-bar item rectangles (points) passed to the compare")
     ap.add_argument("--publication", type=Path, help="candidate preview publication directory to feed before the run")
     ap.add_argument("--reference-pin", type=Path, default=DEFAULT_PIN, help="reference-pin.json ('none' to skip the pin check)")
@@ -220,7 +231,7 @@ def main(argv: Optional[List[str]] = None) -> int:
               CANDIDATE: Half(CANDIDATE, args.candidate_udid, Agent(args.candidate_agent))}
     sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
     ctx = Context(args.out / args.run, args.mode, args.device, halves, appearance=args.appearance, tool_sha=sha,
-                  status_bar_rects=args.status_bar_rects)
+                  status_bar_rects=args.status_bar_rects, proxy_url=args.proxy_url, proxy_cert=args.proxy_cert)
     try:
         pin = None if str(args.reference_pin) == "none" else read_json(args.reference_pin)["bundleSHA256"]
         document = read_json(args.surfaces_file)

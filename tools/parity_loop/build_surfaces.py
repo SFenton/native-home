@@ -27,11 +27,13 @@ APP_KEYS = {"expo": REFERENCE, "native": CANDIDATE}
 ENTITY_ID = re.compile(r"\b(?:light|switch|sensor|binary_sensor|climate|camera|lock|cover|fan|media_player|vacuum|weather|"
                        r"alarm_control_panel|input_boolean|input_select|input_number|input_text|todo|person|script|scene|"
                        r"automation|humidifier|water_heater|device_tracker)\.[a-z0-9_]+\b")
-#: Mask rules: an AX label matching ``ax_match`` has its frame masked on both halves.
+#: Mask rules: a leaf AX node matching ``ax_match`` (its label), ``ax_identifier`` or ``ax_value`` has its frame masked on both
+#: halves (``capture.resolve_masks``); an ancestor whose descendants also match is never masked.
 CLOCK_MASK = {"label": "clock", "ax_match": r"^\d{1,2}:\d{2}(\s?[AP]M)?$"}
 RELATIVE_TIME_MASK = {"label": "relative-time", "ax_match": r"\b\d+\s?(s|sec|min|minutes?|h|hours?|d|days?)\s+ago\b|\bnow\b"}
 TAG_MASKS = {
-    "camera": {"label": "camera-feed", "ax_match": r"(?i)camera|stream|live view"},
+    # The tiles, not the "Cameras" heading: a tile is a button whose identifier names a camera and whose value reads "Live".
+    "camera": {"label": "camera-feed", "ax_identifier": r"(?i)camera", "ax_value": r"^Live$"},
     "weather": {"label": "weather", "ax_match": r"(?i)weather|forecast|°"},
 }
 #: ``Tab bar: Chores`` and ``Tile: Rooms`` name something to press; the part after the colon is its accessibility label.

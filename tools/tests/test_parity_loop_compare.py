@@ -117,14 +117,13 @@ class CompareTests(unittest.TestCase):
                              reference2_png=solid(self.dir / "wr2.png", size=size))
         centre = ((150, 0, 300, 54), (255, 255, 255))  # page background between the clock and the indicators
         clock = ((400, 85, 430, 100), (255, 255, 255))  # the folded Duo's status items sit in the right-hand rail
-        battery = ((400, 110, 430, 140), (255, 255, 255))
         ok = epc.judge(pair((centre,)), self.dir, args(status_bar_equal=True))
         self.assertEqual((ok["verdict"], ok["statusBarDifferencePercent"]), ("pass", 0.0))
-        for item in (clock, battery):
-            bad = epc.judge(pair((item,)), self.dir, args(status_bar_equal=True))
-            self.assertEqual(bad["verdict"], "statusbar")
-        self.assertEqual([n for n, _ in epc.status_bar_rects("duo", size, 1.0)], ["clock", "indicators"])
-        self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[1][1][0], 318)  # (466 px / 2 - 74 pt) * 2
+        bad = epc.judge(pair((clock,)), self.dir, args(status_bar_equal=True))
+        self.assertEqual(bad["verdict"], "statusbar")
+        self.assertEqual([n for n, _ in epc.status_bar_rects("duo", size, 1.0)], ["clock"])  # the ring is masked, not compared
+        self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[0][1][0], 322)  # (466 px / 2 - 72 pt) * 2
+        self.assertEqual([n for n, _ in epc.status_bar_rects("iphone", size, 1.0)], ["clock", "indicators"])
         override = {"only": [0, 0, 10, 10]}
         self.assertEqual(epc.status_bar_rects("duo", size, 1.0, override), [("only", (0, 0, 10, 10))])
 

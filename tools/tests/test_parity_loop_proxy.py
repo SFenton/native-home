@@ -11,6 +11,7 @@ import asyncio
 import base64
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -48,11 +49,12 @@ class WebSocketFilterTests(unittest.TestCase):
         for kind in WRITES:
             self.assertFalse(gp.ws_decide({"id": 1, "type": kind}).allowed, repr(kind))
 
-    def test_call_service_is_refused_whatever_the_service(self) -> None:
-        for service in ("turn_on", "get_forecasts", "recordVisit"):
+    def test_call_service_is_refused_whatever_the_service_except_the_one_named_read(self) -> None:
+        for service in ("turn_on", "recordVisit", "get_forecast", "Get_Forecasts", "get_forecasts "):
             message = {"id": 2, "type": "call_service", "domain": "weather", "service": service, "return_response": True}
-            self.assertFalse(gp.ws_decide(message).allowed)
+            self.assertFalse(gp.ws_decide(message).allowed, service)
             self.assertFalse(gp.ws_decide(message, extra_types=["call_service"]).allowed)
+        self.assertEqual(gp.CALL_SERVICE_READS, frozenset({("weather", "get_forecasts")}))
 
     def test_malformed_messages_are_refused(self) -> None:
         for value in ("text", 5, None, [], {}, {"type": 7}, {"type": {"type": "get_states"}}, {"type": ["get_states"]}):
@@ -597,7 +599,10 @@ class ProxyEndToEndTests(unittest.TestCase):
                 b"POST /api/camera_proxy/a HTTP/1.1\r\nHost: x\r\nX-HTTP-Method-Override: GET\r\n\r\n",
                 b"GET http://evil.invalid/api/camera_proxy/a HTTP/1.1\r\nHost: x\r\n\r\n",
                 b"GET /api/webhook/abc HTTP/1.1\r\nHost: x\r\nX-HTTP-Method-Override: GET\r\n\r\n",
-                b"GET /api/hls/" + b"ab12" * 16 + b"/playlist.m3u8 HTTP/1.1\r\nHost: x\r\n\r\n",
+                b"GET /api/hlsx/" + b"ab12" * 16 + b"/playlist.m3u8 HTTP/1.1\r\nHost: x\r\n\r\n",  # a sibling of an allowed prefix
+                b"GET /api/hls/../webhook/abc HTTP/1.1\r\nHost: x\r\n\r\n",
+                b"POST /api/hls/" + b"ab12" * 16 + b"/playlist.m3u8 HTTP/1.1\r\nHost: x\r\n\r\n",
+                b"POST /api/webrtc/offer HTTP/1.1\r\nHost: x\r\n\r\n",
             ]
             for request in refused:
                 self.assertEqual(await h.http_request(request), 403, request[:60])
@@ -613,6 +618,115 @@ class ProxyEndToEndTests(unittest.TestCase):
         log_text = (self.dir / "run" / "rej.jsonl").read_text()
         self.assertNotIn("ab12" * 8, log_text)
         self.assertNotIn("webhook/abc", log_text)
+
+    def test_hls_and_the_forecast_read_reach_the_upstream_and_a_write_does_not(self) -> None:
+        async def body(h: Harness) -> None:
+            self.assertEqual(await h.http_request(b"GET /api/hls/" + b"ab12" * 16 + b"/playlist.m3u8 HTTP/1.1\r\nHost: x\r\n\r\n"), 200)
+            self.assertEqual(await h.http_request(b"GET /api/webrtc/ws HTTP/1.1\r\nHost: x\r\n\r\n"), 200)
+            reader, writer = await h.ws()
+            for message in (service_message("weather", "get_forecasts", return_response=True),
+                            dict(service_message("weather", "get_forecasts"), id=2),
+                            dict(service_message("light", "turn_on", return_response=True), id=3)):
+                writer.write(gp.encode_frame(1, json.dumps(message).encode(), True))
+            await writer.drain()
+            replies = text(await frames_until_quiet(reader))
+            self.assertEqual(sorted(r.get("id") for r in replies if not r.get("success", True)), [2, 3])
+            writer.write(gp.encode_frame(8, b"", True))
+            await writer.drain()
+        h = self.scenario(body)
+        self.assertEqual([json.loads(t)["id"] for t in h.ha.ws_text], [1])
+        self.assertEqual(sorted(p.split()[1].split("/")[2] + "/" + p.split()[1].split("/")[3] for p, _ in h.ha.http), ["hls/" + "ab12" * 16, "webrtc/ws"])
+        self.assertEqual(h.log.allowed["ws"], {"call_service:weather.get_forecasts": 1})
+        self.assertEqual(h.log.allowed["http"], {"/api/hls/*": 1, "/api/webrtc/*": 1})
+        rows = [json.loads(line) for line in (self.dir / "run" / "rej.jsonl").read_text().splitlines()]
+        self.assertEqual(sorted((r["domain"], r["service"]) for r in rows), [("light", "turn_on"), ("weather", "get_forecasts")])
+
+
+# MARK: - The three widened reads (parity-loop iter1)
+
+#: Every ``(domain, service)`` the native app calls, found in its sources: the write inventory the proxy must keep refusing.
+APPLE_SOURCES = Path(__file__).resolve().parents[2] / "apple" / "Sources"
+SERVICE_CALL = re.compile(r'(?:callService|callServiceWithResponse|callServiceForResponse)\(\s*"([a-z_]+)",\s*"([A-Za-z_]+)"')
+#: Writes the surfaces inventory names that the source scan cannot see (a visit counter on room tiles, light and cover writes,
+#: the record-keeping the recipe pages do) plus the classic write services of the domains the allowed read lives in.
+NAMED_WRITES = [("script", "record_visit"), ("light", "turn_on"), ("light", "turn_off"), ("lock", "unlock"), ("cover", "open_cover"),
+                ("climate", "set_temperature"), ("alarm_control_panel", "alarm_disarm"), ("input_boolean", "toggle"),
+                ("automation", "trigger"), ("homeassistant", "restart"), ("persistent_notification", "create"),
+                ("notify", "mobile_app_x"), ("weather", "set_forecast"), ("weather", "turn_on"), ("weather", "get_forecast"),
+                ("evershelf", "recipe_ingredient_decision"), ("evershelf", "recipe_planner_add"), ("evershelf", "add_to_shopping"),
+                ("evershelf", "delete_inventory"), ("evershelf", "recipe_hydration"),
+                # evershelf.recipe_query is not shown read-only by any source we can reach, so it stays refused
+                ("evershelf", "recipe_query")]
+
+
+def source_services() -> List[Tuple[str, str]]:
+    pairs = set()
+    for path in APPLE_SOURCES.rglob("*.swift"):
+        pairs.update(SERVICE_CALL.findall(path.read_text(encoding="utf-8")))
+    return sorted(pairs)
+
+
+def service_message(domain: str, service: str, **extra: Any) -> Dict[str, Any]:
+    return {"id": 1, "type": "call_service", "domain": domain, "service": service, **extra}
+
+
+class WidenedReadTests(unittest.TestCase):
+    def test_the_stream_paths_pass_as_gets_only(self) -> None:
+        for path in ("/api/hls/" + "ab12" * 16 + "/playlist.m3u8?x=1", "/api/hls/abc/segment0.ts", "/api/webrtc/ws", "/api/webrtc/switch"):
+            self.assertTrue(gp.http_decide("GET", path).allowed, path)
+            for method in ("POST", "PUT", "DELETE", "PATCH"):
+                self.assertFalse(gp.http_decide(method, path).allowed, (method, path))
+        for path in ("/api/hlsx/a", "/api/hls", "/api/webrtcs/a", "/api/hls/../webhook/a", "/api/hls/%2e%2e/webhook/a"):
+            self.assertEqual(gp.http_decide("GET", path).allowed, path == "/api/hls", path)  # the bare prefix is the prefix itself
+
+    def test_the_weather_forecast_read_passes_with_return_response_true(self) -> None:
+        message = service_message("weather", "get_forecasts", return_response=True, target={"entity_id": "weather.demo_x"},
+                                  service_data={"type": "hourly"})
+        verdict = gp.ws_decide(message)
+        self.assertTrue(verdict.allowed)
+        self.assertEqual(gp.allowed_labels(json.dumps(message)), ["call_service:weather.get_forecasts"])
+
+    def test_the_same_service_without_return_response_true_is_refused(self) -> None:
+        for extra in ({}, {"return_response": False}, {"return_response": None}, {"return_response": "true"}, {"return_response": 1},
+                      {"return_response": [True]}, {"return_response": {"x": True}}, {"data": {"return_response": True}}):
+            verdict = gp.ws_decide(service_message("weather", "get_forecasts", **extra))
+            self.assertFalse(verdict.allowed, extra)
+            self.assertEqual(verdict.detail, {"domain": "weather", "service": "get_forecasts"})
+
+    def test_other_services_in_those_domains_are_refused_with_or_without_return_response(self) -> None:
+        for domain, service in (("weather", "turn_on"), ("weather", "get_forecast"), ("weather", "set_forecast"), ("weather", "Get_Forecasts"),
+                                ("Weather", "get_forecasts"), ("evershelf", "recipe_query"), ("evershelf", "recipe_detail"),
+                                ("evershelf", "recipe_hydration"), ("evershelf", "add_to_shopping"), (5, "get_forecasts"), ("weather", None)):
+            for extra in ({}, {"return_response": True}):
+                self.assertFalse(gp.ws_decide(service_message(domain, service, **extra)).allowed, (domain, service, extra))
+
+    def test_every_write_in_the_inventory_is_still_refused(self) -> None:
+        sourced = source_services()
+        self.assertGreaterEqual(len(sourced), 10, "the source scan found no service calls: the inventory would be empty")
+        self.assertIn(("weather", "get_forecasts"), sourced)
+        writes = sorted(set(sourced) | set(NAMED_WRITES))
+        refused = 0
+        for domain, service in writes:
+            for extra in ({}, {"return_response": True}, {"return_response": False}):
+                verdict = gp.ws_decide(service_message(domain, service, **extra))
+                if (domain, service) == ("weather", "get_forecasts") and extra.get("return_response") is True:
+                    self.assertTrue(verdict.allowed)
+                else:
+                    self.assertFalse(verdict.allowed, (domain, service, extra))
+                    refused += 1
+        self.assertGreater(refused, 3 * 20)
+
+    def test_a_batch_judges_each_call_and_forwards_only_the_read(self) -> None:
+        batch = [service_message("weather", "get_forecasts", return_response=True),
+                 dict(service_message("light", "turn_on", return_response=True), id=2), {"id": 3, "type": "get_states"}]
+        forward, refused = gp.filter_ws_payload(json.dumps(batch))
+        self.assertEqual([(d.label, i) for d, i in refused], [("call_service", 2)])
+        self.assertEqual([m["type"] for m in json.loads(forward)], ["call_service", "get_states"])
+        self.assertEqual(gp.allowed_labels(forward), ["call_service:weather.get_forecasts", "get_states"])
+
+    def test_a_vetted_extra_type_cannot_widen_call_service(self) -> None:
+        self.assertNotIn("call_service", gp.VETTED_EXTRA_TYPES)
+        self.assertFalse(gp.ws_decide(service_message("light", "turn_on", return_response=True), extra_types=["call_service"]).allowed)
 
 
 if __name__ == "__main__":

@@ -15,12 +15,13 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from parity_loop import guard_proxy as gp  # noqa: E402
-from parity_loop import launch, stage  # noqa: E402
+from parity_loop import identity, launch, stage, tls  # noqa: E402
 from parity_loop.common import Result  # noqa: E402
 
 LIVE = {"DEVCAP_HELD": "simulator", "PARITY_LIVE_GO": "1"}
 TOKEN = "FAKE-TOKEN-VALUE-1234"
 SERVER = "https://ha.example.invalid"
+CERT = Path(__file__)  # any existing file stands in for the certificate where nothing reads it
 ASSET_A, ASSET_B = b"asset-a-bytes", b"asset-b-bytes"
 SHA_A, SHA_B = hashlib.sha256(ASSET_A).hexdigest(), hashlib.sha256(ASSET_B).hexdigest()
 
@@ -83,19 +84,20 @@ class StageTests(unittest.TestCase):
         self.dir = Path(self.tmp.name)
         self.addCleanup(self.tmp.cleanup)
 
-    def run_stage(self, published: dict, assets: dict, server: str = SERVER, token: str = TOKEN):
+    def run_stage(self, published: dict, assets: dict, token: str = TOKEN):
         out = {}
+        bundle = tls.make_certificate(self.dir / "tls")
 
         async def go():
             ha = FakeHA(published, assets)
             upstream = await asyncio.start_server(ha.handle, "127.0.0.1", 0)
             log = gp.RejectionLog(self.dir / "run" / "rej.jsonl")
             proxy = gp.GuardProxy(gp.Upstream("127.0.0.1", upstream.sockets[0].getsockname()[1], False), log)
-            server_ = await gp.serve(proxy, "127.0.0.1", 0)
-            url = f"http://127.0.0.1:{server_.sockets[0].getsockname()[1]}"
-            out["ha"], out["log"] = ha, log
+            server_ = await gp.serve(proxy, "127.0.0.1", 0, str(bundle.chain), str(bundle.key))
+            url = f"https://127.0.0.1:{server_.sockets[0].getsockname()[1]}"
+            out["ha"], out["log"], out["origin"] = ha, log, url
             try:
-                out["summary"] = await stage.stage(url, self.dir / "container", token, server, "parity-loop", ["sh.page@1"])
+                out["summary"] = await stage.stage(url, self.dir / "container", token, "parity-loop", ["sh.page@1"], bundle.chain)
             finally:
                 await asyncio.sleep(0.05)
                 server_.close()
@@ -106,8 +108,10 @@ class StageTests(unittest.TestCase):
     def test_stages_bootstrap_publication_and_assets_through_the_proxy(self) -> None:
         out = self.run_stage(event(), {SHA_A: ASSET_A, SHA_B: ASSET_B})
         folder = self.dir / "container" / stage.PREVIEW_SUBPATH
+        # the candidate is pointed at the guard proxy's origin, never the real server's
         self.assertEqual(json.loads((folder / "bootstrap.json").read_text()),
-                         {"live": {"server": SERVER, "accountID": "parity-loop"}})
+                         {"live": {"server": out["origin"], "accountID": "parity-loop"}})
+        self.assertNotIn(SERVER, (folder / "bootstrap.json").read_text())
         envelope = (folder / "publication.json").read_bytes()
         self.assertEqual(json.loads(envelope)["revision"], 7)
         self.assertLessEqual(len(envelope), stage.MAX_ENVELOPE_BYTES)
@@ -138,6 +142,11 @@ class StageTests(unittest.TestCase):
         with self.assertRaises(stage.StageError):
             self.run_stage(event(), {SHA_A: ASSET_A, SHA_B: ASSET_B}, token="wrong")
 
+    def test_a_plain_http_proxy_is_refused_before_any_traffic(self) -> None:
+        with self.assertRaises(stage.StageError):
+            asyncio.run(stage.stage("http://127.0.0.1:9", self.dir / "container", TOKEN, "a", ["sh.page@1"]))
+        self.assertFalse((self.dir / "container").exists())
+
     def test_non_https_servers_are_refused_before_any_traffic(self) -> None:
         for server in ("http://ha.example.invalid", "https://user:pw@ha.example.invalid", "ha.example.invalid"):
             with self.assertRaises(stage.StageError):
@@ -162,7 +171,7 @@ class StageTests(unittest.TestCase):
         (folder / "assets").mkdir(parents=True)
         (folder / "assets" / "stale").write_text("x")
         (folder / "receipt.json").write_text("{}")
-        stage.write_container(self.dir / "c", SERVER, "a", b"{}", {SHA_A: ASSET_A})
+        stage.write_container(self.dir / "c", SERVER, "a", b"{}", {SHA_A: ASSET_A})  # any https origin names the bootstrap
         self.assertEqual([p.name for p in (folder / "assets").iterdir()], [SHA_A])
         self.assertFalse((folder / "receipt.json").exists())
 
@@ -171,9 +180,10 @@ class StageTests(unittest.TestCase):
         self.assertIn("sh.page@1", caps)
         self.assertTrue(all(c.startswith("sh.") for c in caps))
 
-    def test_main_needs_the_credentials_in_its_environment(self) -> None:
+    def test_main_needs_the_token_in_its_environment_and_no_server(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(stage.main(["--proxy", "http://127.0.0.1:1", "--container", str(self.dir)]), 2)
+            self.assertEqual(stage.main(["--proxy", "https://127.0.0.1:1", "--container", str(self.dir)]), 2)
+        self.assertNotIn("FENTON_HASS_SERVER", [l for l in Path(stage.__file__).read_text().splitlines() if "environ" in l][0])
 
 
 class ProxyAllowsTheStagingReadsTests(unittest.TestCase):
@@ -194,7 +204,8 @@ class CandidateLaunchTests(unittest.TestCase):
         self.assertIn("hass_load_creds", script)
         self.assertIn('SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN="$FENTON_HASS_TOKEN"', script)
         self.assertIn("--server-ui-preview", script)
-        self.assertNotIn("FENTON_HASS_SERVER", script)  # the server reaches the app through bootstrap.json only
+        self.assertNotIn("FENTON_HASS_SERVER", script)  # the real server's address never reaches the stage or the app
+        self.assertIn('--chain "$PROXY_CHAIN"', script)  # stage pins the proxy's own leaf certificate
         self.assertNotIn("ha-credential", script)
         self.assertNotIn(">", script.replace(">/dev/null", "").replace(">&2", "").replace("2>&1", ""))  # no redirect writes a file
 
@@ -206,24 +217,28 @@ class CandidateLaunchTests(unittest.TestCase):
             if argv[:3] == ["xcrun", "simctl", "get_app_container"]:
                 return Result(0, "/sim/data\n")
             return Result(0)
-        launch.launch_live("candidate", "UDID-1", "http://127.0.0.1:9", runner, LIVE)
+        launch.launch_live("candidate", "UDID-1", "https://127.0.0.1:9", runner, LIVE, proxy_cert=CERT)
         argv, env = seen[-1]
         self.assertEqual(argv[:2], ["bash", "-c"])
-        self.assertEqual((env["PROXY_URL"], env["CONTAINER_DATA"]), ("http://127.0.0.1:9", "/sim/data"))
+        self.assertEqual((env["PROXY_URL"], env["CONTAINER_DATA"]), ("https://127.0.0.1:9", "/sim/data"))
+        self.assertEqual(Path(env["PROXY_CHAIN"]).name, "proxy-chain.crt")
+        # the simulator trusts the proxy's certificate before the app is launched
+        trust = [a for a, _ in seen if a[:3] == ["xcrun", "simctl", "keychain"]]
+        self.assertEqual(trust, [["xcrun", "simctl", "keychain", "UDID-1", "add-root-cert", str(CERT)]])
         self.assertIn("--server-ui-preview", argv[2])
 
     def test_candidate_launch_refuses_without_the_go_and_runs_nothing(self) -> None:
         calls = []
         runner = lambda argv, env=None, timeout=0: calls.append(argv) or Result(0)  # noqa: E731
         with self.assertRaises(launch.Refused):
-            launch.launch_live("candidate", "UDID", "http://127.0.0.1:9", runner, {})
+            launch.launch_live("candidate", "UDID", "https://127.0.0.1:9", runner, {}, proxy_cert=CERT)
         self.assertEqual(calls, [])
 
     def test_a_failed_staging_is_a_refusal_without_output(self) -> None:
         def runner(argv, env=None, timeout=0):
             return Result(0, "/sim/data\n") if argv[1:3] == ["simctl", "get_app_container"] else Result(1, "", "boom")
         with self.assertRaises(launch.Refused) as caught:
-            launch.launch_live("candidate", "UDID", "http://127.0.0.1:9", runner, LIVE)
+            launch.launch_live("candidate", "UDID", "https://127.0.0.1:9", runner, LIVE, proxy_cert=CERT)
         self.assertNotIn("boom", str(caught.exception))
 
 

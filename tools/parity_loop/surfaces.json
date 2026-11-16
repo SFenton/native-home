@@ -26,7 +26,8 @@
           "label": "weather"
         },
         {
-          "ax_match": "(?i)camera|stream|live view",
+          "ax_identifier": "(?i)camera",
+          "ax_value": "^Live$",
           "label": "camera-feed"
         }
       ],
@@ -4513,7 +4514,8 @@
           "label": "relative-time"
         },
         {
-          "ax_match": "(?i)camera|stream|live view",
+          "ax_identifier": "(?i)camera",
+          "ax_value": "^Live$",
           "label": "camera-feed"
         }
       ],

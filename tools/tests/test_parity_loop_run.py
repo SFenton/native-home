@@ -22,6 +22,9 @@ BY_ID = {s["id"]: s for s in SURFACES["surfaces"]}
 BIG = ((10, 100, 110, 190), (200, 40, 40))
 HOLD = {"DEVCAP_HELD": "simulator"}  # what a tools/devcap.py hold gives its children
 LIVE = {**HOLD, "PARITY_LIVE_GO": "1"}
+PROXY = "https://127.0.0.1:9"
+HASH = "a" * 64
+FAKE_CERT = launch.tls.Bundle(Path("/fake/run/proxy-ca.crt"), Path("/fake/run/proxy-chain.crt"), Path("/fake/run/proxy-key.key"))
 plrun.DEVICES["test"] = {"scale": 1, "pose": "folded", "size": [120, 200]}
 
 
@@ -162,6 +165,7 @@ class RunTests(unittest.TestCase):
     def run_surfaces(self, ids, **kw):
         kw.setdefault("env", HOLD)
         ctx = self.context(kw.pop("mode", "gallery"))
+        ctx.user_id_hashes = {"reference": HASH, "candidate": HASH} if ctx.mode == "live" else {}  # resolved per half on a real live run
         status = plrun.run_all(ctx, plrun.select(SURFACES, ids), self.pin, pin_path=self.pin_path, **kw)
         return ctx, status
 
@@ -295,6 +299,7 @@ class RunTests(unittest.TestCase):
         candidate = read_json(ctx.run_dir / "room-kitchen" / "candidate.sidecar.json")
         self.assertEqual(reference["launchArguments"], [])
         self.assertIn("FENTON_HASS_TOKEN", reference["launchEnvNames"])
+        self.assertEqual((reference["userIdHash"], candidate["userIdHash"]), (HASH, HASH))  # the hash only, never a name or an id
         self.assertEqual(candidate["launchArguments"], ["--server-ui-preview"])
         self.assertIn("FENTON_PREVIEW_HA_TOKEN", candidate["launchEnvNames"])
         for car in (reference, candidate):
@@ -311,7 +316,7 @@ class RunTests(unittest.TestCase):
         runner = lambda argv, env=None, timeout=0: Result(0, "/sim/data\n")  # noqa: E731
         for side in ("reference", "candidate"):
             with self.assertRaises(launch.Refused):
-                launch.launch_live(side, "UDID", "http://127.0.0.1:9", runner, {"PARITY_LIVE_GO": "1"})
+                launch.launch_live(side, "UDID", PROXY, runner, {"PARITY_LIVE_GO": "1"}, proxy_cert=Path(__file__))
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(launch.main(["gallery", "--side", "reference", "--agent", "x", "--udid", "U"]), 2)
 
@@ -340,12 +345,15 @@ class RunTests(unittest.TestCase):
     def test_run_proxy_strips_the_secrets_from_the_environment_it_passes_on(self) -> None:
         runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
         env = {**LIVE, "FENTON_HASS_TOKEN": "t", "FENTON_HASS_PASSWORD": "p", "FENTON_HASS_USERNAME": "u", "KEEP": "1"}
-        with mock.patch.object(launch.os, "execvpe") as execvpe:
+        with mock.patch.object(launch, "supervise", return_value=0) as execvpe, mock.patch.object(launch.tls, "make_certificate", return_value=FAKE_CERT):
             launch.run_proxy(Path("/repo/build/evidence/parity-loop/r/rej.jsonl"), "127.0.0.1:0", env=env, runner=runner)
-        passed = execvpe.call_args[0][2]
+        passed = execvpe.call_args[0][1]
         self.assertEqual(sorted(set(env) - set(passed)), sorted(launch.PROXY_UNNEEDED_SECRETS))
         self.assertEqual(passed["KEEP"], "1")
-        self.assertIn("unset FENTON_HASS_TOKEN FENTON_HASS_PASSWORD FENTON_HASS_USERNAME;", execvpe.call_args[0][1][2])
+        script = execvpe.call_args[0][0][2]
+        self.assertIn("unset FENTON_HASS_TOKEN FENTON_HASS_PASSWORD FENTON_HASS_USERNAME;", script)
+        # the proxy is served over TLS with the throwaway certificate made beside its log
+        self.assertIn("--certfile /fake/run/proxy-chain.crt --keyfile /fake/run/proxy-key.key", script)
 
     def test_the_proxy_log_must_be_git_ignored(self) -> None:
         calls = []
@@ -355,9 +363,10 @@ class RunTests(unittest.TestCase):
             return Result(1 if "tracked-folder" in argv[-1] else 0)
         with self.assertRaises(launch.Refused):
             launch.run_proxy(Path("/repo/tracked-folder/rej.jsonl"), "127.0.0.1:0", env=LIVE, runner=runner)
-        with mock.patch.object(launch.os, "execvpe") as execvpe:
+        with mock.patch.object(launch, "supervise", return_value=0) as execvpe, mock.patch.object(launch.tls, "make_certificate", return_value=FAKE_CERT) as made:
             launch.run_proxy(Path("/repo/build/evidence/parity-loop/r/rej.jsonl"), "127.0.0.1:0", env=LIVE, runner=runner)
         self.assertEqual(execvpe.call_count, 1)
+        self.assertEqual(made.call_args[0][0], Path("/repo/build/evidence/parity-loop/r"))  # beside the ignored log
         self.assertEqual(calls[0][:2], ["git", "-C"])
 
     def test_unknown_surface_ids_are_rejected(self) -> None:
@@ -372,7 +381,7 @@ class LaunchTests(unittest.TestCase):
         for value in (None, "", "0", "true", "yes"):
             env = dict(HOLD) if value is None else {**HOLD, "PARITY_LIVE_GO": value}
             with self.assertRaises(launch.Refused):
-                launch.launch_live("reference", "UDID", "http://127.0.0.1:1", runner, env)
+                launch.launch_live("reference", "UDID", PROXY, runner, env, proxy_cert=Path(__file__))
         self.assertEqual(calls, [])
 
     def test_run_all_in_live_mode_refuses_without_the_go(self) -> None:
@@ -387,14 +396,57 @@ class LaunchTests(unittest.TestCase):
 
     def test_main_exits_2_without_the_go(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
-            code = launch.main(["live", "--side", "reference", "--udid", "U", "--proxy-url", "http://127.0.0.1:1"])
+            code = launch.main(["live", "--side", "reference", "--udid", "U", "--proxy-url", PROXY])
         self.assertEqual(code, 2)
 
-    def test_live_launches_need_the_proxy(self) -> None:
-        runner = lambda argv, env=None, timeout=0: Result(0)  # noqa: E731
+    def test_live_launches_need_the_tls_proxy_and_its_certificate(self) -> None:
+        calls = []
+        runner = lambda argv, env=None, timeout=0: calls.append(argv) or Result(0)  # noqa: E731
         for side in ("reference", "candidate"):
+            for url, cert in ((None, Path(__file__)), ("http://127.0.0.1:9", Path(__file__)), (PROXY + "/api", Path(__file__)),
+                              (PROXY, None), (PROXY, Path("/no/such/cert.crt"))):
+                with self.assertRaises(launch.Refused):
+                    launch.launch_live(side, "UDID", url, runner, LIVE, proxy_cert=cert)
+        self.assertEqual(calls, [])  # nothing is trusted, staged or launched when the proxy is not the TLS one
+
+    def test_both_halves_trust_the_certificate_and_are_launched_through_the_proxy(self) -> None:
+        for side in ("reference", "candidate"):
+            seen = []
+
+            def runner(argv, env=None, timeout=0):
+                seen.append((list(argv), env))
+                return Result(0, "/sim/data\n")
+            launch.launch_live(side, "UDID-9", PROXY, runner, LIVE, proxy_cert=Path(__file__))
+            self.assertEqual(seen[0][0], ["xcrun", "simctl", "keychain", "UDID-9", "add-root-cert", str(Path(__file__))])
+            self.assertEqual((seen[-1][1]["PROXY_URL"], seen[-1][1]["PROXY_CHAIN"]), (PROXY, str(Path(__file__).with_name("proxy-chain.crt"))))
+        with self.assertRaises(launch.Refused):  # a trust failure stops the launch before anything starts
+            launch.launch_live("reference", "UDID", PROXY, lambda argv, env=None, timeout=0: Result(1), LIVE, proxy_cert=Path(__file__))
+
+    def test_the_identity_is_resolved_through_the_proxy_and_only_a_hash_comes_back(self) -> None:
+        seen = []
+
+        def runner(argv, env=None, timeout=0):
+            seen.append((argv, env))
+            return Result(0, HASH + "\n")
+        self.assertEqual(launch.resolve_identity(PROXY, Path(__file__), runner, LIVE), HASH)
+        script = seen[0][0][2]
+        self.assertIn("hass_load_creds", script)
+        self.assertIn("identity.py", script)
+        self.assertNotIn("FENTON_HASS_TOKEN=", script)
+        for bad in ("", "not-a-hash", "Pat Example", HASH.upper(), HASH[:-1]):
             with self.assertRaises(launch.Refused):
-                launch.launch_live(side, "UDID", None, runner, LIVE)
+                launch.resolve_identity(PROXY, Path(__file__), lambda a, env=None, timeout=0, out=bad: Result(0, out), LIVE)
+        with self.assertRaises(launch.Refused):
+            launch.resolve_identity(PROXY, Path(__file__), runner, {})  # no go
+
+    def test_a_live_run_resolves_the_user_once_and_refuses_without_the_proxy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            world = FakeWorld(Path(tmp) / "w")
+            halves = {s: plrun.Half(s, world.udid[s], capture.Agent(f"fake-agent {s}", world)) for s in ("reference", "candidate")}
+            ctx = plrun.Context(Path(tmp) / "run", "live", "test", halves, runner=world)
+            with mock.patch.object(plrun, "ensure_ignored", return_value=True), self.assertRaises(launch.Refused):
+                plrun.run_all(ctx, [], None, env=LIVE)  # no --proxy-url: the user cannot be resolved
+            self.assertEqual(world.calls, {"reference": [], "candidate": []})
 
     def test_live_launch_points_the_reference_at_the_proxy_and_carries_no_secret(self) -> None:
         seen = []
@@ -402,10 +454,10 @@ class LaunchTests(unittest.TestCase):
         def runner(argv, env=None, timeout=0):
             seen.append((argv, env))
             return Result(0)
-        launch.launch_live("reference", "UDID", "http://127.0.0.1:9", runner, LIVE)
-        argv, env = seen[0]
+        launch.launch_live("reference", "UDID", PROXY, runner, LIVE, proxy_cert=Path(__file__))
+        argv, env = seen[-1]
         script = argv[2]
-        self.assertEqual(env["PROXY_URL"], "http://127.0.0.1:9")
+        self.assertEqual(env["PROXY_URL"], PROXY)
         self.assertIn("hass_load_creds", script)
         self.assertIn('SIMCTL_CHILD_FENTON_HASS_SERVER="$PROXY_URL"', script)
         self.assertNotRegex(script, r"SIMCTL_CHILD_FENTON_HASS_SERVER=\"\$FENTON_HASS_SERVER")

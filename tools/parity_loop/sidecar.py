@@ -3,7 +3,8 @@
 A sidecar records what a screenshot was taken on and with: the simulator model, runtime build, device size, scale,
 appearance, status-bar override, the installed bundle hash and the app build. The halves of a pair must be equal on every
 :data:`MUST_MATCH` field; each half's bundle hash must equal its pin when one is given, and the two halves must run
-different apps. Launch environment variable *values* are never recorded, only their names.
+different apps. Launch environment variable *values* are never recorded, only their names. A live capture also records ``userIdHash``, the sha256
+of the id of the Home Assistant user its token resolves to (never the name), so differences that follow the user can be classed.
 """
 
 from __future__ import annotations
@@ -131,6 +132,9 @@ def compare(first: Optional[Mapping[str, Any]], second: Optional[Mapping[str, An
             problems.append(f"{field} differs: {first.get(field)!r} vs {second.get(field)!r}")
         elif first.get(field) in (None, ""):
             problems.append(f"{field} is not recorded")
+    ids = (first.get("userIdHash"), second.get("userIdHash"))
+    if all(ids) and ids[0] != ids[1]:  # recorded on live runs only; a half taken as another user is not the same page
+        problems.append("userIdHash differs: the halves were captured as different Home Assistant users")
     a, b = first.get("bundleHash"), second.get("bundleHash")
     if not a or not b:
         problems.append("bundle hash is not recorded")

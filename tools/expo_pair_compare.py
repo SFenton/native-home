@@ -30,11 +30,15 @@ Parity-loop checks (manifest entries from ``tools/parity_loop/run.py``; each is 
   ``--drift-max-percent`` (default 0.15%, the measured noise floor) and the block limit, or the pair is ``drift`` (the candidate
   must also be inside the gate of the second reference shot). No retry or ``unstable`` verdict yet;
 * ``--require-ax``: both halves (and, with ``--drift``, the second reference shot) need a recorded AX tree (``*_ax_file``) and the
-  normalised sequences must be equal;
+  normalised sequences must be equal: same order, and per row the same role, label, value class and traits, with frames within
+  ``--ax-frame-tolerance`` points. Identifiers, identifier-only nodes and scroll-bar page counts are not compared
+  (``parity_loop.capture.normalize_ax``);
 * mask files (``mask_files``: JSON lists of live regions) are added to ``live_regions``; the pair records ``maskedPercent`` and is
   ``refused`` when the masks cover more than ``--max-mask-percent`` (default 15%);
-* ``--status-bar-equal``: the status-bar items (clock, signal, battery; rectangles per device profile, not the whole band or the
-  page behind it) must match between the halves, else the pair is ``statusbar``.
+* ``--status-bar-equal``: the status-bar items (the clock on the folded Duo; rectangles per device profile, not the whole band or
+  the page behind it) must match between the halves, else the pair is ``statusbar``. The Duo's animated battery and Wi-Fi ring and
+  a transient black disc under the rail clock are masked out of every pixel compare, drift included (:data:`RAIL_MASKS`), for a
+  pair whose manifest entry says ``"device": "duo"``.
 
 Every record carries ``class: "unclassified"`` for the judge. Verdicts: ``pass``, ``fail``, ``drift``, ``statusbar``,
 ``refused``, ``skipped``.
@@ -259,15 +263,20 @@ def write_diff_png(cand: Raster, flagged: bytearray, masks: List[Tuple[str, Rect
 
 def compare_images(ref_path: Path, cand_path: Path, out_png: Path, *, density: float, status_bar_pt: float,
                    live_regions: List[Dict[str, Any]], home_indicator_pt: float = HOME_INDICATOR_PT, tolerance: int = TOLERANCE,
-                   max_diff_percent: float = MAX_DIFF_PERCENT, max_block_percent: float = MAX_BLOCK_PERCENT) -> Dict[str, Any]:
-    """Measure one image pair; the result holds the numbers, the gate flags and ``failures`` (empty when it passes)."""
+                   max_diff_percent: float = MAX_DIFF_PERCENT, max_block_percent: float = MAX_BLOCK_PERCENT,
+                   profile: Optional[str] = None) -> Dict[str, Any]:
+    """Measure one image pair; the result holds the numbers, the gate flags and ``failures`` (empty when it passes).
+
+    ``profile`` names the device layout (``duo``, ``iphone``, ``ipad``; ``None`` when the pair does not say, which masks nothing extra); the animated or transient rail content that
+    :data:`RAIL_MASKS` lists for it is masked as well, so the ring's animation phase and the transient disc never differ a pair.
+    """
     ref, cand = png_raster.read(ref_path), png_raster.read(cand_path)
     result: Dict[str, Any] = {"first": str(ref_path), "second": str(cand_path), "failures": []}
     if ref.size != cand.size:
         result.update(sizeFirst=list(ref.size), sizeSecond=list(cand.size), changedPixels=None, totalPixels=None)
         result["failures"].append(f"size {ref.size[0]}x{ref.size[1]} vs {cand.size[0]}x{cand.size[1]}")
         return result
-    masks = mask_rects(ref.size, density, status_bar_pt, live_regions, home_indicator_pt)
+    masks = mask_rects(ref.size, density, status_bar_pt, live_regions, home_indicator_pt) + rail_mask_rects(profile, ref.size, density)
     flagged, maximum = diff_mask(ref, cand, tolerance, masks)
     total = ref.size[0] * ref.size[1]
     changed = flagged.count(255)
@@ -309,14 +318,42 @@ def ax_sequence(path: Optional[Any]) -> Optional[List[Dict[str, Any]]]:
     return value if isinstance(value, list) else None
 
 
-def compare_ax_sequences(first: List[Dict[str, Any]], second: List[Dict[str, Any]]) -> Tuple[bool, Dict[str, Any]]:
-    """``(equal, diff)`` for two normalised sequences; order matters. ``diff`` counts rows and names the first row that differs."""
-    if first == second:
-        return True, {"rows": [len(first), len(second)], "firstDifference": None, "onlyFirst": 0, "onlySecond": 0}
-    keyed = [json.dumps(r, sort_keys=True) for r in first], [json.dumps(r, sort_keys=True) for r in second]
+#: How far two AX frames may differ, in points, on each of x, y, width and height, before the rows differ. Frames are floats in
+#: points; UIKit and React Native snap to the 3x pixel grid (a third of a point) and lay fractions out differently, so a gate
+#: tighter than about a point would flag rounding. Two points (six pixels at 3x) clears that and stays under the smallest layout
+#: defect logged so far (the 4 pt top offset); the pixel compare still sees anything smaller that shows.
+AX_FRAME_TOLERANCE_PT = 2.0
+
+
+def _frames_differ(first: Optional[List[float]], second: Optional[List[float]], tolerance: float) -> bool:
+    """Do two ``[x, y, width, height]`` frames differ by more than ``tolerance`` points? A row without a frame never differs."""
+    if not first or not second:
+        return False
+    return any(abs(a - b) > tolerance for a, b in zip(first, second))
+
+
+def compare_ax_sequences(first: List[Dict[str, Any]], second: List[Dict[str, Any]],
+                         frame_tolerance: float = AX_FRAME_TOLERANCE_PT) -> Tuple[bool, Dict[str, Any]]:
+    """``(equal, diff)`` for two normalised sequences; order matters.
+
+    Rows are equal when role, label, value class, enabled, selected and traits are equal and their frames agree within
+    ``frame_tolerance`` points (identifiers are never recorded, so they cannot differ). ``diff`` counts rows, names the first row
+    that differs, and counts the rows whose only difference is the frame (``frameOnly``).
+    """
+    def key(row: Dict[str, Any]) -> str:
+        return json.dumps({k: v for k, v in row.items() if k != "frame"}, sort_keys=True)
+
+    keyed = [key(r) for r in first], [key(r) for r in second]
+    moved = [i for i, (a, b) in enumerate(zip(first, second))
+             if keyed[0][i] == keyed[1][i] and _frames_differ(a.get("frame"), b.get("frame"), frame_tolerance)]
+    if keyed[0] == keyed[1] and not moved:
+        return True, {"rows": [len(first), len(second)], "firstDifference": None, "onlyFirst": 0, "onlySecond": 0, "frameOnly": 0}
     index = next((i for i, (a, b) in enumerate(zip(*keyed)) if a != b), min(len(first), len(second)))
+    if moved and (keyed[0] == keyed[1] or moved[0] < index):
+        index = moved[0]
     return False, {"rows": [len(first), len(second)], "firstDifference": index,
-                   "onlyFirst": len(set(keyed[0]) - set(keyed[1])), "onlySecond": len(set(keyed[1]) - set(keyed[0]))}
+                   "onlyFirst": len(set(keyed[0]) - set(keyed[1])), "onlySecond": len(set(keyed[1]) - set(keyed[0])),
+                   "frameOnly": len(moved)}
 
 
 def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
@@ -333,11 +370,36 @@ def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
 #: calibrated on a live shot (the items sit in the right-hand rail); the iPhone and iPad ones follow the standard layout.
 #: ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
 STATUS_BAR_ITEMS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
-    # Folded Duo: the status items sit in the right-hand rail.
-    "duo": [("clock", -72, 82, -26, 102), ("indicators", -74, 104, -24, 154)],
+    # Folded Duo: the status items sit in the right-hand rail. Only the clock is compared: the battery and Wi-Fi ring below it is
+    # animated and its phase differs between any two shots (see RAIL_MASKS), so it is masked, not compared.
+    "duo": [("clock", -72, 82, -26, 102)],
     "iphone": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
     "ipad": [("clock", 24, 8, 124, 36), ("indicators", -144, 8, -24, 36)],
 }
+
+
+#: Transient or animated rail content masked out of every pixel compare (and its drift compare) on a device profile, in points, in
+#: the same form as :data:`STATUS_BAR_ITEMS`. Measured on read-only live shots of nine surfaces (3x, 1398 x 2034 px), as the union
+#: of every differing pixel between two shots of one app, widened by two pixels; only the coordinates are kept, never the shots:
+#:
+#: * ``rail-ring``: the animated battery and Wi-Fi ring under the rail clock; differing pixels spanned x 1193-1315, y 322-423 px.
+#:   Its arc brightness follows animation phase, so it differs between any two shots (H1) and drifts (H2).
+#: * ``rail-disc``: a black disc under the rail clock that appears and disappears between shots in both apps (cause not identified,
+#:   a transient view); differing pixels were exactly x 1198-1310, y 87-199 px (112 px square) every time (H2).
+RAIL_MASKS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
+    "duo": [("rail-disc", -68, 28, -29, 67), ("rail-ring", -69, 107, -27, 142)],
+}
+
+
+def _item_rects(items: List[Tuple[str, float, float, float, float]], size: Tuple[int, int], density: float) -> List[Tuple[str, Rect]]:
+    rects: List[Tuple[str, Rect]] = []
+    for label, x0, y0, x1, y1 in items:
+        left, right = (x0, x1)
+        if x0 < 0:
+            left, right = size[0] / density + x0, size[0] / density + x1
+        rects.append((label, (max(0, int(left * density)), max(0, int(y0 * density)),
+                              min(size[0], int(right * density + 0.999)), min(size[1], int(y1 * density + 0.999)))))
+    return rects
 
 
 def status_bar_rects(profile: str, size: Tuple[int, int], density: float,
@@ -345,14 +407,12 @@ def status_bar_rects(profile: str, size: Tuple[int, int], density: float,
     """Pixel rectangles of the status-bar items for ``profile``; an unknown profile uses the ``duo`` layout."""
     items = ([(k, v[0], v[1], v[2], v[3]) for k, v in override.items()] if override
              else STATUS_BAR_ITEMS.get(profile, STATUS_BAR_ITEMS["duo"]))
-    rects: List[Tuple[str, Rect]] = []
-    for label, x0, y0, x1, y1 in items:
-        left, right = (x0, x1)
-        if x0 < 0:
-            left, right = size[0] / density + x0, size[0] / density + x1
-        rects.append((label, (max(0, int(left * density)), max(0, int(y0 * density)),
-                              min(size[0], int(right * density)), min(size[1], int(y1 * density)))))
-    return rects
+    return _item_rects(items, size, density)
+
+
+def rail_mask_rects(profile: Optional[str], size: Tuple[int, int], density: float) -> List[Tuple[str, Rect]]:
+    """Pixel rectangles of the animated or transient rail content that is never compared on ``profile`` (see :data:`RAIL_MASKS`)."""
+    return _item_rects(RAIL_MASKS.get(profile or "", []), size, density)
 
 
 def masked_percent(size: Tuple[int, int], density: float, regions: List[Dict[str, Any]]) -> float:
@@ -500,7 +560,8 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
             return _refuse(record, [f"masks cover {record['maskedPercent']:.1f}% of the image (limit {limit:g}%)"], out_dir, spec)
     if not failures:
         options = dict(density=spec["density"], status_bar_pt=status_pt, live_regions=regions, home_indicator_pt=args.home_indicator_pt,
-                       tolerance=args.tolerance, max_diff_percent=args.max_diff_percent, max_block_percent=args.max_block_percent)
+                       tolerance=args.tolerance, max_diff_percent=args.max_diff_percent, max_block_percent=args.max_block_percent,
+                       profile=spec.get("device"))
         pixel = compare_images(Path(ref_png), Path(cand_png), out_dir / f"{spec['id']}-diff.png", **options)
         record.update(pixel)
         failures.extend(pixel["failures"])
@@ -529,15 +590,17 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
             equal, ax_failures = False, ["AX tree not recorded on " + " and ".join(
                 n for n, v in (("reference", first), ("candidate", second)) if v is None)]
         else:
-            equal, record["axDiff"] = compare_ax_sequences(first, second)
+            tolerance = getattr(args, "ax_frame_tolerance", AX_FRAME_TOLERANCE_PT)
+            equal, record["axDiff"] = compare_ax_sequences(first, second, tolerance)
             ax_failures = [] if equal else [
                 f"AX sequences differ at row {record['axDiff']['firstDifference']} "
-                f"({record['axDiff']['onlyFirst']} only in reference, {record['axDiff']['onlySecond']} only in candidate)"]
+                f"({record['axDiff']['onlyFirst']} only in reference, {record['axDiff']['onlySecond']} only in candidate, "
+                f"{record['axDiff']['frameOnly']} moved more than {tolerance:g} pt)"]
         if want_drift:
             again = ax_sequence(ax_files.get("reference2"))
             if again is None:
                 ax_failures.append("AX tree not recorded on reference2")
-            elif first is not None and compare_ax_sequences(first, again)[0] is False:
+            elif first is not None and compare_ax_sequences(first, again, getattr(args, "ax_frame_tolerance", AX_FRAME_TOLERANCE_PT))[0] is False:
                 verdict_hint = verdict_hint or "drift"
                 ax_failures.append("drift: the reference AX tree changed between its two shots")
     record["allAXNodesEqual"] = equal
@@ -586,6 +649,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--drift-max-percent", type=float, default=DRIFT_MAX_PERCENT, help="reference-against-reference limit (default: the 0.15 noise floor)")
     ap.add_argument("--max-mask-percent", type=float, default=MAX_MASK_PERCENT, help="refuse a pair whose masks cover more of the image than this")
     ap.add_argument("--require-ax", action="store_true", help="fail a pair with no recorded AX tree or unequal AX sequences")
+    ap.add_argument("--ax-frame-tolerance", type=float, default=AX_FRAME_TOLERANCE_PT,
+                    help="points an AX frame may differ on x, y, width and height (default 2: above pixel snapping, below the 4 pt offset)")
     ap.add_argument("--status-bar-equal", action="store_true", help="the status-bar band must match between the halves before masking")
     ap.add_argument("--status-bar-max-percent", type=float, default=0.5, help="status-bar band pixels allowed to differ (percent)")
     ap.add_argument("--status-bar-rects", type=Path, help="JSON {label: [x0, y0, x1, y1]} in points (negative x from the right) replacing the profile")

@@ -221,31 +221,106 @@ def value_class(value: Any) -> str:
     return "num" if re.fullmatch(r"[-+]?[\d.,%°\s]+\w{0,3}", text) else "text"
 
 
+#: The system scroll bar's label counts the page's length ("Vertical scroll bar, 2 pages"): content height, not a control.
+SCROLL_BAR = re.compile(r"^(vertical|horizontal) scroll bar\b", re.I)
+
+
+def _text(node: Mapping[str, Any], key: str) -> str:
+    return str(node.get(key) or "").strip()
+
+
+def _ax_label(node: Mapping[str, Any]) -> str:
+    """A node's accessibility label only: unlike :func:`_label` there is no fall back to the identifier, which is an engineering
+    name (``home.weather``) that the two apps do not share and no user reads."""
+    return _text(node, "label")
+
+
+def is_noise(node: Mapping[str, Any]) -> bool:
+    """A node the AX compare never sees: the status bar, a scroll bar (its label holds a page count), and an identifier-only node
+    (no label and no value: a container or wrapper that exists for the test harness)."""
+    if is_status_bar(node):
+        return True
+    label = _ax_label(node)
+    if SCROLL_BAR.match(label):
+        return True
+    return not label and not _text(node, "value")
+
+
+def _frame(node: Mapping[str, Any]) -> Optional[List[float]]:
+    rect = _node_rect(node)
+    return [round(rect[k], 2) for k in ("x", "y", "width", "height")] if rect else None
+
+
 def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, str]] = ()) -> List[Dict[str, Any]]:
-    """The compared AX sequence: role, label, value class, enabled and selected; status-bar nodes dropped; a label matching a
-    mask rule becomes :data:`DYNAMIC_TOKEN`. Order is kept, so a reordered tree differs."""
-    patterns = [re.compile(r["ax_match"]) for r in mask_rules]
+    """The compared AX sequence: role, label, value class, enabled, selected, traits and frame (points).
+
+    Dropped: status-bar nodes, scroll bars and identifier-only nodes (:func:`is_noise`). Accessibility identifiers are never
+    recorded. A label matching a mask rule's ``ax_match`` becomes :data:`DYNAMIC_TOKEN`. Order is kept, so a reordered tree differs;
+    frames are compared with a tolerance by ``tools/expo_pair_compare.py``.
+    """
+    patterns = [re.compile(r["ax_match"]) for r in mask_rules if r.get("ax_match")]
     out: List[Dict[str, Any]] = []
     for node in nodes:
-        if is_status_bar(node):
+        if is_noise(node):
             continue
-        label = _label(node)
+        label = _ax_label(node)
         if label and any(p.search(label) for p in patterns):
             label = DYNAMIC_TOKEN
+        traits = node.get("traits")
         out.append({"role": _node_role(node), "label": label, "value": value_class(node.get("value")),
-                    "enabled": node.get("enabled", True) is not False, "selected": bool(node.get("selected", False))})
+                    "enabled": node.get("enabled", True) is not False, "selected": bool(node.get("selected", False)),
+                    "traits": sorted(str(t) for t in traits) if isinstance(traits, (list, tuple)) else [], "frame": _frame(node)})
     return out
 
 
+def _matches(rule: Mapping[str, str], node: Mapping[str, Any]) -> bool:
+    """Does ``node`` match ``rule``? A rule names any of ``ax_match`` (the label), ``ax_identifier`` and ``ax_value``; one hit is
+    enough. The identifier and value forms let a rule find a node that carries no label."""
+    for key, field in (("ax_match", "label"), ("ax_identifier", "identifier"), ("ax_value", "value")):
+        pattern, text = rule.get(key), _text(node, field)
+        if pattern and text and re.search(pattern, text):
+            return True
+    return False
+
+
+def _rect_contains(outer: Mapping[str, float], inner: Mapping[str, float]) -> bool:
+    return (outer["x"] <= inner["x"] + 0.5 and outer["y"] <= inner["y"] + 0.5
+            and outer["x"] + outer["width"] >= inner["x"] + inner["width"] - 0.5
+            and outer["y"] + outer["height"] >= inner["y"] + inner["height"] - 0.5)
+
+
+def _has_matching_descendant(nodes: Sequence[Mapping[str, Any]], index: int, matched: Sequence[bool]) -> bool:
+    """Is any node below ``nodes[index]`` in the tree a match? Uses ``depth`` (the dump is pre-order: the nodes after a node and
+    deeper than it are its descendants); without depths, a matching node whose frame lies inside this one's counts (conservative: it
+    errs toward masking less)."""
+    depth = nodes[index].get("depth")
+    if isinstance(depth, int) and all(isinstance(n.get("depth"), int) for n in nodes):
+        for follower in range(index + 1, len(nodes)):
+            if nodes[follower]["depth"] <= depth:
+                return False
+            if matched[follower]:
+                return True
+        return False
+    outer = _node_rect(nodes[index])
+    return bool(outer) and any(matched[j] and j != index and (inner := _node_rect(nodes[j])) is not None
+                               and _rect_contains(outer, inner) and inner != outer for j in range(len(nodes)))
+
+
 def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, str]]) -> List[Dict[str, Any]]:
-    """Live regions (points) for every node whose label matches a mask rule; compare applies them to both halves."""
+    """Live regions (points) for the nodes a mask rule matches; compare applies them to both halves.
+
+    Only **leaf** matches count: a node with a matching node below it (a card whose text also matches) is skipped, so a mask
+    covers the values that change and never the container around them. The compare's cap then applies to the union of these leaf
+    boxes. The same box found twice is kept once.
+    """
     regions: List[Dict[str, Any]] = []
     for rule in mask_rules:
-        pattern = re.compile(rule["ax_match"])
-        for node in nodes:
-            rect = _node_rect(node)
-            if rect and _label(node) and pattern.search(_label(node)):
-                regions.append({"label": rule["label"], **rect, "unit": "pt"})
+        matched = [_matches(rule, n) and _node_rect(n) is not None for n in nodes]
+        for index, node in enumerate(nodes):
+            if matched[index] and not _has_matching_descendant(nodes, index, matched):
+                region = {"label": rule["label"], **(_node_rect(node) or {}), "unit": "pt"}
+                if region not in regions:
+                    regions.append(region)
     return regions
 
 
@@ -270,7 +345,7 @@ def capture_shot(agent: Agent, out_dir: Path, name: str, mask_rules: Sequence[Ma
     agent.settle()
     nodes = agent.snapshot()
     shot = agent.screenshot(png, density)
-    write_json(ax, {"labels": [_label(n) for n in nodes if _label(n)], "nodes": nodes, "normalized": normalize_ax(nodes, mask_rules)})
+    write_json(ax, {"labels": [_ax_label(n) for n in nodes if _ax_label(n)], "nodes": nodes, "normalized": normalize_ax(nodes, mask_rules)})
     write_json(masks, resolve_masks(nodes, mask_rules))
     problem = ""
     taken = bool(shot.get("success")) and png.is_file() and png_size(png) is not None

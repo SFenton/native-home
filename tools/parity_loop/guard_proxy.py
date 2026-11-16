@@ -70,6 +70,7 @@ VETTED_EXTRA_TYPES = WS_ALLOWED_TYPES | frozenset({"render_template"})
 #: HTTP path prefixes (matched on ``/`` boundaries) a ``GET`` may reach: the apps' observed reads plus the brief's.
 HTTP_ALLOWED_PREFIXES = (
     "/api/websocket", "/api/fenton_home/ui_assets", "/api/fenton_home/config", "/api/image/serve", "/local",
+    "/api/hls", "/api/webrtc",  # camera streams: reads, widened in parity-loop iter1 (build/decisions/native-ingest.md)
 )
 #: ``/api/camera_proxy*``: a raw string prefix, so ``/api/camera_proxy_stream/...`` (a streamed GET) is a read too.
 HTTP_STARTSWITH = ("/api/camera_proxy",)
@@ -77,6 +78,11 @@ HTTP_STARTSWITH = ("/api/camera_proxy",)
 HTTP_EXACT_PATHS = frozenset({"/api/", "/api"})
 #: Prefixes that are refused even when a caller widens the allow-list.
 HTTP_NEVER_PREFIXES = ("/api/mobile_app", "/api/webhook", "/api/fenton_feedback", "/api/events", "/api/template", "/api/services")
+#: The only ``call_service`` reads, by exact ``(domain, service)``: each is let through only with ``return_response: true`` (it
+#: returns data and changes nothing). A service in these domains that is not named here, and the same service without
+#: ``return_response`` set to the JSON ``true``, stay refused. ``evershelf.recipe_query`` is deliberately **not** here: nothing in
+#: this repo or the reference dashboard's source shows from the integration that it is read-only, so it stays refused.
+CALL_SERVICE_READS = frozenset({("weather", "get_forecasts")})
 READ_ONLY_CODE = "read_only"
 #: A request header whose name holds one of these never reaches the upstream (method-override tricks and forwarding hints).
 STRIPPED_HEADER_PARTS = ("method", "x-forwarded", "x-original", "x-rewrite", "x-http")
@@ -117,6 +123,8 @@ def ws_decide(message: Any, extra_types: Iterable[str] = ()) -> Decision:
     if not isinstance(kind, str) or not kind:
         return Decision(False, "ws", "<untyped>", "message has no type")
     if kind == "call_service":
+        if _is_response_read(message):
+            return Decision(True, "ws", kind)
         # Which service was tried is the one thing worth keeping; service_data and target are never read here.
         names = {k: message[k][:80] for k in ("domain", "service") if isinstance(message.get(k), str)}
         return Decision(False, "ws", kind, "type is not on the read allow-list", names or None)
@@ -125,6 +133,13 @@ def ws_decide(message: Any, extra_types: Iterable[str] = ()) -> Decision:
     if kind in VETTED_EXTRA_TYPES and kind in set(extra_types) and not is_write_type(kind):
         return Decision(True, "ws", kind)
     return Decision(False, "ws", kind[:80] if kind.isprintable() else "<unprintable>", "type is not on the read allow-list")
+
+
+def _is_response_read(message: Dict[str, Any]) -> bool:
+    """Is this ``call_service`` one of :data:`CALL_SERVICE_READS` asking for its response (``return_response`` exactly ``true``)?"""
+    pair = (message.get("domain"), message.get("service"))
+    return (all(isinstance(p, str) for p in pair) and pair in CALL_SERVICE_READS
+            and message.get("return_response") is True)
 
 
 _BAD_PATH_CHARS = re.compile(r"[^\x21-\x7e]|[\\%;]")
@@ -223,7 +238,13 @@ def filter_ws_payload(text: str, extra_types: Iterable[str] = ()) -> Tuple[Optio
 def allowed_labels(forward_text: str) -> List[str]:
     """The message types in a forwarded frame, for the allowed-traffic counts (types only)."""
     value = json.loads(forward_text)
-    return [str(m.get("type")) for m in (value if isinstance(value, list) else [value]) if isinstance(m, dict)]
+    out: List[str] = []
+    for m in (value if isinstance(value, list) else [value]):
+        if isinstance(m, dict):
+            # An allowed call_service is a named read: its domain and service are not secret and say which read passed.
+            out.append(f"call_service:{m['domain']}.{m['service']}" if m.get("type") == "call_service" and _is_response_read(m)
+                       else str(m.get("type")))
+    return out
 
 
 def refusal_frame_text(message_id: Any) -> str:

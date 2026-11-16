@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """Stage a live publication into the candidate's simulator container, read-only, through the guard proxy.
 
-    stage.py --proxy http://127.0.0.1:PORT --container DATA_DIR [--account NAME] [--capabilities FILE]
+    stage.py --proxy https://127.0.0.1:PORT --container DATA_DIR [--chain PROXY_CHAIN] [--account NAME] [--capabilities FILE]
 
-Runs as a child of ``launch.py`` (see :func:`parity_loop.launch.candidate_live_script`), which loads ``FENTON_HASS_TOKEN`` and
-``FENTON_HASS_SERVER`` into this process's environment from ``tools/hass_creds.sh``. Both live only in this process's memory:
-the token is never written, printed or logged, and the server origin is written to exactly one file, the container's
-``bootstrap.json`` (server and account only, never a token).
+Runs as a child of ``launch.py`` (see :func:`parity_loop.launch.candidate_live_script`), which loads ``FENTON_HASS_TOKEN`` into
+this process's environment from ``tools/hass_creds.sh``. The token lives only in this process's memory: it is never written,
+printed or logged. The candidate is pointed at the **guard proxy**, never at the real server: the one origin written, to the
+container's ``bootstrap.json`` (origin and account, never a token), is the proxy's, so the candidate passes the same allow-list
+as the reference. The real server address is not read here at all. ``--chain`` is the proxy's certificate chain file; its first (leaf) certificate is pinned for
+this process's own requests.
 
 Steps, all reads that the guard proxy allows:
 
@@ -28,7 +30,9 @@ import http.client
 import json
 import os
 import re
+import ssl
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 from urllib.parse import urlsplit
@@ -62,10 +66,13 @@ def load_capabilities(path: Path = DEFAULT_CAPABILITIES) -> List[str]:
 
 
 def origin_of(server: str) -> str:
-    """``https://host[:port]`` for the preview's ``bootstrap.json``; the preview accepts only an https origin without a path."""
+    """``https://host[:port]`` for the preview's ``bootstrap.json``; the preview accepts only an https origin without a path.
+
+    The origin staged is the guard proxy's (served over TLS), so a plain ``http`` proxy URL is refused here.
+    """
     parts = urlsplit(server.strip())
     if parts.scheme != "https" or not parts.hostname or parts.username or parts.password:
-        raise StageError("the live preview needs an https server origin")
+        raise StageError("the live preview needs an https proxy origin (serve the guard proxy over TLS)")
     return f"https://{parts.netloc}"
 
 
@@ -94,13 +101,13 @@ def asset_hashes(envelope: Dict[str, Any]) -> List[str]:
     return seen
 
 
-def write_container(data_dir: Path, server: str, account: str, envelope: bytes, assets: Dict[str, bytes]) -> Path:
-    """Write the preview inputs into the container. ``bootstrap.json`` holds the server origin and account, never a token."""
+def write_container(data_dir: Path, proxy_url: str, account: str, envelope: bytes, assets: Dict[str, bytes]) -> Path:
+    """Write the preview inputs into the container. ``bootstrap.json`` holds the **proxy** origin and account, never a token."""
     folder = Path(data_dir) / PREVIEW_SUBPATH
     (folder / "assets").mkdir(parents=True, exist_ok=True)
     for stale in (folder / "assets").iterdir():
         stale.unlink()
-    bootstrap = {"live": {"server": origin_of(server), "accountID": account}}
+    bootstrap = {"live": {"server": origin_of(proxy_url), "accountID": account}}
     _atomic(folder / "publication.json", envelope)
     for digest, body in assets.items():
         _atomic(folder / "assets" / digest, body)
@@ -117,10 +124,48 @@ def _atomic(path: Path, data: bytes) -> None:
 
 # MARK: - Reads through the proxy
 
-async def fetch_event(host: str, port: int, token: str, capabilities: Sequence[str], timeout: float = 30.0) -> Dict[str, Any]:
+@dataclass(frozen=True)
+class Pinned:
+    """A TLS context for the proxy plus the sha256 of the one leaf certificate it may present.
+
+    The proxy's certificate is throwaway and loopback-only, so this process pins it instead of walking a chain: some system
+    TLS libraries (the macOS Xcode Python's LibreSSL) cannot evaluate the CA's IP name constraint and would refuse every connection.
+    The simulator, which does evaluate it, trusts the constrained CA.
+    """
+    context: ssl.SSLContext
+    sha256: str
+
+    def check(self, der: Optional[bytes]) -> None:
+        """Refuse a peer whose certificate is not the pinned leaf."""
+        if not der or hashlib.sha256(der).hexdigest() != self.sha256:
+            raise StageError("the proxy presented a certificate other than its own")
+
+
+def client_context(scheme: str, chain: Optional[Path]) -> Optional[Pinned]:
+    """The pinned TLS context for an ``https`` proxy whose chain file is ``chain``; ``None`` for plain ``http``.
+
+    An ``https`` proxy without a chain file is refused: nothing is connected without a certificate to hold the peer to.
+    """
+    if scheme != "https":
+        return None
+    if not chain or not Path(chain).is_file():
+        raise StageError("an https proxy needs its certificate chain file (--chain)")
+    first = re.search(r"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", Path(chain).read_text(encoding="utf-8"), re.S)
+    if not first:
+        raise StageError("the chain file holds no certificate")
+    context = ssl.create_default_context()
+    context.check_hostname, context.verify_mode = False, ssl.CERT_NONE  # the pin below decides, not a name or a chain
+    return Pinned(context, hashlib.sha256(base64.b64decode("".join(first.group(1).split()))).hexdigest())
+
+
+async def fetch_event(host: str, port: int, token: str, capabilities: Sequence[str], timeout: float = 30.0,
+                      context: Optional[Pinned] = None) -> Dict[str, Any]:
     """Authenticate through the proxy, subscribe, take the first event, then unsubscribe and close."""
     async def go() -> Dict[str, Any]:
-        reader, writer = await asyncio.open_connection(host, port)
+        reader, writer = await asyncio.open_connection(host, port, ssl=context.context if context else None,
+                                                       server_hostname=host if context else None)
+        if context:
+            context.check(writer.get_extra_info("ssl_object").getpeercert(True))
         try:
             key = base64.b64encode(os.urandom(16)).decode()
             writer.write((f"GET /api/websocket HTTP/1.1\r\nHost: {host}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n"
@@ -170,9 +215,21 @@ async def fetch_event(host: str, port: int, token: str, capabilities: Sequence[s
         raise StageError(f"publication fetch failed ({type(error).__name__})") from None
 
 
-def fetch_asset(host: str, port: int, token: str, digest: str, timeout: float = 60.0) -> bytes:
+def fetch_asset(host: str, port: int, token: str, digest: str, timeout: float = 60.0,
+                context: Optional[Pinned] = None) -> bytes:
     """``GET /api/fenton_home/ui_assets/{sha256}`` through the proxy; the body must hash to ``digest``."""
-    conn = http.client.HTTPConnection(host, port, timeout=timeout)
+    conn = (http.client.HTTPSConnection(host, port, timeout=timeout, context=context.context) if context
+            else http.client.HTTPConnection(host, port, timeout=timeout))
+    if context:
+        try:
+            conn.connect()
+            context.check(conn.sock.getpeercert(True))
+        except (OSError, http.client.HTTPException) as error:
+            conn.close()
+            raise StageError(f"asset fetch failed ({type(error).__name__})") from None
+        except StageError:
+            conn.close()
+            raise
     try:
         conn.request("GET", ASSET_PATH + digest, headers={"Authorization": f"Bearer {token}"})
         response = conn.getresponse()
@@ -190,34 +247,40 @@ def fetch_asset(host: str, port: int, token: str, digest: str, timeout: float = 
     return body
 
 
-async def stage(proxy_url: str, container: Path, token: str, server: str, account: str, capabilities: Sequence[str]) -> Dict[str, Any]:
-    """Fetch the publication and its assets through ``proxy_url`` and write them into ``container``; return counts only."""
-    origin_of(server)  # refuse before any network traffic
+async def stage(proxy_url: str, container: Path, token: str, account: str, capabilities: Sequence[str],
+                chain: Optional[Path] = None) -> Dict[str, Any]:
+    """Fetch the publication and its assets through ``proxy_url`` and write them into ``container``; return counts only.
+
+    The bootstrap names ``proxy_url``'s origin, so the candidate reads through the guard proxy exactly as the reference does.
+    """
+    origin_of(proxy_url)  # refuse before any network traffic
     parts = urlsplit(proxy_url)
-    host, port = parts.hostname or "127.0.0.1", parts.port or 80
-    event = await fetch_event(host, port, token, capabilities)
+    host, port = parts.hostname or "127.0.0.1", parts.port or 443
+    context = client_context(parts.scheme, chain)
+    event = await fetch_event(host, port, token, capabilities, context=context)
     envelope = envelope_bytes(event)
     loop = asyncio.get_running_loop()
     assets: Dict[str, bytes] = {}
     for digest in asset_hashes(event["envelope"]):
-        assets[digest] = await loop.run_in_executor(None, fetch_asset, host, port, token, digest)
-    write_container(container, server, account, envelope, assets)
+        assets[digest] = await loop.run_in_executor(None, fetch_asset, host, port, token, digest, 60.0, context)
+    write_container(container, proxy_url, account, envelope, assets)
     return {"revision": event["envelope"]["revision"], "assets": len(assets), "envelopeBytes": len(envelope)}
 
 
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--proxy", required=True, help="guard proxy URL (http://127.0.0.1:PORT)")
+    ap.add_argument("--proxy", required=True, help="guard proxy URL (https://127.0.0.1:PORT)")
+    ap.add_argument("--chain", type=Path, help="the proxy's certificate chain file (its leaf is pinned for this process's requests)")
     ap.add_argument("--container", type=Path, required=True, help="the candidate's data container")
     ap.add_argument("--account", default="parity-loop")
     ap.add_argument("--capabilities", type=Path, default=DEFAULT_CAPABILITIES)
     args = ap.parse_args(argv)
-    token, server = os.environ.get("FENTON_HASS_TOKEN", ""), os.environ.get("FENTON_HASS_SERVER", "")
-    if not token or not server:
-        print("stage: the token or server is not set", file=sys.stderr)
+    token = os.environ.get("FENTON_HASS_TOKEN", "")
+    if not token:
+        print("stage: the token is not set", file=sys.stderr)
         return 2
     try:
-        summary = asyncio.run(stage(args.proxy, args.container, token, server, args.account, load_capabilities(args.capabilities)))
+        summary = asyncio.run(stage(args.proxy, args.container, token, args.account, load_capabilities(args.capabilities), args.chain))
     except (StageError, OSError, ValueError) as error:
         print(f"stage: {error if isinstance(error, StageError) else type(error).__name__}", file=sys.stderr)
         return 1
