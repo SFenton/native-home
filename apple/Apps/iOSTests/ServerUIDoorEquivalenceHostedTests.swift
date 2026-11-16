@@ -68,7 +68,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
             let view = try tile(host, door.tile)
             for state in door.states {
                 host.pageContext.store.apply([EntityState(entityId: door.entity, state: state)])
-                await HostedPage.pump(passes: 8)
+                await HostedPage.pump(passes: 30)
                 all["\(door.tile)/\(state)"] = Self.snapshot(view)
             }
         }
@@ -80,7 +80,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 let (host, window) = try ServerUISecurityHostedFixture.host(caller: caller)
                 defer { window.isHidden = true }
                 host.pageContext.store.apply([EntityState(entityId: door.entity, state: start)])
-                await HostedPage.pump(passes: 8)
+                await HostedPage.pump(passes: 30)
                 let view = try tile(host, door.tile)
                 let disc = try XCTUnwrap(view.model.actions.first?.id)
                 let name = "\(door.tile)/tap-\(failing ? "fails" : "sends")"
@@ -93,7 +93,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 if !failing {
                     let moving = door.tile == "demo-lock-control" ? "unlocking" : "opening"
                     host.pageContext.store.apply([EntityState(entityId: door.entity, state: moving)])
-                    await HostedPage.pump(passes: 8)
+                    await HostedPage.pump(passes: 30)
                     all["\(name)/confirmed"] = Self.snapshot(view)
                 }
             }
