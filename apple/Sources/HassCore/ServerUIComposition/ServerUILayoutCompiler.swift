@@ -176,4 +176,25 @@ extension ServerUICompositionCompiler {
         }
         tile.look = look
     }
+
+    // MARK: State tile ink (`sh.tile-ink@1`)
+
+    /// Reads a state tile's `glyphTint`, `discGlyphTint` and `cellFit`; the shape check has already made each exact.
+    func tileInk(_ c: Cursor) -> ServerUITileInk {
+        func tint(_ field: String) -> ServerUITileInk.Tint? {
+            guard let json = c.value[field] else { return nil }
+            if json["type"] == .string("solid-appearance") {
+                guard let light = json["light"].flatMap(ServerUIRuleDecoder.channels),
+                      let dark = json["dark"].flatMap(ServerUIRuleDecoder.channels) else { return nil }
+                return .init(light: light, dark: dark)
+            }
+            return ServerUIRuleDecoder.channels(json).map { .init(light: $0, dark: $0) }
+        }
+        var ink = ServerUITileInk()
+        ink.glyphTint = tint("glyphTint")
+        ink.discGlyphTint = tint("discGlyphTint")
+        ink.cellFit = c.value["cellFit"]?.string.flatMap(ServerUITileInk.CellFit.init(rawValue:)) ?? .fill
+        ink.isDeclared = ["glyphTint", "discGlyphTint", "cellFit"].contains { c.value[$0] != nil }
+        return ink
+    }
 }

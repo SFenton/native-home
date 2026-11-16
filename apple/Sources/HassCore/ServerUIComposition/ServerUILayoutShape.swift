@@ -59,6 +59,8 @@ extension ServerUICompositionShape {
     static let stateTileFields: [String: Shape] = [
         "action": .optional(navigationAction),
         "activeWhen": .optional(predicate), "filledWhen": .optional(predicate), "errorWhen": .optional(predicate),
-        "badge": .optional(badge)
+        "badge": .optional(badge),
+        "glyphTint": .optional(exactSolid), "discGlyphTint": .optional(exactSolid),
+        "cellFit": .optional(.collapsed(.choice(ServerUITileInk.CellFit.allCases.map(\.rawValue))))
     ]
 }

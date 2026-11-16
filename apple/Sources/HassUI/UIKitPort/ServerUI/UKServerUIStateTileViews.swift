@@ -41,6 +41,7 @@ enum UKServerUIStateTileViews {
             var model = UKGlassTileModel(title: tile.node.title, subtitle: look.text, symbol: look.icon, family: .neutral, isActive: false,
                                          isUnavailable: true, kind: .state, identifier: tile.node.id)
             model.look = look
+            UKServerUITileInk.apply(tile.ink, fillInk: nil, to: &model)
             return Face(model: model, spec: nil)
         }
         // A screen that hides its values, or a tile that has none yet, reads as the unknown state; a call on its way shows the state
@@ -73,6 +74,7 @@ enum UKServerUIStateTileViews {
             + (style.request.map { Array($0.pendingWords.values) + [$0.errorWords] } ?? []) + ["Unavailable"]
         model.look = look
         model.isWarning = resolution.stateClass == .warning && !request.isUnknown && !request.failed && !request.isInFlight
+        UKServerUITileInk.apply(tile.ink, fillInk: resolution.fillInk, to: &model)
         return Face(model: model, spec: spec)
     }
 

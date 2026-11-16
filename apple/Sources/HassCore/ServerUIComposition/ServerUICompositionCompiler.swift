@@ -167,6 +167,7 @@ struct ServerUICompositionCompiler {
             issues.append(contentsOf: decoded.issues)
             stateLibrary = decoded.library
             if decoded.library.usesFills { require("state-style-fills") }
+            if decoded.library.usesFillInk { require("tile-ink") }
         }
         if c.value["localState"] != nil {
             require("local-state")
@@ -1921,6 +1922,8 @@ struct ServerUICompositionCompiler {
             issues.append(contentsOf: decoded.issues)
             var tile = try D.StateTile(node: node, icon: symbol(c.field("icon")), binding: decoded.binding)
             try tileParts(c, props: props, into: &tile)
+            tile.ink = tileInk(c)
+            if tile.ink.isDeclared { require("tile-ink") }
             return .stateTile(tile)
         case "action-tile":
             require("tiles"); require("bindings"); require("power-toggle")

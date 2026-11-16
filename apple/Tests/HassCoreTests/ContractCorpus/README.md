@@ -89,6 +89,10 @@ splits at `_` and at a space, capitalizes an ASCII first letter, keeps empty par
 `solid-appearance { light, dark }` under the pending `sh.solid-appearance@1`, in a glyph, a fill, a rule case, a bound colour's fallback, a room card colour and a state style fill. Both are written
 by `scripts/grammar2-corpus.ts` through the same generator. Two older refusals (`bound-color-glyph-standard-fallback`, `state-style-fills-fill-standard`) stay plain rejects but were re-pinned: widening a slot to take a pair changed their first issue from `missing_required` at `.../blue` to `unknown_variant` at `.../type` (a native promotion item).
 
+The `tile-ink-` files (and their `pending-` twins) cover the pending `sh.tile-ink@1` (TC5): a state tile's `glyphTint` and `discGlyphTint` (each a `solid-rgb` or a `solid-appearance`
+pair, so a pair also declares `sh.solid-appearance@1`) a state tile's `cellFit` (`fill` or `natural`, only a state tile) and a state style rule's `fillInk` (`white` or `soft`, only beside a `fill`, which also needs `sh.state-style@1` and
+`sh.state-style-fills@1`). They are written by `scripts/grammar2-corpus.ts` through the same generator; there are no evaluation cases, since the fields only draw.
+
 `evaluation/*.json` is the expression **evaluation** corpus: an operand or a condition, an environment (`reads` keyed `<source>/<path>`, a
 viewer, a clock, an item, parameters, and `flow` for flow mode) and the exact answer (`yes`, `no` or `unknown` for a condition; `value`, `loading`
 or `unavailable` for an operand). The Studio runs it in `tests/expression-corpus.test.ts`; the app's evaluator must agree byte for byte.

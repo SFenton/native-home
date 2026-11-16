@@ -73,3 +73,14 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 - **Request:** a tap shows the state it asked for (`opening`, `closing`, `locking`, `unlocking`) from the style's `pendingStates`, which are the app's own feedback and never authored.
 - **Kept:** a dimmed disc while the entity cannot be read (`keepsDiscWhenUnknown`) and a disc on-state that differs from the tile's lit face (`StateRule.discOn`), neither authorable.
 - **Proof:** `ServerUIDoorEquivalenceHostedTests` compares every state and request phase with the golden the bespoke atom drew (`apple/Apps/iOSTests/Fixtures/ServerUIDoorGolden.json`); `ServerUIDoorLoweringTests` holds the tables.
+
+## Tile ink and cell fit
+
+`sh.tile-ink@1` adds four optional state tile fields; a pair resolves with the trait collection, with no clamp.
+
+- **`glyphTint`:** the icon on a face that is neither filled (`filledWhen` or a style `fill`) nor an error. Not applied while unavailable, which keeps the muted grey at 50%.
+- **`discGlyphTint`:** the button icons of an off disc on a dark face, an error face included. A filled face keeps its black 18% disc and white glyph.
+- **`fillInk`** (rule or fallback, beside a `fill`): `soft` is the state line in white at 92%; the title stays white.
+- **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell.
+
+`AuthoredTileInk` decides where each applies.

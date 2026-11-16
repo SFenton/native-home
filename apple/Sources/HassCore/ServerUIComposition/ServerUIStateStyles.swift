@@ -33,6 +33,9 @@ public struct ServerUIStateStyleLibrary: Equatable, Sendable {
         entries.contains { $0.style.hiddenWords != nil || $0.style.rules.contains { $0.fill != nil } }
     }
 
+    /// Whether any rule names the ink of its state line on a fill, which needs `sh.tile-ink@1`.
+    public var usesFillInk: Bool { entries.contains { $0.style.rules.contains { $0.fillInk != nil } } }
+
     /// The saved style with `id`.
     public func style(id: String) -> StateStyle? { entries.first { $0.style.id == id }?.style }
 }
@@ -89,6 +92,8 @@ extension ServerUICompositionDocument {
         public var action: Action? = nil
         /// The conditions that decide the tile's faces (`sh.tile-look@1`).
         public var look = ServerUITileLook()
+        /// The icon and button icon colours and the cell fit (`sh.tile-ink@1`).
+        public var ink = ServerUITileInk()
     }
 }
 
@@ -181,6 +186,8 @@ enum ServerUIStateStyles {
             issues.append(Issue(.invalidCombination, path + "/indicator"))
         }
         if rule["colour"] != nil, !acceptsColour(stateClass) { issues.append(Issue(.invalidCombination, path + "/colour")) }
+        // The ink belongs to a fill: a state with no fill has no ink to name (`sh.tile-ink@1`).
+        if rule["fillInk"] != nil, rule["fill"] == nil { issues.append(Issue(.invalidCombination, path + "/fillInk")) }
         if let action = rule["action"], action["otherwise"] != nil, action["requiresFeature"] == nil {
             issues.append(Issue(.invalidCombination, path + "/action/otherwise"))
         }
@@ -207,6 +214,7 @@ enum ServerUIStateStyles {
                   action: rule["action"].map(decodeAction),
                   colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: fill?.light)
         decoded.fillDark = fill?.dark
+        decoded.fillInk = rule["fillInk"]?.string.flatMap(StateFillInk.init(rawValue:))
         return decoded
     }
 
