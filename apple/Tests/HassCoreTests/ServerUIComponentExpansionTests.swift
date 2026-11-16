@@ -92,6 +92,9 @@ struct ServerUIComponentExpansionTests {
         func moved(_ code: ServerUICompositionError.Code, _ suffix: String) -> ServerUICompositionError {
             expansion.remapped([ServerUICompositionError(code, use + suffix)])[0]
         }
+        func dropped(_ code: ServerUICompositionError.Code, _ suffix: String) -> Bool {
+            expansion.remapped([ServerUICompositionError(code, use + suffix)]).isEmpty
+        }
         // A bound field is the argument's fault.
         #expect(moved(.invalidReference, "/action/pageId").pointer == use + "/args/target")
         // The root's place is the reference's `componentId`; its id and width are the reference's own.
@@ -100,8 +103,10 @@ struct ServerUIComponentExpansionTests {
         #expect(moved(.duplicateID, "/id").pointer == use + "/id")
         // A limit counts the whole body in the place that uses it.
         #expect(moved(.limitExceeded, "/children/3").pointer == use)
-        // Anything else is the body's.
-        #expect(moved(.invalidValue, "/action/origin").pointer == "/document/componentLibrary/0/node/action/origin")
+        // Anything inside a bound field is the argument's too.
+        #expect(moved(.invalidValue, "/action/pageId/extra").pointer == use + "/args/target")
+        // Anything else is the body's own fault, which the library check reports once: it is not said again for each use.
+        #expect(dropped(.invalidValue, "/action/origin"))
         // A pointer outside every use is left alone.
         let elsewhere = ServerUICompositionError(.invalidValue, "/document/pages/0/title")
         #expect(expansion.remapped([elsewhere]) == [elsewhere])

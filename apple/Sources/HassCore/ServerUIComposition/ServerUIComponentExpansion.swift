@@ -13,9 +13,13 @@ import Foundation
 ///   identifier alphabet excludes, so a derived id never equals an authored one.
 /// - Each binding writes the reference's argument into one field of one body node. Nothing else changes: tab, option, source, page
 ///   and sheet ids are document-level names and stay as written.
+/// - An entry may own data sources. Each use adds a copy, a source key of the body that names an owned source is rewritten to it, and a
+///   binding may fill a field of the copy (the argument is not rewritten). The copy's id is `tpl-<n>`, not the Studio's
+///   `<reference id>~<source id>`: the expression parser reads only identifiers, and nothing outside this file sees the name.
 /// - Each library body is also compiled once, at its own pointer, whether or not anything uses it (``bodies``).
 /// - Issues the compiler finds in an expansion move back to where the author can fix them: a bound field to `args/<name>`, the root's
-///   placement to the reference's `componentId`, a limit to the reference, anything else to the body (``remapped(_:)``).
+///   placement to the reference's `componentId`, a limit to the reference (``remapped(_:)``). Anything else is the body's own fault,
+///   found once when the body is compiled at its library pointer, and is not reported again for each use (the Studio does the same).
 struct ServerUIComponentExpansion {
     typealias Issue = ServerUICompositionError
 
@@ -55,6 +59,11 @@ struct ServerUIComponentExpansion {
     let bodies: [Body]
     /// The arguments that name a page, a sheet or a source.
     let argumentReferences: [ArgumentReference]
+    /// The data sources the expansion adds after the document's own: stand-ins for the entries' own while their bodies are checked, then
+    /// one copy per use (see ``published(_:)``).
+    let appendedSources: [AppendedSource]
+    /// How many data sources the document itself holds, so which index an appended source has.
+    let ownSourceCount: Int
     private let regions: [Region]
     /// Argument pointers already refused for their value: what the compiler also finds there is the same fault, said twice.
     private let refusedArguments: Set<String>
@@ -78,6 +87,8 @@ struct ServerUIComponentExpansion {
         bodies = builder?.bodies ?? []
         argumentReferences = builder?.argumentReferences ?? []
         regions = builder?.regions ?? []
+        appendedSources = builder?.appended ?? []
+        ownSourceCount = builder?.ownSourceCount ?? 0
         refusedArguments = builder?.refusedArguments ?? []
     }
 
@@ -85,15 +96,25 @@ struct ServerUIComponentExpansion {
 
     /// `issues`, found in the expanded document, at the pointers an author can act on.
     func remapped(_ issues: [Issue]) -> [Issue] {
-        guard !regions.isEmpty else { return issues }
-        return issues.map(remap).filter { !($0.code != .invalidValue && refusedArguments.contains($0.pointer)) }
+        guard !regions.isEmpty || !appendedSources.isEmpty else { return issues }
+        return issues.compactMap(remap).filter { !($0.code != .invalidValue && refusedArguments.contains($0.pointer)) }
     }
 
-    private func remap(_ issue: Issue) -> Issue {
+    /// Where an author can act on `issue`, or nil when it is the body's own and its library check reports it.
+    private func remap(_ issue: Issue) -> Issue? {
+        // A copy of an owned source: a bound field is the argument's fault; the stand-in for an entry's own is checked by the library.
+        if let (index, relative) = appendedSource(at: issue.pointer) {
+            let source = appendedSources[index]
+            guard let reference = source.reference,
+                  let parameter = source.bound.first(where: { relative == $0.key || relative.hasPrefix($0.key + "/") })?.value else { return nil }
+            return Issue(issue.code, ServerUICompositionJSON.pointer(reference + "/args", parameter), capability: issue.capability)
+        }
         guard let region = regions.first(where: { issue.pointer == $0.pointer || issue.pointer.hasPrefix($0.pointer + "/") }) else { return issue }
         let relative = String(issue.pointer.dropFirst(region.pointer.count))
         func moved(to pointer: String) -> Issue { Issue(issue.code, pointer, capability: issue.capability) }
         if relative == "/args" || relative.hasPrefix("/args/") { return issue }
+        // The reference's own `componentId` is where the builder reports what is wrong with the use itself.
+        if relative == "/componentId" { return issue }
         // A limit counts the whole body in the place that uses it.
         if issue.code == .limitExceeded { return moved(to: region.pointer) }
         // The body's root decides where it may stand, so a refusal of its place belongs to the reference's `componentId`.
@@ -101,8 +122,11 @@ struct ServerUIComponentExpansion {
             || (issue.code == .invalidCombination && (relative == "/props/scopeProviderId" || relative == "/props/pinned"))
         if placement { return moved(to: region.pointer + "/componentId") }
         if relative == "/id" || relative == "/layout" || relative == "/layout/span" { return moved(to: region.pointer + relative) }
-        if let parameter = region.bound[relative] { return moved(to: ServerUICompositionJSON.pointer(region.pointer + "/args", parameter)) }
-        return moved(to: "/document/componentLibrary/\(region.entry)/node" + relative)
+        // A bound field, or anything inside one, is the argument's fault.
+        if let parameter = region.bound.first(where: { relative == $0.key || relative.hasPrefix($0.key + "/") })?.value {
+            return moved(to: ServerUICompositionJSON.pointer(region.pointer + "/args", parameter))
+        }
+        return nil
     }
 
     // MARK: - Shared walks
