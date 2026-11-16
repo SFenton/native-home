@@ -61,6 +61,7 @@
   "sh.climate-toggle@1",
   "sh.collection-navigation@1",
   "sh.collection@1",
+  "sh.component-ref@1",
   "sh.composition@1",
   "sh.custom-lights@1",
   "sh.form@1",
