@@ -23,6 +23,13 @@ final class ServerUITileInkHostedTests: XCTestCase {
     private static let tileID = "tile"
 
     private var window: UIWindow?
+    private var scheduler = HandScheduler()
+
+    override func setUp() async throws {
+        try await super.setUp()
+        scheduler = HandScheduler()
+        UKStateTileTransition.schedulerOverride = scheduler
+    }
 
     override func tearDown() async throws {
         HostedPage.hideTracked()
@@ -233,11 +240,21 @@ final class ServerUITileInkHostedTests: XCTestCase {
         }
     }
 
-    func testTheSoftInkChangesTheStateLineNotTheTitle() async throws {
-        let (_, tile, _) = try await page("fill-ink-soft", width: 393, state: "docked")
+    /// Asserts the settled end state: the soft ink belongs to the docked state's fill, so once the tile has moved to the state with no fill (the
+    /// transition's timers fired by the hand scheduler, as the state style tests do) the state line is plain again and the title never changed.
+    func testTheSoftInkChangesTheStateLineNotTheTitleAndLeavesWithTheFill() async throws {
+        let (_, tile, store) = try await page("fill-ink-soft", width: 393, state: "docked")
         let title = try XCTUnwrap(HostedPage.descendants(of: tile).compactMap { $0 as? UILabel }.first { $0.text == "tile" })
         XCTAssertEqual(channels(title.textColor, in: tile).alpha, 1, accuracy: 0.001, "the title stays white at 100%")
         XCTAssertEqual(channels(tile.face.drawnStateLineColor, in: tile).alpha, 0.92, accuracy: 0.005)
+        store.apply([EntityState(entityId: "vacuum.demo_robot", state: "cleaning")])
+        let landed = await HostedPage.settle {
+            self.scheduler.fire()
+            return tile.model.isActive && abs(self.channels(tile.face.drawnStateLineColor, in: tile).alpha - 0.92) > 0.005
+        }
+        XCTAssertTrue(landed, "the cleaning state has no fill, so it has no soft ink once the transition settles")
+        XCTAssertFalse(tile.model.softFillInk)
+        XCTAssertEqual(channels(title.textColor, in: tile).alpha, 1, accuracy: 0.001)
     }
 
     func testAFillWithNoInkDrawsWhiteAtFullOpacity() throws {
