@@ -75,13 +75,13 @@ final class ServerUITileInkHostedTests: XCTestCase {
     }
 
     /// A tile for `model` on its own, in a window `width` wide.
-    private func tile(_ model: UKGlassTileModel, width: CGFloat = 170) -> UKGlassTileView {
+    private func tile(_ model: UKGlassTileModel, width: CGFloat = 170, dark: Bool = true) -> UKGlassTileView {
         let tile = UKGlassTileView(model: model, environment: UKTileEnvironment())
         let host = UIViewController()
         host.view.addSubview(tile)
         window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: max(width + 40, 240), height: 400)))
         // Pages stay dark, so a tile on its own is drawn dark too.
-        window?.overrideUserInterfaceStyle = .dark
+        if dark { window?.overrideUserInterfaceStyle = .dark }
         tile.frame = CGRect(x: 0, y: 0, width: width, height: tile.gridHeight(forWidth: width))
         HostedPage.wait(0.1)
         tile.layoutIfNeeded()
@@ -321,7 +321,8 @@ final class ServerUITileInkHostedTests: XCTestCase {
 
     /// A default state tile (no ink field anywhere) draws the grey icon, the white 16% disc with its glyph and the height it always had.
     func testADefaultStateTileDrawsWhatItAlwaysDrew() throws {
-        let plain = tile(model(actions: [Self.pause]), width: 260)
+        // The base tree was measured in the simulator's own appearance, so this tile is drawn in it too.
+        let plain = tile(model(actions: [Self.pause]), width: 260, dark: false)
         let disc = try XCTUnwrap(discs(in: plain).first)
         // The values the base tree (a7caa157) draws, measured by `ServerUIDefaultsProbeHostedTests` there (build/evidence/native-ingest/ni-tc5/base-probe.json).
         XCTAssertEqual(Self.base.icon, packed(plain.face.drawnGlyphColor, in: plain), "the icon is the neutral off glyph of the base tree")
