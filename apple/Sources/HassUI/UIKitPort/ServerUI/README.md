@@ -442,7 +442,10 @@ It calls the production static builders (`UKServerUIHouseholdProviders`, `UKServ
 Reads (to-do items, schedules, the current user, the entity feed) pass; every service call, upload, schedule update and flow
 call goes through `UKServerUIPreviewReadOnlyServices` and is refused and counted. Sign-out, Home Assistant web pages and feedback
 filing are refused at the action. Like production, the preview waits (bounded, 20 s) for the house document and the user, and a
-supply asked for earlier throws `inputs_pending`. Fixtures mode keeps `DemoHouse`.
+supply asked for earlier throws `inputs_pending`. The wait honours cancellation and holds no reference to the providers; `stop()`
+restores `HouseConfigSource.shared` to what it held before the preview started. The app-icon choice stays in memory and the
+preferences land in an isolated defaults suite. Known fixture difference: recipe and inventory collections stay empty in live
+preview (their reads are response-bearing service calls, which stay refused). Fixtures mode keeps `DemoHouse`.
 
 Normal-session provider preparation resolves authored device descriptors before checking their references; house-config
 providers fill only keys those descriptors do not own. Reconnect permission changes replace idle bedroom providers without a

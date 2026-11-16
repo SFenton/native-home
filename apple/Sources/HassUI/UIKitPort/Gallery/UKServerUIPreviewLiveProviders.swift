@@ -1,5 +1,6 @@
 #if os(iOS) && DEBUG
 import Foundation
+import FentonActivityModel
 import HassCore
 import Observation
 import UIKit
@@ -51,6 +52,10 @@ final class UKServerUIPreviewLiveProviders: UKServerUIAccountProvider {
 
     private let live: UKServerUIPreviewLiveData
     private let defaults: UserDefaults
+    /// The house-document source the store publishes into, and what it held before this preview started.
+    private let source: HouseConfigSource
+    private let previousDocument: HouseConfig?
+    private var inputTasks: [Task<Void, Never>] = []
     private let window = UUID()
     private let flows = UKServerUIFlowWindows()
     private var settings: [String: any UKServerUISettingsProvider] = [:]
@@ -67,75 +72,130 @@ final class UKServerUIPreviewLiveProviders: UKServerUIAccountProvider {
     ///   - live: The preview's read-only connection owner.
     ///   - houseConfigCache: Where the followed document is kept; inside the preview's own directory.
     ///   - defaultsName: The isolated defaults suite the preferences provider writes to.
+    ///   - source: Where the followed document is published for the `*Config` facades (the shared source, as production does);
+    ///     ``stop()`` puts back what it held before.
     ///   - houseConfig: The store to follow; the preview passes none and gets one over its own websocket, a test passes one over a canned transport.
     init(live: UKServerUIPreviewLiveData, houseConfigCache: HouseConfigCache, defaultsName: String,
-         houseConfig: HouseConfigStore? = nil) throws {
+         source: HouseConfigSource = .shared, houseConfig: HouseConfigStore? = nil) throws {
         guard let defaults = UserDefaults(suiteName: defaultsName) else {
             throw UKServerUIRendererError(code: .unavailableSource, pointer: "/preview/live")
         }
         self.live = live
         self.defaults = defaults
+        self.source = source
+        previousDocument = source.current
         services = UKServerUIPreviewReadOnlyServices(connection: live.connection, caller: live.caller)
         self.houseConfig = houseConfig ?? HouseConfigStore(server: live.connection.server,
-            transport: HassHouseConfigTransport(connection: live.connection), cache: houseConfigCache, source: .shared,
+            transport: HassHouseConfigTransport(connection: live.connection), cache: houseConfigCache, source: source,
             timeout: .seconds(60))
     }
 
-    /// Ends the flows and the house-document subscription; the preview calls it when it is removed.
+    /// Ends the flows, the pending input reads and the house-document subscription, and puts the shared house document back.
+    ///
+    /// The preview calls it when it is removed or fails. The document the live preview published is not left behind for the next
+    /// preview in the process: the source holds again what it held before this one started, or nothing.
     func stop() {
+        inputTasks.forEach { $0.cancel() }
+        inputTasks = []
         flows.endSession()
         houseConfig.stop()
+        source.set(previousDocument)
     }
 
     // MARK: - Inputs
 
-    /// Follows the house document and asks who is signed in, then returns when both have answered or `timeout` passes.
+    /// Follows the house document and asks who is signed in, then returns when both have answered, `timeout` passes, the caller is
+    /// cancelled or ``stop()`` runs.
     ///
     /// A timeout is not an error: the supply then throws ``UKServerUIRendererError/Code/inputsPending`` for whatever still lacks an input.
+    /// The reads hold the connection and the house store, never this object, so none of them keeps it alive after ``stop()``.
     func awaitInputs(timeout: Duration) async {
+        guard !Task.isCancelled else { return }
         houseConfig.start()
-        let gate = OneShot()
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            gate.continuation = continuation
-            Task { [self] in
-                async let account: Void = readUser()
-                async let document: Void = readDocument()
-                _ = await (account, document)
-                gate.finish()
-            }
-            Task {
-                try? await Task.sleep(for: timeout)
-                gate.finish()
-            }
+        let connection = live.connection, document = houseConfig
+        let gate = Gate(count: 2)
+        let user = Task { [weak self] in
+            let fetched = await Self.fetchUser(connection)
+            if !Task.isCancelled { self?.adopt(user: fetched) }
+            gate.arrive()
         }
+        let config = Task {
+            await Self.firstDocument(document)
+            gate.arrive()
+        }
+        let deadline = Task {
+            try? await Task.sleep(for: timeout)
+            gate.finish()
+        }
+        inputTasks += [user, config, deadline]
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                gate.install(continuation)
+            }
+        } onCancel: {
+            user.cancel(); config.cancel(); deadline.cancel()
+            gate.finish()
+        }
+        deadline.cancel()
     }
 
-    private func readUser() async {
-        do { user = try await live.connection.currentUser(); accountUnavailable = false }
-        catch { accountUnavailable = true }
+    private func adopt(user fetched: HassUser?) {
+        if let fetched { user = fetched; accountUnavailable = false }
+        else { accountUnavailable = true }
     }
 
-    private func readDocument() async {
-        guard houseConfig.current == nil else { return }
-        for await _ in houseConfig.changes() { return }
+    private static func fetchUser(_ connection: HassConnection) async -> HassUser? {
+        try? await connection.currentUser()
     }
 
-    /// Resumes its continuation once, whichever of the inputs or the deadline comes first.
-    @MainActor private final class OneShot {
-        var continuation: CheckedContinuation<Void, Never>?
+    private static func firstDocument(_ store: HouseConfigStore) async {
+        guard store.current == nil else { return }
+        for await _ in store.changes() { return }
+    }
+
+    /// Resumes the waiting caller once: when every input has arrived, or at once when the deadline or a cancel finishes it.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var remaining: Int
+        private var continuation: CheckedContinuation<Void, Never>?
+        private var done = false
+
+        init(count: Int) { remaining = count }
+
+        func install(_ continuation: CheckedContinuation<Void, Never>) {
+            lock.lock()
+            if done { lock.unlock(); continuation.resume(); return }
+            self.continuation = continuation
+            lock.unlock()
+        }
+
+        func arrive() {
+            lock.lock()
+            remaining -= 1
+            let finished = remaining <= 0
+            lock.unlock()
+            if finished { finish() }
+        }
+
         func finish() {
-            continuation?.resume()
+            lock.lock()
+            done = true
+            let waiting = continuation
             continuation = nil
+            lock.unlock()
+            waiting?.resume()
         }
     }
 
     // MARK: - Account
 
+    /// The signed-in person's name and the server's host, `loading` until Home Assistant answers and `unavailable` when it did not.
     var account: UKServerUIAccountValue {
         guard let user else { return accountUnavailable ? .unavailable : .loading }
         return .ready(name: user.name, server: live.connection.server.baseURL.host ?? "", avatar: nil)
     }
 
+    /// The shell header's profile name, attention count and offline flag, read from the preview's own store and connection.
     var shellHeader: UKServerUIShellHeaderSource {
         .init(state: { [weak self] in
             guard let self else { return .init(profileName: nil) }
@@ -145,6 +205,7 @@ final class UKServerUIPreviewLiveProviders: UKServerUIAccountProvider {
         })
     }
 
+    /// The key of the house-document person whose Home Assistant user is the signed-in one, for resident-aware nodes; `nil` until both are known.
     var roomResidentID: String? {
         guard let identity = user?.id else { return nil }
         return houseConfig.current?.chores.people.first { $0.haUserId.lowercased() == identity.lowercased() }?.key
@@ -173,16 +234,21 @@ final class UKServerUIPreviewLiveProviders: UKServerUIAccountProvider {
         let records = try UKServerUIProductionProviders.presentations(
             of: try baseRecords(for: publication, configuration: configuration), settings: settings)
         let entities = UKServerUIProductionProviders.entitySources(of: publication.document)
-        let connection = live.connection, services = services
         var collections = flows.collections(for: publication.document, window: window, start: true, hostKey: entities) {
-            UKServerUIProductionProviders.flowHost(connection: connection, entitySources: entities,
-                user: { [weak self] in self?.user }, appState: nil, call: { _, _, _, _, _ in try services.rejectFlowCall() })
+            flowHost(entitySources: entities)
         }
         try UKServerUIProductionProviders.addPerformanceCollections(from: settings, to: &collections)
         let supplied = UKServerUIProductionProviders.supplementalProviders(for: publication, bedrooms: bedrooms, remotes: remotes)
         return Supply(settings: settings, records: records, collections: collections, bedrooms: supplied.bedrooms,
                       remotes: supplied.remotes, canEditBedroom: user?.isAdmin == true, responder: services, schedules: services,
                       account: self, shellHeader: shellHeader, roomResidentId: { [weak self] in self?.roomResidentID })
+    }
+
+    /// The host every Data Flow of this preview runs on: the production host over the preview's connection, whose service call is refused.
+    func flowHost(entitySources: [String: String]) -> ServerUIFlowHost {
+        let services = services
+        return UKServerUIProductionProviders.flowHost(connection: live.connection, entitySources: entitySources,
+            user: { [weak self] in self?.user }, appState: nil, call: { _, _, _, _, _ in try services.rejectFlowCall() })
     }
 
     private func settings(for publication: ServerUICompositionPublication, configuration: HouseConfig,
@@ -204,7 +270,7 @@ final class UKServerUIPreviewLiveProviders: UKServerUIAccountProvider {
                     currentName: { [weak self] in self?.iconName },
                     setName: { [weak self] name in self?.iconName = name })
                 result[definition.providerId] = UKServerUIPreferencesProvider(id: definition.providerId, blur: blur,
-                    icons: AppIconPickerModel(platform: icons),
+                    icons: AppIconPickerModel(platform: icons, iconStore: .init(defaults: nil)),
                     about: AboutSettingsModel(pasteboard: { [weak self] in self?.copiedVersion = $0 }),
                     defaults: defaults, isCurrentSession: current)
             case .performance:

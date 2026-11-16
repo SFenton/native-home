@@ -1,4 +1,5 @@
 import CryptoKit
+import FentonActivityModel
 import HassCore
 import HassDemoHouse
 import UIKit
@@ -41,20 +42,25 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     private var house: HouseConfig { DemoHouse.config }
     private var viewer: HouseConfig.Person { house.chores.people[0] }
 
-    private func make(document: Bool = true, signedIn: Bool = true) throws -> (UKServerUIPreviewLiveData, UKServerUIPreviewLiveProviders) {
+    private var defaultsName = ""
+
+    private func make(document: Bool = true, signedIn: Bool = true, retain: Bool = true, source: HouseConfigSource? = nil,
+                      start: Bool = true) throws -> (UKServerUIPreviewLiveData, UKServerUIPreviewLiveProviders, HouseConfigStore) {
         let live = try UKServerUIPreviewLiveData(configuration: .init(server: "https://home.example.com", accountID: "demo"),
                                                  credential: "test-only-token", directory: directory, store: EntityStore())
         let cache = HouseConfigCache(fileURL: directory.appendingPathComponent("house-\(UUID().uuidString).json"))
         if document { try cache.save(house, hash: "synthetic", server: live.connection.server) }
+        let source = source ?? HouseConfigSource()
         let store = HouseConfigStore(server: live.connection.server, transport: SilentTransport(), cache: cache,
-                                     source: HouseConfigSource(), loadsCacheSynchronously: true)
-        store.start()
-        let providers = try UKServerUIPreviewLiveProviders(live: live, houseConfigCache: cache,
-            defaultsName: "ServerUIPreviewLiveProvidersTests-" + UUID().uuidString, houseConfig: store)
+                                     source: source, loadsCacheSynchronously: true)
+        if start { store.start() }
+        defaultsName = "ServerUIPreviewLiveProvidersTests-" + UUID().uuidString
+        let providers = try UKServerUIPreviewLiveProviders(live: live, houseConfigCache: cache, defaultsName: defaultsName,
+                                                           source: source, houseConfig: store)
         if signedIn { providers.user = HassUser(id: viewer.haUserId, name: viewer.name, isOwner: false, isAdmin: false) }
         lives.append(live)
-        self.providers.append(providers)
-        return (live, providers)
+        if retain { self.providers.append(providers) }
+        return (live, providers, store)
     }
 
     /// The placeholder fixture (weather, camera, an away provider and one vacation check) with the demo house's own checklist
@@ -92,7 +98,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     // MARK: Logic
 
     func testSupplyBuildsEveryProviderKindTheProductionRouteBuilds() throws {
-        let (live, providers) = try make()
+        let (live, providers, _) = try make()
         let publication = try publication()
         let backdrop = try ServerUIRendererFixture.backdrop()
         let supply = try providers.supply(for: publication, blur: backdrop.blur)
@@ -132,7 +138,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     }
 
     func testARowFlowGetsItsCollectionAndItsServiceCallIsRefused() async throws {
-        let (live, providers) = try make()
+        let (live, providers, _) = try make()
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         var json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: apple.appendingPathComponent(
             "Tests/HassCoreTests/ContractCorpus/accept/pipeline-overdue-chores.json")))
@@ -149,36 +155,14 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
         XCTAssertEqual(live.caller.blockedCommands, 1)
     }
 
-    func testWritesAreStillRefusedThroughEveryServicePath() async throws {
-        let (live, providers) = try make()
-        let services = providers.services
-        var refused = 0
-        func expectRefusal(_ name: String, _ work: () async throws -> Void) async {
-            do { try await work(); XCTFail("\(name) was accepted") }
-            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, name); refused += 1 }
-            XCTAssertEqual(live.caller.blockedCommands, refused, name)
-        }
-        await expectRefusal("service") { try await services.callService("light", "turn_on", data: ["entity_id": "light.x"]) }
-        await expectRefusal("service with response") { _ = try await services.callServiceWithResponse("script", "run", data: [:]) }
-        await expectRefusal("evershelf") { _ = try await services.callServiceForResponse("evershelf", "add", data: [:]) }
-        await expectRefusal("schedule update") { _ = try await services.updateSchedule([:]) }
-        await expectRefusal("upload bearer") { _ = try await services.accessToken() }
-        await expectRefusal("flow call") { _ = try await services.rejectFlowCall() }
-        let supplied = try providers.supply(for: publication(), blur: ServerUIRendererFixture.backdrop().blur)
-        XCTAssertTrue(supplied.responder === services && supplied.schedules === services,
-                      "The renderer's responder and schedule store are the refusing ones")
-        XCTAssertEqual(live.caller.blockedCommands, refused, "Preparing providers adds no write")
-        XCTAssertEqual(live.connection.status, .disconnected, "No refused path opens a socket")
-    }
-
     func testAMissingHouseDocumentOrPersonWaitsInsteadOfBuildingGuesses() throws {
         let blur = try ServerUIRendererFixture.backdrop().blur
         let publication = try publication()
-        let (_, noDocument) = try make(document: false)
+        let (_, noDocument, _) = try make(document: false)
         XCTAssertThrowsError(try noDocument.supply(for: publication, blur: blur)) {
             XCTAssertEqual(($0 as? UKServerUIRendererError)?.code, .inputsPending)
         }
-        let (_, noPerson) = try make(signedIn: false)
+        let (_, noPerson, _) = try make(signedIn: false)
         XCTAssertThrowsError(try noPerson.supply(for: publication, blur: blur)) {
             XCTAssertEqual(($0 as? UKServerUIRendererError)?.code, .inputsPending)
         }
@@ -186,12 +170,184 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
     }
 
     func testAwaitInputsReturnsAtTheDeadlineWhenNobodyAnswers() async throws {
-        let (live, providers) = try make(signedIn: false)
+        let (live, providers, _) = try make(signedIn: false)
         let started = ContinuousClock.now
         await providers.awaitInputs(timeout: .milliseconds(200))
         XCTAssertLessThan(started.duration(to: .now), .seconds(5))
         XCTAssertNil(providers.user)
         XCTAssertEqual(live.caller.blockedCommands, 0)
+    }
+
+    // MARK: Lifetime
+
+    func testStopPutsTheSharedHouseDocumentBackAndAFixturesPreviewDoesNotSeeTheLiveOne() throws {
+        let shared = HouseConfigSource.shared
+        let original = shared.current
+        defer { shared.set(original) }
+        shared.set(nil)
+        let (_, providers, store) = try make(source: shared, start: false)
+        store.start()
+        XCTAssertEqual(HouseConfigSource.active.current, house, "While the live preview runs it publishes the house document")
+        providers.stop()
+        XCTAssertNil(HouseConfigSource.active.current, "A fixtures preview that follows it must not see the live document")
+
+        var earlier = house
+        earlier.vacation.checklist = []
+        shared.set(earlier)
+        let (_, again, againStore) = try make(source: shared, start: false)
+        againStore.start()
+        XCTAssertEqual(shared.current, house)
+        again.stop()
+        XCTAssertEqual(shared.current, earlier, "What the source held before is put back")
+    }
+
+    func testACancelledWaitReturnsAtOnceAndNothingKeepsTheProvidersAliveAfterStop() async throws {
+        weak var weakProviders: UKServerUIPreviewLiveProviders?
+        let waiting: Task<Void, Never>
+        do {
+            let (_, providers, _) = try make(document: false, signedIn: false, retain: false)
+            weakProviders = providers
+            waiting = Task { await providers.awaitInputs(timeout: .seconds(60)) }
+            await FeatureHost.settleAsync(0.1)
+            waiting.cancel()
+            providers.stop()
+        }
+        let started = ContinuousClock.now
+        await waiting.value
+        XCTAssertLessThan(started.duration(to: .now), .seconds(5), "Cancelling ends the 20 s wait; it does not run it out")
+        await FeatureHost.settleAsync(0.2)
+        XCTAssertNil(weakProviders, "No input read keeps the providers alive after stop")
+
+        let (_, late, _) = try make(document: false, signedIn: false)
+        let task = Task { await late.awaitInputs(timeout: .seconds(60)) }
+        task.cancel()
+        let begun = ContinuousClock.now
+        await task.value
+        XCTAssertLessThan(begun.duration(to: .now), .seconds(5), "A task cancelled before it starts does not wait")
+    }
+
+    // MARK: Writes through the built providers
+
+    /// Each control is placed in the document, drawn by the renderer from the preview's own providers and driven the way a tap does.
+    private func writingPublication() throws -> ServerUICompositionPublication {
+        var json = try ServerUIPreviewPlaceholderTests.json(checkItem: XCTUnwrap(house.vacation.checklist.first).entityId)
+        json = try ServerUITodoPublicationFixture.adding(house.chores.pages, to: json)
+        let icon: JSONValue = .object(["type": "sf-symbol", "name": "gearshape", "rendering": "canonical", "unavailable": "reject"])
+        func settings(_ id: String, domain: String) -> JSONValue {
+            .object(["id": .string("settings-" + id), "kind": "model", "model": "settings-provider@1",
+                     "inputs": .object(["providerId": .string(id), "domain": .string(domain)])])
+        }
+        func control(_ id: String, source: String, kind: String, item: String) -> JSONValue {
+            .object(["id": .string(id), "title": .string(id), "type": "settings-control", "layout": .object(["span": .number(1)]),
+                     "icon": icon, "props": .object(["sourceId": .string(source), "kind": .string(kind),
+                                                     "item": .string(item), "subtitle": ""])])
+        }
+        let sources = [settings("household", domain: "household"), settings("profile", domain: "profile"),
+                       settings("preferences", domain: "preferences")]
+        json = try ServerUIRendererFixture.changing(json, path: "/document/dataSources",
+            to: .array(try XCTUnwrap(json["document"]?["dataSources"]?.array) + sources))
+        let placed = [control("w-toggle", source: "settings-household", kind: "household-toggle", item: "switch.synthetic_toggle"),
+                      control("w-signout", source: "settings-profile", kind: "sign-out", item: ""),
+                      control("w-haweb", source: "settings-profile", kind: "ha-web", item: "profile"),
+                      control("w-icon", source: "settings-preferences", kind: "app-icon-choice", item: AppIconChoice.midnightGold.rawValue)]
+        let components = try XCTUnwrap(json["document"]?["pages"]?.array?.first?["components"]?.array)
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components + placed))
+        return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
+    }
+
+    func testEveryWriteDrivenThroughTheBuiltProvidersIsRefusedCountedAndLeavesNoTraceOutsideThePreview() async throws {
+        let publication = try writingPublication()
+        let assets = try await stagedAssets(publication)
+        let standardBlur = UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int
+        let group = UserDefaults(suiteName: ActivityAppIconStore.appGroup)
+        let groupIcon = group?.string(forKey: ActivityAppIconStore.key)
+        for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
+                               ("iPad", CGSize(width: 820, height: 1180))] {
+            let (live, providers, _) = try make()
+            live.context.store.apply([EntityState(entityId: "switch.synthetic_toggle", state: "off")])
+            let backdrop = try ServerUIRendererFixture.backdrop()
+            let supply = try providers.supply(for: publication, blur: backdrop.blur)
+            let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
+                backdrop: backdrop, renderDirectory: directory, weatherReader: live.weatherReader(for: publication.document),
+                cameraReader: live.cameraReader(for: publication.document, pool: CameraStreamPool(modes: [], observesApp: false)),
+                live: supply)
+            let renderer = prepared.renderer
+            let window = HostedPage.show(renderer, size: HostedPage.inScene(size))
+            defer { window.isHidden = true }
+            HostedPage.layoutTracked()
+            let page = try XCTUnwrap(renderer.stacks[.initial]?.viewControllers.first as? UKServerUIPage, family)
+            func tap(_ id: String) throws {
+                let node = try XCTUnwrap(page.nodes[id]?.view, "\(family): \(id)")
+                let button = try XCTUnwrap(HostedPage.descendants(of: node).compactMap { $0 as? UKRowButton }.first
+                                           ?? node as? UKRowButton, "\(family): \(id) button")
+                try XCTUnwrap(button.onTap, "\(family): \(id) tap")()
+            }
+            func blocked(_ count: Int, _ what: String) async {
+                let reached = await FeatureHost.settleAsync(until: { live.caller.blockedCommands >= count })
+                XCTAssertTrue(reached, "\(family): \(what) was not refused and counted (\(live.caller.blockedCommands))")
+                XCTAssertEqual(live.caller.blockedCommands, count, "\(family): \(what)")
+            }
+
+            // A household toggle through the household provider.
+            try tap("w-toggle")
+            await blocked(1, "household toggle")
+
+            // Sign-out through the profile provider: confirm, then the closure is refused and the failure alert offers Cancel.
+            try tap("w-signout")
+            let confirm = try XCTUnwrap(FeatureHost.alert(on: renderer), "\(family): sign-out confirmation")
+            XCTAssertTrue(FeatureHost.answer(confirm, AlertCopy.signOut.confirm.title))
+            await blocked(2, "sign-out")
+            if let failed = FeatureHost.alert(on: renderer) { _ = FeatureHost.answer(failed, "Cancel") }
+
+            // The Home Assistant web page action: refused at the action with the preview's own notice, no request.
+            try tap("w-haweb")
+            let notice = try XCTUnwrap(FeatureHost.alert(on: renderer), "\(family): web page notice")
+            XCTAssertEqual(notice.title, "Unavailable in Preview", family)
+            _ = FeatureHost.answer(notice, "OK")
+            XCTAssertEqual(live.caller.blockedCommands, 2, "\(family): the web action sends nothing")
+
+            // The app icon: held in the preview's model only.
+            let preferences = try XCTUnwrap(supply.settings["preferences"] as? UKServerUIPreferencesProvider)
+            try tap("w-icon")
+            let chosen = await FeatureHost.settleAsync(until: { preferences.icons.selected == .midnightGold })
+            XCTAssertTrue(chosen, "\(family): the choice shows in the preview's own model")
+            XCTAssertNil(UIApplication.shared.alternateIconName, "\(family): the system icon is untouched")
+            XCTAssertEqual(group?.string(forKey: ActivityAppIconStore.key), groupIcon, "\(family): the app group is untouched")
+
+            // A preferences write lands in the isolated suite only.
+            try preferences.setBlur(55)
+            let isolated = try XCTUnwrap(UserDefaults(suiteName: defaultsName))
+            XCTAssertEqual(isolated.object(forKey: BackdropBlur.defaultsKey) as? Int, 55, family)
+            XCTAssertEqual(UserDefaults.standard.object(forKey: BackdropBlur.defaultsKey) as? Int, standardBlur,
+                           "\(family): standard defaults are untouched")
+
+            // Feedback filing never files.
+            let feedback = try XCTUnwrap(supply.settings["feedback-bug"] as? UKServerUIFeedbackProvider)
+            feedback.model.title = "Synthetic"
+            feedback.model.descriptionText = "Synthetic report"
+            await feedback.model.checkAvailability()
+            feedback.model.submit(platform: .ios, diagnostics: {
+                FeedbackDiagnostics(app: "T", system: "iOS", device: "T", window: "T", homeAssistant: "T", accessibility: "T", locale: "en")
+            })
+            await FeatureHost.settleAsync(0.3)
+            if case .finished = feedback.model.phase { XCTFail("\(family): a report was filed") }
+
+            // The admin to-do upload, through the same services the records were built over.
+            let todo = ServerUITodoProvider(configuration: try .init(entityId: "todo.synthetic", canAdd: true, allowsAttachments: true),
+                store: TodoStore(service: providers.services), service: providers.services)
+            let image = AdminTodoUpload.Image(data: Data([1, 2, 3]), filename: "a.png", mimeType: "image/png")
+            do { try await todo.add(name: "Synthetic", images: [image], accessToken: { "synthetic" }); XCTFail("\(family): an upload went out") }
+            catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, family) }
+            XCTAssertEqual(live.caller.blockedCommands, 3, "\(family): upload")
+
+            // A data flow's call through the host the flows run on.
+            do {
+                _ = try await providers.flowHost(entitySources: [:]).call("light", "turn_on", [:], [:], .seconds(1))
+                XCTFail("\(family): a flow call went out")
+            } catch { XCTAssertEqual(error as? UKServerUIPreviewLiveData.Failure, .commandsDisabled, family) }
+            XCTAssertEqual(live.caller.blockedCommands, 4, "\(family): flow call")
+            XCTAssertEqual(live.connection.status, .disconnected, "\(family): nothing reached the connection")
+        }
     }
 
     // MARK: Hosted UX and accessibility
@@ -203,7 +359,7 @@ final class ServerUIPreviewLiveProvidersTests: XCTestCase {
             backdrop: ServerUIRendererFixture.backdrop()), "With no providers the layout is refused whole, as it was")
         for (family, size) in [("iPhone", CGSize(width: 390, height: 844)), ("Duo", CGSize(width: 466, height: 678)),
                                ("iPad", CGSize(width: 820, height: 1180))] {
-            let (live, providers) = try make()
+            let (live, providers, _) = try make()
             let backdrop = try ServerUIRendererFixture.backdrop()
             let supply = try providers.supply(for: publication, blur: backdrop.blur)
             let prepared = try UKServerUIPreview.Prepared(publication: publication, context: live.context, assets: assets,
