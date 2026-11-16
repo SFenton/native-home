@@ -63,6 +63,13 @@ final class ServerUIAppearanceHostedTests: XCTestCase {
         return root
     }
 
+    /// Draws the page in `style`. The page pins its own appearance (pages stay dark), so the override goes on the page's view, below the window.
+    private func setStyle(_ style: UIUserInterfaceStyle, _ root: UKServerUIPage) {
+        window?.overrideUserInterfaceStyle = style
+        root.view.overrideUserInterfaceStyle = style
+        HostedPage.wait(0.1)
+    }
+
     private func row(_ root: UKServerUIPage) throws -> UKModuleToggleRow {
         let node = try XCTUnwrap(root.nodes["auto-clean-row"]?.view as? UKServerUILocalControl)
         return try XCTUnwrap(node.drawnControl as? UKModuleToggleRow)
@@ -88,8 +95,7 @@ final class ServerUIAppearanceHostedTests: XCTestCase {
             let root = try page(width: width)
             let row = try self.row(root)
             for (style, expected) in [(UIUserInterfaceStyle.light, Self.light), (.dark, Self.dark)] {
-                window?.overrideUserInterfaceStyle = style
-                HostedPage.wait(0.1)
+                setStyle(style, root)
                 root.view.layoutIfNeeded()
                 XCTAssertEqual(row.traitCollection.userInterfaceStyle, style, "width \(width)")
                 XCTAssertEqual(try packed(row.row.rowContent.glyph, in: row), expected, "the row's glyph colour, \(style.rawValue), width \(width)")
@@ -103,11 +109,9 @@ final class ServerUIAppearanceHostedTests: XCTestCase {
     func testAChangeOfAppearanceRedrawsTheSameRowWithNoReload() throws {
         let root = try page(width: 390)
         let row = try self.row(root)
-        window?.overrideUserInterfaceStyle = .light
-        HostedPage.wait(0.1)
+        setStyle(.light, root)
         let before = try packed(row.row.rowContent.glyph, in: row)
-        window?.overrideUserInterfaceStyle = .dark
-        HostedPage.wait(0.1)
+        setStyle(.dark, root)
         let after = try packed(row.row.rowContent.glyph, in: row)
         XCTAssertNotEqual(before, after, "the colour followed the trait collection")
         XCTAssertTrue(try self.row(root) === row, "the row was not rebuilt")
@@ -121,8 +125,7 @@ final class ServerUIAppearanceHostedTests: XCTestCase {
             let root = try page(width: width)
             let row = try self.row(root)
             for style in [UIUserInterfaceStyle.light, .dark] {
-                window?.overrideUserInterfaceStyle = style
-                HostedPage.wait(0.1)
+                setStyle(style, root)
                 root.view.layoutIfNeeded()
                 XCTAssertEqual(row.accessibilityLabel, "Auto-Clean", "width \(width)")
                 XCTAssertTrue(row.accessibilityTraits.contains(.toggleButton))
@@ -184,7 +187,7 @@ final class ServerUIAppearanceHostedTests: XCTestCase {
         try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
         let root = try page(width: 390)
         for (name, style) in [("01-auto-clean-glyph-light", UIUserInterfaceStyle.light), ("02-auto-clean-glyph-dark", .dark)] {
-            window?.overrideUserInterfaceStyle = style
+            setStyle(style, root)
             HostedPage.wait(0.4)
             let view = try XCTUnwrap(root.view.window ?? root.view)
             let image = UIGraphicsImageRenderer(bounds: CGRect(x: 0, y: 0, width: view.bounds.width, height: 220)).image { _ in
