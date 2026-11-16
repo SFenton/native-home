@@ -37,6 +37,23 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
              states: ["closed", "open", "opening", "closing", "stopped", "unavailable", "unknown"]),
     ]
 
+    /// The words the tile reads for each state: the fixture's authored text, "Unknown" for a state it does not author, "Unavailable"
+    /// for an entity that is not there. The test waits for them, never for a time.
+    private static let words: [String: String] = [
+        "locked": "Locked", "unlocked": "Unlocked", "locking": "Locking", "unlocking": "Unlocking", "open": "Unknown",
+        "jammed": "Jammed", "unavailable": "Unavailable", "unknown": "Unavailable", "stuck": "Unknown",
+        "closed": "Closed", "opening": "Opening", "closing": "Closing", "stopped": "Unknown",
+    ]
+
+    /// Applies `state` and suspends until the tile's accessibility value says it, within a bound that counts passes.
+    private func show(_ state: String, of door: Door, in host: UKServerUIRenderer, _ view: UKGlassTileView) async {
+        host.pageContext.store.apply([EntityState(entityId: door.entity, state: state)])
+        var expected = Self.words[state] ?? state
+        if door.tile == "demo-garage-control", state == "open" { expected = "Open" }
+        let landed = await HostedPage.settle { (view.accessibilityValue ?? "").hasPrefix(expected) }
+        XCTAssertTrue(landed, "\(door.tile) never read \(expected) for \(state); read \(view.accessibilityValue ?? "nil")")
+    }
+
     private static func snapshot(_ view: UKGlassTileView) -> Snapshot {
         let model = view.model
         var result: Snapshot = [
@@ -67,8 +84,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
             defer { window.isHidden = true }
             let view = try tile(host, door.tile)
             for state in door.states {
-                host.pageContext.store.apply([EntityState(entityId: door.entity, state: state)])
-                await HostedPage.pump(passes: 30)
+                await show(state, of: door, in: host, view)
                 all["\(door.tile)/\(state)"] = Self.snapshot(view)
             }
         }
@@ -80,20 +96,19 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
                 let (host, window) = try ServerUISecurityHostedFixture.host(caller: caller)
                 defer { window.isHidden = true }
                 host.pageContext.store.apply([EntityState(entityId: door.entity, state: start)])
-                await HostedPage.pump(passes: 30)
+                await HostedPage.pump(passes: 5)
                 let view = try tile(host, door.tile)
                 let disc = try XCTUnwrap(view.model.actions.first?.id)
                 let name = "\(door.tile)/tap-\(failing ? "fails" : "sends")"
                 view.onPerform?(disc)
-                await HostedPage.pump(passes: 2)
                 all["\(name)/during"] = Self.snapshot(view)
-                await HostedPage.pump(passes: 20)
+                await HostedPage.settle { !caller.calls.isEmpty }
+                await HostedPage.pump(passes: 10)
                 all["\(name)/after"] = Self.snapshot(view)
                 all["\(name)/calls"] = ["calls": caller.calls.joined(separator: ",")]
                 if !failing {
                     let moving = door.tile == "demo-lock-control" ? "unlocking" : "opening"
-                    host.pageContext.store.apply([EntityState(entityId: door.entity, state: moving)])
-                    await HostedPage.pump(passes: 30)
+                    await show(moving, of: door, in: host, view)
                     all["\(name)/confirmed"] = Self.snapshot(view)
                 }
             }
