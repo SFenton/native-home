@@ -42,10 +42,19 @@ enum ModalTabBarStyle {
     ///   - hasBadges: The caller supplied a count per section, which the system's segmented control cannot draw.
     ///   - compactWidth: Compact horizontal size class (iPhone, folded Duo).
     ///   - accessibilitySize: An accessibility Dynamic Type size.
-    static func form(hasSymbols: Bool, hasBadges: Bool = false, compactWidth: Bool, accessibilitySize: Bool) -> Form {
+    ///   - labels: What the document asks each segment to show (`sh.tab-bar@1`); the default decides by size.
+    static func form(hasSymbols: Bool, hasBadges: Bool = false, compactWidth: Bool, accessibilitySize: Bool,
+                     labels: ServerUITabBar.Labels = .bySize) -> Form {
         if accessibilitySize { return .menu }
-        if hasBadges { return hasSymbols && compactWidth ? .badged : .badgedWithTitles }
-        return hasSymbols && compactWidth ? .icons : .text
+        switch labels {
+        case .bySize:
+            if hasBadges { return hasSymbols && compactWidth ? .badged : .badgedWithTitles }
+            return hasSymbols && compactWidth ? .icons : .text
+        case .icons: return hasBadges ? .badged : .icons
+        // Titles keep a count: a titled segment with no icon draws its title and speaks the count.
+        case .titles: return hasBadges ? .badgedWithTitles : .text
+        case .iconsAndTitles: return .badgedWithTitles
+        }
     }
 
     /// A badge as drawn: capped at "9+" like the header's Profile badge; nil for none.
