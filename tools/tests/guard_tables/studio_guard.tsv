@@ -115,3 +115,47 @@ python3 -c "import studio_publish"	block	a python import of a studio_publish mod
 git add scripts/studio-publish.ts tests/studio-publish.test.ts	allow	staging the CLI	agent
 grep -n studio-publish docs/agent-publish.md	allow	searching for the CLI's name	agent
 git commit -F - <<'EOF'\nGuard :4801 and studio-publish\nEOF\npython3 tools/tests/test_studio_guard.py	allow	a commit-message heredoc is not fed to the later interpreter	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/native-v2/state.json	block	output redirected into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status >{STUDIO}/native-v2/state.json	block	glued redirect into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status 2>> {STUDIO}/native-v2/err	block	stderr appended into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > $DATA_DIR/out.json	block	output redirected into $DATA_DIR	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/native-v2/l.jsonl	block	--log into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log={STUDIO}/.studio.lock	block	--log= onto the studio lock	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/data/l.jsonl	block	--log into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log={STUDIO}/data/l.jsonl	block	--log= into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/data/out.txt	block	output redirected into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status 2>{STUDIO}/data/e	block	glued stderr redirect into the data folder	agent
+@cwd {STUDIO} {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log data/l.jsonl	block	a relative --log into the data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > /tmp/studio-out.txt	allow	output redirected to an ordinary file	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log /tmp/studio-log.jsonl	allow	--log to an ordinary file	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/docs/l.jsonl	allow	--log into a source folder of the checkout	agent
+@cwd {STUDIO} cd {NOTSTUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a look-alike, then the relative form	agent
+@cwd {STUDIO} cd {NOTSTUDIO}; node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a look-alike with a semicolon	agent
+@cwd {STUDIO} cd {NOTSTUDIO} || node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd joined by or	agent
+@cwd {STUDIO} cd "$X" && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a variable, then the relative form	agent
+@cwd {STUDIO} cd - && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd - leaves the cwd unknown	agent
+@cwd {STUDIO} pushd {NOTSTUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	block	pushd leaves the cwd unknown	agent
+@cwd {NOTSTUDIO} cd {STUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	allow	cd into the real checkout, then the relative form	agent
+@cwd {STUDIO} cd {STUDIO}/scripts && {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an absolute form after a cd	agent
+@cwd {STUDIO} cd {NOTSTUDIO} && {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an absolute form is judged by its own paths	agent
+NODE_OPTIONS=--import=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS in front of the CLI	agent
+NODE_OPTIONS="--import=data:text/javascript,fetch('http://127.0.0.1:4801/native/api/draft')" {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS carrying a draft call	agent
+NODE_PATH=/tmp {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_PATH in front of the CLI	agent
+TSX_TSCONFIG_PATH=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	a TSX_ variable	agent
+LD_PRELOAD=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	LD_PRELOAD	agent
+DYLD_INSERT_LIBRARIES=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	DYLD_INSERT_LIBRARIES	agent
+env NODE_OPTIONS=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS through env	agent
+env -i FOO=1 NODE_PATH=/tmp {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_PATH through env -i	agent
+env -S 'NODE_OPTIONS=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status'	block	NODE_OPTIONS inside a split string	agent
+FOO=/x/native-v2/y {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	a prefix value naming native-v2	agent
+FOO=bar {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an ordinary variable in front of the CLI	agent
+NODE_OPTIONS="--import=data:x,fetch('http://127.0.0.1:4801/native/api/draft')" node -e 1	block	a prefix value naming the draft route	agent
+X=http://127.0.0.1:4801 curl -s $X/x	block	a prefix value naming a Studio port for a network client	agent
+{LINK}/node_modules/.bin/tsx {LINK}/scripts/studio-publish.ts status	allow	a symlinked checkout path is the same real CLI	agent
+{LINK}/node_modules/.bin/tsx {NOTSTUDIO}/scripts/studio-publish.ts status	block	a symlinked tsx with a look-alike script	agent
+bash -c '{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status'	block	bash -c around the CLI	agent
+sh -c "{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/native-v2/s"	block	sh -c with a redirect into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	a chained draft write	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status; cp x {STUDIO}/native-v2/s	block	a chained copy into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee {STUDIO}/native-v2/s	block	tee into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee /tmp/studio-status.txt	allow	tee to an ordinary file	agent

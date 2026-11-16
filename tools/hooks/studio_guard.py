@@ -22,7 +22,9 @@ Blocked, in an agent session:
 - **Exempt:** one exact form, the whole simple command, and only for a real Studio checkout (a directory with ``package.json`` named
   ``native-home-studio``, a ``.git`` entry and ``scripts/studio-publish.ts``): ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts <sub> ...``
   (absolute, or relative to a cwd inside a checkout; no ``..`` segment, no other tsx option; the script must resolve to ``scripts/studio-publish.ts``
-  of the checkout); there is no npm form. Of its subcommands ``apply``, ``publish``,
+  of the checkout; a relative path is read against the cwd after any earlier ``cd``, and refused when that ``cd`` cannot be followed); there is no npm form.
+  The data-directory rules still apply to the exempt form's words, redirect targets and ``--log`` (native-v2, ``.studio.lock``, ``$DATA_DIR``,
+  ``<checkout>/data``), and a ``NODE_*``, ``TSX_*``, ``LD_*`` or ``DYLD_*`` variable in front of it is refused. Of its subcommands ``apply``, ``publish``,
   ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
   in a headless session; ``status`` and ``check`` run for every agent. Any other word naming the CLI (``studio-publish``, ``studio:publish``,
   ``studio_publish``) in a command that runs code is refused; a test file such as ``tests/studio-publish.test.ts`` is not the CLI.
@@ -122,12 +124,15 @@ def studio_root(path: str) -> str:
     return ""
 
 
-def absolute(word: str, cwd: str) -> Optional[str]:
-    """``word`` as an absolute path against ``cwd`` (``~`` expanded), or ``None`` when it has a ``.`` or ``..`` segment (a traversal trick)."""
+def absolute(word: str, cwd: Optional[str]) -> Optional[str]:
+    """``word`` as an absolute path against ``cwd`` (``~`` expanded), or ``None`` when it has a ``.`` or ``..`` segment (a traversal trick)
+    or is relative while ``cwd`` is unknown (after a ``cd`` whose target the guard cannot follow)."""
     given = os.path.expanduser(word)
     if any(part in ("..", ".") for part in given.split("/")[1:]) or given.startswith("../") or given == "..":
         return None
-    return given if os.path.isabs(given) else os.path.join(cwd, given)
+    if os.path.isabs(given):
+        return given
+    return os.path.join(cwd, given) if cwd else None
 
 
 def is_tool_call(words: List[str], payload: dict, project: str) -> Optional[List[str]]:
@@ -135,7 +140,7 @@ def is_tool_call(words: List[str], payload: dict, project: str) -> Optional[List
 
     ``<checkout>/node_modules/.bin/tsx <checkout>/scripts/studio-publish.ts ...``: both paths in a real Studio checkout, and the script's real path
     is ``<checkout>/scripts/studio-publish.ts``."""
-    cwd = str(payload.get("cwd") or project or os.getcwd())
+    cwd = None if payload.get("_cd_unknown") else str(payload.get("cwd") or project or os.getcwd())
     if len(words) >= 3 and os.path.basename(words[0]) == "tsx" and (words[0] == "node_modules/.bin/tsx" or words[0].endswith("/node_modules/.bin/tsx")):
         tsx, script = absolute(words[0], cwd), absolute(words[1], cwd)
         if tsx is None or script is None:
@@ -192,16 +197,70 @@ def git_reads(words: List[str]) -> bool:
     return bool(rest) and rest[0] in GIT_READS and not any(GIT_RUNS.match(w) or GIT_PAGER_SHORT.match(w) for w in rest[1:])
 
 
+#: Variables that make node, tsx or the loader run code of their own: refused as a prefix of the exempt form.
+LOADER_VAR = re.compile(r"(?<![A-Za-z0-9_])(?:NODE_\w*|TSX_\w*|LD_\w*|DYLD_\w*)=", re.I)
+#: A word that is, or starts with, a redirect operator or ``--option=``: the path it carries is the part after.
+PATH_PREFIX = re.compile(r"^(?:[0-9]*>>?&?|&>>?|--[A-Za-z-]+=)")
+
+
+def word_reason(word: str, *, network: bool, interp: bool, reads_text: bool, searcher: bool, data_only: bool = False) -> str:
+    """Why one word of a simple command is refused: a Studio route, port or data-directory name. ``data_only`` skips the route and port rules
+    (the exempt CLI may name its own base URL)."""
+    if not data_only:
+        if ROUTE.search(word) and not reads_text:
+            return "a Studio API route"
+        if (network or interp) and not reads_text and (PORT.search(word) or PORT_WORD.match(word)):
+            return "a Studio port"
+    if NATIVE_V2.search(word) or LOCK.search(word):
+        return "the Studio's data directory"
+    if BARE_NATIVE_V2.match(word) and not searcher:
+        return "the Studio's data directory"
+    if DATA_DIR_VAR.search(word) or STUDIO_DATA.search(word):
+        return "the Studio's data directory"
+    return ""
+
+
+def checkout_data(word: str, cwd: Optional[str], root: str) -> bool:
+    """Does the path in ``word`` (a redirect target, ``--log=PATH`` or a plain path) resolve into ``<checkout>/data``?"""
+    path = PATH_PREFIX.sub("", word)
+    if not path:
+        return False
+    given = os.path.expanduser(path)
+    if not os.path.isabs(given):
+        if not cwd:
+            return False
+        given = os.path.join(cwd, given)
+    real = os.path.realpath(given)
+    return real == os.path.join(root, "data") or real.startswith(os.path.join(root, "data") + os.sep)
+
+
 def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, interp: bool = False) -> str:
     """Why one simple command is refused (empty when it passes)."""
+    original = words
     words = strip_prefixes(words)
     if not words or depth > 3:
         return ""
     base = os.path.basename(words[0])
     program = program_of(base)
+    try:
+        prefix = original[:original.index(words[0])]
+    except ValueError:
+        prefix = original  # an ``env -S`` string: judge the whole text
     args = is_tool_call(words, payload, project)
     if args is not None:
+        if LOADER_VAR.search(" ".join(prefix)):
+            return "a loader variable (NODE_*, TSX_*, LD_*, DYLD_*) in front of the publish CLI"
+        cwd = None if payload.get("_cd_unknown") else str(payload.get("cwd") or project or os.getcwd())
+        root = studio_root(os.path.dirname(os.path.dirname(os.path.dirname(absolute(words[0], cwd) or "/"))))
+        for word in [*prefix, *words[1:]]:
+            why = word_reason(word, network=True, interp=False, reads_text=False, searcher=False, data_only=True)
+            if why or (root and checkout_data(word, cwd, root)):
+                return why or "the Studio's data directory"
         return tool_reason(args, payload)
+    for word in prefix:
+        why = word_reason(word, network=program in NETWORK, interp=interp, reads_text=False, searcher=False)
+        if why:
+            return why
     if base == TOOL:  # run directly: the CLI runs only through tsx from a Studio checkout
         return "studio-publish.ts run directly or outside a Studio checkout"
     if (program in NETWORK or program in RUNNERS or program in SHELLS) and any(TOOL_WORD.search(w) for w in words[1:]):
@@ -231,16 +290,9 @@ def words_reason(words: List[str], payload: dict, project: str, depth: int = 0, 
         if word in PROSE_OPTIONS:
             prose = True
             continue
-        if ROUTE.search(word) and not reads_text:
-            return "a Studio API route"
-        if (network or interp) and not reads_text and (PORT.search(word) or PORT_WORD.match(word)):
-            return "a Studio port"
-        if NATIVE_V2.search(word) or LOCK.search(word):
-            return "the Studio's data directory"
-        if BARE_NATIVE_V2.match(word) and not searcher:
-            return "the Studio's data directory"
-        if DATA_DIR_VAR.search(word) or STUDIO_DATA.search(word):
-            return "the Studio's data directory"
+        why = word_reason(word, network=network, interp=interp, reads_text=reads_text, searcher=searcher)
+        if why:
+            return why
     return ""
 
 
@@ -264,6 +316,24 @@ def prose_heredoc(command: str, match: "re.Match[str]") -> bool:
     return False
 
 
+def follow_cd(payload: dict, segments: list, previous: int) -> dict:
+    """The payload as segment ``previous + 1`` sees it: its cwd after the ``cd`` in segment ``previous``. A ``cd`` the guard cannot follow
+    (a variable, ``-``, no argument, ``pushd``/``popd``, or one joined by ``||``, a pipe or ``&``) leaves the cwd unknown (``_cd_unknown``),
+    so a relative path in the exempt form is refused."""
+    if previous < 0:
+        return payload
+    words = strip_prefixes(segments[previous][1])
+    if not words or os.path.basename(words[0]) not in ("cd", "pushd", "popd", "chdir"):
+        return payload
+    following = segments[previous + 1][0] if previous + 1 < len(segments) else ""
+    target = words[1] if len(words) > 1 else ""
+    if payload.get("_cd_unknown") or os.path.basename(words[0]) != "cd" or following in ("||", "|", "|&", "&") or not target or target.startswith("-") or "$" in target or "`" in target:
+        return dict(payload, _cd_unknown=True)
+    given = os.path.expanduser(target)
+    base = str(payload.get("cwd") or "")
+    return dict(payload, cwd=os.path.normpath(given if os.path.isabs(given) else os.path.join(base, given)))
+
+
 def command_reason(command: str, payload: dict, project: str) -> str:
     """Why a Bash command is refused (empty when it passes).
 
@@ -274,6 +344,7 @@ def command_reason(command: str, payload: dict, project: str) -> str:
     segments = tokenize(command)
     code = [runs_code(words) for _op, words in segments]
     for i, (_op, words) in enumerate(segments):
+        payload = follow_cd(payload, segments, i - 1)
         # a command that feeds, or is fed by, code through a pipe counts as part of that code's input
         piped = (i > 0 and segments[i][0].startswith("|") and code[i - 1]) or (i + 1 < len(segments) and segments[i + 1][0].startswith("|") and code[i + 1])
         why = words_reason(words, payload, project, interp=bool(piped))

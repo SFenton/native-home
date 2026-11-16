@@ -82,7 +82,7 @@ _FIXTURES = {}
 def studio_fixtures():
     """``(studio, notstudio)``: two temp directories laid out like a Studio checkout. ``studio`` has a ``.git`` entry, a ``package.json`` named
     ``native-home-studio``, ``scripts/studio-publish.ts`` and ``node_modules/.bin/tsx``; ``notstudio`` has the same files but another package name
-    and no ``.git``. A guard table uses them as ``{STUDIO}`` and ``{NOTSTUDIO}`` (``studio_guard`` recognises a Studio checkout from disk)."""
+    and no ``.git``. A guard table uses them as ``{STUDIO}``, ``{NOTSTUDIO}`` and ``{LINK}`` (a symlink to ``studio``) (``studio_guard`` recognises a Studio checkout from disk)."""
     if not _FIXTURES:
         holder = tempfile.TemporaryDirectory()
         _FIXTURES["holder"] = holder
@@ -96,6 +96,8 @@ def studio_fixtures():
             if git:
                 (root / ".git").write_text("gitdir: /nonexistent\n")
             _FIXTURES[name] = str(root)
+        os.symlink(_FIXTURES["studio"], os.path.join(holder.name, "link"))
+        _FIXTURES["link"] = os.path.join(holder.name, "link")
     return _FIXTURES["studio"], _FIXTURES["notstudio"]
 
 
@@ -106,9 +108,9 @@ def rows(name):
         if not line.strip() or line.startswith("#"):
             continue
         command, expect, why, *mode = line.split("\t")
-        if "{STUDIO}" in command or "{NOTSTUDIO}" in command:
+        if "{STUDIO}" in command or "{NOTSTUDIO}" in command or "{LINK}" in command:
             studio, notstudio = studio_fixtures()
-            command = command.replace("{STUDIO}", studio).replace("{NOTSTUDIO}", notstudio)
+            command = command.replace("{STUDIO}", studio).replace("{NOTSTUDIO}", notstudio).replace("{LINK}", _FIXTURES["link"])
         out.append((command.replace("\\n", "\n").replace("{FLAG}", FLAG), expect, why, mode[0] if mode else ""))
     return out
 
