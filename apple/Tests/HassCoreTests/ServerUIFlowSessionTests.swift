@@ -20,6 +20,7 @@ final class FakeFlowFeed: ServerUIFlowFeed, @unchecked Sendable {
 
 /// The runtime of a Data Flow: a feed, a session and the connection feed over a mock HAKit connection.
 @MainActor
+@Suite(.timeLimit(.minutes(1)))
 struct ServerUIFlowSessionTests {
     // MARK: Flows
 
