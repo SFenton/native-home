@@ -481,8 +481,12 @@ final class UKServerUIBindings {
             let phase = alarm.projection.spec.phase
             return .ready(.string(context.valuesPending ? "loading" : phase == .ready ? "ready" : phase == .inFlight ? "inFlight" : "unavailable"))
         case .securityDoor:
-            guard read.path == ["phase"], let door = doors[read.sourceId] else { return .unavailable }
-            return .ready(.string(context.valuesPending ? "loading" : door.spec.phase == .ready ? "ready" : door.spec.phase == .inFlight ? "inFlight" : "unavailable"))
+            // The door's phase comes from the entity alone: the tile that shows it is a `state-tile` (`ServerUIDoorLowering`).
+            guard read.path == ["phase"], case .securityDoor(_, let entityID, _)? = definitions[read.sourceId] else { return .unavailable }
+            if context.valuesPending { return .ready(.string("loading")) }
+            let live = context.store.entity(entityID).state
+            let sendable = context.caller != nil && context.connection.map({ SecurityScreen.canSend($0.status) }) != false
+            return .ready(.string(sendable && !ScreenshotPrivacy.isRedacting && live?.isUnavailable == false ? "ready" : "unavailable"))
         case .climate:
             guard read.path.count == 1, let climate = climates[read.sourceId] else { return .unavailable }
             if read.path != ["phase"] {

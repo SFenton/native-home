@@ -42,13 +42,16 @@ import Testing
     @Test func compilesTypedOrderedModesAndDomainSpecificDoorSources() throws {
         let publication = try decode(fixture())
         let components = publication.document.pages[0].surface.components
-        guard case .alarmPanel(let panel) = components[1], case .doorTile(let lock) = components[2],
-              case .doorTile(let garage) = components[3] else { Issue.record("Missing security primitives"); return }
+        guard case .alarmPanel(let panel) = components[1], case .stateTile(let lock) = components[2],
+              case .stateTile(let garage) = components[3] else { Issue.record("Missing security primitives"); return }
         #expect(panel.modes.map(\.state) == ["disarmed", "armed_home", "armed_away", "armed_night"])
         #expect(panel.confirmation.spec.confirmVerb == "Disarm")
         #expect(panel.confirmation.cancelLabel == "Cancel")
-        #expect(lock.kind == .lock && garage.kind == .garage)
-        #expect(lock.sourceId == "demo-lock" && garage.sourceId == "demo-garage")
+        // A `door-tile` lowers to a `state-tile` over the built-in lock or garage-door style, carried by a saved style of its own.
+        #expect(lock.binding.builtIn == "lock" && garage.binding.builtIn == "garage-door")
+        #expect(lock.binding.entityId == "lock.demo_unit" && garage.binding.entityId == "cover.demo_unit")
+        #expect(lock.binding.styleId == "demo-lock-control.door" && garage.binding.styleId == "demo-garage-control.door")
+        #expect(publication.document.stateStyles?.style(id: "demo-garage-control.door") != nil)
         #expect(publication.capabilities.contains("sh.alarm-panel@1"))
         #expect(ServerUICompositionPublication.firstSliceCapabilities.count == 14)
     }

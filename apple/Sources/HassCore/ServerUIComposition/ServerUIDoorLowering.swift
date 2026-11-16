@@ -15,6 +15,8 @@ struct ServerUIDoorTileProps: Equatable, Sendable {
     let kind: D.DoorKind
     let states: [D.DoorStateAppearance]
     let fallback: D.AlarmAppearance
+    let loadingText: String
+    let hiddenText: String
     let unavailableText: String
     let errorText: String
     let sendingOpenText: String
@@ -67,9 +69,19 @@ enum ServerUIDoorLowering {
     static func lower(_ props: ServerUIDoorTileProps, entityId: String) -> (tile: D.StateTile, style: ServerUIStateStyleLibrary.Entry) {
         let base = props.kind == .lock ? StateStyle.lock : StateStyle.garageDoor
         let style = derive(base, props)
-        let tile = D.StateTile(node: props.node, icon: props.fallback.icon,
+        var tile = D.StateTile(node: props.node, icon: props.fallback.icon,
                                binding: ServerUIStateTileBinding(entityId: entityId, styleId: style.id, builtIn: base.id, overrides: []))
+        tile.parts.subtitle = loadingSubtitle(props)
         return (tile, .init(style: style, base: base.id))
+    }
+
+    /// The words under the title while values load: the door's own phase read says `loading`, and any other answer is no answer, so the
+    /// tile keeps the style's state words (a subtitle that cannot be read is not drawn).
+    private static func loadingSubtitle(_ props: ServerUIDoorTileProps) -> D.StringValue {
+        let phase = ServerUIOperand.read(sourceId: props.sourceId, path: ["phase"], as: .string)
+        let silent = ServerUIOperand.read(sourceId: props.sourceId, path: ["words"], as: .string)
+        return .expression(.map(of: phase, cases: [.init(equals: .string("loading"), then: .literal(.string(props.loadingText)))],
+                                otherwise: silent), fallback: nil)
     }
 
     // MARK: Deriving the style
