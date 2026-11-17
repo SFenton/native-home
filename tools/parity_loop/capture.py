@@ -60,9 +60,35 @@ class Agent:
             return self.call("press", f"{point[0]:g}", f"{point[1]:g}")
         return self.call("press", f'label="{label}"')
 
-    def scroll_bottom(self) -> Dict[str, Any]:
-        """Scroll the page's main scroll view to the end of its content (``agent-device scroll bottom``)."""
-        return self.call("scroll", "bottom")
+    def scroll_bottom(self, max_swipes: int = 8) -> Dict[str, Any]:
+        """Scroll the page's main scroll view to the end of its content.
+
+        ``agent-device scroll bottom`` first; some pages ignore a synthesized scroll ("moved nothing across 3 passes"), so on a refusal
+        the page is dragged with ``swipe`` instead (the command's own hint), from the lower-middle to the upper-middle of the screen,
+        until the AX frames stop changing (the end) or ``max_swipes`` is reached. Returns ``success`` and the ``method`` used.
+        """
+        first = self.call("scroll", "bottom")
+        if first.get("success"):
+            return {**first, "method": "scroll"}
+        rects = [r for n in self.snapshot() if (r := _node_rect(n))]  # the screen is the largest frame (the Application node)
+        screen = max(rects, key=lambda r: r["width"] * r["height"], default=None)
+        if not screen:
+            return first
+        x, top, bottom = screen["x"] + screen["width"] / 2, screen["y"] + screen["height"] * 0.3, screen["y"] + screen["height"] * 0.7
+        before = self.frames()
+        for count in range(1, max_swipes + 1):
+            if not self.call("swipe", f"{x:g}", f"{bottom:g}", f"{x:g}", f"{top:g}").get("success"):
+                return {"success": False, "method": "swipe", "swipes": count - 1}
+            self.settle()
+            after = self.frames()
+            if after == before:
+                return {"success": True, "method": "swipe", "swipes": count}
+            before = after
+        return {"success": True, "method": "swipe", "swipes": max_swipes}
+
+    def frames(self) -> List[Any]:
+        """The frames of the labelled nodes now on screen: equal before and after a swipe means the page did not move."""
+        return [(_ax_label(n), _frame(n)) for n in self.snapshot() if _ax_label(n)]
 
     def settle(self) -> Dict[str, Any]:
         return self.call("wait", "stable", "1000", "15000")

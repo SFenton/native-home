@@ -96,6 +96,8 @@ class FakeWorld:
         data: Dict[str, Any] = {}
         if verb == "snapshot":
             data = {"nodes": self.nodes[side]}
+        elif verb == "scroll" and not getattr(self, "scroll_works", True):
+            return Result(0, json.dumps({"success": False, "error": {"code": "COMMAND_FAILED", "message": "scroll bottom moved nothing"}}))
         elif verb == "settings":
             return Result(0, json.dumps({"success": self.appearance_works}))
         elif verb == "screenshot":

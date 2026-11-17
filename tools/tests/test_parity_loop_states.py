@@ -310,6 +310,22 @@ class PairingTests(unittest.TestCase):
         with self.assertRaises(faults.Refused):
             faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], env=HOLD, stops=["middle"])
 
+    def test_a_page_that_ignores_scroll_is_dragged_with_swipe_until_it_stops_moving(self) -> None:
+        self.world.scroll_works = False
+        agent = capture.Agent("fake-agent reference", self.world)
+        result = agent.scroll_bottom()
+        self.assertEqual((result["success"], result["method"]), (True, "swipe"))
+        swipes = [c for c in self.world.calls["reference"] if c[0] == "swipe"]
+        self.assertEqual(len(swipes), 1)  # the fake page never moves, so the first swipe finds the end
+        x, y1, x2, y2 = (float(v) for v in swipes[0][1:5])
+        self.assertEqual(x, x2)
+        self.assertGreater(y1, y2)
+
+    def test_a_scroll_that_works_uses_no_swipe(self) -> None:
+        result = capture.Agent("fake-agent reference", self.world).scroll_bottom()
+        self.assertEqual(result["method"], "scroll")
+        self.assertFalse([c for c in self.world.calls["reference"] if c[0] == "swipe"])
+
     def test_a_rest_run_never_scrolls(self) -> None:
         faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
         self.assertFalse([c for c in self.world.calls["reference"] if c[0] == "scroll"])
