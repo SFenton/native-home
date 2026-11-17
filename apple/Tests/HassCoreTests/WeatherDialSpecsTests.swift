@@ -122,4 +122,16 @@ struct WeatherDialSpecsTests {
         #expect(ServerUIDialLayout.fittedWidth(available: 300, height: 214.5, aspect: 1.4) == 300, "within half a point")
         #expect(ServerUIDialLayout.fittedWidth(available: 300, height: 100, aspect: 1.4) == 140)
     }
+
+    /// Production drew the ring at `(width / 2, 0.56 * height)` with nothing rounded; so does the dial, at the three families' tiles.
+    @Test(arguments: [(338.0, 229.3), (402.0, 229.3), (306.0, 219.0), (476.0, 229.0)])
+    func theBarometerRingCentreIsNotRounded(tileWidth: Double, tileHeight: Double) {
+        let dial = WeatherDialSpecs.barometer(hasUnit: true)
+        let width = ServerUIDialLayout.fittedWidth(available: tileWidth, height: tileHeight, aspect: dial.aspect)
+        let layout = ServerUIDialLayout.layoutDial(dial.layoutInput(width: width, value: 50, rtl: false))
+        let origin = ServerUIDialLayout.origin(inRoomWidth: tileWidth, roomHeight: tileHeight, width: layout.width, height: layout.height, centerY: dial.centerY)
+        #expect(abs(origin.x + layout.cx - tileWidth / 2) < 0.0002, "centre x is the tile's middle")
+        #expect(abs(origin.y + layout.cy - 0.56 * tileHeight) < 0.0002, "centre y is 0.56 of the tile")
+        #expect(abs(layout.radius - min(tileWidth, 1.4 * tileHeight) / 2) < 0.0002, "radius is production's")
+    }
 }

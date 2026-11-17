@@ -6,7 +6,7 @@ import UIKit
 
 /// The still parts of a dial: the ring of ticks, the one lit tick of a `tick` pointer and the flag, drawn from a ``ServerUIDialLayout/Layout``.
 ///
-/// The view is as big as the dial and a `UIView` draws only inside its bounds, so a tick that reaches past the dial's box (the barometer's top tick
+/// The view is as big as the room the dial is in and a `UIView` draws only inside its bounds, so a tick that reaches past the room (the barometer's top tick
 /// runs from y 1.4 to -8.4 in a 140 pt box) is clipped, as it is today. It redraws only when the layout or the look changes.
 final class UKDialFaceView: UIView {
     /// What the face draws and with which strokes and inks.
@@ -15,6 +15,8 @@ final class UKDialFaceView: UIView {
         var ticks: ServerUIDial.Ticks?
         var pointer: ServerUIDial.Pointer?
         var flag: ServerUIDial.Flag?
+        /// Where the dial's top left stands in the face, which is as big as the room the dial is in.
+        var origin = CGPoint.zero
     }
 
     /// The content now drawn; setting a different one redraws.
@@ -37,9 +39,10 @@ final class UKDialFaceView: UIView {
 
     private func path(_ segments: [ServerUIDialLayout.Segment]) -> UIBezierPath {
         let path = UIBezierPath()
+        let origin = content?.origin ?? .zero
         for segment in segments {
-            path.move(to: CGPoint(x: segment.x1, y: segment.y1))
-            path.addLine(to: CGPoint(x: segment.x2, y: segment.y2))
+            path.move(to: CGPoint(x: origin.x + segment.x1, y: origin.y + segment.y1))
+            path.addLine(to: CGPoint(x: origin.x + segment.x2, y: origin.y + segment.y2))
         }
         return path
     }
@@ -64,8 +67,9 @@ final class UKDialFaceView: UIView {
         }
         if let corners = content.layout.flag, let flag = content.flag {
             let shape = UIBezierPath()
-            shape.move(to: CGPoint(x: corners[0].x, y: corners[0].y))
-            for corner in corners.dropFirst() { shape.addLine(to: CGPoint(x: corner.x, y: corner.y)) }
+            let origin = content.origin
+            shape.move(to: CGPoint(x: origin.x + corners[0].x, y: origin.y + corners[0].y))
+            for corner in corners.dropFirst() { shape.addLine(to: CGPoint(x: origin.x + corner.x, y: origin.y + corner.y)) }
             shape.close()
             UKStyledText.color(flag.ink).resolvedColor(with: traits).setFill()
             shape.fill()

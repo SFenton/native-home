@@ -196,12 +196,13 @@ final class UKDialView: UIView, UKGridMeasuring, UKStackMeasuring {
         let rtl = effectiveUserInterfaceLayoutDirection == .rightToLeft
         let width = dialWidth(forAvailable: bounds.width, height: bounds.height)
         let layout = ServerUIDialLayout.layoutDial(dial.layoutInput(width: Double(width), value: reading.value, rtl: rtl))
-        let frame = CGRect(x: ((bounds.width - width) / 2).rounded(.down), y: max(0, (bounds.height - CGFloat(layout.height)) / 2),
-                           width: width, height: CGFloat(layout.height))
+        let origin = ServerUIDialLayout.origin(inRoomWidth: Double(bounds.width), roomHeight: Double(bounds.height), width: Double(width), height: layout.height,
+                                               centerY: dial.centerY)
+        let frame = CGRect(x: CGFloat(origin.x), y: CGFloat(origin.y), width: width, height: CGFloat(layout.height))
         dialFrame = frame
         placed = layout
-        face.frame = frame
-        face.content = .init(layout: layout, ticks: dial.ticks, pointer: dial.pointer, flag: dial.flag)
+        face.frame = bounds
+        face.content = .init(layout: layout, ticks: dial.ticks, pointer: dial.pointer, flag: dial.flag, origin: frame.origin)
         placeLetters(layout, in: frame)
         placeLines(layout, dial: dial, in: frame)
         placeNeedle(layout, dial: dial, in: frame, animated: animated)

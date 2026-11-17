@@ -297,6 +297,13 @@ public enum ServerUIDialLayout {
         height > 0 && aspect * height < available - 0.5 ? aspect * height : available
     }
 
+    /// Where a dial of `width` by `height` stands in a room `roomWidth` by `roomHeight`: across the middle, and down so that its centre is `centerY` of the
+    /// room's height (the middle of the room for a dial as tall as it, whatever its `centerY`). Nothing is rounded: the ring's centre is where the
+    /// hand-built views put it, `roomWidth / 2` and `centerY * roomHeight`.
+    public static func origin(inRoomWidth roomWidth: Double, roomHeight: Double, width: Double, height: Double, centerY: Double) -> (x: Double, y: Double) {
+        ((roomWidth - width) / 2, max(0, (roomHeight - height) * centerY))
+    }
+
     /// Rounds to four places the way the Studio does (`Math.round`: halves go up), and never gives a negative zero.
     static func round4(_ value: Double) -> Double { ((value * 10_000 + 0.5).rounded(.down) / 10_000) + 0 }
 
