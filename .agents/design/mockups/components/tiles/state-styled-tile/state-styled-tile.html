@@ -4,6 +4,7 @@
 <title>State-styled tile · component mockup</title>
 <link rel="stylesheet" href="../../../_kit/kit.css">
 <script src="../../../_kit/kit.js"></script>
+<script src="../_tile-contract.js"></script>
 </head><body>
 <script>
 (function () {
@@ -23,11 +24,48 @@
   function page(ctx, title, parts, extra) { return Mock.page(ctx, Object.assign({ title: title, section: 'security', body: flat(parts) }, extra || {})); }
   function first(stage) { return stage.querySelector('.ui-tile'); }
 
+  /* ---- the native tile contract (lanes NT6 and NT7; helpers in ../_tile-contract.js) ---- */
+  function cover(pct, x) { return Mock.tile(Object.assign({ title: 'Living Room Shade', subtitle: 'Open', symbol: 'blinds.horizontal.open', family: 'contact', isActive: true, progress: pct / 100 }, x || {})); }
+  function speaker(pct) { return Mock.tile({ title: 'Kitchen Speaker', subtitle: 'Playing', symbol: 'hifispeaker', family: 'media', isActive: true, progress: pct / 100 }); }
+  function stat() { return Mock.tile({ title: 'Office', subtitle: 'Heating to 70°', symbol: 'thermometer.medium', family: 'heating', isActive: true }); }
+  function nodes(title, items, note, max) { return [K.PageSectionHeader({ title: title }), K.TileGrid({ items: items, min: 150, max: max || 4 }), note ? h('p.st-note', note) : null]; }
+  /** Film frames with room above each tile for the bubble: one tile swipes at a time. */
+  function swipes(title, frames, note) {
+    return [K.PageSectionHeader({ title: title }), h('div.st-film', { style: { gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))' } }, frames.map(function (f) {
+      return h('div', h('div.cap', f[0]), h('div', { style: { position: 'relative', paddingTop: '44px' } }, f[1])); })), note ? h('p.st-note', note) : null];
+  }
+  function sw(tile, frac, text, o) { return TC.drag(tile, frac, text, Object.assign({ status: false }, o || {})); }
+  var SWIPE = function (ctx) {
+    return page(ctx, 'Swipe to adjust', [
+      nodes('At rest', [cover(40), speaker(35), stat(), cover(0, { title: 'Office Shade', subtitle: 'Closed', isActive: false, progress: undefined }), cover(0, { title: 'Patio Shade', subtitle: 'Unavailable', isActive: false, isUnavailable: true, progress: undefined })],
+        'A tile with swipe authored draws its value as its band before it is touched (Living Room Shade 40%, Kitchen Speaker 35%). Office has the band off. Swipe is off when absent (Office Shade): no pan, no adjustable trait, no hint. An unavailable tile takes no swipe.'),
+      swipes('Mid-swipe', [['Cover, 65%', sw(cover(65), .65, '65%')], ['Minimum: flush leading', sw(cover(0), 0, '0%')], ['Maximum: 68 pt, flush trailing', sw(cover(100), 1, '100%')], ['Speaker volume, 50%', sw(speaker(50), .5, '50%')], ['Setpoint 60 to 85, band off', sw(stat(), .44, '71°', { noBand: true })], ['Right to left, 30%', sw(cover(30), .3, '30%', { rtl: true })]],
+        'Absolute tracking: the band\'s edge is under the finger, snapped to the step and clamped. The authored face and state line do not change during the swipe; only the band and the bubble move, and the bubble shows the value through the tile\'s Value Text. A selection tick plays on each detent line. One call on release, carrying the value as its control, only if the value changed; a cancel, a scroll, the edge swipe, a fold or leaving the app sends nothing and the band returns.'),
+    ]);
+  };
+  /** One tile of every face the ink rule touches or leaves alone. */
+  function inkParts(bare, ctx) {
+    return [
+      nodes('Idle', [TC.tile({ title: 'Front Door', subtitle: 'Locked', symbol: 'lock.fill', kind: 'state' }, true), TC.tile({ title: 'Guest Mode', subtitle: 'Off', symbol: 'person.2' }, true), T(GT.closed), T(G.closed)],
+        'An icon with no colour of its own (Front Door, Guest Mode) and every state line draw the primary ink. An idle icon with a family or an authored tint keeps its colour (Side Gate, Garage Door).'),
+      nodes('Warning', [T(M.battery), T(Object.assign({}, LK.unlocked, { text: 'Open', cls: 'warning', title: 'Back Door' })), T(M.robotPaused)],
+        'The state line is the primary ink. The icon and the disc keep the amber, so the class is still carried by the glyph, the colour and the words.'),
+      nodes('Unavailable', [T(G.unknown), T(Object.assign({}, M.battery, { text: 'Unavailable', cls: 'unknown' })), TC.tile({ title: 'Side Door', subtitle: 'Unavailable', symbol: 'lock.fill', kind: 'state', isUnavailable: true }, true)],
+        'Stays grey whatever the tile\'s behaviour, a read-only tile included: the icon at 50% and today\'s state line. Grey on a tile now means only "cannot be used", and the line says so.'),
+      nodes('Unchanged', [T(GT.open), T(G.open), T(G.error), T(M.leak)], 'Filled faces keep their ink and the error face its red.'),
+    ].filter(function (part, i) { return !(bare && ctx.appearance === 'light' && i === 1); }).map(function (part) { return bare ? part.slice(0, 2) : part; });   // the note is page ink: a sheet draws the tiles only
+  }
+  var INK = function (ctx) { return TC.ink(page(ctx, 'Tile ink', inkParts())); };
+  function inkSheet(ctx) {
+    return TC.ink(Mock.sheet(ctx, { title: 'Doors', detent: 'large', size: 'page', leading: 'none', trailing: 'close', content: flat(inkParts(true, ctx)),
+      presenter: Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [] }) }));
+  }
+
   var CLASSES = function (ctx) {
     return page(ctx, 'State classes', [
       sec('Resting', [GT.closed, GT.open, M.robotCleaning], 'Settled. The active flag picks the unlit or the filled face. Active work (Cleaning) is resting and may breathe.'),
       sec('In progress', [G.sendingOpen, G.opening, M.sensorOpening], 'Will end without another tap. While a tap does nothing the disc fades out and an arc stands in its place; a state with an action keeps its disc (Reverse) and has no arc.'),
-      sec('Warning', [M.battery, Object.assign({}, LK.unlocked, { text: 'Open', cls: 'warning', title: 'Back Door' })], 'Amber glyph and state text on the dense face; one pulse on arrival and one each time the page is shown.'),
+      sec('Warning', [M.battery, Object.assign({}, LK.unlocked, { text: 'Open', cls: 'warning', title: 'Back Door' })], 'Amber glyph and state text on the dense face; one pulse on arrival and one each time the page is shown. Under a document that declares sh.tile-ink-default@1 the state text is the primary ink (state Tile ink).'),
       sec('Error', [G.error, LK.jammed, M.leak], 'Red glyph and state text on the dense face; one wiggle on arrival, then still.'),
       sec('Unknown', [G.unknown, Object.assign({}, LK.unknown, { text: 'Unknown', title: 'Back Door' })], 'Unavailable (the device is offline) and Unknown (not reported yet) look the same and say which.'),
     ]);
@@ -38,16 +76,24 @@
     summary: 'One tile for doors, locks, blinds, the alarm, robots and sensors. Each state has a class (resting, in progress, warning, error, unknown), an active flag and a style that gives its icon, colour, indicator and words. On a change the app compares the four layers one by one and leaves alone a layer that did not change, so one arc turns through Opening and Closing. It replaces the fixed door, lock and alarm shapes with their look and timings kept. While a tap does nothing the disc fades out and a smaller arc stands in its place, the owner\'s option D (proposals/state-tile-indicator).',
     source: ['apple/Sources/HassCore/TileActions/StateStyle.swift', 'apple/Sources/HassCore/TileActions/StateStyle+BuiltIn.swift', 'apple/Sources/HassCore/TileActions/StateStyleActions.swift',
       'apple/Sources/HassDesign/TileActions/StateTileLook.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateTileTransition.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKTileActions.swift',
-      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift'],
-    spec: ['.agents/design/state-styled-tile.md', '.agents/design/state-styles.md', '.agents/patterns/action-tiles.md', '.agents/design/motion.md'],
-    patterns: ['action-tiles', 'entity-tile', 'optimistic-actions', 'motion'],
-    hig: ['Motion', 'SF Symbols', 'Progress indicators', 'Buttons', 'Accessibility', 'VoiceOver', 'Color', 'Designing for iPhone Duo'],
+      'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift',
+      'apple/Sources/HassDesign/TileSwipe.swift', 'apple/Sources/HassDesign/TileInkDefault.swift', 'apple/Sources/HassDesign/TileFaceInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUITileSwipe.swift',
+      'apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileSwipe.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift'],
+    spec: ['.agents/design/state-styled-tile.md', '.agents/design/state-styles.md', '.agents/patterns/action-tiles.md', '.agents/design/motion.md', '.agents/patterns/tile-swipe.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
+    patterns: ['action-tiles', 'entity-tile', 'optimistic-actions', 'motion', 'tile-swipe'],
+    hig: ['Motion', 'SF Symbols', 'Progress indicators', 'Buttons', 'Accessibility', 'VoiceOver', 'Color', 'Designing for iPhone Duo', 'Gestures', 'Sliders', 'Playing haptics', 'Right to left'],
     entities: ['cover.demo_garage_door_1', 'lock.demo_lock_1', 'alarm_control_panel.demo_alarm', 'binary_sensor.demo_battery_1'],
     kitComponents: ['GlassTile', 'TileGrid', 'ArcSpinner', 'PageSectionHeader'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
 
     states: {
       'classes': { title: 'The five classes and the active flag', render: CLASSES },
+      'swipe': { title: 'Swipe to adjust (sh.tile-swipe@1)', render: SWIPE },
+      'swipe-ax5': { title: 'Swipe at accessibility text sizes', override: { ts: 'ax5' }, render: function (ctx) {
+        return page(ctx, 'Swipe, AX5', [[K.PageSectionHeader({ title: 'Mid-swipe' }), h('div', { style: { position: 'relative', paddingTop: '60px' } }, sw(cover(65), .65, '65%', { ax: true })), h('p.st-note', 'The bubble is 44 pt tall and at least 84 pt wide, its centre 30 pt above the tile so the gap stays 8 pt.')]]); } },
+      'ink': { title: 'Tile ink on a page (sh.tile-ink-default@1)', render: INK },
+      'ink-sheet-dark': { title: 'Tile ink in a dark sheet', override: { appearance: 'dark' }, render: inkSheet },
+      'ink-sheet-light': { title: 'Tile ink in a light sheet: the primary ink is black', override: { appearance: 'light' }, render: inkSheet },
       'storyboard': { title: 'Storyboard: closed, opening, closing, open, error', render: function (ctx) {
         return page(ctx, 'Storyboard', [
           film('A gate with no action while it moves', [['Closed', GT.closed], ['Opening', GT.opening], ['Closing', GT.closing], ['Open', GT.open], ['Error', GT.error]],
@@ -95,6 +141,9 @@
       { id: 'error-entry', what: 'Entering error: the arc fades out as the disc fades in on the error face, then the glyph wiggles once (bounces once on iOS 17) and stays still', token: 'colour state 0.6 s; disc and arc opacity quick 0.2 s; SF Symbols Wiggle once on iOS 18 and later, Bounce once on iOS 17 (system timing)', state: 'classes',
         source: 'new (lane L7a); the red face, error haptic and announcement are GlassTile\'s today', reduce: 'no wiggle; the face cross-fades at 0.2 s',
         play: function (stage) { var t = stage.querySelectorAll('.ui-tile')[8]; return ST.run(t, [[G.closed, 700], [G.sendingOpen, 1000], [G.error, 1400, 'wiggle'], [G.closed, 700], [G.error, 1200, 'bounce']]); } },
+      { id: 'swipe', what: 'A swipe on a cover: the band and bubble follow each sample with no animation while the face and state line stay, a selection tick on each detent, one call on release', token: 'none while tracking; the lift, and the bubble and lift leaving on release: quick 0.2 s', state: 'swipe',
+        source: 'UKTileSwipeController, UKServerUITileSwipe (the optimistic hold and its revert)', reduce: 'no scale: the shadow only; the bubble fades in 0.2 s',
+        play: function (stage) { var t = stage.querySelector('.st-film .ui-tile'); return TC.play(t, [[.65, '65%'], [.5, '50%'], [.3, '30%'], [.2, '20%'], [.4, '40%'], [.8, '80%'], [.65, '65%']], { status: false }).then(function () { TC.drag(t, .65, '65%', { status: false }); }); } },
       { id: 'breathe', what: 'Active work in a resting state (Cleaning): the glyph breathes while the state holds', token: 'SF Symbols Breathe on iOS 18 and later, Pulse on iOS 17 (system timing)', state: 'classes',
         source: 'new (lane L7a)', reduce: 'still', play: function () { return Mock.sleep(3600); } },
     ],
@@ -106,6 +155,8 @@
       { rule: 'Reduce Motion', note: 'The arc turns at half speed. Pulse, breathe, bounce and wiggle do not play. Colour, the disc and the arc cross-fade at 0.2 s; the glyph swaps with no effect.' },
       { rule: 'Targets', note: 'The tile is the button, 72 pt tall at the default size; the disc is 44 pt, 66 pt from Accessibility 1 up. The arc is not a target.' },
       { rule: 'Dynamic Type', note: 'At accessibility sizes the tile stacks and the grid is one column; the arc is 7/11 of the disc: 28 pt, then 42 pt from Accessibility 1 up.' },
+      { rule: 'Swipe', note: 'With swipe authored and the tile enabled the element is adjustable: increment and decrement move one detent, clamped, and each sends one call; the named actions "Increase {title}" and "Decrease {title}" do the same, and the value is spoken with the state ("40%, Open"). Swipe absent, unavailable or dimmed: no trait, no hint, no actions. The bubble is hidden from VoiceOver. A swipe is never the only way to set the value: the tile keeps its tap, disc or details.' },
+      { rule: 'Ink', note: 'Under sh.tile-ink-default@1 the primary state line is 13.9:1 on the dark sheet cell and 21:1 on the light one (computed). Warning keeps its amber icon and its words; unavailable keeps the grey, the word Unavailable and the not-enabled trait.' },
       { rule: 'Contrast', note: 'Warning ink #FFB340 and error ink #FF6961 on the dense face clear 4.5:1; a style colour that fails the Studio preflight cannot be published.' },
     ],
 
@@ -121,6 +172,10 @@
         { rule: 'Progress indicators: "Keep indicators moving."', verdict: 'pass', note: 'The arc turns under Reduce Motion too; a request that passes its timeout becomes the error face with words.', by: 'apple-hig skill' },
         { rule: 'Progress indicators: indeterminate indicators "spin a circle"', verdict: 'departure', note: 'The arc, not the system activity indicator: owner decision 2026-10-14 (direction-g).', by: 'apple-hig skill' },
         { rule: 'Accessibility: "Convey state and function with shapes or icons in addition to color"', verdict: 'pass', note: 'Each class has its own glyph and words.', by: 'apple-hig skill' },
+        { rule: 'Gestures: "Handle gestures as responsively as possible, with immediate feedback that predicts the result"', verdict: 'pass', note: 'The band and the bubble are drawn under the finger before anything is sent.', by: 'apple-hig skill' },
+        { rule: 'Sliders, iOS and iPadOS: "Don\'t use a slider to adjust audio volume. Use a customizable volume view instead"', verdict: 'departure', note: 'A swipe may set a Home Assistant media player\'s volume: the system volume view sets this device\'s own output and cannot set another device\'s. Never used for this device\'s audio (decision 2026-11-16-tile-swipe).', by: 'apple-hig skill' },
+        { rule: 'Right to left: "Flip progress controls (sliders, progress indicators)"', verdict: 'pass', note: 'The band and the mapping mirror; the bubble\'s digits do not.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: "Convey state and function with shapes or icons in addition to color"', verdict: 'pass', note: 'With the primary state line a warning is carried by its icon, the icon\'s amber and its words; an unavailable tile by its grey, its word and the not-enabled trait.', by: 'apple-hig skill' },
         { rule: 'Designing for iPhone Duo: "Prefer a layout container that adapts automatically, and even grid column counts."', verdict: 'pass', note: 'The tile sits in the dynamic grid; nothing about it depends on a device or the hinge.', by: 'apple-hig skill' },
       ],
       swiftui: [{ rule: 'Not applicable', verdict: 'pass', note: 'The tile is UIKit (UIImageView symbol effects, UKArcSpinnerView); no SwiftUI.', by: 'swiftui-pro skill' }],
@@ -132,9 +187,13 @@
       'The storyboard strips are film frames in a local grid, not the app\'s dynamic grid: on the unfolded Duo a frame may sit on the hinge band, which the app\'s grid never allows.',
       'The builder is the kit\'s StateTile (_kit/components/StateTile.js), promoted from the local helper when the tile shipped.',
       'The Studio side is proposals/state-style-library.',
+      'Tile contract (lanes NT6 and NT7, head fba79957): the swipe and ink states follow the hosted stills (build/evidence/screens/native-tilecontract-fba79957) and the hosted tests on the three families; the swipe has had no device run. The warning state line is drawn in the primary ink, as the design has it (review round 1 corrects the build\'s amber). Helpers: components/tiles/_tile-contract.js (promote to kit).',
+      'The warning face in a light sheet is not drawn in the ink states: the kit draws that face for dark grounds only and no still shows it. For the Verifier.',
+      'State words (sh.state-words@1) do not apply here: this tile\'s state text is already authored per state. They are drawn on brightness-tile, light-group-tile and the grouped grid.',
+      'In a grouped grid a tile\'s group is the face it draws: active, idle or unavailable (dynamic-grid-layout, state State groups).',
       'Generic names only; no house data.',
     ],
-    changelog: [{ date: '2026-11-16', note: 'Robot glyph follows the state: the house while docked, the robot otherwise (parity-loop design1).' }, { date: '2026-11-14', note: 'Shipped as a component (lane L7a): StateTile promoted to the kit, the proposal moved here.' }, { date: '2026-11-14', note: 'First pass: classes, storyboard, built-in styles, request phase, Reduce Motion, offline, long text and AX5.' }, { date: '2026-11-14', note: 'Owner picks: the arc replaces the disc (option D); alarm pending, lock open and vacuum paused are warnings.' }],
+    changelog: [{ date: '2026-11-16', note: 'Native tile contract: swipe to adjust (at rest, mid-swipe, the ends, band off, right to left, AX5) and the tile ink on a page and in dark and light sheets, with the primary warning state line and grey unavailable tiles.' }, { date: '2026-11-16', note: 'Robot glyph follows the state: the house while docked, the robot otherwise (parity-loop design1).' }, { date: '2026-11-14', note: 'Shipped as a component (lane L7a): StateTile promoted to the kit, the proposal moved here.' }, { date: '2026-11-14', note: 'First pass: classes, storyboard, built-in styles, request phase, Reduce Motion, offline, long text and AX5.' }, { date: '2026-11-14', note: 'Owner picks: the arc replaces the disc (option D); alarm pending, lock open and vacuum paused are warnings.' }],
   });
 })();
 </script></body></html>

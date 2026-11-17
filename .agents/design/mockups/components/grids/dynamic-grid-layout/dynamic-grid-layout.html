@@ -5,6 +5,7 @@
 <link rel="stylesheet" href="../../../_kit/kit.css">
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../pages/inventory/_inventory.js"></script>
+<script src="../../tiles/_tile-contract.js"></script>
 </head><body>
 <script>
 (function () {
@@ -17,6 +18,19 @@
     o = o || {}; var min = o.min || 150, max = o.max || 6, gap = 12, n = cols(w, min, max, gap, o.even, c.scale), cell = ((w - gap * (n - 1)) / n).toFixed(1);
     return V.swatch('page', w + ' pt wide (' + (o.label || '') + '): ' + n + ' column' + (n > 1 ? 's' : '') + ', cell ' + cell + ' pt', K.TileGrid({ items: tiles(o.count || 7), min: min, max: max }), c, w + 28);
   }
+  /* ---- state groups (sh.grid-state-groups@1, lane NT7; helpers in ../../tiles/_tile-contract.js) ---- */
+  var THREE = [{ id: 'on', title: 'On', states: ['active'] }, { id: 'off', title: 'Off', states: ['idle'] }, { id: 'na', title: 'Not Answering', states: ['unavailable'] }];
+  var MIX = ['on', 'off', 'on', 'off', 'un', 'off', 'on'], TAPPED = ['on', 'on', 'on', 'off', 'un', 'off', 'on'];
+  /** The grid's tiles in its own order, each in the state `st[i]` gives it. */
+  function lights(st) { return function () { return NAMES.map(function (n, i) { var x = st[i]; return K.GlassTile({ title: n + ' Light', subtitle: x === 'on' ? 'On' : (x === 'un' ? 'Unavailable' : 'Off'), symbol: 'lightbulb', family: 'lights', isActive: x === 'on', isUnavailable: x === 'un' }); }); }; }
+  function all(x) { return NAMES.map(function () { return x; }); }
+  function groupedPage(st, groups) { return function (cx) { return TC.ink(Mock.page(cx, { title: 'Lights', back: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [TC.grouped(lights(st), groups, { max: 6 })] })); }; }
+  var ROOM_WORDS = { off: 'All Off', count: '{count} Lights On' };
+  /** Room cards whose lights line uses authored words; `w` null draws the app's. */
+  function rooms(w) { return function () { return [['Kitchen', 3, 4], ['Office', 0, 2], ['Gym', 1, 1], ['Guest Room', 0, 3], ['Hallway', 2, 2], ['Garage', 0, 1]].map(function (r) {
+    return K.GlassTile({ title: r[0], subtitle: TC.roomWord(w, { count: r[1], total: r[2] }), symbol: 'lightbulb', family: 'lights', isActive: r[1] > 0, kind: 'navigate' }); }); }; }
+  var LIGHTS = [{ id: 'on', title: 'Lights On', states: ['active'] }, { id: 'off', title: 'Lights Off', states: ['idle', 'unavailable'] }];
+
   function el(s, kids) { return h('div.ui-section', kids); }
   function embedHome(cx) {
     var names = [['Front Door', 'front-door'], ['Driveway', 'driveway'], ['Upper Deck', 'upper-deck'], ['Lower Deck', 'lower-deck']];
@@ -32,15 +46,16 @@
   var cfg = Object.assign(base, {
     states: base.states,
     id: 'dynamic-grid-layout', title: 'DynamicGridLayout (equal heights, spans, grid headers)', area: 'design', status: 'shipped',
-    summary: 'The one responsive grid: columns = floor((width + spacing) / (min cell + spacing)) clamped to 1 to max; leftover width is shared; a short row fills its section (one row: equal shares; more rows: whole tracks on the track lines; never across the band; duo-widths, in flight); the minimum scales with Dynamic Type (one column at AX5); equalRowHeights lifts every row to the tallest tile; gridSpan and gridHeader place wide items and section titles; the unfolded Duo rounds the count down to an even number.',
-    source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift'],
-    spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md'],
+    summary: 'The one responsive grid: columns = floor((width + spacing) / (min cell + spacing)) clamped to 1 to max; leftover width is shared; a short row fills its section (one row: equal shares; more rows: whole tracks on the track lines; never across the band; duo-widths, in flight); the minimum scales with Dynamic Type (one column at AX5); equalRowHeights lifts every row to the tallest tile; gridSpan and gridHeader place wide items and section titles; the unfolded Duo rounds the count down to an even number. A grid authored with state groups (sh.grid-state-groups@1) puts its tiles under title-only headings by the face they draw and drops an empty group.',
+    source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIGridGroups.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIGridGrouping.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift'],
+    spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md', '.agents/design/motion.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
     patterns: ['dynamic-grid', 'entity-tile', 'status-pill'],
-    hig: ['Layout', 'Collections', 'Dynamic Type', 'Split views'],
+    hig: ['Layout', 'Collections', 'Dynamic Type', 'Split views', 'VoiceOver', 'Designing for iPhone Duo'],
     kitComponents: ['TileGrid', 'GlassTile', 'PageSectionHeader', 'CameraTile'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
     a11y: [
-      { rule: 'Reading order', note: 'Tiles read in placement order: row by row, leading to trailing; a gridHeader is its heading row. The layout never reorders for a live value change (motion.md section 6).' },
+      { rule: 'Reading order', note: 'Tiles read in placement order: row by row, leading to trailing; a gridHeader is its heading row. The layout never reorders for a live value change (motion.md section 6), with one exception: a grid authored with state groups moves a tile to its group.' },
+      { rule: 'State groups', note: 'Each group heading carries the header trait, so the rotor reaches a group; reading order is the heading, then its tiles. A tile that changes group is the same element: VoiceOver focus stays on it and the move is posted as a layout change. Nothing moves under a finger or a scroll. A group is never told by position or colour alone: every tile keeps its state words.' },
       { rule: 'Targets', note: 'Tiles are at least 44 pt in both directions at any size (the 150 pt minimum width is scaled with the text).' },
       { rule: 'Dynamic Type', note: 'minCellWidth is multiplied by the text scale, so AX5 yields a single column and no tile truncates; equalRowHeights follows the larger text on every layout pass.' },
       { rule: 'Rotation and unfolding', note: 'The column count is recomputed on each pass; on the unfolded Duo (any pose) it rounds down to an even number (never below two) so no tile straddles the fold.' },
@@ -53,7 +68,9 @@
         { rule: "Layout: adapt to size classes and window size, avoid fixed widths", verdict: "pass", note: "Columns are floor((width + spacing) / (min + spacing)) clamped to 1...max with leftover width shared equally, recomputed on every pass, so rotation, Split View and Stage Manager-style resizing need no device branch.", by: "apple-hig skill" },
         { rule: "Typography: layouts must give way to larger text (Dynamic Type through AX5)", verdict: "pass", note: "Every tile grid now passes a @ScaledMetric minimum: CameraGrid, ChoreQuickLinks, ControlTileGrid (guest presence), FoodHubScreen, SoloTripScreen and PresenceOverrideDetail; recorded in .agents/patterns/dynamic-grid.md.", by: "apple-hig skill" },
         { rule: "Layout: keep equal visual weight; align rows and headings", verdict: "pass", note: "equalRowHeights lifts every tile row to the tallest while gridHeader rows keep their own height; an incomplete last row stays leading-aligned instead of stretching.", by: "apple-hig skill" },
-        { rule: "Accessibility: reading order follows visual order", verdict: "pass", note: "Placement is row by row leading to trailing, headers take the whole row, and a live value change never reorders (motion.md section 6).", by: "apple-hig skill" },
+        { rule: "Accessibility: reading order follows visual order", verdict: "pass", note: "Placement is row by row leading to trailing, headers take the whole row, and a live value change never reorders (motion.md section 6); a grouped grid keeps heading-then-tiles order.", by: "apple-hig skill" },
+        { rule: "Collections: \"when possible, avoid changing layout while people view or interact with it unless an explicit action caused the change.\"", verdict: "departure", note: "A grid with state groups moves a tile when its state changes: the owner's answer (2026-11-16, generic group by state, as production's Lights and Occupancy split). Guard rails: only a person's tap animates; a house change is applied with no animation and held while the grid is touched or scrolling.", by: "apple-hig skill" },
+        { rule: "VoiceOver: \"Use accurate section headings.\"", verdict: "pass", note: "A group's heading is its authored title with the header trait; an empty group has no heading.", by: "apple-hig skill" },
         { rule: "Collections: do not let content straddle device regions", verdict: "pass", note: "Tiles are whole-track cells; no tile spans the fold because the hinge only ever removes columns.", by: "apple-hig skill" },
       ],
       swiftui: [
@@ -70,9 +87,10 @@
       'Hinge rounding applies on any unfolded Duo pose (the environment hinge is set whenever the fold is open), including portrait, where a 3-column fit becomes 2.',
       'Used by: Home cameras (min 160, max 4), room pages (two 340 pt section columns, each max 2), Chores quick links (max 4), Media (up to three columns), the room overview sheets (equal heights with headers), Sprinklers pills, Vacation sections (min 340, max 2).',
       'TODO(orchestrator) in the pattern doc: the web\'s content-aware spans are not ported.',
-      'motion: none. A rotation or unfolding re-lays the grid with the system\'s own transition; nothing is animated by the layout.',
+      'A rotation or unfolding re-lays the grid with the system\'s own transition; the layout animates nothing itself except a tile changing group after a person\'s tap (state groups).',
+      'State groups (lane NT7, head fba79957) follow the hosted still groups.png (iPhone simulator) and the hosted tests on the three families (headings with the header trait, a dropped empty group, aligned columns, a house change with no animation, a person\'s tap, the Reduce Motion fade, the hold under a finger). Not captured on a device: a hinge band crossing a grouped page grid, and a tile leaving from under the finger. Helpers: components/tiles/_tile-contract.js (promote to kit). The proposal is proposals/sim-fidelity-contract (decided: heading option A, title only).',
     ],
-    changelog: [{ date: '2026-11-04', note: "The kit TileGrid fills short rows (one row equal shares, more rows whole tracks, never across the band); fill: 'none' for small controls, aspect media, choice chips and remote apps." }, { date: '2026-10-23', note: 'First pass: width ruler, spans, grid headers with equal heights, hinge-even columns, AX5 single column, in context.' }],
+    changelog: [{ date: '2026-11-16', note: 'State groups: title-only headings in one grid on iPhone, Duo and iPad, the preset on a page and in a sheet, dropped empty groups, authored state words, AX5, and the regroup motion (a person\'s tap slides; the house does not animate).' }, { date: '2026-11-04', note: "The kit TileGrid fills short rows (one row equal shares, more rows whole tracks, never across the band); fill: 'none' for small controls, aspect media, choice chips and remote apps." }, { date: '2026-10-23', note: 'First pass: width ruler, spans, grid headers with equal heights, hinge-even columns, AX5 single column, in context.' }],
   });
   cfg.states['widths'] = { title: 'Columns by width (min 150, max 6)', note: 'iPhone 370 pt content: 2; iPad portrait 802: 5; iPad landscape 1162: 6 (the cap). Counts follow floor((w + 12) / 162)', render: function (c) {
     return V.grid([ruler(c, 370, { label: 'iPhone' }), ruler(c, 434, { label: 'unfolded Duo half' }), ruler(c, 560, { label: 'a narrow pane' }), ruler(c, 802, { label: 'iPad portrait' }), ruler(c, 1162, { label: 'iPad landscape, capped at 6', count: 7 })]); } };
@@ -87,8 +105,26 @@
       V.embed('iphone', c, function (cx) { return Mock.page(cx, { title: 'Lights', back: 'Rooms', section: 'home', body: [K.TileGrid({ items: tiles(7), min: 150, max: 6 })] }); }, .5, 'iPhone: 2 columns')); } };
   cfg.states['in-context'] = { title: 'In context: Home cameras and a room page', render: function (c) {
     return h('div', V.embed('iphone', c, embedHome, .6, 'Home cameras: min 160, max 4 (2 on iPhone)'), V.embed('ipad-portrait', c, embedRoom, .45, 'Room page: two section columns side by side, each its own max-2 grid'), V.embed('iphone', c, embedRoom, .6, 'The same room page on iPhone: sections stack')); } };
+  cfg.states['state-groups'] = { title: 'State groups: title-only headings in one grid (sh.grid-state-groups@1)', note: 'a grid authored with groups puts each tile under the heading for the face it draws (active, idle, unavailable): here On, Off and Not Answering. Headings are the section heading (title3 bold, the primary ink, the header trait), each a whole row that keeps its own height; no count, no collapse. Columns are solved once, so tiles line up across groups and share one row height; a group\'s short last row fills. Inside a group tiles keep the grid\'s order. The unfolded Duo keeps even columns', render: function (c) {
+    return h('div', V.embed('iphone', c, groupedPage(MIX, THREE), .6, 'iPhone: 2 columns'), V.embed('duo-folded', c, groupedPage(MIX, THREE), .6, 'Duo folded: 2 columns'),
+      V.embed('duo-unfolded-landscape', c, groupedPage(MIX, THREE), .5, 'Duo unfolded landscape: even columns'), V.embed('ipad-portrait', c, groupedPage(MIX, THREE), .45, 'iPad portrait'), V.embed('ipad-landscape', c, groupedPage(MIX, THREE), .4, 'iPad landscape')); } };
+  cfg.states['state-groups-preset'] = { title: 'State groups: the preset, on a page and in a sheet', note: 'the preset when the option is switched on: On, then Off holding Off and Unavailable. On a page the heading has no top inset; in a sheet it keeps 8 pt above its title and follows the sheet\'s appearance. The unavailable tile is grey; under sh.tile-ink-default@1 the other state lines are the primary ink', render: function (c) {
+    return V.grid([V.swatch('page', 'On, Off (Off and Unavailable)', TC.ink(h('div', TC.grouped(lights(MIX), TC.PRESET))), c, 398), V.swatch('sheet', 'the same in a sheet', TC.ink(h('div', TC.grouped(lights(MIX), TC.PRESET))), c, 398)]); } };
+  cfg.states['state-groups-empty'] = { title: 'State groups: an empty group is dropped', note: 'a group with no tiles is not drawn, heading and all; a grid whose groups are all empty draws nothing, as an empty grid does. While screenshot privacy hides a grid\'s states it draws ungrouped with no headings', render: function (c) {
+    return V.grid([V.swatch('page', 'nothing on: only Off', TC.ink(h('div', TC.grouped(lights(all('off')), THREE))), c, 398), V.swatch('page', 'everything answers: no Not Answering', TC.ink(h('div', TC.grouped(lights(['on', 'off', 'on', 'off', 'off', 'off', 'on']), THREE))), c, 398),
+      V.swatch('page', 'everything on: only On', TC.ink(h('div', TC.grouped(lights(all('on')), THREE))), c, 398)]); } };
+  cfg.states['state-groups-words'] = { title: 'State groups with authored state words (sh.state-words@1)', note: 'room cards under Lights On and Lights Off. Count Text "{count} Lights On" and When Off "All Off" replace the app\'s "3 On" and "Off"; a room with one light draws When On. The heading is authored on the grid, the words on each tile', render: function (c) {
+    return V.grid([V.swatch('page', 'authored words', TC.ink(h('div', TC.grouped(rooms(ROOM_WORDS), LIGHTS))), c, 398), V.swatch('page', 'no words: the app\'s text', TC.ink(h('div', TC.grouped(rooms(null), LIGHTS))), c, 398)]); } };
+  cfg.states['state-groups-ax5'] = { title: 'State groups at Accessibility 5', override: { ts: 'ax5' }, note: 'one column; a heading scales with the text and wraps', render: function (c) { return V.grid([V.swatch('page', 'AX5, 370 pt', TC.ink(h('div', TC.grouped(lights(MIX.slice(0, 4).concat(['un', 'off', 'on'])), THREE))), c, 398)]); } };
   cfg.states['ax5'] = { title: 'Accessibility 5: one column', override: { ts: 'ax5' }, note: 'the minimum cell width scales with the text, so the grid collapses to a single column', render: function (c) { return V.grid([V.swatch('page', 'AX5, 370 pt: 1 column', K.TileGrid({ items: tiles(3), min: 150, max: 6 }), c, 398)]); } };
-  cfg.motion = [];
+  cfg.motion = [
+    { id: 'regroup-tap', what: 'A person turns Office Light on in a grouped grid: the same tile slides to its place under On, then back when it is turned off', token: 'standard 0.3 s for the move; the face cross-fades on state 0.6 s', state: 'state-groups-preset',
+      source: 'UKServerUIGridGrouping (regroupItems: a keyed move of the same views; one LayoutChange signpost "GridGroups" per arrangement); motion.md section 6', reduce: 'no slide: the moved tile fades in on quick 0.2 s',
+      play: function (stage) { var g = stage.querySelector('.ui-grid[data-tcg]'); return TC.regroup(g, 'Office Light', lights(TAPPED)).then(function (n) { return TC.regroup(n, 'Office Light', lights(MIX)); }); } },
+    { id: 'regroup-house', what: 'The house turns Office Light on (a live change, a snapshot or a reconnect reapply): the tile is in its new group with no animation. It is held while the grid is touched, dragged or decelerating', token: 'none', state: 'state-groups-preset',
+      source: 'UKServerUIGridGrouping', reduce: 'unchanged (no movement)',
+      play: function (stage) { var g = stage.querySelector('.ui-grid[data-tcg]'); return TC.regroup(g, 'Office Light', lights(TAPPED), { animated: false }).then(function (n) { return TC.regroup(n, 'Office Light', lights(MIX), { animated: false }); }); } },
+  ];
   Mock.mount(cfg);
 })();
 </script></body></html>

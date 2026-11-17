@@ -9,6 +9,8 @@ struct UKTileFaceContent: Equatable {
     var symbol: String
     /// The glyph and rim colour of a tinted face; defaults to the family's glyph colour.
     var tint: UIColor
+    /// Whether the caller chose ``tint``; a tinted face with none and no family is an icon with no colour of its own (`sh.tile-ink-default@1`).
+    var hasOwnTint = false
     var family: ColorFamily?
     /// A solid fill the caller owns (a room's colour); wins over the family.
     var fillRGB: UInt32?
@@ -54,6 +56,7 @@ struct UKTileFaceContent: Equatable {
         self.subtitle = subtitle
         self.symbol = symbol
         self.tint = tint ?? family.map { UIColor($0.glyphToken) } ?? UIColor.tintColor
+        hasOwnTint = tint != nil
         self.family = family
         self.fillRGB = fillRGB
         self.fillDarkRGB = fillDarkRGB
@@ -294,16 +297,18 @@ final class UKGlassTileFaceView: UIView {
         // An authored icon colour (`sh.tile-ink@1`) replaces the grey on a face that is neither filled nor an error, enabled or not: it is a
         // colour the document chose, and an unavailable tile draws it at 50% as it draws the grey one (`glyphAlpha` below).
         if let authored = content.glyphTint, AuthoredTileInk.glyphTintApplies(to: style) { glyphColor = UIColor(authored.token) }
-        else if case .tinted = style, isEnabled { glyphColor = tintGlyph }
+        else if case .tinted = style, isEnabled,
+                !TileFaceInk.usesPrimaryGlyph(environment.inkDefault, family: content.family, hasOwnTint: content.hasOwnTint) { glyphColor = tintGlyph }
         else {
             glyphColor = UIColor(TileFaceInk.glyphToken(style: style, appearance: appearance, finish: finish, isEnabled: isEnabled,
-                                                        family: content.family, tintGlyph: .white))
+                                                        family: content.family, tintGlyph: .white, inkDefault: environment.inkDefault,
+                                                        hasOwnTint: content.hasOwnTint))
         }
         let primary = UIColor(TileFaceInk.primaryToken(style: style, appearance: appearance))
         let secondary = UIColor(AuthoredTileInk.stateLineToken(
             style: style, softFillInk: content.softFillInk,
             plain: TileFaceInk.secondaryToken(style: style, appearance: appearance, finish: finish, surface: environment.surface,
-                                              hasWash: content.wash != nil)))
+                                              hasWash: content.wash != nil, inkDefault: environment.inkDefault, isEnabled: isEnabled)))
         let chevronColor = secondary.ukOpacity(0.8)
         let glyphAlpha: CGFloat = content.showsArc ? 0 : (content.isUnavailable ? 0.5 : 1)
 

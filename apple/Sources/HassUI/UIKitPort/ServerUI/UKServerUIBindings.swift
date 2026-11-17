@@ -223,11 +223,12 @@ final class UKServerUIBindings {
         })
     }
 
-    func status(_ sourceId: String) -> ServerUIHomeStatus.Value? {
+    /// The projected status of a source; `words` are a room overview tile's own (`sh.state-words@1`).
+    func status(_ sourceId: String, words: ServerUIStateWords? = nil) -> ServerUIHomeStatus.Value? {
         guard case .homeStatus(_, let configuration) = definitions[sourceId] else { return nil }
         return ServerUIHomeStatus.project(configuration, pending: context.valuesPending,
                                           redacted: ScreenshotPrivacy.isRedacting && [.occupancy, .entity].contains(configuration.projection),
-                                          read: homeEntity)
+                                          words: words, read: homeEntity)
     }
 
     /// Shell binds navigation copy over exactly the sources its overview tiles use.

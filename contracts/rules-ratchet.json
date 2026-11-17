@@ -773,7 +773,7 @@
   ".agents/design/motion.md": {
    "forbidden": 20,
    "long_lines": 8,
-   "over_words": 2184
+   "over_words": 2168
   },
   ".agents/design/profile-badge.md": {
    "forbidden": 14,
@@ -934,14 +934,13 @@
    "long_lines": 2
   },
   ".agents/patterns/dynamic-grid.md": {
-   "forbidden": 16,
-   "long_lines": 10,
-   "over_words": 9
+   "forbidden": 14,
+   "long_lines": 9
   },
   ".agents/patterns/entity-tile.md": {
-   "forbidden": 27,
+   "forbidden": 24,
    "long_lines": 18,
-   "over_words": 1208
+   "over_words": 1191
   },
   ".agents/patterns/floating-actions.md": {
    "forbidden": 7,
@@ -1196,9 +1195,9 @@
    "long_lines": 2
   },
   ".agents/testing/apple/performance.md": {
-   "forbidden": 27,
-   "long_lines": 33,
-   "over_words": 8133,
+   "forbidden": 26,
+   "long_lines": 32,
+   "over_words": 8083,
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {

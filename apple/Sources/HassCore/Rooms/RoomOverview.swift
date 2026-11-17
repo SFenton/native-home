@@ -108,10 +108,10 @@ public enum RoomOverview {
     }
 
     /// What VoiceOver reads as a room card's value: the subtitle, plus how many sensors are unavailable.
-    public static func spokenSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read) -> String {
-        let subtitle = cardSubtitle(kind, group, read: read)
+    public static func spokenSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read, words: ServerUIStateWords? = nil) -> String {
+        let subtitle = cardSubtitle(kind, group, read: read, words: words)
         let offline = unavailableCount(group, read: read)
-        guard offline > 0, subtitle != "Unavailable" else { return subtitle }
+        guard offline > 0, subtitle != (words?.unavailable ?? "Unavailable") else { return subtitle }
         let note = "\(PluralCopy.count(offline, "sensor")) unavailable"
         return subtitle.isEmpty ? note : "\(subtitle), \(note)"
     }
@@ -125,15 +125,19 @@ public enum RoomOverview {
     }
 
     /// A room card's subtitle in the overview.
-    public static func cardSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read) -> String {
+    ///
+    /// `words` are the tile's own (`sh.state-words@1`); an absent word is production's.
+    public static func cardSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read, words: ServerUIStateWords? = nil) -> String {
+        let unavailable = words?.unavailable ?? "Unavailable"
         switch kind {
-        case .lights: lightSubtitle(group, read: read)
-        case .climate: climateSubtitle(group, read: read)
+        case .lights: return lightSubtitle(group, read: read, words: words)
+        case .climate: return climateSubtitle(group, read: read)
         case .occupancy:
-            if allUnavailable(group, read: read) { "Unavailable" } else { occupiedCount(group, read: read) > 0 ? "Occupied" : "Not Occupied" }
+            if allUnavailable(group, read: read) { return unavailable }
+            return occupiedCount(group, read: read) > 0 ? words?.on ?? "Occupied" : words?.off ?? "Not Occupied"
         case .contacts:
-            allUnavailable(group, read: read) ? "Unavailable" : RoomFormat.contactSummary(group, state: read)
-        case .airQuality: ""
+            return allUnavailable(group, read: read) ? unavailable : RoomFormat.contactSummary(group, state: read)
+        case .airQuality: return ""
         }
     }
 
@@ -156,13 +160,13 @@ public enum RoomOverview {
     }
 
     /// The detail page's subtitle (web `roomDetailSubtitle`).
-    public static func detailSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read) -> String {
+    public static func detailSubtitle(_ kind: RoomOverviewKind, _ group: RoomGroup, read: Read, words: ServerUIStateWords? = nil) -> String {
         switch kind {
         case .occupancy:
             let count = occupiedCount(group, read: read)
             return "\(count) sensor\(count == 1 ? "" : "s") occupied"
         default:
-            return cardSubtitle(kind, group, read: read)
+            return cardSubtitle(kind, group, read: read, words: words)
         }
     }
 
@@ -233,10 +237,10 @@ public enum RoomOverview {
     }
 
     /// "On", "3 On", else the group light's state with "Off" when it is missing (web `lightGroupSubtitle`).
-    public static func lightSubtitle(_ group: RoomGroup, read: Read) -> String {
+    public static func lightSubtitle(_ group: RoomGroup, read: Read, words: ServerUIStateWords? = nil) -> String {
         let active = lightActiveCount(group, read: read)
-        if active > 0 { return group.items.count == 1 ? "On" : "\(active) On" }
-        guard let id = group.entityId, let entity = read(id) else { return "Off" }
+        if active > 0 { return group.items.count == 1 ? words?.on ?? "On" : (words ?? ServerUIStateWords()).countText(active) }
+        guard let id = group.entityId, let entity = read(id) else { return words?.off ?? "Off" }
         return RoomFormat.compact(entity)
     }
 

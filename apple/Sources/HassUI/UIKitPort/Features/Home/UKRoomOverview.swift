@@ -40,7 +40,14 @@ final class UKLightGroupTileView: UIView, UKGridMeasuring {
     private let glass: UKGlassTileView
     private let brightness: UKBrightnessTileView
 
-    init(title: String, entityId: String, identifier: String, environment: UKTileEnvironment, send: @escaping (LightControl.Command) -> Void) {
+    private let words: UKLightWords
+
+    /// - Parameters:
+    ///   - swipe: What the document authored for swiping brightness (`sh.tile-swipe@1`); nil is off, with no pan, trait or hint.
+    ///   - words: The words for the tile's states (`sh.state-words@1`).
+    init(title: String, entityId: String, identifier: String, environment: UKTileEnvironment, swipe: UKTileSwipeConfig? = nil,
+         words: UKLightWords = UKLightWords(), send: @escaping (LightControl.Command) -> Void) {
+        self.words = words
         self.title = title
         self.entityId = entityId
         self.identifier = identifier
@@ -51,6 +58,8 @@ final class UKLightGroupTileView: UIView, UKGridMeasuring {
         brightness = UKBrightnessTileView(title: title, tint: UIColor(HassTokens.RGB.Tint.light), percent: 0)
         super.init(frame: .zero)
         brightness.environment = environment
+        brightness.swipe = swipe
+        brightness.words = words
         brightness.identifier = identifier
         brightness.onPower = { [entityId, send] in send(LightControl.power(entityId, on: $0)) }
         brightness.onBrightness = { [entityId, send] in send(LightControl.brightness(entityId, percent: Double($0))) }
@@ -78,11 +87,11 @@ final class UKLightGroupTileView: UIView, UKGridMeasuring {
             let provider = PowerToggleActions.entity(entityId)
             let specs = provider.actions(for: state)
             var model = UKGlassTileModel(
-                title: title, subtitle: isFailed ? "Didn't Respond" : state.map { $0.isUnavailable ? "Unavailable" : (on ? "On" : "Off") }, symbol: specs.first?.symbol ?? "power",
+                title: title, subtitle: isFailed ? "Didn't Respond" : state.map { words.power(isOn: on, isUnavailable: $0.isUnavailable) }, symbol: specs.first?.symbol ?? "power",
                 family: .lights, isActive: on, isUnavailable: unavailable, isError: isFailed,
                 behavior: TileBehavior(TileActionCatalog.classification(ofLightOpensDetails: false), primary: PowerToggleActions.actionId),
                 actions: specs.items, identifier: identifier)
-            model.stateCandidates = provider.stateTextCandidates
+            model.stateCandidates = provider.stateTextCandidates + [words.on, words.off, words.unavailable].compactMap { $0 }
             glass.configure(model, environment: environment, action: {}, perform: { [entityId, send] _ in send(LightControl.flip(entityId, shownOn: on)) })
         }
         if brightness.isHidden != !dimmable {

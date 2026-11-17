@@ -74,10 +74,16 @@ public extension ServerUICompositionDocument {
         public let chip: StatusChip
         public let hidesContactSubtitle: Bool
         public var powerSourceId: String? = nil
+        /// The words for its states (`sh.state-words@1`).
+        public var words: ServerUIStateWords? = nil
     }
     struct HomeLightTile: Equatable, Sendable {
         public let node: Node
         public let sourceId: String
+        /// Swipe to adjust brightness (`sh.tile-swipe@1`); `nil` is off.
+        public var swipe: ServerUITileSwipe? = nil
+        /// The words for its states (`sh.state-words@1`).
+        public var words: ServerUIStateWords? = nil
     }
     /// One shared forecast model can feed any number of independently authored panels.
     struct HomeWeather: Equatable, Sendable {

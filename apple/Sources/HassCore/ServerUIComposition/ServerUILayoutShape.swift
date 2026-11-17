@@ -44,7 +44,7 @@ extension ServerUICompositionShape {
     /// A state tile's own parts (`sh.tile-parts@1`) in `props`.
     static let tileParts: Shape = {
         object(["subtitle": .optional(textValue(.text(2_000, blank: true))),
-                "progress": .optional(operand),
+                "progress": .optional(operand), "swipe": .optional(tileSwipe),
                 "discs": .optional(array(object(["id": id, "icon": symbolSlot, "label": discLabel, "namesTile": .optional(.bool),
                                                  "action": action,
                                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown),

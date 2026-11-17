@@ -44,10 +44,12 @@ public enum BrightnessTile {
     }
 
     /// The VoiceOver hint on the body: what a double-tap does, then how to adjust. Empty while unavailable.
-    public nonisolated static func hint(percent: Int, isUnavailable: Bool, opensDetails: Bool) -> String {
+    ///
+    /// A tile that does not swipe (`sh.tile-swipe@1` absent) says only the tap: ``adjusts`` is false, and the adjust sentence is the swipe's.
+    public nonisolated static func hint(percent: Int, isUnavailable: Bool, opensDetails: Bool, adjusts: Bool = true) -> String {
         if isUnavailable { return "" }
         let tap = opensDetails ? "Double-tap for details." : "Double-tap to turn \(percent > 0 ? "off" : "on")."
-        return tap + " Swipe up or down to adjust brightness."
+        return adjusts ? tap + " Swipe up or down to adjust brightness." : tap
     }
 
     /// Every state line the tile can show, so the grid sizes it for the longest and a live change never re-spans it.

@@ -600,10 +600,10 @@ enum ServerUICompositionShape {
             "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)]),
             "status-rail": node("status-rail", ["props": object([:]), "children": array(.component, 20)]),
             "room-overview-tile": node("room-overview-tile", [
-                "props": object(statusProps.merging(["hidesContactSubtitle": .bool, "powerSourceId": .optional(id)])),
+                "props": object(statusProps.merging(["hidesContactSubtitle": .bool, "powerSourceId": .optional(id), "words": .optional(stateWords)])),
                 "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)
             ]),
-            "light-group-tile": node("light-group-tile", ["props": object(["sourceId": id])]),
+            "light-group-tile": node("light-group-tile", ["props": object(["sourceId": id, "swipe": .optional(tileSwipe), "words": .optional(stateWords)])]),
             "weather-panel": node("weather-panel", ["props": weatherProps, "action": .optional(homeNavigationAction)]),
             "alarm-panel": node("alarm-panel", ["props": alarmPanelProps]),
             "door-tile": node("door-tile", ["props": doorTileProps]),
@@ -661,7 +661,7 @@ enum ServerUICompositionShape {
                 "props": object([
                     "minimum": .choice(["tile@1", "tile-dynamic-type@1", "section-wide@1"]), "maxColumns": .number(1, 4, integer: true),
                     "spacing": space, "equalRowHeights": .bool, "shortRow": .choice(["share", "leading"]),
-                    "fold": .choice(["page", "container"]), "minimumColumns": .optional(.number(2, 4, integer: true))
+                    "fold": .choice(["page", "container"]), "minimumColumns": .optional(.number(2, 4, integer: true)), "groups": .optional(gridGroups)
                 ]),
                 "children": array(.component, 100)
             ]),

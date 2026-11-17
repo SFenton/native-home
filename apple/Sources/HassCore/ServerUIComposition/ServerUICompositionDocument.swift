@@ -570,6 +570,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         /// The grid keeps at least this many columns (`sh.grid-min-columns@1`). It sets the track count only: a column floor never caps
         /// a tile's span, so a tile wider than a track takes the tracks its content needs. `nil` leaves the columns to the width.
         public var minimumColumns: Int? = nil
+        /// Tiles sit under a heading for the state they draw (`sh.grid-state-groups@1`); `nil` is today's grid.
+        public var groups: ServerUIGridGroups? = nil
     }
     /// How a short last row fills: shared across the width or leading.
     public enum ShortRow: String, Sendable { case share, leading }

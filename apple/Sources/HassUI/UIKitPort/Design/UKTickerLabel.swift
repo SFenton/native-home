@@ -42,6 +42,12 @@ final class UKTickerScrollGate: NSObject {
         objc_setAssociatedObject(scrollView, &gateKey, UKTickerScrollGate(scrollView: scrollView), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
+    /// Starts the idle check now when the scroll view is already moving, so a watcher that arrives mid-scroll hears it end even if no further offset change comes.
+    func watch() {
+        guard let scrollView, scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking else { return }
+        moved()
+    }
+
     private func moved() {
         isScrolling = true
         idleTimer?.invalidate()

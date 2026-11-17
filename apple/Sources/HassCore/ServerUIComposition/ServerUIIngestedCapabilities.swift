@@ -49,6 +49,9 @@ public enum ServerUIIngestedCapabilities {
     /// `symbol` node, and a symbol and a hint on the options of a segmented choice.
     public static let styleParts: [String] = ["sh.text-style@1", "sh.stack@1", "sh.symbol-part@1", "sh.choice-icons@1"]
 
+    /// Swipe to adjust, the words a tile says for its states, the default tile ink and a grid grouped by state (lane `ni-tilecontract`).
+    public static let tileContract: [String] = ["sh.tile-swipe@1", "sh.state-words@1", ServerUITileInkDefault.capability, "sh.grid-state-groups@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract }
 }

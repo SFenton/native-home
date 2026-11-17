@@ -30,7 +30,7 @@ import UIKit
 @MainActor
 class UKPageViewController: UIViewController, UKColumnBarHosting {
     /// What the page was created with (store, caller, navigator, section, surface …).
-    let context: UKContext
+    var context: UKContext
     /// Everything the page draws goes here, edge to edge: it is masked by the header fade, so content reaches under the bar.
     let contentView = UIView()
     /// The scroll view that drives the large title, the fade and scroll-to-top.

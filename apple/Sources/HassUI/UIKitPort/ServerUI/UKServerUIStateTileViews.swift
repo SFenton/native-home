@@ -84,6 +84,7 @@ enum UKServerUIStateTileViews {
     static func bind(_ tile: D.StateTile, view: UKGlassTileView, bag: UKObservationBag, page: UKServerUIPage, renderer: UKServerUIRenderer,
                      node: UKServerUINode? = nil) {
         var first = true
+        let swipe = UKServerUITileSwipeBinding(tile: tile, view: view, page: page, renderer: renderer)
         bag.observe { [weak view, weak page, weak renderer] in
             guard let view, let page, let renderer else { return }
             let state = page.context.store.entity(tile.binding.entityId).state
@@ -110,7 +111,9 @@ enum UKServerUIStateTileViews {
                                            unknown: hidden || loading || unavailable, busy: busy,
                                            read: { renderer.bindings.textResult($0) }, memory: &discMemory)
             node?.layoutMemory = discMemory
-            view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,
+            swipe?.apply(to: &face.model, allowed: allowed, unknown: hidden || loading || unavailable, failed: failed)
+            // A drag holds its tile: the latest model waits for the finger to lift (C8).
+            let configure: () -> Void = { [first] in view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,
                            action: tile.action.map { destination in { [weak page, weak renderer, weak view] in
                                guard let page else { return }
                                renderer?.activate(destination, from: page, source: view)
@@ -133,7 +136,8 @@ enum UKServerUIStateTileViews {
                 let authored = ServerUICallService(domain: call.domain, service: call.service,
                                                    target: ["entity_id": .literal(.string(tile.binding.entityId))], optimistic: optimistic)
                 renderer.activate(.callService(authored), from: page, source: view, site: tile.node.id, confirmed: true)
-            })
+            }) }
+            if swipe?.controller.hold(configure) != true { configure() }
             first = false
             view.ukRemeasureContainers()
         }

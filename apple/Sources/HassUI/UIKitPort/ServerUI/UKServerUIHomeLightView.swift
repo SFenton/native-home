@@ -43,7 +43,9 @@ final class UKServerUIHomeLightView: UIView, UKGridMeasuring {
         if attachment != definition || boundEntityId != entityId {
             tile?.removeFromSuperview()
             let tile = UKLightGroupTileView(title: definition.node.title, entityId: entityId, identifier: definition.node.id,
-                                            environment: UKTileEnvironment(context: context)) { command in
+                                            environment: UKTileEnvironment(context: context),
+                                            swipe: UKTileSwipeConfig(definition.swipe, lightGroup: true, words: definition.words),
+                                            words: UKLightWords(definition.words)) { command in
                 do {
                     guard let model = bindings.lights[definition.sourceId] else { throw ServerUIHomeLightSource.Failure.unavailable }
                     try model.perform(command)
@@ -66,6 +68,8 @@ final class UKServerUIHomeLightView: UIView, UKGridMeasuring {
         }
     }
 
+    /// What the tile needs to show its words on one line (`n-lgt-minwidth`): the grid takes a column count that gives it that.
+    var gridMinimumWidth: CGFloat { tile?.gridMinimumWidth ?? 0 }
     func gridHeight(forWidth width: CGFloat) -> CGFloat { tile?.gridHeight(forWidth: width) ?? message.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height }
     override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
     override func layoutSubviews() { super.layoutSubviews(); tile?.frame = bounds; message.frame = bounds }

@@ -118,7 +118,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         closePolicy = close
         self.renderer = renderer
         self.columnPlaceholder = columnPlaceholder
-        super.init(context: context, title: surface.title)
+        super.init(context: context.with { $0.inkDefault = TileInkDefault(renderer.publication.inkDefault) }, title: surface.title)
     }
 
     @available(*, unavailable)
@@ -177,6 +177,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         self.inheritedGroups = inheritedGroups
         closePolicy = close
         title = surface.title
+        context.inkDefault = renderer.map { TileInkDefault($0.publication.inkDefault) } ?? .muted
         if isViewLoaded { render(); refreshTitle() }
     }
 
@@ -318,6 +319,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             ($0.view as? UKServerUIPagedRow)?.blocksPublication == true ||
             ($0.view as? UKServerUIFormView)?.blocksPublication == true
                 || ($0.view as? UKServerUIDeviceAtom)?.hasActiveInteraction == true
+                || ($0.view as? UKGlassTileView)?.swipe?.isDragging == true
         })
     }
 
@@ -382,7 +384,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let view = entry.view as? UKGlassTileView {
                     var shown: ServerUIResolvedAppearance?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
-                        guard let self, let view, let renderer, let value = renderer.bindings.status(tile.chip.sourceId) else { return }
+                        guard let self, let view, let renderer, let value = renderer.bindings.status(tile.chip.sourceId, words: tile.words) else { return }
                         let (appearance, text) = UKServerUIHomeViews.appearance(tile.chip, value: value, in: renderer.reader(), keeping: shown)
                         shown = appearance
                         let hiddenSubtitle: Bool
@@ -579,14 +581,26 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                     view.configuration = UKServerUIPreflight.grid(grid, traits: traitCollection)
                     view.followsFold = grid.fold == .page && !isSheet && !context.isPane
                     let children = grid.children.map { ($0, node($0)) }
-                    let items = children.filter { renderer.componentVisible($0.0) }.map { UKGridItem($0.1, span: $0.0.node.span) }
+                    // A grid grouped by state arranges its tiles under headings and moves one when its state changes (`sh.grid-state-groups@1`).
+                    if grid.groups != entry.grouping?.groups {
+                        entry.grouping?.detach()
+                        entry.grouping = grid.groups.map { UKServerUIGridGrouping($0, gridID: grid.node.id, grid: view, surface: context.surface) }
+                    }
+                    entry.grouping?.reapplyGeneration = { [weak self] in self?.context.store.reapplyGeneration ?? 0 }
+                    entry.grouping?.relayout = { [weak self] animated in self?.body?.contentChanged(animated: animated) }
+                    let grouping = entry.grouping
+                    func arranged() -> [UKGridItem] {
+                        let shown = children.filter { renderer.componentVisible($0.0) }.map { (view: $0.1, span: $0.0.node.span) }
+                        return grouping?.items(shown) ?? shown.map { UKGridItem($0.view, span: $0.span) }
+                    }
+                    let items = arranged()
                     if view.items.map(\.view) != items.map(\.view) || view.items.map(\.span) != items.map(\.span) {
                         containerChanges.append(({ view.setItems([]) }, { view.setItems(items) }))
                     }
                     layoutBindings.append { [weak view, weak renderer, weak self] in
                         entry.bag.observe { [weak view, weak renderer, weak self] in
                             guard let view, let renderer else { return }
-                            let items = children.filter { renderer.componentVisible($0.0) }.map { UKGridItem($0.1, span: $0.0.node.span) }
+                            let items = arranged()
                             if view.items.map(\.view) != items.map(\.view) || view.items.map(\.span) != items.map(\.span) {
                                 view.setItems(items)
                                 self?.body?.contentChanged(animated: false)
@@ -1087,6 +1101,8 @@ final class UKServerUINode {
     let view: UIView
     /// The observations tied to the node's lifetime.
     let bag = UKObservationBag()
+    /// A grid's grouping by state, kept for the node's lifetime (`sh.grid-state-groups@1`).
+    var grouping: UKServerUIGridGrouping?
     /// The views the node last placed inside itself, to detect a changed arrangement.
     var childViews: [UIView] = []
     /// Whether the node's `visibleWhen` last said it is shown; `nil` before its first answer (``ServerUIVisibility/WhenUnknown/keep``).

@@ -211,6 +211,8 @@ struct UKTileEnvironment: Equatable {
     var singleLineSubtitle = false
     /// The first values have not arrived: tiles draw a soft bar for their value (`EnvironmentValues.valuesPending`).
     var valuesPending = false
+    /// The ink of an icon with no colour of its own and of the state line on a dark face; the document decides (`sh.tile-ink-default@1`).
+    var inkDefault: TileInkDefault = .muted
 
     init() {}
 
@@ -218,6 +220,7 @@ struct UKTileEnvironment: Equatable {
     @MainActor init(context: UKContext) {
         surface = context.surface
         valuesPending = context.valuesPending
+        inkDefault = context.inkDefault
     }
 }
 

@@ -6,6 +6,7 @@
 
 | Pattern | Canonical component | Web source |
 |---|---|---|
+| [tile-swipe.md](tile-swipe.md) | `HassUI/UIKitPort/Design/UKTileSwipeController.swift`, `HassDesign/TileSwipe.swift` | none (native only) |
 | [map-controls.md](map-controls.md) | `HassUI/UIKitPort/Design/UKMapControlsView.swift`, `HassCore/Vacuums/MapControlFit.swift` | none (native only) |
 | [dynamic-grid.md](dynamic-grid.md) | `HassDesign/DynamicGridLayout.swift` | `src/components/core/DynamicGrid.tsx` |
 | [hinge-avoidance.md](hinge-avoidance.md) | `HassDesign/HingeAvoidance.swift`, `HassUI/UIKitPort/Design/UKFoldColumns.swift`, `HassUI/App/Layout/FoldColumns.swift` | none (iPhone Duo and iPad) |
