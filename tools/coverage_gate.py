@@ -4,6 +4,13 @@
 Only the categories named in ``thresholds`` of ``contracts/coverage-rules.json`` are gated (today ``logic``). Source
 under ``unmeasured`` (the UIKit and SwiftUI view source) is classified so a new module still fails
 by name, but it is never reported or gated.
+
+``--files`` gates only changed files, and a file whose diff against ``--base`` holds only comment lines
+(``//``, ``///``, nested ``/* */``) and whitespace outside string literals is dropped first and reported as
+``skipped (comment-only): <file>``: a comment edit changes no logic (``.agents/testing/apple/coverage.md``).
+The whole file is judged, not the changed lines: both versions are scanned into comment-free code streams
+(``code_stream``) and must be equal, strings exactly. A new, renamed or unreadable file, and any scanner
+doubt, is gated.
 """
 
 from __future__ import annotations
@@ -12,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -348,6 +356,232 @@ def check_changed(
     return errors
 
 
+# MARK: - Comment-only diffs
+
+
+class ScanDoubt(Exception):
+    """The scanner met source it cannot judge safely (an unterminated comment or string, a regex literal)."""
+
+
+_SPACE = re.compile(r"\s+")
+
+
+def _squash(match: re.Match[str]) -> str:
+    """Collapse a whitespace run to one newline when it holds one, else one space."""
+    return "\n" if "\n" in match[0] else " "
+
+
+def _string_end(text: str, start: int) -> int:
+    """Find where the string literal opening at ``start`` ends.
+
+    ``start`` is the first ``#`` or ``"`` of the literal. Handles raw ``#"..."#`` delimiters, multi-line triple-quoted strings and backslash-paren interpolation, whose code may hold quotes and further strings.
+
+    Args:
+        text: The whole file.
+        start: Index of the opening delimiter.
+
+    Returns:
+        The index just past the closing delimiter.
+
+    Raises:
+        ScanDoubt: When the literal is unterminated, a single-line one runs across a line, or an
+            interpolation holds a comment.
+    """
+    i = start
+    while text[i] == "#":
+        i += 1
+    hashes = i - start
+    multi = text.startswith('"""', i)
+    i += 3 if multi else 1
+    close = ('"""' if multi else '"') + "#" * hashes
+    escape = "\\" + "#" * hashes
+    while i < len(text):
+        if text.startswith(escape, i):
+            i += len(escape)
+            if i < len(text) and text[i] == "(":
+                i = _interpolation_end(text, i)
+            else:
+                i += 1
+        elif text.startswith(close, i):
+            return i + len(close)
+        elif text[i] in "\r\n" and not multi:
+            raise ScanDoubt("single-line string runs across a line")
+        else:
+            i += 1
+    raise ScanDoubt("unterminated string")
+
+
+def _interpolation_end(text: str, start: int) -> int:
+    """Find the index just past the ``)`` closing the interpolation whose ``(`` is at ``start``."""
+    depth = 0
+    i = start
+    while i < len(text):
+        ch = text[i]
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        elif ch == '"' or (ch == "#" and text[i:].lstrip("#").startswith('"')):
+            i = _string_end(text, i)
+            continue
+        elif text.startswith(("//", "/*"), i):
+            raise ScanDoubt("comment inside an interpolation")
+        i += 1
+    raise ScanDoubt("unterminated interpolation")
+
+
+def code_stream(text: str) -> list[tuple[str, str]]:
+    """Strip comments from Swift source and normalise whitespace outside string literals.
+
+    Nested ``/* */`` comments, ``//`` and ``///`` comments, string literals of every kind (see
+    ``_string_end``) are understood. A comment counts as whitespace, and a whitespace run becomes one
+    space, or one newline when it holds a newline. String literals, interpolation included, are kept
+    exactly. Two files with equal streams hold the same code.
+
+    Args:
+        text: The whole Swift file.
+
+    Returns:
+        ``("code", text)`` and ``("string", literal)`` parts, in order.
+
+    Raises:
+        ScanDoubt: On unterminated comments or strings, regex literals, or any other doubt.
+    """
+    parts: list[tuple[str, str]] = []
+    code: list[str] = []
+    i = 0
+
+    def flush() -> None:
+        if code:
+            parts.append(("code", _SPACE.sub(_squash, "".join(code))))
+            code.clear()
+
+    while i < len(text):
+        ch = text[i]
+        if text.startswith("//", i):
+            end = re.compile(r"[\r\n]").search(text, i)  # a lone CR ends a comment too
+            i = len(text) if end is None else end.start()
+        elif text.startswith("/*", i):
+            depth, j = 1, i + 2
+            while depth and j < len(text):
+                if text.startswith("/*", j):
+                    depth, j = depth + 1, j + 2
+                elif text.startswith("*/", j):
+                    depth, j = depth - 1, j + 2
+                else:
+                    j += 1
+            if depth:
+                raise ScanDoubt("unterminated block comment")
+            code.append("\n" if "\n" in text[i:j] else " ")
+            i = j
+        elif ch == '"' or (ch == "#" and text[i:].lstrip("#").startswith('"')):
+            end = _string_end(text, i)
+            flush()
+            parts.append(("string", text[i:end]))
+            i = end
+        elif ch == "#" and text.startswith("#/", i):
+            raise ScanDoubt("regex literal")
+        elif ch == "\\" and text.startswith("\\/", i):
+            raise ScanDoubt("escaped slash outside a string: a regex literal")
+        elif ch == "/" and not (
+            "".join(code)[-1:].isspace() and text[i + 1 : i + 2] in (" ", "\n", "\r", "=")
+        ):
+            # Only a spaced binary operator (` / `, ` /= `) is certainly division; any other `/` could open
+            # a regex literal (after `return`, `case`, `(`, an operator, at a line start), so it is doubt.
+            raise ScanDoubt("possible regex literal")
+        else:
+            code.append(ch)
+            i += 1
+    flush()
+    if parts and parts[0][0] == "code":
+        parts[0] = ("code", parts[0][1].lstrip())
+    if parts and parts[-1][0] == "code":
+        parts[-1] = ("code", parts[-1][1].rstrip())
+    return [part for part in parts if part != ("code", "")]
+
+
+def is_comment_only(old: str, new: str) -> bool:
+    """Say whether two versions of a Swift file differ only in comments and whitespace.
+
+    Args:
+        old: The file at the base.
+        new: The file now.
+
+    Returns:
+        True only when both scan cleanly to equal code streams; any doubt is False (gated).
+    """
+    if old == new:
+        return False
+    try:
+        return code_stream(old) == code_stream(new)
+    except ScanDoubt:
+        return False
+
+
+def git_text(root: Path, *args: str) -> str | None:
+    """Run git and return its stdout, or None on any failure."""
+    try:
+        done = subprocess.run(
+            ["git", *args], cwd=root, capture_output=True, check=False, timeout=60
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    try:
+        return done.stdout.decode("utf-8")  # bytes: universal newlines would hide a lone CR
+    except UnicodeDecodeError:
+        return None
+
+
+def comment_only_files(files: list[str], base: str, root: Path = ROOT) -> set[str]:
+    """Name the changed Swift files whose diff against ``base`` is comment-only.
+
+    A file that is new, renamed, deleted, not Swift or unreadable is never named.
+
+    Args:
+        files: Changed repository-relative paths.
+        base: Commit (or ref) to diff against.
+        root: Repository root.
+
+    Returns:
+        The paths to drop from the gated set.
+    """
+    skipped: set[str] = set()
+    for name in files:
+        if not name.endswith(".swift"):
+            continue
+        old = git_text(root, "show", f"{base}:{name}")
+        try:
+            new = (root / name).read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if old is not None and is_comment_only(old, new):
+            skipped.add(name)
+    return skipped
+
+
+def drop_comment_only(files: list[str], base: str | None, root: Path = ROOT) -> list[str]:
+    """Remove comment-only files from a changed list, printing a line for each.
+
+    Args:
+        files: Changed repository-relative paths.
+        base: Commit to diff against; None or empty keeps every file.
+        root: Repository root.
+
+    Returns:
+        The files that still need the coverage gate.
+    """
+    if not base:
+        return list(files)
+    skipped = comment_only_files(files, base, root)
+    for name in sorted(skipped):
+        print(f"skipped (comment-only): {name}")
+    return [name for name in files if name not in skipped]
+
+
 def main(argv: list[str] | None = None) -> int:
     """Parse LLVM reports and enforce the configured category coverage bars.
 
@@ -375,6 +609,10 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help='with --files: JSON {"path": percent}; a file under its bar passes if it did not regress',
     )
+    parser.add_argument(
+        "--base",
+        help="with --files: drop each file whose diff against this commit is comment-only (printed as skipped)",
+    )
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--rules", type=Path, default=RULES)
     args = parser.parse_args(argv)
@@ -390,8 +628,9 @@ def main(argv: list[str] | None = None) -> int:
             dropped: list[str] = []
             totals = llvm_file_totals(args.report, args.root, dropped)
             if args.files:
+                gated = drop_comment_only(args.files, args.base, args.root)
                 baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline else None
-                errors = check_changed(totals, args.root, rules, args.language, args.files, baseline, dropped)
+                errors = check_changed(totals, args.root, rules, args.language, gated, baseline, dropped)
             else:
                 errors = check_coverage(totals, args.root, rules, args.language)
     except (OSError, json.JSONDecodeError, ValueError) as error:
