@@ -525,6 +525,11 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public enum TextStyle: String, CaseIterable, Sendable {
         case body, headline, caption1, subheadline, footnote
         case sectionTitle = "section-title"
+        /// The styles `sh.text-style@1` adds to the older six.
+        case largeTitle = "large-title", title1, title2, title3, callout, caption2
+
+        /// Whether the style needs `sh.text-style@1`.
+        public var needsTextStyle: Bool { [.largeTitle, .title1, .title2, .title3, .callout, .caption2].contains(self) }
     }
     /// A text node: a string value drawn in a text style, with copy for when it is unavailable.
     public struct Text: Equatable, Sendable {
@@ -532,6 +537,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let value: StringValue
         public let style: TextStyle
         public let unavailableText: String
+        /// Weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
+        public var look = ServerUITextLook()
     }
     /// An account header resolves its identity and avatar exclusively from a native provider.
     public struct AccountHeader: Equatable, Sendable {
@@ -707,6 +714,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case bootstrapMessage(BootstrapMessage)
         case notificationBanner(NotificationBanner)
         case overlay(ServerUIOverlay)
+        case stack(ServerUIStack), shape(ServerUIShapePart), symbol(ServerUISymbolPart)
         public var node: Node {
             switch self {
             case .text(let value): value.node
@@ -753,6 +761,9 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .bootstrapMessage(let value): value.node
             case .notificationBanner(let value): value.node
             case .overlay(let value): value.node
+            case .stack(let value): value.node
+            case .shape(let value): value.node
+            case .symbol(let value): value.node
             }
         }
     }

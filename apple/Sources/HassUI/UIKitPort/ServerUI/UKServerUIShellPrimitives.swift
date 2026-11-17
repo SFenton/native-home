@@ -415,8 +415,11 @@ final class UKServerUILocalControl: UKServerUIFittingView {
             show = { if case .string(let value) = $0 { picker.show(value) } }
         case .segmented(let options):
             let names = Dictionary(uniqueKeysWithValues: options.map { ($0.id, $0.label) })
+            let icons = Dictionary(options.compactMap { option in option.symbol.map { (option.id, $0.name) } }, uniquingKeysWith: { first, _ in first })
+            let hints = Dictionary(options.compactMap { option in option.hint.map { (option.id, $0) } }, uniquingKeysWith: { first, _ in first })
             let segmented = UKSegmentedChoice(label: spec.title, options: options.map(\.id), title: { names[$0] ?? $0 },
-                                              selection: nil, identifier: spec.identifier + ".value") { send(.string($0)) }
+                                              selection: nil, identifier: spec.identifier + ".value",
+                                              symbol: { icons[$0] }, hint: { hints[$0] }) { send(.string($0)) }
             row.setBody(segmented)
             control = segmented
             enable = { segmented.isEnabled = $0 }

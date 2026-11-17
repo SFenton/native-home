@@ -1,0 +1,130 @@
+{
+  "format": 1,
+  "name": "stack-reflow-header-range-too-wide",
+  "note": "A range of 260 points beside an 88 point numeral in 343 points: 260 + 88 + 12 = 360 does not fit, so the header stacks and puts the glyph beside the numeral.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "m"
+        },
+        "align": "center",
+        "groups": [
+          {
+            "children": [
+              "glyph",
+              "condition",
+              "range"
+            ],
+            "spacing": {
+              "type": "token",
+              "name": "xs"
+            },
+            "grow": true
+          },
+          {
+            "children": [
+              "numeral"
+            ]
+          }
+        ],
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "accessibility-size",
+            "overflow"
+          ],
+          "fits": [
+            "range"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "s"
+          },
+          "groups": [
+            {
+              "children": [
+                "glyph",
+                "numeral"
+              ],
+              "distribution": "spread",
+              "align": "center"
+            },
+            {
+              "children": [
+                "condition"
+              ]
+            },
+            {
+              "children": [
+                "range"
+              ]
+            }
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "glyph",
+          "width": 40
+        },
+        {
+          "id": "condition",
+          "width": 320,
+          "shrinks": true
+        },
+        {
+          "id": "range",
+          "width": 260
+        },
+        {
+          "id": "numeral",
+          "width": 88
+        }
+      ],
+      "width": 343,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": true,
+      "reason": "overflow",
+      "axis": "vertical",
+      "spacing": 8,
+      "groups": [
+        {
+          "children": [
+            "glyph",
+            "numeral"
+          ],
+          "spacing": 8,
+          "distribution": "spread",
+          "align": "center",
+          "grow": false
+        },
+        {
+          "children": [
+            "condition"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "range"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

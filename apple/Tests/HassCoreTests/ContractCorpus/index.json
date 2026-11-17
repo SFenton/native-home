@@ -6119,6 +6119,1414 @@
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/sourceId"
       }
+    },
+    {
+      "file": "accept/text-style-old-styles-need-no-id.json",
+      "outcome": "accept",
+      "note": "A text that uses only the older styles and none of the new fields needs no new id: it is still the plain text part."
+    },
+    {
+      "file": "reject/choice-icons-hint-is-a-number.json",
+      "outcome": "reject",
+      "note": "A hint is text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/localState/0/options/0/hint"
+      }
+    },
+    {
+      "file": "reject/choice-icons-hint-on-a-picker.json",
+      "outcome": "reject",
+      "note": "The same holds for a hint alone.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/stateId"
+      }
+    },
+    {
+      "file": "reject/choice-icons-hint-too-long.json",
+      "outcome": "reject",
+      "note": "A hint is at most 240 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/localState/0/options/0/hint"
+      }
+    },
+    {
+      "file": "reject/choice-icons-more-than-four-segments.json",
+      "outcome": "reject",
+      "note": "A segmented choice holds at most four options, with symbols too.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/stateId"
+      }
+    },
+    {
+      "file": "reject/choice-icons-on-a-picker.json",
+      "outcome": "reject",
+      "note": "Symbols and hints are for a segmented choice: a picker refuses a field that has them.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/stateId"
+      }
+    },
+    {
+      "file": "reject/choice-icons-option-extra-field.json",
+      "outcome": "reject",
+      "note": "An option has an id, a label, a symbol and a hint: a tint is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/localState/0/options/0/tint"
+      }
+    },
+    {
+      "file": "reject/choice-icons-symbol-missing-name.json",
+      "outcome": "reject",
+      "note": "An option's symbol has its name.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/localState/0/options/0/symbol/name"
+      }
+    },
+    {
+      "file": "reject/choice-icons-symbol-not-a-symbol.json",
+      "outcome": "reject",
+      "note": "An option's symbol is a symbol reference, never a bare name.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/localState/0/options/0/symbol"
+      }
+    },
+    {
+      "file": "reject/choice-icons-symbol-on-some-options.json",
+      "outcome": "reject",
+      "note": "A segment is all symbols or all words: the option without a symbol is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/localState/0/options/1"
+      }
+    },
+    {
+      "file": "accept/choice-icons-four-symbols.json",
+      "outcome": "accept",
+      "note": "Four is the most a segmented choice holds."
+    },
+    {
+      "file": "accept/choice-icons-hints-only.json",
+      "outcome": "accept",
+      "note": "Hints on a choice that draws words."
+    },
+    {
+      "file": "accept/choice-icons-on-a-field-no-control-reads.json",
+      "outcome": "accept",
+      "note": "A field with symbols that no control reads yet is allowed: tabs and rules may use its options."
+    },
+    {
+      "file": "accept/choice-icons-symbols-and-hints.json",
+      "outcome": "accept",
+      "note": "A segmented choice of three symbols; each has the label VoiceOver says and a hint it says after."
+    },
+    {
+      "file": "accept/choice-icons-symbols-only.json",
+      "outcome": "accept",
+      "note": "Symbols without hints."
+    },
+    {
+      "file": "accept/shape-capsule.json",
+      "outcome": "accept",
+      "note": "A capsule of one colour."
+    },
+    {
+      "file": "accept/shape-circle-pair.json",
+      "outcome": "accept",
+      "note": "A circle whose colour differs by appearance."
+    },
+    {
+      "file": "accept/shape-rect.json",
+      "outcome": "accept",
+      "note": "A rectangle."
+    },
+    {
+      "file": "accept/stack-a11y-children.json",
+      "outcome": "accept",
+      "note": "Leaving the children as they are is written as children."
+    },
+    {
+      "file": "accept/stack-a11y-group-with-value.json",
+      "outcome": "accept",
+      "note": "One element with a label and a value read from an entity."
+    },
+    {
+      "file": "accept/stack-a11y-header-role.json",
+      "outcome": "accept",
+      "note": "A group that VoiceOver treats as a heading."
+    },
+    {
+      "file": "accept/stack-a11y-hidden.json",
+      "outcome": "accept",
+      "note": "A stack removed from assistive technologies with its children."
+    },
+    {
+      "file": "accept/stack-action-opens-a-sheet.json",
+      "outcome": "accept",
+      "note": "A stack that is one button opening a sheet: one accessibility element with a label."
+    },
+    {
+      "file": "accept/stack-align-center.json",
+      "outcome": "accept",
+      "note": "Children centered across the axis."
+    },
+    {
+      "file": "accept/stack-child-hidden-by-rule.json",
+      "outcome": "accept",
+      "note": "A child may have a visibleWhen: the group keeps its place in the list and the child simply does not draw."
+    },
+    {
+      "file": "accept/stack-collapse-accessibility-size.json",
+      "outcome": "accept",
+      "note": "A row that becomes a column at an accessibility text size."
+    },
+    {
+      "file": "accept/stack-collapse-both-with-regrouping.json",
+      "outcome": "accept",
+      "note": "The hand-laid header: a condition glyph, a condition ticker and a range on the left and a numeral on the right; it stacks with the glyph beside the numeral."
+    },
+    {
+      "file": "accept/stack-collapse-overflow.json",
+      "outcome": "accept",
+      "note": "A row that becomes a column when the child named in fits is wider than the room beside the others."
+    },
+    {
+      "file": "accept/stack-collapse-spacing-only.json",
+      "outcome": "accept",
+      "note": "A collapse that changes only the space and keeps the groups."
+    },
+    {
+      "file": "accept/stack-column.json",
+      "outcome": "accept",
+      "note": "Two texts one above the other."
+    },
+    {
+      "file": "accept/stack-distribution-spread.json",
+      "outcome": "accept",
+      "note": "First child at one end, last at the other."
+    },
+    {
+      "file": "accept/stack-dividers-pair.json",
+      "outcome": "accept",
+      "note": "A divider that is one colour in Light Mode and another in Dark Mode."
+    },
+    {
+      "file": "accept/stack-dividers.json",
+      "outcome": "accept",
+      "note": "A hairline between neighbours, in white at 14%."
+    },
+    {
+      "file": "accept/stack-empty.json",
+      "outcome": "accept",
+      "note": "A stack with no children is allowed: it draws nothing but its surface."
+    },
+    {
+      "file": "accept/stack-groups-any-order.json",
+      "outcome": "accept",
+      "note": "A group may list children in another order than the stack does."
+    },
+    {
+      "file": "accept/stack-groups.json",
+      "outcome": "accept",
+      "note": "Children partitioned into groups: the first three stacked, the last on its own, the first group taking the room."
+    },
+    {
+      "file": "accept/stack-in-a-grid-span.json",
+      "outcome": "accept",
+      "note": "A stack is a node like any other: it may span two columns of a grid."
+    },
+    {
+      "file": "accept/stack-nested.json",
+      "outcome": "accept",
+      "note": "A stack in a stack."
+    },
+    {
+      "file": "accept/stack-padding.json",
+      "outcome": "accept",
+      "note": "Space inside the stack, a different amount on each side."
+    },
+    {
+      "file": "accept/stack-row.json",
+      "outcome": "accept",
+      "note": "Two texts side by side with the medium space between them."
+    },
+    {
+      "file": "accept/stack-skeleton-cell.json",
+      "outcome": "accept",
+      "note": "Placeholder shapes: a capsule, a circle and a capsule, as a loading cell."
+    },
+    {
+      "file": "accept/stack-spacing-points.json",
+      "outcome": "accept",
+      "note": "The space may be written in points."
+    },
+    {
+      "file": "accept/stack-surface-fill-points-radius.json",
+      "outcome": "accept",
+      "note": "The radius may be points; the border is optional."
+    },
+    {
+      "file": "accept/stack-surface-fill.json",
+      "outcome": "accept",
+      "note": "Its own fill with a hairline border and the tile radius."
+    },
+    {
+      "file": "accept/stack-surface-module.json",
+      "outcome": "accept",
+      "note": "The module surface the app draws under a card."
+    },
+    {
+      "file": "accept/symbol-part-by-rule.json",
+      "outcome": "accept",
+      "note": "A symbol chosen by a condition: the sun above the horizon draws the sun, otherwise the moon."
+    },
+    {
+      "file": "accept/symbol-part-by-state.json",
+      "outcome": "accept",
+      "note": "A symbol chosen by the weather entity's state: rainy and sunny have their own, any other state draws the cloud."
+    },
+    {
+      "file": "accept/symbol-part-image-label.json",
+      "outcome": "accept",
+      "note": "A symbol that carries meaning is an image with a label."
+    },
+    {
+      "file": "accept/symbol-part-monochrome-tint.json",
+      "outcome": "accept",
+      "note": "A monochrome symbol in white at 85%."
+    },
+    {
+      "file": "accept/symbol-part-plain.json",
+      "outcome": "accept",
+      "note": "A multicolor symbol at a fixed size, hidden from assistive technologies."
+    },
+    {
+      "file": "accept/symbol-part-rotate-by-value.json",
+      "outcome": "accept",
+      "note": "An arrow turned by the wind bearing: a number of degrees read from an entity."
+    },
+    {
+      "file": "accept/symbol-part-rotate-fixed.json",
+      "outcome": "accept",
+      "note": "A fixed turn."
+    },
+    {
+      "file": "accept/symbol-part-scaled.json",
+      "outcome": "accept",
+      "note": "A symbol whose size grows with Dynamic Type like a title, up to twice its size."
+    },
+    {
+      "file": "accept/symbol-part-tint-pair.json",
+      "outcome": "accept",
+      "note": "A tint that differs by appearance."
+    },
+    {
+      "file": "accept/symbol-part-trim-leading.json",
+      "outcome": "accept",
+      "note": "The ink the glyph does not fill at its leading edge is trimmed, so the glyph lines up with the text under it."
+    },
+    {
+      "file": "accept/symbol-part-trim-none.json",
+      "outcome": "accept",
+      "note": "None is the default and may be written."
+    },
+    {
+      "file": "accept/text-style-align-center.json",
+      "outcome": "accept",
+      "note": "Centered words."
+    },
+    {
+      "file": "accept/text-style-align-end.json",
+      "outcome": "accept",
+      "note": "Words at the trailing edge, which mirrors in a right-to-left language."
+    },
+    {
+      "file": "accept/text-style-font-empty.json",
+      "outcome": "accept",
+      "note": "An empty font changes nothing and is allowed."
+    },
+    {
+      "file": "accept/text-style-font-monospaced-digits.json",
+      "outcome": "accept",
+      "note": "Digits of equal width, so a changing number does not shift its neighbours."
+    },
+    {
+      "file": "accept/text-style-font-scale-without-cap.json",
+      "outcome": "accept",
+      "note": "The cap is optional: a scaled size with no maximum follows Dynamic Type without a limit."
+    },
+    {
+      "file": "accept/text-style-font-scaled-numeral.json",
+      "outcome": "accept",
+      "note": "A large thin numeral: 76 points at the default size, scaling like a large title and never more than 96."
+    },
+    {
+      "file": "accept/text-style-font-weight.json",
+      "outcome": "accept",
+      "note": "A bold title: the weight changes the style's own."
+    },
+    {
+      "file": "accept/text-style-ink-alpha-one.json",
+      "outcome": "accept",
+      "note": "Alpha 1 is opaque and allowed."
+    },
+    {
+      "file": "accept/text-style-ink-alpha-zero.json",
+      "outcome": "accept",
+      "note": "Alpha 0 is clear and allowed."
+    },
+    {
+      "file": "accept/text-style-ink-pair-mixed.json",
+      "outcome": "accept",
+      "note": "One side opaque, the other with an opacity."
+    },
+    {
+      "file": "accept/text-style-ink-pair-of-rgba.json",
+      "outcome": "accept",
+      "note": "A pair whose sides are both rgba: it declares the pair id too."
+    },
+    {
+      "file": "accept/text-style-ink-rgba.json",
+      "outcome": "accept",
+      "note": "Words in white at 85%."
+    },
+    {
+      "file": "accept/text-style-ink-solid-rgb.json",
+      "outcome": "accept",
+      "note": "Words in an opaque exact colour: a solid-rgb is an ink too."
+    },
+    {
+      "file": "accept/text-style-lines-one-truncate.json",
+      "outcome": "accept",
+      "note": "One line, cut with an ellipsis when it does not fit."
+    },
+    {
+      "file": "accept/text-style-lines-three.json",
+      "outcome": "accept",
+      "note": "At most three lines."
+    },
+    {
+      "file": "accept/text-style-lines-unlimited.json",
+      "outcome": "accept",
+      "note": "Lines 0 is as many as the text needs."
+    },
+    {
+      "file": "accept/text-style-on-an-entity-value.json",
+      "outcome": "accept",
+      "note": "The look applies to a value read from an entity: the demo weather temperature as a numeral."
+    },
+    {
+      "file": "accept/text-style-overflow-ticker.json",
+      "outcome": "accept",
+      "note": "A line that slides when it does not fit: one line only."
+    },
+    {
+      "file": "accept/text-style-style-callout.json",
+      "outcome": "accept",
+      "note": "The style callout, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "accept/text-style-style-caption2.json",
+      "outcome": "accept",
+      "note": "The style caption2, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "accept/text-style-style-large-title.json",
+      "outcome": "accept",
+      "note": "The style large-title, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "accept/text-style-style-title1.json",
+      "outcome": "accept",
+      "note": "The style title1, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "accept/text-style-style-title2.json",
+      "outcome": "accept",
+      "note": "The style title2, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "accept/text-style-style-title3.json",
+      "outcome": "accept",
+      "note": "The style title3, one of the five the text could not name before (large-title, title1, title2, title3, callout, caption2)."
+    },
+    {
+      "file": "reject/rgba-alpha-missing.json",
+      "outcome": "reject",
+      "note": "An rgba has its alpha: opaque colours are the solid-rgb.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/ink/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-alpha-negative.json",
+      "outcome": "reject",
+      "note": "Alpha is not negative.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ink/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-alpha-over-one.json",
+      "outcome": "reject",
+      "note": "Alpha is 0 to 1: 1.5 is refused.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ink/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-alpha-percent.json",
+      "outcome": "reject",
+      "note": "Alpha is a fraction, never a percentage: 50 is refused.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ink/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-alpha-text.json",
+      "outcome": "reject",
+      "note": "Alpha is a number, never text.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ink/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-as-hex-string.json",
+      "outcome": "reject",
+      "note": "A colour is an object, never a string.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ink"
+      }
+    },
+    {
+      "file": "reject/rgba-channel-fraction.json",
+      "outcome": "reject",
+      "note": "A channel is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ink/red"
+      }
+    },
+    {
+      "file": "reject/rgba-channel-over-255.json",
+      "outcome": "reject",
+      "note": "A channel is 0 to 255.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ink/green"
+      }
+    },
+    {
+      "file": "reject/rgba-extra-field.json",
+      "outcome": "reject",
+      "note": "An rgba has only the four numbers: a name is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/ink/family"
+      }
+    },
+    {
+      "file": "reject/rgba-in-a-slot-that-has-no-opacity.json",
+      "outcome": "reject",
+      "note": "Slots that existed before keep exact colours without opacity: a state tile's icon colour refuses an rgba.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/glyphTint/type"
+      }
+    },
+    {
+      "file": "reject/rgba-in-an-old-pair.json",
+      "outcome": "reject",
+      "note": "The pair of a slot that existed before takes solid-rgb only: an rgba side is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/glyphTint/light/alpha"
+      }
+    },
+    {
+      "file": "reject/rgba-ink-bound-color.json",
+      "outcome": "reject",
+      "note": "An ink is an exact colour or a pair: an entity's colour is not one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/ink/type"
+      }
+    },
+    {
+      "file": "reject/rgba-ink-conditional.json",
+      "outcome": "reject",
+      "note": "An ink is not chosen by a rule.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/ink/type"
+      }
+    },
+    {
+      "file": "reject/rgba-ink-standard.json",
+      "outcome": "reject",
+      "note": "The text has no standard ink: leave the field out for the style's own.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/ink/type"
+      }
+    },
+    {
+      "file": "reject/rgba-missing-blue.json",
+      "outcome": "reject",
+      "note": "An rgba has red, green, blue and alpha.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/ink/blue"
+      }
+    },
+    {
+      "file": "reject/rgba-nested-pair.json",
+      "outcome": "reject",
+      "note": "A pair does not nest.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/ink/light/type"
+      }
+    },
+    {
+      "file": "reject/rgba-pair-missing-dark.json",
+      "outcome": "reject",
+      "note": "A pair has both colours.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/ink/dark"
+      }
+    },
+    {
+      "file": "reject/rgba-pair-standard-inside.json",
+      "outcome": "reject",
+      "note": "A pair holds exact colours: the standard fill is not one of them.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/ink/light/type"
+      }
+    },
+    {
+      "file": "reject/shape-fill-bound-color.json",
+      "outcome": "reject",
+      "note": "A shape is an exact colour: an entity's colour is not one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/fill/type"
+      }
+    },
+    {
+      "file": "reject/shape-fill-missing.json",
+      "outcome": "reject",
+      "note": "A shape has its fill.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/fill"
+      }
+    },
+    {
+      "file": "reject/shape-form-unknown.json",
+      "outcome": "reject",
+      "note": "The forms are capsule, rect and circle.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/form"
+      }
+    },
+    {
+      "file": "reject/shape-has-no-a11y.json",
+      "outcome": "reject",
+      "note": "A shape is decoration and has no accessibility settings.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/shape-has-no-children.json",
+      "outcome": "reject",
+      "note": "A shape holds nothing.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/shape-height-over-1024.json",
+      "outcome": "reject",
+      "note": "A shape is at most 1024 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/shape-width-zero.json",
+      "outcome": "reject",
+      "note": "A shape is at least one point wide.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/width"
+      }
+    },
+    {
+      "file": "reject/stack-a11y-element-unknown.json",
+      "outcome": "reject",
+      "note": "The elements are group, children and hidden.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/stack-a11y-hint-on-hidden.json",
+      "outcome": "reject",
+      "note": "A hidden stack has nothing to hint.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/hint"
+      }
+    },
+    {
+      "file": "reject/stack-a11y-label-is-a-structure.json",
+      "outcome": "reject",
+      "note": "A label gives text: a list is not text.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/a11y/label/value"
+      }
+    },
+    {
+      "file": "reject/stack-a11y-label-on-children.json",
+      "outcome": "reject",
+      "note": "A label belongs to a group: with children it is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/stack-a11y-role-unknown.json",
+      "outcome": "reject",
+      "note": "The roles are button, header and text.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/role"
+      }
+    },
+    {
+      "file": "reject/stack-action-over-a-button.json",
+      "outcome": "reject",
+      "note": "A tappable stack holds nothing that takes a tap of its own.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "reject/stack-action-over-an-action-stack.json",
+      "outcome": "reject",
+      "note": "Tappable stacks do not nest.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "reject/stack-action-with-children-a11y.json",
+      "outcome": "reject",
+      "note": "A tappable stack is one element: children is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/stack-action-with-header-role.json",
+      "outcome": "reject",
+      "note": "A tappable stack is a button: a header role is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/role"
+      }
+    },
+    {
+      "file": "reject/stack-action-with-hidden-a11y.json",
+      "outcome": "reject",
+      "note": "A tappable stack cannot be hidden from assistive technologies.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/stack-action-without-a11y.json",
+      "outcome": "reject",
+      "note": "A tappable stack is one button and names itself: without a11y it is refused.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/stack-align-unknown.json",
+      "outcome": "reject",
+      "note": "Align is start, center or end.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/align"
+      }
+    },
+    {
+      "file": "reject/stack-axis-unknown.json",
+      "outcome": "reject",
+      "note": "The axis is horizontal or vertical.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/axis"
+      }
+    },
+    {
+      "file": "reject/stack-button-role-without-action.json",
+      "outcome": "reject",
+      "note": "A button role needs an action.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/a11y/role"
+      }
+    },
+    {
+      "file": "reject/stack-child-id-repeats-a-sibling.json",
+      "outcome": "reject",
+      "note": "Ids are unique across the document, children included.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/children/0/id"
+      }
+    },
+    {
+      "file": "reject/stack-children-not-a-list.json",
+      "outcome": "reject",
+      "note": "The children are a list of nodes.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-extra-field.json",
+      "outcome": "reject",
+      "note": "A collapse has its own fields only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/collapse/breakpoint"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-fits-unknown-child.json",
+      "outcome": "reject",
+      "note": "The fits list names children the stack has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/collapse/fits/0"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-fits-without-overflow.json",
+      "outcome": "reject",
+      "note": "Fits is measured only for the overflow trigger.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/collapse/fits"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-groups-missing-child.json",
+      "outcome": "reject",
+      "note": "The collapsed groups hold every child too.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/collapse/groups"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-on-a-column.json",
+      "outcome": "reject",
+      "note": "Only a row collapses: a column has nowhere to go.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/collapse"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-to-horizontal.json",
+      "outcome": "reject",
+      "note": "A row collapses to a column; there is no other direction.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/collapse/to"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-when-empty.json",
+      "outcome": "reject",
+      "note": "A collapse says when.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/collapse/when"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-when-twice.json",
+      "outcome": "reject",
+      "note": "A trigger is named once.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/collapse/when"
+      }
+    },
+    {
+      "file": "reject/stack-collapse-when-unknown.json",
+      "outcome": "reject",
+      "note": "The triggers are accessibility-size and overflow.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/collapse/when/0"
+      }
+    },
+    {
+      "file": "reject/stack-distribution-unknown.json",
+      "outcome": "reject",
+      "note": "Distribution is natural or spread.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/distribution"
+      }
+    },
+    {
+      "file": "reject/stack-dividers-ink-bound-color.json",
+      "outcome": "reject",
+      "note": "A divider is an exact colour, not an entity's.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/dividers/ink/type"
+      }
+    },
+    {
+      "file": "reject/stack-dividers-ink-missing.json",
+      "outcome": "reject",
+      "note": "A divider has its ink.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/dividers/ink"
+      }
+    },
+    {
+      "file": "reject/stack-dividers-width-zero.json",
+      "outcome": "reject",
+      "note": "A line is at least half a point.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/dividers/width"
+      }
+    },
+    {
+      "file": "reject/stack-extra-prop.json",
+      "outcome": "reject",
+      "note": "A stack has only its own settings: a wrap flag is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/wrap"
+      }
+    },
+    {
+      "file": "reject/stack-groups-duplicate-child.json",
+      "outcome": "reject",
+      "note": "A child is in one group only.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/props/groups/1/children/0"
+      }
+    },
+    {
+      "file": "reject/stack-groups-empty-group.json",
+      "outcome": "reject",
+      "note": "A group has at least one child.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/0/children"
+      }
+    },
+    {
+      "file": "reject/stack-groups-extra-field.json",
+      "outcome": "reject",
+      "note": "A group has its children and four settings: a wrap is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/groups/0/wrap"
+      }
+    },
+    {
+      "file": "reject/stack-groups-missing-child.json",
+      "outcome": "reject",
+      "note": "Every child is in a group: b is left out.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/groups"
+      }
+    },
+    {
+      "file": "reject/stack-groups-unknown-child.json",
+      "outcome": "reject",
+      "note": "A group names a child the stack does not have.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/groups/0/children/1"
+      }
+    },
+    {
+      "file": "reject/stack-has-no-title-text.json",
+      "outcome": "reject",
+      "note": "A stack has no value of its own: text belongs in a child.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/stack-padding-missing-a-side.json",
+      "outcome": "reject",
+      "note": "Padding names all four sides.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/padding/trailing"
+      }
+    },
+    {
+      "file": "reject/stack-spacing-missing.json",
+      "outcome": "reject",
+      "note": "A stack says its spacing: there is no default.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/spacing"
+      }
+    },
+    {
+      "file": "reject/stack-spacing-negative.json",
+      "outcome": "reject",
+      "note": "Space in points is 0 or more.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/spacing/value"
+      }
+    },
+    {
+      "file": "reject/stack-spacing-token-unknown.json",
+      "outcome": "reject",
+      "note": "The space tokens are a closed list.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/spacing/name"
+      }
+    },
+    {
+      "file": "reject/stack-surface-border-width-zero.json",
+      "outcome": "reject",
+      "note": "A border is at least half a point.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/surface/border/width"
+      }
+    },
+    {
+      "file": "reject/stack-surface-density-unknown.json",
+      "outcome": "reject",
+      "note": "The module surface is thin or dense.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/surface/density"
+      }
+    },
+    {
+      "file": "reject/stack-surface-fill-missing.json",
+      "outcome": "reject",
+      "note": "A fill surface has its fill.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/surface/fill"
+      }
+    },
+    {
+      "file": "reject/stack-surface-module-with-fill.json",
+      "outcome": "reject",
+      "note": "The module surface has no fill of its own.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/surface/fill"
+      }
+    },
+    {
+      "file": "reject/stack-surface-radius-unknown-token.json",
+      "outcome": "reject",
+      "note": "The radius token is tile.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/surface/radius/name"
+      }
+    },
+    {
+      "file": "reject/stack-surface-style-unknown.json",
+      "outcome": "reject",
+      "note": "The surfaces are module and fill.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/surface/type"
+      }
+    },
+    {
+      "file": "reject/symbol-part-a11y-element-unknown.json",
+      "outcome": "reject",
+      "note": "The elements are hidden and image.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/symbol-part-a11y-hidden-with-label.json",
+      "outcome": "reject",
+      "note": "A hidden symbol has no label.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/symbol-part-a11y-image-without-label.json",
+      "outcome": "reject",
+      "note": "An image has its label.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/symbol-part-a11y-missing.json",
+      "outcome": "reject",
+      "note": "A symbol says whether assistive technologies skip it.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/symbol-part-bound-symbol-over-a-number.json",
+      "outcome": "reject",
+      "note": "A symbol name is text: a number read is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/name/value"
+      }
+    },
+    {
+      "file": "reject/symbol-part-bound-symbol-without-fallback.json",
+      "outcome": "reject",
+      "note": "A symbol chosen by state names the symbol that draws for any other state.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/name/fallback"
+      }
+    },
+    {
+      "file": "reject/symbol-part-extra-prop.json",
+      "outcome": "reject",
+      "note": "A symbol has only its own settings.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/weight"
+      }
+    },
+    {
+      "file": "reject/symbol-part-has-no-action.json",
+      "outcome": "reject",
+      "note": "A symbol is not tappable: put it in a stack that is.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action"
+      }
+    },
+    {
+      "file": "reject/symbol-part-max-scale-below-one.json",
+      "outcome": "reject",
+      "note": "A scale cap is at least 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/size/maxScale"
+      }
+    },
+    {
+      "file": "reject/symbol-part-max-scale-without-relative-to.json",
+      "outcome": "reject",
+      "note": "A maximum scale needs the style the size follows.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/size/maxScale"
+      }
+    },
+    {
+      "file": "reject/symbol-part-name-is-text.json",
+      "outcome": "reject",
+      "note": "The name is a symbol reference, never a bare string.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/name"
+      }
+    },
+    {
+      "file": "reject/symbol-part-name-missing.json",
+      "outcome": "reject",
+      "note": "A symbol has its name.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/name"
+      }
+    },
+    {
+      "file": "reject/symbol-part-rendering-missing.json",
+      "outcome": "reject",
+      "note": "A symbol says how it renders.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/rendering"
+      }
+    },
+    {
+      "file": "reject/symbol-part-rendering-unknown.json",
+      "outcome": "reject",
+      "note": "The renderings are multicolor and monochrome.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/rendering"
+      }
+    },
+    {
+      "file": "reject/symbol-part-rotate-is-a-structure.json",
+      "outcome": "reject",
+      "note": "A turn is a number: a list is not one.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/rotate"
+      }
+    },
+    {
+      "file": "reject/symbol-part-rotate-is-text.json",
+      "outcome": "reject",
+      "note": "A turn is a number of degrees: text is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/rotate"
+      }
+    },
+    {
+      "file": "reject/symbol-part-size-below-eight.json",
+      "outcome": "reject",
+      "note": "A symbol is at least 8 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/size/points"
+      }
+    },
+    {
+      "file": "reject/symbol-part-size-missing.json",
+      "outcome": "reject",
+      "note": "A symbol has its size.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/size"
+      }
+    },
+    {
+      "file": "reject/symbol-part-tint-on-multicolor.json",
+      "outcome": "reject",
+      "note": "A multicolor symbol draws its own colors: a tint is for a monochrome one.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/tint"
+      }
+    },
+    {
+      "file": "reject/symbol-part-trim-unknown.json",
+      "outcome": "reject",
+      "note": "The trims are none and leading.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/trim"
+      }
+    },
+    {
+      "file": "reject/text-style-align-unknown.json",
+      "outcome": "reject",
+      "note": "Align is start, center or end: left is refused, since the edge follows the language.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/align"
+      }
+    },
+    {
+      "file": "reject/text-style-font-digits-unknown.json",
+      "outcome": "reject",
+      "note": "Digits are proportional or monospaced.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/font/digits"
+      }
+    },
+    {
+      "file": "reject/text-style-font-extra-field.json",
+      "outcome": "reject",
+      "note": "The font has weight, digits and scale only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/font/italic"
+      }
+    },
+    {
+      "file": "reject/text-style-font-scale-below-eight.json",
+      "outcome": "reject",
+      "note": "A scaled size is at least 8 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/font/scale/points"
+      }
+    },
+    {
+      "file": "reject/text-style-font-scale-cap-below-size.json",
+      "outcome": "reject",
+      "note": "The cap cannot be smaller than the size.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/font/scale/maxPoints"
+      }
+    },
+    {
+      "file": "reject/text-style-font-scale-missing-relative-to.json",
+      "outcome": "reject",
+      "note": "A scaled size says which style it follows.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/font/scale/relativeTo"
+      }
+    },
+    {
+      "file": "reject/text-style-font-scale-relative-to-unknown.json",
+      "outcome": "reject",
+      "note": "A scaled size follows one of the eleven styles.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/font/scale/relativeTo"
+      }
+    },
+    {
+      "file": "reject/text-style-font-weight-unknown.json",
+      "outcome": "reject",
+      "note": "The weights are a closed list.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/font/weight"
+      }
+    },
+    {
+      "file": "reject/text-style-lines-fraction.json",
+      "outcome": "reject",
+      "note": "Lines is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/lines"
+      }
+    },
+    {
+      "file": "reject/text-style-lines-negative.json",
+      "outcome": "reject",
+      "note": "Lines is 0 or more.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/lines"
+      }
+    },
+    {
+      "file": "reject/text-style-lines-over-twelve.json",
+      "outcome": "reject",
+      "note": "At most twelve lines: use 0 for as many as it needs.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/lines"
+      }
+    },
+    {
+      "file": "reject/text-style-overflow-unknown.json",
+      "outcome": "reject",
+      "note": "Overflow is wrap, truncate or ticker.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/overflow"
+      }
+    },
+    {
+      "file": "reject/text-style-style-camel-case.json",
+      "outcome": "reject",
+      "note": "Styles are spelled with a hyphen where they have two words: largeTitle is refused.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/style"
+      }
+    },
+    {
+      "file": "reject/text-style-style-unknown.json",
+      "outcome": "reject",
+      "note": "The styles are the eleven names: a point size is not one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/style"
+      }
+    },
+    {
+      "file": "reject/text-style-ticker-with-two-lines.json",
+      "outcome": "reject",
+      "note": "A ticker slides one line: two lines is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/overflow"
+      }
+    },
+    {
+      "file": "reject/text-style-ticker-with-unlimited-lines.json",
+      "outcome": "reject",
+      "note": "Lines 0 is unlimited, which a ticker is not.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/overflow"
+      }
+    },
+    {
+      "file": "reject/text-style-ticker-without-lines.json",
+      "outcome": "reject",
+      "note": "A ticker says it is one line: without lines it is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/overflow"
+      }
     }
   ]
 }
