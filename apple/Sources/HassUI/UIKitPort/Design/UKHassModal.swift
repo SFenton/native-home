@@ -236,7 +236,8 @@ final class UKHassModalController: UKNativeExitNavigationController, UISheetPres
         UKSheetPlacement.fillsHeight(in: presentationController?.containerView ?? view.window ?? presentingWindow)
     }
 
-    private func configureSheet() {
+    /// Applies the sheet settings (detents, grabber, delegate); ``followPose()`` re-runs it under an open sheet. Internal for tests.
+    func configureSheet() {
         guard !options.isFullScreen, let sheet = sheetPresentationController else { return }
         sheet.delegate = self
         // A `.full` sheet has one detent, so a grabber would promise a resize that does not exist (HIG: Sheets); Close is the exit for the centred form sheet in iPad portrait, which the system keeps from following a drag (`.agents/decisions/2026-11-16-ipad-full-form-sheet.md`).
