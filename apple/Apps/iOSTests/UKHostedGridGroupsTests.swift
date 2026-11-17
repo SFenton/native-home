@@ -12,6 +12,14 @@ private final class ScriptedPress: UILongPressGestureRecognizer {
     }
 }
 
+/// A scroll view whose drag and deceleration flags the test sets, as a finger and a fling would.
+private final class ScriptedScroll: UIScrollView {
+    var dragging = false
+    var decelerating = false
+    override var isDragging: Bool { dragging }
+    override var isDecelerating: Bool { decelerating }
+}
+
 // MARK: - Grid groups, UX and accessibility
 
 /// Hosted UX and accessibility checks for `tile-grid` groups by state (`sh.grid-state-groups@1`): the headings, the dropped empty group, the move
@@ -38,6 +46,7 @@ final class UKHostedGridGroupsTests: XCTestCase {
         let grid: UKDynamicGridView
         let grouping: UKServerUIGridGrouping
         let tiles: [UKGlassTileView]
+        let scroll: ScriptedScroll
     }
 
     private func model(_ title: String, active: Bool = false, unavailable: Bool = false) -> UKGlassTileModel {
@@ -45,10 +54,11 @@ final class UKHostedGridGroupsTests: XCTestCase {
                          isUnavailable: unavailable, kind: .toggle)
     }
 
-    private func fixture(width: CGFloat, faces: [(active: Bool, unavailable: Bool)]) -> Fixture {
+    private func fixture(width: CGFloat, faces: [(active: Bool, unavailable: Bool)], category: UIContentSizeCategory? = nil) -> Fixture {
         let host = UIViewController()
+        if let category { host.traitOverrides.preferredContentSizeCategory = category }
         let window = HostedPage.show(host)
-        let scroll = UIScrollView(frame: CGRect(x: 0, y: 80, width: width, height: 600))
+        let scroll = ScriptedScroll(frame: CGRect(x: 0, y: 80, width: width, height: 600))
         host.view.addSubview(scroll)
         let grid = UKDynamicGridView()
         scroll.addSubview(grid)
@@ -59,7 +69,8 @@ final class UKHostedGridGroupsTests: XCTestCase {
         grid.regroupItems(grouping.items(tiles.map { ($0, 1) }))
         grid.frame = CGRect(x: 0, y: 0, width: width, height: grid.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
         grid.layoutIfNeeded()
-        return Fixture(window: window, grid: grid, grouping: grouping, tiles: tiles)
+        scroll.contentSize = CGSize(width: width, height: 4000)
+        return Fixture(window: window, grid: grid, grouping: grouping, tiles: tiles, scroll: scroll)
     }
 
     private func order(_ f: Fixture) -> [String] {
@@ -167,5 +178,104 @@ final class UKHostedGridGroupsTests: XCTestCase {
         f.tiles[1].configure(model("Tile 1", unavailable: true), animated: false)
         HostedPage.wait(0.3)
         XCTAssertEqual(f.grouping.regroupCount, 1)
+    }
+
+    // MARK: Reapply
+
+    func testASnapshotOrReconnectReapplyNeverAnimatesEvenRightAfterATap() throws {
+        for reduced in [false, true] {
+            UKMotion.reduceMotionOverride = reduced
+            let f = fixture(width: 393, faces: [(false, false), (true, false)])
+            defer { f.window.isHidden = true }
+            var generation = 0
+            f.grouping.reapplyGeneration = { generation }
+            press(f.grouping, [.began, .ended])
+            generation += 1
+            f.tiles[0].configure(model("Tile 0", active: true), animated: false)
+            HostedPage.wait(0.1)
+            XCTAssertEqual(f.grouping.regroupCount, 1)
+            XCTAssertEqual(order(f), ["#grid.group.on", "Tile 0", "Tile 1"], "it still moves (reduce motion \(reduced))")
+            XCTAssertNil(f.tiles[0].layer.animationKeys(), "a reapply never animates, whoever tapped last")
+            XCTAssertEqual(f.tiles[0].alpha, 1, "and never fades")
+        }
+    }
+
+    // MARK: Touches and scrolls
+
+    func testOnlyARealTapCountsAndATouchThatEndedAScrollDoesNot() throws {
+        let f = fixture(width: 393, faces: [(false, false), (true, false)])
+        defer { f.window.isHidden = true }
+        press(f.grouping, [.began])
+        f.scroll.contentOffset = CGPoint(x: 0, y: 160)
+        press(f.grouping, [.ended])
+        XCTAssertNil(f.grouping.lastTap, "the finger scrolled the page: not a tap")
+        f.tiles[0].configure(model("Tile 0", active: true), animated: false)
+        HostedPage.wait(0.1)
+        XCTAssertEqual(f.grouping.regroupCount, 1)
+        XCTAssertNil(f.tiles[0].layer.animationKeys(), "a house change right after a scroll does not slide")
+        press(f.grouping, [.began, .ended])
+        XCTAssertNotNil(f.grouping.lastTap, "a touch that moved nothing is a tap")
+    }
+
+    func testAChangeHeldByAScrollAppliesWhenTheDecelerationEndsWithNoNewTouch() throws {
+        for width in Self.widths {
+            let f = fixture(width: width, faces: [(false, false), (true, false)])
+            defer { f.window.isHidden = true }
+            f.scroll.dragging = true
+            f.tiles[0].configure(model("Tile 0", active: true), animated: false)
+            HostedPage.wait(0.2)
+            XCTAssertEqual(f.grouping.regroupCount, 0, "nothing moves under a dragging scroll (width \(width))")
+            // The finger lifts into a fling: the offset keeps changing while it decelerates.
+            f.scroll.dragging = false
+            f.scroll.decelerating = true
+            f.scroll.contentOffset = CGPoint(x: 0, y: 40)
+            HostedPage.wait(0.2)
+            f.scroll.contentOffset = CGPoint(x: 0, y: 55)
+            XCTAssertEqual(f.grouping.regroupCount, 0, "still decelerating: still held")
+            // The last offset change happens while the flag is still set; the flag clears with no further change.
+            f.scroll.decelerating = false
+            HostedPage.wait(0.5)
+            XCTAssertEqual(f.grouping.regroupCount, 1, "applied once the scroll is over, with no new touch (width \(width))")
+            XCTAssertEqual(order(f), ["#grid.group.on", "Tile 0", "Tile 1"])
+            XCTAssertNil(f.tiles[0].layer.animationKeys(), "nobody tapped: no animation")
+        }
+    }
+
+    // MARK: Accessibility
+
+    func testAtTheLargestTextSizeTheHeadingsStayFullRowsWithTheHeaderTraitAndNothingOverlaps() throws {
+        for width in Self.widths {
+            let f = fixture(width: width, faces: [(false, false), (true, false), (false, true)], category: .accessibilityExtraExtraExtraLarge)
+            defer { f.window.isHidden = true }
+            XCTAssertEqual(f.grid.items.filter(\.isHeader).count, 3, "width \(width)")
+            for item in f.grid.items {
+                XCTAssertLessThanOrEqual(item.view.frame.maxX, f.grid.bounds.width + 0.5, "nothing leaves the grid at AX5")
+                if item.isHeader { XCTAssertEqual(item.view.frame.width, f.grid.bounds.width, accuracy: 0.5) }
+            }
+            for header in f.grid.items.compactMap({ $0.view as? UKPageSectionHeaderView }) {
+                XCTAssertTrue(HostedPage.descendants(of: header).contains { $0.accessibilityTraits.contains(.header) })
+                XCTAssertGreaterThanOrEqual(header.frame.height, 28, "a heading at AX5 has room for its text")
+            }
+            let frames = f.grid.items.map(\.view.frame)
+            for (index, frame) in frames.enumerated() {
+                for other in frames[(index + 1)...] { XCTAssertFalse(frame.intersects(other.insetBy(dx: 1, dy: 1)), "no overlap at AX5 (width \(width))") }
+            }
+        }
+    }
+
+    func testAMovedTileIsTheSameElementSoVoiceOverFocusStaysOnIt() throws {
+        for width in Self.widths {
+            let f = fixture(width: width, faces: [(false, false), (true, false)])
+            defer { f.window.isHidden = true }
+            let tile = f.tiles[0]
+            let element = tile.accessibilityElements?.first as AnyObject?
+            tile.configure(model("Tile 0", active: true), animated: false)
+            HostedPage.wait(0.2)
+            XCTAssertEqual(f.grouping.regroupCount, 1)
+            XCTAssertTrue(tile.superview === f.grid, "the same view: not rebuilt (width \(width))")
+            XCTAssertTrue((tile.accessibilityElements?.first as AnyObject?) === element, "the same accessibility element: focus is kept")
+            XCTAssertTrue(f.tiles[1].superview === f.grid)
+            XCTAssertEqual(order(f), ["#grid.group.on", "Tile 0", "Tile 1"], "the heading is read before the tiles under it")
+        }
     }
 }

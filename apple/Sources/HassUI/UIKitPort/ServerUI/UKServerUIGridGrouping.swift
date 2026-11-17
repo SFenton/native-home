@@ -29,10 +29,13 @@ final class UKServerUIGridGrouping: NSObject, UIGestureRecognizerDelegate {
     private var children: [(view: UIView, span: Int)] = []
     private let press = UILongPressGestureRecognizer()
     private var touching = false
-    private var lastTap: ContinuousClock.Instant?
+    /// When a person last tapped the grid (not a touch that scrolled).
+    private(set) var lastTap: ContinuousClock.Instant?
     private var isPending = false
     private var held = false
-    private var offsetObservation: NSKeyValueObservation?
+    /// Tells a held change the scroll is over (``UKTickerScrollGate``: it watches the offset and the drag and deceleration flags, so it sees the end of a deceleration).
+    private var scrollEnd: NSObjectProtocol?
+    private var touchStartOffset: CGPoint?
     private var seenReapply = 0
     /// The store's reapply generation now: a change since the last arrangement is a snapshot or reconnect.
     var reapplyGeneration: () -> Int = { 0 }
@@ -56,13 +59,16 @@ final class UKServerUIGridGrouping: NSObject, UIGestureRecognizerDelegate {
         NotificationCenter.default.addObserver(self, selector: #selector(faceChanged(_:)), name: .ukTileFaceChanged, object: nil)
     }
 
-    deinit { NotificationCenter.default.removeObserver(self) }
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+        if let scrollEnd { NotificationCenter.default.removeObserver(scrollEnd) }
+    }
 
     /// Ends the grouping when the document changes it or takes it away.
     func detach() {
         NotificationCenter.default.removeObserver(self)
         grid?.removeGestureRecognizer(press)
-        offsetObservation = nil
+        endScrollWatch()
     }
 
     // MARK: Arranging
@@ -124,15 +130,23 @@ final class UKServerUIGridGrouping: NSObject, UIGestureRecognizerDelegate {
         guard !held else { return }
         held = true
         guard let scroll else { return }
-        offsetObservation = scroll.observe(\.contentOffset) { [weak self] _, _ in
+        // The scroll's own end (the finger lifting, the deceleration settling) arrives here; a touch ending is `pressed(_:)`.
+        UKTickerScrollGate.install(on: scroll)
+        UKTickerScrollGate.nearest(above: grid ?? scroll)?.watch()
+        scrollEnd = NotificationCenter.default.addObserver(forName: UKTickerScrollGate.didChange, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.releaseIfIdle() }
         }
+    }
+
+    private func endScrollWatch() {
+        if let scrollEnd { NotificationCenter.default.removeObserver(scrollEnd) }
+        scrollEnd = nil
     }
 
     private func releaseIfIdle() {
         guard held, !touching, !isScrolling else { return }
         held = false
-        offsetObservation = nil
+        endScrollWatch()
         settle()
     }
 
@@ -175,16 +189,25 @@ final class UKServerUIGridGrouping: NSObject, UIGestureRecognizerDelegate {
 
     @objc private func pressed(_ press: UILongPressGestureRecognizer) {
         switch press.state {
-        case .began: touching = true
+        case .began:
+            touching = true
+            touchStartOffset = scroll?.contentOffset
         case .ended:
             touching = false
-            lastTap = .now
+            // Only a tap counts as a person's cause: a touch that ended a scroll moved the page.
+            if !touchMovedThePage { lastTap = .now }
+            touchStartOffset = nil
             releaseIfIdle()
         case .cancelled, .failed:
             touching = false
             releaseIfIdle()
         default: break
         }
+    }
+
+    private var touchMovedThePage: Bool {
+        guard let scroll, let start = touchStartOffset else { return false }
+        return scroll.isDragging || scroll.isDecelerating || abs(scroll.contentOffset.y - start.y) > 3 || abs(scroll.contentOffset.x - start.x) > 3
     }
 
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }

@@ -131,7 +131,7 @@ struct UKGlassTileModel {
             title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB,
             // An unavailable tile draws the muted grey at 50%, as the old atom did: the tint is not applied then (`sh.tile-ink@1`).
             glyphTint: isUnavailable ? nil : glyphTint, softFillInk: softFillInk, isActive: isActive,
-            isUnavailable: isUnavailable && !isInert, isError: isError, isWarning: isWarning,
+            isUnavailable: isUnavailable, isError: isError, isWarning: isWarning,
             showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,
             textFit: textFit, probeIdentifier: identifier)
@@ -201,7 +201,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The swipe that adjusts this tile (`sh.tile-swipe@1`); `onAdjust` is its increment and decrement, and its noun names the two actions.
     var swipe: UKTileSwipeController?
     /// The face the tile draws now, for a grid grouped by state (`sh.grid-state-groups@1`).
-    var gridFace: UKGridFace { model.isUnavailable && !isInert ? .unavailable : model.isActive ? .active : .idle }
+    var gridFace: UKGridFace { model.isUnavailable ? .unavailable : model.isActive ? .active : .idle }
     private var lastGridFace: UKGridFace?
     /// How many times ``configure(_:environment:animated:action:perform:)`` ran; a drag must not add to it (`build/design/tile-swipe.md`, C8).
     private(set) var configureCount = 0
@@ -474,7 +474,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The ground the discs sit on, from the same face the tile draws.
     private var actionFace: TileActionFace {
         switch TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
-                                     isUnavailable: model.isUnavailable && !isInert,
+                                     isUnavailable: model.isUnavailable,
                                      solidFill: model.fillRGB.map { model.fillDarkRGB.flatMap { dark in traitCollection.userInterfaceStyle == .dark ? dark : nil } ?? $0 }) {
         case .lit: .lit
         case .filled, .colored: .filled
@@ -510,9 +510,9 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     }
 
     private func apply(animated: Bool) {
-        // A state tile is not a button: never dimmed as disabled.
+        // A state tile is not a button: the control is never disabled, but its face draws unavailable (grey) as any tile does.
         isEnabled = isInert ? true : !(model.isUnavailable || bodyBlocked)
-        face.isEnabled = isEnabled
+        face.isEnabled = !(model.isUnavailable || bodyBlocked)
         let placement = placement(width: layoutWidth)
         let content = swipedContent(placement)
         face.apply(content, environment: environment, animated: animated)
@@ -524,7 +524,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The face's primary ink, the title's colour: what the arc standing in for a disc is drawn in, never the warning or error ink.
     private var arcTint: UIColor {
         let style = TileFaceStyle.resolve(family: model.family, isActive: model.isActive, isError: model.isError, isWarning: model.isWarning,
-                                          isUnavailable: model.isUnavailable && !isInert,
+                                          isUnavailable: model.isUnavailable,
                                           solidFill: model.fillRGB.map { model.fillDarkRGB.flatMap { dark in traitCollection.userInterfaceStyle == .dark ? dark : nil } ?? $0 })
         return UIColor(TileFaceInk.primaryToken(style: style, appearance: UKDesign.tileAppearance(surface: environment.surface, traits: traitCollection)))
     }

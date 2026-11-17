@@ -92,7 +92,8 @@ public enum TileFaceInk {
     /// ``secondary(style:appearance:finish:surface:hasWash:)`` as raw sRGB.
     ///
     /// With `inkDefault` primary the state line of an idle or tinted face, enabled, is the title's ink (`sh.tile-ink-default@1`). The lit and
-    /// filled faces keep their ink, an error its red, a warning its amber; an unavailable tile (`isEnabled` false) keeps the grey.
+    /// filled faces keep their ink and an error its red. A warning's state line is the primary ink too (the glyph keeps the amber, so the state
+    /// is still carried by shape and icon, not colour alone); an unavailable tile (`isEnabled` false) keeps the grey.
     public static func secondaryToken(style: TileFaceStyle, appearance: TileAppearance, finish: TileFinish, surface: TileSurface,
                                       hasWash: Bool, inkDefault: TileInkDefault = .muted, isEnabled: Bool = true) -> HassRGB {
         switch style {
@@ -100,7 +101,7 @@ public enum TileFaceInk {
         case let .filled(family): family.secondaryInkToken
         case .colored: RoomPalette.inkToken
         case .error: HassRGB(rgb: appearance.errorRGB)
-        case .warning: HassRGB(rgb: appearance.warningRGB)
+        case .warning where inkDefault == .muted || !isEnabled: HassRGB(rgb: appearance.warningRGB)
         default:
             if inkDefault == .primary, isEnabled { primaryToken(style: style, appearance: appearance) }
             else if appearance == .light { hasWash ? HassTokens.RGB.Ink.secondary : HassTokens.RGB.Surface.secondaryInSheet }

@@ -63,8 +63,17 @@ struct TileInkDefaultTests {
         let styles: [TileFaceStyle] = [.lit, .filled(.power), .colored(0x336699), .error, .warning]
         for style in styles {
             #expect(glyph(style, appearance, ink: .primary) == glyph(style, appearance, ink: .muted), "\(style) glyph")
+        }
+        for style in styles where style != .warning {
             #expect(state(style, appearance, ink: .primary) == state(style, appearance, ink: .muted), "\(style) state line")
         }
+    }
+
+    @Test(arguments: [TileAppearance.dark, .light])
+    func theWarningStateLineDrawsThePrimaryInkAndItsGlyphKeepsTheAmber(appearance: TileAppearance) {
+        #expect(state(.warning, appearance, ink: .primary) == TileFaceInk.primaryToken(style: .warning, appearance: appearance))
+        #expect(state(.warning, appearance, ink: .muted) == HassRGB(rgb: appearance.warningRGB), "a document without the id draws today's amber")
+        #expect(glyph(.warning, appearance, ink: .primary) == HassRGB(rgb: appearance.warningRGB))
     }
 
     @Test(arguments: [TileAppearance.dark, .light])

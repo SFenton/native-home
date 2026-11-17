@@ -5,7 +5,7 @@ import XCTest
 @testable import HassUI
 
 /// A pan recognizer that reports what the test says.
-private final class ScriptedPan: UIPanGestureRecognizer {
+final class ScriptedPan: UIPanGestureRecognizer {
     var scriptedState: UIGestureRecognizer.State = .possible
     var point = CGPoint.zero
     var speed = CGPoint(x: 120, y: 0)
