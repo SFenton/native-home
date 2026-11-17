@@ -120,7 +120,6 @@ struct CoverActionsTests {
     @Test func movingReversesOtherwiseWithTodaysCommand() {
         let opening = spec("opening", noStop)
         #expect(opening.verb == "Reverse" && opening.call == ServiceCall("cover", "close_cover", target: id))
-        #expect(opening.call?.service == GarageDoorController.command(for: "opening")?.service)
         let closing = spec("closing", noStop)
         #expect(closing.verb == "Reverse" && closing.call == ServiceCall("cover", "open_cover", target: id))
         #expect(opening.symbol != closing.symbol)

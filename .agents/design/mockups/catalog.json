@@ -1003,7 +1003,7 @@
       "title": "Vacuums",
       "path": "pages/vacuums/vacuums",
       "sources": [
-        "apple/Sources/HassUI/Features/Vacuums/VacuumsScreen.swift"
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift"
       ],
       "docs": [
         ".agents/pages/vacuums/spec.md",

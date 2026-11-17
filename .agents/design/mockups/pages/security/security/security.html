@@ -24,7 +24,7 @@
   Mock.mount({
     kind: 'page', id: 'security', title: 'Security', area: 'security', status: 'shipped',
     summary: 'The Security tab: the Security and Contact Sensors chips, the alarm card on a module, Doors as tiles (a lock and two garage doors), guests while a toggle is on, cameras, and the hidden Car section. Sample data is the debug gallery fixture.',
-    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/Security/GarageDoorController.swift'],
+    source: ['apple/Sources/HassUI/Features/Security/SecurityScreen.swift', 'apple/Sources/HassUI/Features/Security/SecuritySystemSheet.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift', 'apple/Sources/HassCore/Config/SecurityConfig.swift', 'apple/Sources/HassCore/TileActions/StateStyle.swift'],
     spec: ['.agents/pages/security/spec.md', '.agents/pages/security/ios.md', '.agents/design/direction-g.md'],
     patterns: ['status-rail', 'dynamic-grid', 'camera-streams', 'entity-tile', 'optimistic-actions', 'motion'],
     hig: ['Tab bars', 'Alerts', 'Color', 'Dynamic Type', 'HomeKit: cameras'],
@@ -78,8 +78,8 @@
           return Mock.sleep(Mock.anim.ms.state() + 600).then(function () { setTile(t, { title: 'Front Door', subtitle: 'Unlocked', symbol: 'lock.open', family: 'contact', isActive: true, kind: 'command' }); return Mock.sleep(700); })
             .then(function () { setTile(t, { title: 'Front Door', subtitle: 'Locked', symbol: 'lock', family: 'contact', isActive: false, kind: 'command' }); return Mock.sleep(Mock.anim.ms.state() + 300); });
         } },
-      { id: 'garage-sequence', what: 'A garage door tap: Sending Open… for 1 s, Opening until the door reports, then Open; a failure shows Error in red for 8 s', token: 'state 0.6 s for the fill; feedback timings from GarageDoorController.Timing (1 s, 2 s, 10 s, 45 s, 8 s)', state: 'default',
-        source: 'HassCore/Security/GarageDoorController.swift, SecurityTiles.swift GarageDoorTile; spec.md Garage door command', reduce: 'colour cross-fades at 0.2 s; the VoiceOver announcement is unchanged',
+      { id: 'garage-sequence', what: 'A garage door tap: Sending Open… for 1 s, Opening until the door reports, then Open; a failure shows Error in red for 8 s', token: 'state 0.6 s for the fill; feedback timings from StateStyle.garageDoor request (1 s, 2 s, 10 s, 45 s, 8 s)', state: 'default',
+        source: 'HassCore/TileActions/StateStyle.swift, SecurityTiles.swift GarageDoorTile; spec.md Garage door command', reduce: 'colour cross-fades at 0.2 s; the VoiceOver announcement is unchanged',
         play: function (stage) {
           var t = tileEl(stage, 'Left Door');
           function door(sub, o) { setTile(t, Object.assign({ title: 'Left Door', subtitle: sub, symbol: 'door.garage.open', family: 'contact', isActive: true, kind: 'command' }, o)); }
@@ -143,7 +143,7 @@
       swiftui: [
         { rule: "ScaledMetric for fixed sizes", verdict: 'pass', note: "minTileWidth 140 relative to .subheadline (SecurityScreen.swift:56), mode width 64 and badge 44 are scaled (SecuritySystemSheet.swift:55-56), so doors go to one column and modes to fewer columns at AX5.", by: 'swiftui-pro skill' },
         { rule: "Never hard-code white or black", verdict: 'departure', note: "The page is always dark over a dimmed wallpaper, so the card and tiles use fixed white inks there (Surface.secondaryOnModule, GlassTile.swift:510); the same card in a sheet uses adaptive inks (direction-g.md Layers).", by: 'swiftui-pro skill' },
-        { rule: "Optimistic state rolls back on failure, one state path", verdict: 'pass', note: "OptimisticActions with .liveChange rules for the alarm and locks (SecuritySystemSheet.swift:185-189, SecurityDoorTile.swift:23-26); GarageDoorController owns its timers; rendered states sending, error and garage-error.", by: 'swiftui-pro skill' },
+        { rule: "Optimistic state rolls back on failure, one state path", verdict: 'pass', note: "OptimisticActions with .liveChange rules for the alarm and locks (SecuritySystemSheet.swift:185-189, SecurityDoorTile.swift:23-26); the state style owns its request timings; rendered states sending, error and garage-error.", by: 'swiftui-pro skill' },
         { rule: "Reduce Transparency and Increase Contrast", verdict: 'pass', note: "The triggered wash goes to 60% over the dense module under Reduce Transparency (SecuritySystemSheet.swift:165) and tiles take the solid finish (GlassTile.swift:306-308).", by: 'swiftui-pro skill' },
         { rule: "Dynamic Type at accessibility sizes: avoid a fixed grid that clips", verdict: 'pass', note: "ControlTileGrid (guest tiles) and CameraGrid scale their minimums with @ScaledMetric.", by: 'swiftui-pro skill' },
 

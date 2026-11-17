@@ -41,8 +41,18 @@ extension HassConnection {
         JSONValue(haData: try await sendCommand(command, data: data))
     }
 
-    /// `call_service` with `return_response: true`, as the whole result (`{"response": ...}` from Home Assistant).
-    func callServiceReturningResult(_ domain: String, _ service: String, data: [String: any Sendable]) async throws -> JSONValue {
-        try await requestJSON("call_service", data: ["domain": domain, "service": service, "service_data": data, "return_response": true])
+    /// `call_service` with `return_response: true`, as the whole result (`{"response": ...}` from Home Assistant). Sent once, never
+    /// retried across reconnects: the one call path for a service that answers, so a mutation is never applied twice.
+    /// - Parameters:
+    ///   - domain: The service domain.
+    ///   - service: The service name.
+    ///   - target: The call's `target` (entity, area or device ids); omitted from the command when empty.
+    ///   - data: The `service_data`.
+    ///   - timeout: Fails with ``CommandTimeout`` if no answer comes in this time (a Data Flow's own `timeoutSeconds`); nil waits as long as HAKit does.
+    public func callServiceReturningResult(_ domain: String, _ service: String, target: [String: any Sendable] = [:],
+                                           data: [String: any Sendable], timeout: Duration? = nil) async throws -> JSONValue {
+        var fields: [String: any Sendable] = ["domain": domain, "service": service, "service_data": data, "return_response": true]
+        if !target.isEmpty { fields["target"] = target }
+        return JSONValue(haData: try await sendCommand("call_service", data: fields, timeout: timeout))
     }
 }

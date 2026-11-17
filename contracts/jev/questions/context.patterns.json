@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 12,
+  "version": 14,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -54,7 +54,11 @@
     "rows": "Rows: the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron. (components: UKRowView)",
     "routes": "Routes: the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts. (components: RouteRequest, RouteTarget, RouteCatalog)",
     "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)",
-    "map-controls": "Map controls: the buttons over a map card (corner groups, fit rule, More menu) and the map orientation. (components: UKMapControlsView, MapControlFit)"
+    "map-controls": "Map controls: the buttons over a map card (corner groups, fit rule, More menu) and the map orientation. (components: UKMapControlsView, MapControlFit)",
+    "overlay": "Overlay: small nodes drawn over a base at five anchors. (components: UKServerUIOverlayView)",
+    "server-ui-tab-areas": "Tab areas: the areas of a tab container, each drawn once for the tabs that name it. (components: UKServerUIAreaStack)",
+    "server-ui-badges": "Badges: a count or short text on the top trailing corner of a tile or chip. (components: UKServerUIBadgeViews)",
+    "server-ui-data-flow": "Data flow session: a document data source that asks Home Assistant, runs a closed list of steps and gives rows. (components: ServerUIFlowSession)"
   },
   "state": {
     "fields": [

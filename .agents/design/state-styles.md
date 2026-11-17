@@ -34,11 +34,11 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 
 | Shipped tile | Style | Kept |
 |---|---|---|
-| Garage door (`CoverActions`, `GarageDoorController`) | Garage door | Glyphs, words, the family fill, lockout, acknowledgement, settle and error-hold times, the error haptic, Stop or Reverse while moving |
+| Garage door (`CoverActions`) | Garage door | Glyphs, words, the family fill, lockout, acknowledgement, settle and error-hold times, the error haptic, Stop or Reverse while moving |
 | Lock (`LockActions`) | Lock | Glyphs, words, the lit face while unlocked or unlocking, taps ignored while locking and unlocking, the jammed face |
 | Security System (`AlarmModeActions`) | Alarm | Arm Home and Disarm glyphs, the confirmation before Disarm, taps ignored only while disarming, Disarm tappable through arming and pending |
 
-- The garage tile's 1 s "Sending" feedback is the tile's flap guard, not an authored time. `GarageDoorController` times none of it: the phase leaves `sending` when the call is acknowledged, and `UKStateTileTransition` holds the look.
+- The garage tile's 1 s "Sending" feedback is the tile's flap guard, not an authored time. No controller times it: the phase leaves `sending` when the call is acknowledged, and `UKStateTileTransition` holds the look.
 - `StateStyleActions` is the provider over a style. `StateStyleParityTests` hold the fixed shapes' tables as golden rows and compare each built-in style with them state for state.
 - The Studio authors styles and the app renders them. Capability `sh.state-style@1` carries a document `stateStyles` library and the `state-tile` node's binding, decoded in `ServerUIStateStyles.swift` onto `StateStyle`.
 - A device without the capability, or a style id the library lacks, shows the tile's built-in style. Only validation errors reject.
