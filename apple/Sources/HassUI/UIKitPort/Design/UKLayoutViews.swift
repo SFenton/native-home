@@ -362,7 +362,7 @@ final class UKColumnView: UIView, UKGridWrapping {
         let inner = max(0, bounds.width - insets.left - insets.right)
         var y = insets.top
         for (view, height) in zip(views, heights(width: inner)) where !view.isHidden {
-            view.frame = CGRect(x: insets.left, y: y, width: inner, height: height)
+            view.ukPlace(in: CGRect(x: insets.left, y: y, width: inner, height: height))
             y += height + spacing
         }
     }

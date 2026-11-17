@@ -934,14 +934,13 @@
    "long_lines": 2
   },
   ".agents/patterns/dynamic-grid.md": {
-   "forbidden": 16,
-   "long_lines": 10,
-   "over_words": 9
+   "forbidden": 14,
+   "long_lines": 9
   },
   ".agents/patterns/entity-tile.md": {
    "forbidden": 24,
    "long_lines": 18,
-   "over_words": 1200
+   "over_words": 1191
   },
   ".agents/patterns/floating-actions.md": {
    "forbidden": 7,

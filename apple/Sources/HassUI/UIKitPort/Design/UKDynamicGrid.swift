@@ -177,6 +177,16 @@ private func ukMeasure(_ view: UIView, width: CGFloat) -> CGFloat {
                                         withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
 }
 
+extension UIView {
+    /// Places the view in `rect` of its superview by `bounds` and `center`, never `frame`: a view with a transform (a tile lifted by the swipe's
+    /// 1.03 scale) has no defined `frame`, and setting one gives it smaller `bounds` that stay after the transform is gone. Under the identity
+    /// transform the result equals setting `frame`.
+    func ukPlace(in rect: CGRect) {
+        bounds = CGRect(origin: bounds.origin, size: rect.size)
+        center = CGPoint(x: rect.midX + (layer.anchorPoint.x - 0.5) * rect.width, y: rect.midY + (layer.anchorPoint.y - 0.5) * rect.height)
+    }
+}
+
 // MARK: - View grid
 
 /// One child of a ``UKDynamicGridView``.
@@ -342,7 +352,7 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
                 // `cellFit: natural` (`sh.tile-ink@1`): the tile keeps its own height at the top of a taller cell; the row stays as tall as its tallest cell.
                 frame.size.height = min(frame.height, ukMeasure(tile, width: frame.width))
             }
-            view.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
+            view.ukPlace(in: mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame)
             if let tile = view as? UKGlassTileView { tile.gridFullRow = solution.fullRow[position] }
         }
     }

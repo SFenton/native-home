@@ -1,7 +1,7 @@
 # Tile ink, state words and grid groups (proposal)
 > **What:** the options for the default tile ink and the group heading, with the picked state words editor. **Read when:** you need the reasons behind the tile ink, state words or state groups.
-- Mockup: [sim-fidelity-contract.html](sim-fidelity-contract.html) · status decided · decision: `.agents/decisions/2026-11-16-tile-swipe.md`
-- Owner's requests (2026-11-16): white tile icons and text by default; customizable state strings; group by state on any grid
+- Mockup: [sim-fidelity-contract.html](sim-fidelity-contract.html) · status decided · decision: the tile-swipe decision record
+- Asked for: white tile icons and text by default; customizable state strings; group by state on any grid
 - Tile ink, owner picked A: an icon with no colour of its own and every state line on a dark face draw the primary ink; idle family icons keep their tint; unavailable stays grey
 - Rejected ink: B every idle icon (changes more than asked), C a softer state line (leaves the text grey-white)
 - Group heading, owner picked A: the title only, as production

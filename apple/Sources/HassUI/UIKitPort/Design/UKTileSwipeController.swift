@@ -186,13 +186,8 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
     }
 
     /// A host whose width changed under the finger (a fold, a posture change, a split) drops the drag (C7).
-    ///
-    /// `widths` are the readings of the room the host has: its bounds, and its bounds under its own transform. A container that sets the frame of a
-    /// tile lifted by the 1.03 scale leaves it with smaller bounds but the same room; a tile placed by bounds keeps its bounds. Either reading that
-    /// still equals the width the drag began with is no change of window.
-    func hostDidLayout(widths: [CGFloat]) {
-        guard isDragging, !widths.contains(where: { abs($0 - width) <= 0.5 }) else { return }
-        cancel(reason: "width \(width) to \(widths)")
+    func hostDidLayout(width newWidth: CGFloat) {
+        if isDragging, abs(newWidth - width) > 0.5 { cancel(reason: "width \(width) to \(newWidth)") }
     }
 
     // MARK: Look

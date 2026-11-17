@@ -166,15 +166,16 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         }
     }
 
-    /// C8, the user's case: the house sends a new state with a new word while a finger is on the tile. Nothing about the tile changes under the
-    /// finger, its width included; the drag stays live and the new state is drawn on release.
+    /// C8, the user's case: the house sends a new state with a new word while a finger is on the tile. The tile draws what it drew (subtitle and
+    /// band) and keeps the slot its container gave it (its `bounds` equal the slot, its transform being the lift); the drag stays live and the
+    /// new state is drawn on release.
     func testAChangeWithANewWordDuringADragWaitsForTheFingerAndIsDrawnOnRelease() async throws {
         for width in Self.widths {
             let r = try await rig(width: width, revert: 30)
             defer { r.window.isHidden = true }
             r.window.layoutIfNeeded()
             await HostedPage.pump(passes: 5)
-            let tileWidth = r.tile.bounds.width
+            let slot = r.tile.frame
             drag(r, [0.2, 0.5], end: .possible)
             XCTAssertTrue(r.controller.isDragging, "the finger is down (width \(width))")
             let heldSubtitle = r.tile.model.subtitle
@@ -182,13 +183,95 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
             await HostedPage.pump(passes: 8)
             XCTAssertTrue(r.controller.isDragging, "the drag stays live (width \(width)): \(r.controller.lastCancelReason ?? "not cancelled")")
-            XCTAssertEqual(r.tile.bounds.width * r.tile.transform.a, tileWidth, accuracy: 0.5, "the tile keeps the room it was given under the finger")
+            XCTAssertEqual(r.tile.bounds.size.width, slot.width, accuracy: 0.5, "the tile's bounds are its slot under the lift (width \(width))")
+            XCTAssertEqual(r.tile.bounds.size.height, slot.height, accuracy: 0.5)
             XCTAssertEqual(r.tile.model.subtitle, heldSubtitle, "the held subtitle is drawn")
             XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), heldProgress, accuracy: 0.001, "the held band is drawn")
             drag(r, [0.5], end: .cancelled)
             let applied = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 }
             XCTAssertTrue(applied, "the new state is drawn after release (width \(width))")
             XCTAssertEqual(r.caller.calls, [], "a cancelled drag sends nothing")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// C8 release as a lift: after a held "closing" change the finger lifts at the dragged value. One call carries it, then the state word and the
+    /// band that follow are drawn.
+    func testAHeldChangeThenTheFingerLiftsSendsTheDraggedValueAndThenDrawsTheNewState() async throws {
+        for width in Self.widths {
+            let r = try await rig(width: width, revert: 30)
+            defer { r.window.isHidden = true }
+            r.window.layoutIfNeeded()
+            await HostedPage.pump(passes: 5)
+            drag(r, [0.2, 0.5], end: .possible)
+            let heldSubtitle = r.tile.model.subtitle
+            r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+            await HostedPage.pump(passes: 8)
+            XCTAssertTrue(r.controller.isDragging, r.controller.lastCancelReason ?? "")
+            XCTAssertEqual(r.tile.model.subtitle, heldSubtitle, "held under the finger (width \(width))")
+            drag(r, [0.5], end: .ended)
+            let called = await HostedPage.settle { !r.caller.calls.isEmpty }
+            XCTAssertTrue(called, "width \(width)")
+            XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "one call")
+            XCTAssertEqual(sent(r.caller), [50], "the value the finger chose, not the house's 20")
+            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle }
+            XCTAssertTrue(drawn, "the new state word is drawn after the lift")
+            XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.5, accuracy: 0.001, "the band holds the committed value until Home Assistant answers")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// A relayout of the container during a lifted drag keeps the tile's bounds equal to the slot (the container places by bounds and centre, as a
+    /// transform requires); after release the tile's frame is the slot again.
+    func testARelayoutDuringALiftedDragKeepsTheSlotAndAfterReleaseTheFrameIsTheSlot() async throws {
+        for width in Self.widths {
+            let r = try await rig(width: width, revert: 30)
+            defer { r.window.isHidden = true }
+            r.window.layoutIfNeeded()
+            await HostedPage.pump(passes: 5)
+            let slot = r.tile.frame
+            let container = try XCTUnwrap(r.tile.superview)
+            drag(r, [0.2, 0.5], end: .possible)
+            XCTAssertTrue(r.controller.isDragging)
+            XCTAssertFalse(r.tile.transform.isIdentity, "lifted (width \(width))")
+            container.setNeedsLayout()
+            r.window.layoutIfNeeded()
+            container.setNeedsLayout()
+            r.window.layoutIfNeeded()
+            XCTAssertTrue(r.controller.isDragging, "a relayout is no change of window: \(r.controller.lastCancelReason ?? "")")
+            XCTAssertEqual(r.tile.bounds.width, slot.width, accuracy: 0.5, "bounds equal the slot (width \(width))")
+            XCTAssertEqual(r.tile.bounds.height, slot.height, accuracy: 0.5)
+            XCTAssertEqual(r.tile.center.x, slot.midX, accuracy: 0.5)
+            drag(r, [0.5], end: .cancelled)
+            let settled = await HostedPage.settle { r.tile.transform.isIdentity }
+            XCTAssertTrue(settled, "the lift ends")
+            await HostedPage.pump(passes: 3)
+            XCTAssertEqual(r.tile.frame.width, slot.width, accuracy: 0.5, "after release the frame is the slot")
+            XCTAssertEqual(r.tile.frame.height, slot.height, accuracy: 0.5)
+            XCTAssertEqual(r.tile.frame.minX, slot.minX, accuracy: 0.5)
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// A real change of the host's width during a drag (a fold, a split) cancels it, and releasing then sends nothing.
+    func testARealWidthChangeOfTheHostDuringADragCancelsItAndSendsNothing() async throws {
+        for width in Self.widths {
+            let r = try await rig(width: width, revert: 30)
+            defer { r.window.isHidden = true }
+            r.window.layoutIfNeeded()
+            await HostedPage.pump(passes: 5)
+            let container = try XCTUnwrap(r.tile.superview)
+            drag(r, [0.2, 0.5], end: .possible)
+            XCTAssertTrue(r.controller.isDragging)
+            var narrower = container.bounds
+            narrower.size.width -= 40
+            container.bounds = narrower
+            container.layoutIfNeeded()
+            XCTAssertFalse(r.controller.isDragging, "a changed width drops the drag (width \(width))")
+            XCTAssertTrue(r.controller.lastCancelReason?.hasPrefix("width") == true, r.controller.lastCancelReason ?? "no reason")
+            drag(r, [0.5], end: .ended)
+            await HostedPage.pump(passes: 5)
+            XCTAssertEqual(r.caller.calls, [], "nothing is sent")
             HostedPage.hideTracked()
         }
     }
