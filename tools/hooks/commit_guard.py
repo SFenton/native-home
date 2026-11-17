@@ -11,6 +11,9 @@ Refused, per simple command (quote-aware; ``cd``/``git -C`` targets are followed
 - ``git commit`` when staged files (``-a``: also modified tracked files) are env files, ``.p12``, ``.p8`` or ``.mobileprovision``
   (the patterns are ``tools/ship_guard.sh``'s, run as is);
 - ``git commit --no-verify`` / ``-n``;
+- ``git commit`` when a staged path (anything but a deletion) is under ``build/``, and ``git add -f`` / ``--force`` naming a ``build/``
+  path (``git add --dry-run`` decides, so ``-f .`` and ``-fA`` count), and ``git commit -a`` with modified tracked ``build/`` files:
+  ``build/`` is the gitignored local workspace, its evidence stays local (a staged deletion passes, for the one-time cleanup);
 - ``git push --no-verify`` (and abbreviations), ``git config [scope] core.hooksPath ...`` and ``--unset``, ``-c`` / ``--config-env``
   naming ``core.hooksPath``, and ``GIT_CONFIG*`` assignments on a git command (the pre-push denylist hook, ``.githooks/pre-push``,
   must run; owner, 2026-11-07).
@@ -44,6 +47,9 @@ COMMIT_VALUE_OPTIONS = {"-m", "-F", "-C", "-c", "-t", "--message", "--file", "--
                         "--date", "--template", "--cleanup", "--fixup", "--squash", "--trailer", "--pathspec-from-file"}
 COMMIT_VALUE_LETTERS = "mFCct"
 SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
+#: The gitignored local workspace: nothing under it is committed or force-added.
+BUILD_DIR = "build"
+BUILD_WHY = "build/ evidence stays local (.agents/workflow/security.md#house-data: build/ is the gitignored workspace, never committed or force-added)"
 
 
 def block(why: str) -> str:
@@ -115,6 +121,61 @@ def commit_flags(args: List[str]) -> dict:
     return found
 
 
+def under_build(path: str) -> bool:
+    """Is a repo-relative ``path`` the ``build/`` workspace or inside it?"""
+    path = os.path.normpath(path)
+    return path == BUILD_DIR or path.startswith(BUILD_DIR + os.sep)
+
+
+def forced_build_add(args: List[str], cwd: str) -> List[str]:
+    """``build/`` paths a forced ``git add`` (words after ``add``) would take in, asked of git itself with ``--dry-run`` (not guessed from the pathspec)."""
+    forced = False
+    for arg in args:
+        if arg == "--":
+            break
+        if arg.startswith("--"):
+            forced = forced or (len(arg) >= 4 and "--force".startswith(arg))
+        elif arg.startswith("-") and len(arg) > 1:
+            forced = forced or "f" in arg[1:]
+    top = run_git(cwd, "rev-parse", "--show-toplevel") if forced else None
+    if top is None or any(a.startswith("--pathspec-from-file") for a in args):
+        return []
+    try:
+        done = subprocess.run(["git", "-c", "core.quotepath=off", "add", "--dry-run", *args], cwd=cwd, capture_output=True,
+                              text=True, timeout=30, stdin=subprocess.DEVNULL)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    found = []
+    for line in done.stdout.splitlines():
+        match = re.match(r"^add '(.*)'$", line)
+        if match and under_build(os.path.relpath(os.path.normpath(os.path.join(cwd, match.group(1))), top)):
+            found.append(match.group(1))
+    return found
+
+
+def build_paths(cwd: str, *git_args: str) -> List[str]:
+    """Paths under ``build/`` that ``git diff <git_args>`` lists (empty when git fails)."""
+    top = run_git(cwd, "rev-parse", "--show-toplevel")
+    if top is None:
+        return []
+    try:
+        done = subprocess.run(["git", "diff", "--name-only", "--no-renames", "--diff-filter=d", "-z", *git_args],
+                              cwd=top, capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if done.returncode != 0:
+        return []
+    return [name for name in done.stdout.split("\0") if name and under_build(name)]
+
+
+def staged_build_paths(cwd: str, include_unstaged: bool = False) -> List[str]:
+    """Staged paths under ``build/`` that are not deletions; with ``include_unstaged`` (``commit -a``) the modified tracked ones too."""
+    found = build_paths(cwd, "--cached")
+    if include_unstaged:
+        found += [p for p in build_paths(cwd) if p not in found]
+    return found
+
+
 def overrides_hooks_path(words: List[str]) -> bool:
     """Does ``git -c core.hooksPath=...`` (before the subcommand) point the hooks elsewhere?"""
     for i, word in enumerate(words[1:-1], 1):
@@ -170,6 +231,10 @@ def check_git(sub: str, args: List[str], cwd: str, hooks_path_override: bool = F
     """Why one ``git <sub>`` is refused in ``cwd``, or ``None``."""
     if sub == "config" and config_changes_hooks_path(args):
         return "git config core.hooksPath (the repo's hooks, including the pre-push denylist hook, must run)"
+    if sub == "add":
+        taken = forced_build_add(args, cwd)
+        if taken:
+            return BUILD_WHY + f" (a forced git add would take in {taken[0]}" + (f" and {len(taken) - 1} more" if len(taken) > 1 else "") + ")"
     if sub not in ("commit", "push"):
         return None
     branch = run_git(cwd, "rev-parse", "--abbrev-ref", "HEAD")
@@ -186,6 +251,10 @@ def check_git(sub: str, args: List[str], cwd: str, hooks_path_override: bool = F
     flags = commit_flags(args)
     if flags["no_verify"]:
         return "git commit --no-verify (the repo's hooks must run)"
+    staged = staged_build_paths(cwd, flags["all"])
+    if staged:
+        more = f" and {len(staged) - 1} more" if len(staged) > 1 else ""
+        return BUILD_WHY + f" (git commit with {staged[0]}{more} staged or, with -a, modified)"
     if os.path.isfile(GUARD) and run_git(cwd, "rev-parse", "--git-dir") is not None:
         env = {**os.environ, "SHIP_GUARD_NO_RESET": "1", "SHIP_GUARD_INCLUDE_WORKTREE": "1" if flags["all"] else ""}
         try:
