@@ -387,6 +387,8 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
 SCROLL_TYPES = frozenset({"scrollview", "collectionview", "tableview"})
 #: Bars whose buttons are chrome, never a floating control.
 CHROME_TYPES = frozenset({"navigationbar", "tabbar", "toolbar", "statusbar"})
+#: Identifiers of shell controls that are never a floating page control (the navigation flyout's invisible scrim).
+CHROME_IDENTIFIERS = re.compile(r"^nav\.flyout\.")
 
 
 def _area(rect: Mapping[str, float]) -> float:
@@ -415,9 +417,9 @@ def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     """Does a floating control cover the last content the page can scroll to? Read from the AX tree only.
 
     * the **scroll view** is the largest scrolling container (:data:`SCROLL_TYPES`) on screen;
-    * the **last content element** is the labelled leaf below it with the lowest bottom edge (scroll bars and unlabelled wrappers
+    * the **last content element** is the labelled leaf below it (or below a scrolling container drawn inside its frame) with the lowest bottom edge (scroll bars and unlabelled wrappers
       do not count);
-    * a **floating control** is a button that is not inside the scroll view or a bar (:data:`CHROME_TYPES`), has a frame, and
+    * a **floating control** is a hittable button that is not inside the scroll view or a bar (:data:`CHROME_TYPES`), has a frame, and
       overlaps the scroll view's frame: it floats over the page;
     * ``intersects`` is true when a floating control's frame overlaps the last content element's frame. ``covers`` lists every
       content leaf a floating control overlaps, so a partly hidden list shows up even when the last row is clear.
@@ -431,7 +433,10 @@ def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     if not scrolls:
         return empty
     main = max(scrolls, key=lambda i: _area(rects[i]))
-    children = {i for i in range(len(nodes)) if i != main and main in _ancestors(nodes, i)}
+    # Content lives under the main scroll view, or under another scrolling container drawn inside its frame (a page whose empty
+    # state sits in its own scroll view beside the list).
+    roots = {main} | {i for i in scrolls if i != main and _overlap(rects[i], rects[main]) >= _area(rects[i]) - 0.5}
+    children = {i for i in range(len(nodes)) if i not in roots and roots & set(_ancestors(nodes, i))}
     has_child = {nodes[i]["parentIndex"] for i in children if isinstance(nodes[i].get("parentIndex"), int)}
     leaves = [i for i in children if i not in has_child and rects[i] and _area(rects[i]) > 0 and _ax_label(nodes[i])
               and not SCROLL_BAR.match(_ax_label(nodes[i]))]
@@ -440,7 +445,9 @@ def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     last = max(leaves, key=lambda i: (rects[i]["y"] + rects[i]["height"], rects[i]["x"]))
     floating = []
     for i, node in enumerate(nodes):
-        if i == main or i in children or rects[i] is None or _area(rects[i]) <= 0 or _node_role(node).lower() != "button":
+        if i in roots or i in children or rects[i] is None or _area(rects[i]) <= 0 or _node_role(node).lower() != "button":
+            continue
+        if node.get("hittable") is False or CHROME_IDENTIFIERS.match(_text(node, "identifier")):  # invisible shell controls float over nothing
             continue
         if any(_node_role(nodes[a]).lower() in CHROME_TYPES for a in _ancestors(nodes, i)):
             continue

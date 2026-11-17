@@ -444,6 +444,22 @@ class FloatingTests(unittest.TestCase):
         self.assertEqual([f["label"] for f in got["floating"]], ["Add Task"])
         self.assertNotIn("Vertical scroll bar, 2 pages", [c["label"] for c in got["covers"]])
 
+    def test_an_invisible_control_is_not_floating(self) -> None:
+        nodes = tree(fab_y=770)
+        nodes.append({"index": 11, "type": "Button", "label": "Close Navigation", "parentIndex": 0, "hittable": False,
+                      "rect": {"x": 300, "y": 62, "width": 102, "height": 812}})
+        self.assertEqual([f["label"] for f in capture.floating_overlaps(nodes)["floating"]], ["Add Task"])
+        nodes[-1].update(hittable=True, identifier="nav.flyout.scrim")  # reads as hittable on some runs: the identifier names it
+        self.assertEqual([f["label"] for f in capture.floating_overlaps(nodes)["floating"]], ["Add Task"])
+
+    def test_an_empty_state_in_its_own_scroll_view_counts_as_content(self) -> None:
+        nodes = tree(fab_y=700, last_y=300)
+        nodes += [{"index": 11, "type": "ScrollView", "label": "", "parentIndex": 0, "rect": {"x": 0, "y": 424, "width": 402, "height": 356}},
+                  {"index": 12, "type": "StaticText", "label": "Nothing due", "parentIndex": 11, "rect": {"x": 72, "y": 690, "width": 257, "height": 20}}]
+        got = capture.floating_overlaps(nodes)
+        self.assertEqual(got["lastContent"]["label"], "Nothing due")
+        self.assertTrue(got["intersects"])
+
     def test_no_scroll_view_or_no_content_is_reported_empty(self) -> None:
         self.assertIsNone(capture.floating_overlaps([])["scrollView"])
         bare = [n for n in tree(700) if n["index"] in (0, 3)]
