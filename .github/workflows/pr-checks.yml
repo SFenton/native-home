@@ -110,6 +110,12 @@ jobs:
       - name: Rule surface lint
         if: ${{ !cancelled() }}
         run: python3 tools/rules_lint.py --base origin/main
+      - name: No build/ paths added
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        # build/ is local and never committed (security.md#house-data); names the files the pull request adds under it.
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 tools/build_path_check.py --base "origin/$BASE_REF"
       - name: Motion lint
         if: ${{ !cancelled() }}
         run: tools/lint_motion.sh
