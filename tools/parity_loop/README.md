@@ -13,6 +13,8 @@ Python 3 standard library only. Tests: `tools/tests/test_parity_loop_*.py` (run 
 | `launch.py` | `gallery` (fixture) and `live` (token launch) launches; `proxy` starts the guard proxy over TLS; `identity` resolves the session's user hash. |
 | `tls.py`, `identity.py` | A throwaway self-signed certificate made at run time; `auth/current_user` through the proxy, as a hash. |
 | `draft.py` | Apply an edit file to a publication and compile it with the app's own compiler (`ServerUIDraftCompileTests`), offline. Files only under git-ignored `build/parity-loop-draft/`. Stage a draft with `stage.py --publication` or `launch.py live --side candidate --publication`. |
+| `states.py` | The coverage table: every atlas page, modal, flow and component against `surfaces.json`, one row per surface and family, with each side's source (Expo, or Studio where Expo has none), how to reach it and the state classes it hints. `states.py --json OUT --markdown OUT`. |
+| `faults.py` | Stages error, unavailable, offline, reconnecting, loading and empty states from fixtures only (reference `variables`, candidate `flags` and `entities`) and pairs them through `run.py` as `<surface>.<fault>`. `faults.py matrix`, `run`, `publish`. Refuses live mode; the guard proxy's fault modes are not built (owner: no live faults). |
 | `guard_proxy.py` | Write-guard proxy for the live reference: WebSocket and HTTP allow-lists, rejection log. |
 
 ## Running a pair
