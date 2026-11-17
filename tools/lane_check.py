@@ -6,7 +6,7 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope]... [--ack-scope REASON]   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope|ci]... [--ack-scope REASON]   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
 ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
@@ -24,7 +24,10 @@ squash over a moved base) and ``shape`` (advisory: one commit, parent equal to `
 label-anchor check of ``test_labels_point_at_real_sections``: every ``tools/tests/fixtures/jev_section_labels.json`` pair must still find its
 ``any_of`` phrase in its file; the failure names the file and the anchor) and ``overlap`` (``open_pr_overlaps`` and ``commit_overlaps``
 re-run against the files the branch actually changes since the recorded lane base, not only the paths declared at ``start``; needs ``gh``) and
-``scope`` (every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
+``ci`` (CI's cheap repo checks, each as its own subprocess with no pipe so the exit code is the tool's own, one ``name exit=N`` line per
+command, in CI's order: ``mockups_check.py``, ``mockups_index.py --check``, ``pattern_guard.py``, ``components_index.py --check``, ``jev_ask.py sync --check``, ``house_scan.py`` in CI's no-denylist mode (``HOUSE_SCAN_DENYLIST`` names a file that does not exist, so the private list is never read),
+``rules_lint.py --base origin/<base>``, ``lint_motion.sh``, ``test_plans.py --check`` and ``test_suites.py check``: the commands ``.github/workflows/pr-checks.yml`` runs in ``linux-checks``. A failure names the
+exact command and exits 1; a tool the checkout lacks is reported ``skipped``) and ``scope`` (every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
 stored, by the same matcher ``start`` uses; a stray file fails and is named. ``--ack-scope "<reason>"`` overrides: the reason is printed and
 recorded in the lane-base file together with the exact files it covered, so a later ``check`` passes for those files only; a new stray file fails again. Files ``jev_ask.py sync`` writes (``contracts/jev/questions/*.json``)
 are exempt. With no lane base for this branch the check fails open: a note, and for an ``agents/*`` or ``port/*`` branch a loud ``WARNING`` line, since such a lane should have run ``start``).
@@ -47,13 +50,15 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
 NETWORK_TIMEOUT = 15.0  # seconds for each ``gh`` or ``git fetch`` call
-CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap", "scope")
+CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap", "scope", "ci")
+CI_TIMEOUT = 900.0  # seconds for each CI-parity command; a hang reports exit 124
 SCOPE_EXEMPT = ("contracts/jev/questions/*.json",)  # the files ``jev_ask.py sync`` writes
 
 
@@ -404,6 +409,57 @@ def check_scope(target: str = "main", ack: Optional[str] = None) -> Optional[str
             '`lane_check.py check --only scope --ack-scope "<reason>"`.')
 
 
+def ci_commands(root: Path, base: str) -> List[tuple]:
+    """``(name, argv)`` for each cheap repo check ``.github/workflows/pr-checks.yml`` runs in ``linux-checks``, with CI's own flags.
+
+    ``house_scan`` runs bare, as in CI; :func:`check_ci` points ``HOUSE_SCAN_DENYLIST`` at a missing file so the private list is never
+    read. ``rules_lint`` compares with ``origin/<base>``; the Jev command is CI's ``jev_ask.py sync --check``.
+    """
+    py, tools = sys.executable, root / "tools"
+    return [
+        ("mockups_check", [py, str(tools / "mockups_check.py")]),
+        ("mockups_index", [py, str(tools / "mockups_index.py"), "--check"]),
+        ("pattern_guard", [py, str(tools / "pattern_guard.py")]),
+        ("components_index", [py, str(tools / "components_index.py"), "--check"]),
+        ("jev", [py, str(tools / "jev_ask.py"), "sync", "--check"]),
+        ("house_scan", [py, str(tools / "house_scan.py")]),
+        ("rules_lint", [py, str(tools / "rules_lint.py"), "--base", f"origin/{base}"]),
+        ("lint_motion", [str(tools / "lint_motion.sh")]),
+        ("test_plans", [py, str(tools / "test_plans.py"), "--check"]),
+        ("test_suites", [py, str(tools / "test_suites.py"), "check"]),
+    ]
+
+
+def check_ci(base: str, root: Optional[Path] = None, commands: Optional[Sequence[tuple]] = None) -> Optional[str]:
+    """None when every CI repo check passes, else the reason naming each failed command.
+
+    Each command is its own subprocess in ``root`` (default: this worktree) writing straight to this process's output, no pipe, so
+    its exit code is its own. After each prints ``name exit=N``; a hang is killed at :data:`CI_TIMEOUT` and reports 124. A script the
+    checkout lacks prints ``name skipped`` and does not fail. ``commands`` replaces the list (tests).
+    """
+    root = root or toplevel()
+    failed = []
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {**os.environ, "HOUSE_SCAN_DENYLIST": str(Path(tmp) / "no-denylist")}
+        for name, argv in commands if commands is not None else ci_commands(root, base):
+            script = Path(argv[1] if len(argv) > 1 and Path(argv[0]).name.startswith("python") else argv[0])
+            if not script.is_file():
+                print(f"{name} skipped ({script.name} is not in this checkout)", flush=True)
+                continue
+            sys.stdout.flush()
+            try:
+                code = subprocess.run(argv, cwd=root, env=env, timeout=CI_TIMEOUT).returncode
+            except subprocess.TimeoutExpired:
+                code = 124
+            except OSError:
+                code = 127
+            print(f"{name} exit={code}", flush=True)
+            if code != 0:
+                shown = ["python3" if a == sys.executable else os.path.relpath(a, root) if a.startswith(str(root)) else a for a in argv]
+                failed.append(f"`{' '.join(shown)}` exit={code}")
+    return ("CI repo check(s) fail here and would fail on the pull request: " + "; ".join(failed)) if failed else None
+
+
 def shape_notes(base: str) -> List[str]:
     """Advisory lines: one commit whose parent is the current ``origin/<base>``, else the safe squash."""
     rec = read_lane_base()
@@ -438,6 +494,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     if "overlap" in wanted and (why := check_overlap(args.base)):
         failures.append(why)
     if "scope" in wanted and (why := check_scope(args.base, args.ack_scope)):
+        failures.append(why)
+    if "ci" in wanted and (why := check_ci(args.base)):
         failures.append(why)
     if "shape" in wanted:
         for note in shape_notes(args.base):
@@ -475,7 +533,7 @@ def cmd_squash(args: argparse.Namespace) -> int:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry."""
-    ap = argparse.ArgumentParser(description="Lane checks: overlap, base moved, house scan, hooks path.")
+    ap = argparse.ArgumentParser(description="Lane checks: overlap, base moved, house scan, hooks path, CI parity.")
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("start", help="record the lane base and report overlap")
     s.add_argument("--task", required=True)
@@ -484,7 +542,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     s.add_argument("--ack-overlap", metavar="REASON")
     c = sub.add_parser("check", help="pre-push checks without pushing")
     c.add_argument("--base", default="main")
-    c.add_argument("--only", action="append", choices=CHECKS)
+    c.add_argument("--only", action="append", choices=CHECKS,
+                   help="run only this check (repeatable); `ci` runs CI's repo checks (mockups_check, mockups_index, house_scan, pattern_guard, components_index, "
+                        "rules_lint, test_plans, test_suites, lint_motion, jev), each its own subprocess, printing `name exit=N`")
     c.add_argument("--ack-scope", metavar="REASON", help="accept files outside the declared paths; the reason is printed and recorded")
     q = sub.add_parser("squash", help="soft-reset onto the recorded lane base")
     q.add_argument("--dry-run", action="store_true")
