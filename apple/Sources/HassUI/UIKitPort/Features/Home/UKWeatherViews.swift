@@ -163,7 +163,7 @@ final class UKWeatherRailView: UIView {
     func update(_ range: WeatherRailRange) {
         guard range != self.range else { return }
         self.range = range
-        guard window != nil, !UIAccessibility.isReduceMotionEnabled else {
+        guard window != nil, !UKMotion.reduceMotion else {
             applyFrames()
             return
         }
@@ -390,7 +390,7 @@ final class UKWeatherCompassView: UIView {
         let target = from + WeatherPresentation.shortestBearingDelta(from: from, to: new)
         angle = target
         let apply = { self.needle.transform = CGAffineTransform(rotationAngle: CGFloat(target * .pi / 180)) }
-        if window != nil, !UIAccessibility.isReduceMotionEnabled {
+        if window != nil, !UKMotion.reduceMotion {
             UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: apply)
         } else {
             apply()

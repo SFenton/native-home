@@ -190,29 +190,7 @@ final class ServerUIPreviewTests: XCTestCase {
     }
 
     private func galleryPublication() throws -> ServerUICompositionPublication {
-        var json = try ServerUIRendererFixture.json()
-        json = try ServerUIRendererFixture.changing(json, path: "/document/assets", to: .array([]))
-        json = try ServerUIRendererFixture.changing(json, path: "/document/theme/background",
-            to: .object(["type": "solid", "token": "shell-base@1"]))
-        json = try ServerUIRendererFixture.changing(json, path: "/assetManifestSha256",
-            to: .string(SHA256.hash(data: Data("[]".utf8)).map { String(format: "%02x", $0) }.joined()))
-        let ids = ["household", "away", "profile", "preferences", "performance", "feedback-bug", "feedback-feature"]
-        let sources: [JSONValue] = ids.map { id in
-            .object(["id": .string("fixture-" + id), "kind": "model", "model": "settings-provider@1",
-                     "inputs": .object(["providerId": .string(id), "domain": .string(id.hasPrefix("feedback") ? "feedback" : id)])])
-        }
-        json = try ServerUIRendererFixture.changing(json, path: "/document/dataSources",
-            to: .array(try XCTUnwrap(json["document"]?["dataSources"]?.array) + sources))
-        let collection: JSONValue = .object(["id": "fixture-groceries", "type": "collection", "title": "Groceries",
-            "layout": .object(["span": .number(1)]), "props": .object(["providerId": "records-groceries", "template": "todo",
-                "loadingText": "Loading", "emptyText": "No groceries"])])
-        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components",
-            to: .array(try XCTUnwrap(json["document"]?["pages"]?.array?.first?["components"]?.array) + [collection]))
-        let capabilities = ServerUICompositionPublication.firstSliceCapabilities.filter { $0 != "sh.assets.publisher@1" }
-            + ["sh.collection@1", "sh.settings-controls@1"]
-        json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(capabilities.sorted().map(JSONValue.string)))
-        json = try ServerUITodoPublicationFixture.adding(DemoHouse.config.chores.pages.filter { $0.id == "groceries" }, to: json)
-        return try ServerUIRendererFixture.publication(json)
+        try ServerUIPreviewGalleryFixture.publication()
     }
 
     // MARK: Environment credential

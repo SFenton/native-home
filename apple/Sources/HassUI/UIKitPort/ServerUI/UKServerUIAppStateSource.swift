@@ -136,7 +136,7 @@ final class UKServerUIAppStateSource {
     private static func currentOS() -> ServerUIAppState.OS {
         ServerUIAppState.OS(major: ProcessInfo.processInfo.operatingSystemVersion.majorVersion,
                             supportsAlternateIcons: UIApplication.shared.supportsAlternateIcons,
-                            reduceMotion: UIAccessibility.isReduceMotionEnabled,
+                            reduceMotion: UKMotion.reduceMotion,
                             reduceTransparency: UIAccessibility.isReduceTransparencyEnabled,
                             canSendMail: MFMailComposeViewController.canSendMail())
     }

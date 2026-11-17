@@ -12,8 +12,11 @@ final class UKServerUIPreviewFixtureCaller: HassServiceResponding {
     private let bedroom: BedroomGalleryRecorder
     private let away: VacationGalleryHouse
     private let isCurrent: () -> Bool
+    /// The `failCalls` flag: every call answers with ``UKServerUIPreviewFault/callFailed`` and changes nothing.
+    private let failsCalls: Bool
 
-    init(store: EntityStore, isCurrent: @escaping () -> Bool) {
+    init(store: EntityStore, failsCalls: Bool = false, isCurrent: @escaping () -> Bool) {
+        self.failsCalls = failsCalls
         self.isCurrent = isCurrent
         pages = PageGalleryRecorder(store: store)
         bedroom = BedroomGalleryRecorder(store: store)
@@ -22,6 +25,7 @@ final class UKServerUIPreviewFixtureCaller: HassServiceResponding {
 
     func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
         guard isCurrent() else { throw CancellationError() }
+        if failsCalls { throw UKServerUIPreviewFault.callFailed }
         let target = data["entity_id"] as? String
         let bedTarget = MasterBedroom.beds.contains {
             [$0.alarmSnoozeButtonEntityId, $0.alarmStopButtonEntityId, $0.hotFlashButtonEntityId,
@@ -39,6 +43,7 @@ final class UKServerUIPreviewFixtureCaller: HassServiceResponding {
 
     func callServiceWithResponse(_ domain: String, _ service: String, data: [String: any Sendable]) async throws -> JSONValue {
         guard isCurrent() else { throw CancellationError() }
+        if failsCalls { throw UKServerUIPreviewFault.callFailed }
         if domain == "wake_light", service == "command" {
             return try await bedroom.callServiceWithResponse(domain, service, data: data)
         }
@@ -62,13 +67,20 @@ final class UKServerUIPreviewFixtureRecords: TodoServicing {
     private let store: EntityStore
     private let listIDs: Set<String>
     private var completionScripts: Set<String> = []
+    /// The `failCalls` flag: every call answers with ``UKServerUIPreviewFault/callFailed``.
+    private let failsCalls: Bool
 
-    init(store: EntityStore) {
+    /// - Parameters:
+    ///   - empty: The `empty` flag: every list keeps its id and holds no item, and the inventory holds no row.
+    ///   - failsCalls: The `failCalls` flag.
+    init(store: EntityStore, empty: Bool = false, failsCalls: Bool = false) {
         self.store = store
+        self.failsCalls = failsCalls
         let lists = ChoresFixtures.lists()
         listIDs = Set(lists.keys)
-        chores = ChoresFixtureService(store: store, lists: lists)
+        chores = ChoresFixtureService(store: store, lists: empty ? lists.mapValues { _ in [] } : lists)
         inventory = EverShelfFixtureServer.sample()
+        if empty { inventory.rows = [] }
         retainOtherEntities()
         store.apply(chores.entityStates())
     }
@@ -97,6 +109,7 @@ final class UKServerUIPreviewFixtureRecords: TodoServicing {
 
     func callService(_ domain: String, _ service: String, data: [String: any Sendable]) async throws {
         try requireCurrent()
+        if failsCalls { throw UKServerUIPreviewFault.callFailed }
         if domain == "evershelf" { try await inventory.callService(domain, service, data: data); return }
         guard (domain == "todo" && ["update_item", "add_item", "remove_item"].contains(service))
                 || (domain == "script" && completionScripts.contains(service)) else {
@@ -109,6 +122,7 @@ final class UKServerUIPreviewFixtureRecords: TodoServicing {
 
     func callServiceForResponse(_ domain: String, _ service: String, data: [String: any Sendable]) async throws -> JSONValue {
         try requireCurrent()
+        if failsCalls { throw UKServerUIPreviewFault.callFailed }
         if domain == "evershelf" { return try await inventory.callServiceForResponse(domain, service, data: data) }
         guard domain == "donetick", service == "get_task" else { throw Failure.unsupportedService }
         return try await chores.callServiceForResponse(domain, service, data: data)
@@ -116,6 +130,7 @@ final class UKServerUIPreviewFixtureRecords: TodoServicing {
 
     func uploadAdminTodo(_ upload: AdminTodoUpload, accessToken: String) async throws {
         try requireCurrent()
+        if failsCalls { throw UKServerUIPreviewFault.callFailed }
         guard listIDs.contains(upload.entityId) else { throw Failure.unsupportedService }
         retainOtherEntities()
         try await chores.uploadAdminTodo(upload, accessToken: accessToken)

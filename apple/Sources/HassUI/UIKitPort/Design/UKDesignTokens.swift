@@ -133,14 +133,14 @@ enum UKDesignSurface {
 extension UKMotion {
     /// ``MotionTokens/state``: `easeInOut`, 0.6 s (0.2 s under Reduce Motion): a colour that follows state.
     static func state(_ changes: @escaping () -> Void) {
-        let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : MotionTokens.stateDuration
+        let duration = UKMotion.reduceMotion ? 0.2 : MotionTokens.stateDuration
         UIView.animate(withDuration: duration, delay: 0, options: [.curveEaseInOut, .allowUserInteraction], animations: changes)
     }
 
     /// Cross-fades a label's or image's colour change over ``MotionTokens/state`` when it is on screen.
     static func crossFade(_ view: UIView, _ changes: @escaping () -> Void) {
         guard view.window != nil else { changes(); return }
-        let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : MotionTokens.stateDuration
+        let duration = UKMotion.reduceMotion ? 0.2 : MotionTokens.stateDuration
         UIView.transition(with: view, duration: duration, options: [.transitionCrossDissolve, .allowUserInteraction], animations: changes)
     }
 }

@@ -506,7 +506,7 @@ final class UKGroceryActionView: UIView {
             }
         }
         if hadState, window != nil, shown != state {
-            UIView.transition(with: self, duration: UIAccessibility.isReduceMotionEnabled ? 0.2 : MotionTokens.stateDuration,
+            UIView.transition(with: self, duration: UKMotion.reduceMotion ? 0.2 : MotionTokens.stateDuration,
                               options: [.transitionCrossDissolve, .allowUserInteraction], animations: rebuild)
         } else {
             rebuild()

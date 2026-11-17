@@ -304,7 +304,7 @@ final class UKSuggestedRecipesView: UIView, UKGridMeasuring, UIScrollViewDelegat
 
     private func scroll(toPage target: Int) {
         setNeighbours(true)
-        let reduce = UIAccessibility.isReduceMotionEnabled
+        let reduce = UKMotion.reduceMotion
         // Reduce Motion: jump to the page rather than scrolling the carousel across.
         pages.setContentOffset(CGPoint(x: pages.bounds.width * CGFloat(target), y: 0), animated: !reduce)
         if reduce {

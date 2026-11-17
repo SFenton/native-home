@@ -31,6 +31,8 @@ final class UKServerUIPreview: UIViewController {
         let entities: [String: State]?
         let live: UKServerUIPreviewLiveData.Configuration?
         let gallery: UKServerUIPreviewFixtures.Configuration?
+        /// DEBUG state flags (``UKServerUIPreviewFlags``); the launch environment is laid over them.
+        let flags: UKServerUIPreviewFlags?
 
         func validate() throws {
             guard (entities != nil) != (live != nil) else { throw Failure.bootstrap }
@@ -72,12 +74,21 @@ final class UKServerUIPreview: UIViewController {
     private(set) var renderer: UKServerUIRenderer?
     private let entities = EntityStore()
     private lazy var caller = PageGalleryRecorder(store: entities)
+    private lazy var failing = UKServerUIPreviewFailingCaller()
+    /// The caller of a preview with no gallery fixtures: the recorder, or under `failCalls` one that fails every call.
+    private var stateCaller: any HassServiceCalling { flags.failCalls ? failing : caller }
     private var live: UKServerUIPreviewLiveData?
     private var liveProviders: UKServerUIPreviewLiveProviders?
     private var fixtures: UKServerUIPreviewFixtures?
     private let observations = UKObservationBag()
     private var loadTask: Task<Void, Never>?
     private let directory: URL
+    /// The launch environment the flags are read from; tests inject one.
+    private let launchEnvironment: [String: String]
+    /// Puts the process-wide switches the flags set back when the preview leaves the screen.
+    private var restoreSwitches: (() -> Void)?
+    /// The flags in force, once the bootstrap is read; none before.
+    private(set) var flags = UKServerUIPreviewFlags()
     /// The bearer taken from the environment at init; dropped by the live path or when the load ends.
     private var credential: Result<String, UKServerUIPreviewLiveData.Failure>?
     nonisolated(unsafe) private var sceneObservers: [NSObjectProtocol] = []
@@ -91,8 +102,11 @@ final class UKServerUIPreview: UIViewController {
     /// - Parameters:
     ///   - directory: Where the bootstrap, publication, assets and receipt live; tests inject a temporary one.
     ///   - environmentName: The variable that carries the bearer.
-    init(directory: URL = UKServerUIPreview.directory, environmentName: String = UKServerUIPreview.environmentCredentialName) {
+    ///   - launchEnvironment: The variables the state flags are read from (``UKServerUIPreviewFlags/overlaying(environment:)``).
+    init(directory: URL = UKServerUIPreview.directory, environmentName: String = UKServerUIPreview.environmentCredentialName,
+         launchEnvironment: [String: String] = ProcessInfo.processInfo.environment) {
         self.directory = directory
+        self.launchEnvironment = launchEnvironment
         credential = Result { try Self.liveCredential(environmentName: environmentName) }
             .mapError { $0 as? UKServerUIPreviewLiveData.Failure ?? .credential }
         super.init(nibName: nil, bundle: nil)
@@ -139,6 +153,8 @@ final class UKServerUIPreview: UIViewController {
             observations.removeAll()
             live?.lifecycle.stop()
             liveProviders?.stop()
+            restoreSwitches?()
+            restoreSwitches = nil
         }
     }
 
@@ -181,6 +197,8 @@ final class UKServerUIPreview: UIViewController {
             let configuration = try JSONDecoder().decode(Configuration.self,
                 from: Data(contentsOf: directory.appendingPathComponent("bootstrap.json")))
             try configuration.validate()
+            flags = (configuration.flags ?? .init()).overlaying(environment: launchEnvironment)
+            if !flags.isDefault, restoreSwitches == nil { restoreSwitches = flags.applyProcessSwitches() }
             let account = configuration.live.map { "live-preview:\($0.server):\($0.accountID)" } ?? "isolated-preview"
             let partition = try ServerUIPublicationPartition(
                 server: HassServer(baseURL: URL(string: "https://preview.invalid")!))
@@ -204,7 +222,7 @@ final class UKServerUIPreview: UIViewController {
                 })
                 if let gallery = configuration.gallery {
                     GalleryHouse.install()
-                    self.fixtures = try UKServerUIPreviewFixtures(configuration: gallery, store: entities)
+                    self.fixtures = try UKServerUIPreviewFixtures(configuration: gallery, store: entities, flags: flags)
                 }
             }
             let canvas = view.bounds.size, scale = Double(traitCollection.displayScale)
@@ -224,6 +242,8 @@ final class UKServerUIPreview: UIViewController {
                 try Task.checkCancellation()
             }
             await store.bind(userID: "preview")
+            // The gate: the first layout waits and the status line stays up, as the reference's content gate does (`gateDelayMs`).
+            if let delay = flags.gateDelay { try await Task.sleep(for: delay) }
             await store.apply(try Self.publishedEvent(from: directory.appendingPathComponent("publication.json")))
             try Task.checkCancellation()
             guard let publication = store.current, let prepared = store.prepared else {
@@ -340,7 +360,7 @@ final class UKServerUIPreview: UIViewController {
             try Task.checkCancellation()
             guard backdrop.image != nil else { throw Failure.render }
             return try Prepared(publication: publication,
-                context: live?.context ?? fixtures?.context ?? UKContext(store: entities, caller: caller),
+                context: live?.context ?? fixtures?.context ?? UKContext(store: entities, caller: stateCaller),
                 assets: assets, backdrop: backdrop, renderDirectory: directory,
                 weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document)
                     ?? UKServerUIPreviewPlaceholders.weatherReader(for: publication.document),
@@ -372,6 +392,7 @@ final class UKServerUIPreview: UIViewController {
                                   "dataMode": live == nil ? "fixtures" : "live-read-only",
                                   "liveActionsEnabled": false, "updatedAt": Date().ISO8601Format()]
         value["live"] = live?.receipt
+        if !flags.isDefault { value["flags"] = flags.receipt }
         value["diagnostic"] = diagnostic
         if let publication {
             value["revision"] = publication.revision

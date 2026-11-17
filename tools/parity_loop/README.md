@@ -43,3 +43,7 @@ python3 tools/parity_loop/run.py --mode gallery --device duo --run NAME --surfac
 - Scroll stops (top plus each page height) are not captured; list cells outside the viewport are missing from the AX tree.
 - Whether `agent-device open <url>` opens a deep link, and whether `agent-device open` attaches after a `simctl launch` with env, are unverified on a device.
 - Drift has no retry and no `unstable` verdict: a pair whose reference shots differ is reported as `drift` at once. The research plan retries up to twice first.
+
+## Native preview state flags
+
+The candidate's DEBUG preview takes the reference's own launch variables (`FENTON_GALLERY_OFFLINE`, `_FAIL`, `_EMPTY`, `_GATE_DELAY_MS` and more) through `SIMCTL_CHILD_<NAME>` or `bootstrap.json` `flags`. The mapping lives in one place: `apple/Sources/HassUI/UIKitPort/ServerUI/README.md`, "Preview state flags".
