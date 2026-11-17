@@ -18,7 +18,7 @@
 | Sign-in, tokens, Keychain | [auth](platforms/apple/auth.md) |
 | Websocket, backgrounding, caching | [connection-lifecycle](platforms/apple/connection-lifecycle.md) |
 | Location and device sensors | [location](platforms/apple/location.md), [its screen](pages/settings/location.md) |
-| Changing the live Home Assistant | [ha-operations](platforms/apple/ha-operations.md) |
+| Changing the live Home Assistant | [ha-operations](platforms/apple/ha-operations.md), [studio-publication](platforms/apple/studio-publication.md) |
 | Push notifications | [push](platforms/apple/push.md) |
 | The shared `mobile_app` registration | [mobile-app](platforms/apple/mobile-app.md) |
 | Decide what tests to write | [strategy](testing/apple/strategy.md) |

@@ -1,0 +1,161 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  An agent-mode row is judged as a coder; the owner's plain terminal (main) is never blocked.
+# studio_guard is a TRIPWIRE, not a wall: port 4801 runs local-only with no token by owner choice (2026-11-16), so this guard is the protection. Non-goals, no row asserts them: URLs or paths built at run time, scripts that open the URL, a Write whose content runs later.
+curl -X PUT http://127.0.0.1:4801/native/api/draft -d @x.json	block	curl PUT to the draft	agent
+curl -sX PUT -H 'Content-Type: application/json' http://localhost:4801/native/api/draft --data '{}'	block	clustered flags, localhost	agent
+curl http://127.0.0.1:4801/native/api/draft	block	even a read of the draft is house data	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/publish -d '{"expectedRevision":1}'	block	publish route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/rollback -d '{"revision":1}'	block	rollback route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/restore-draft	block	restore-draft route	agent
+curl -X POST http://127.0.0.1:4801/native/api/ha/start-from-published	block	start-from-published route	agent
+curl 'http://127.0.0.1:4801/native/api/draft?x=1'	block	query string	agent
+curl "http://127.0.0.1:4801/native/api/ha/publish"	block	double quotes	agent
+wget --method=PUT --body-file=x.json http://127.0.0.1:4801/native/api/draft	block	wget	agent
+http PUT 127.0.0.1:4801/native/api/draft	block	httpie	agent
+python3 -c "import urllib.request as u;u.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft',method='PUT'))"	block	python urlopen	agent
+python3 -c "import requests;requests.post('http://localhost:4801/x')"	block	python on port 4801 without a route word	agent
+node -e "fetch('http://127.0.0.1:4801/native/api/draft',{method:'PUT'})"	block	node fetch	agent
+node -e "fetch('http://127.0.0.1:4801/anything')"	block	node on port 4801 without a route word	agent
+curl http://127.0.0.1:4800/health	block	port 4800	agent
+curl http://127.0.0.1:4819/health	block	port 4819	agent
+bash -c "curl -X PUT http://127.0.0.1:4801/native/api/draft"	block	bash -c string	agent
+sh -c 'curl http://127.0.0.1:4801/x'	block	sh -c string	agent
+eval "curl -X PUT http://127.0.0.1:4801/native/api/draft"	block	eval string	agent
+echo x | xargs curl -X PUT http://127.0.0.1:4801/native/api/draft	block	xargs-fed curl	agent
+env FOO=1 curl -X PUT http://127.0.0.1:4801/native/api/draft	block	wrapper program	agent
+cd /tmp && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	second command of a list	agent
+nc 127.0.0.1 4801	block	nc with the port as a word	agent
+echo '{}' > /Users/x/studio/native-v2/state.json	block	redirect into native-v2	agent
+cp x.json /Users/x/studio/native-v2/state.json	block	cp into native-v2	agent
+rm -rf native-v2	block	bare native-v2 word	agent
+cat ./native-v2/state.json	block	cat of native-v2	agent
+sed -i '' s/a/b/ native-v2/state.json	block	sed -i on native-v2	agent
+touch /Users/x/studio/.studio.lock	block	the studio lock file	agent
+cat $DATA_DIR/native-v2/state.json	block	DATA_DIR expansion	agent
+cat ${DATA_DIR}/x	block	braced DATA_DIR	agent
+cp x.json /Users/x/.t3/worktrees/ha-native-home-app/studio-ux2/data/draft.json	block	data folder of a Studio checkout	agent
+curl -X PUT http://127.0.0.1:4801/native/api/draft -d @x.json	allow	the owner's plain terminal is never blocked	main
+cat native-v2/state.json	allow	the owner's plain terminal may read the data	main
+git commit -m "Guard curl to :4801/native/api/draft and native-v2"	allow	prose in a commit message	agent
+gh pr create --title "Block native-v2 edits" --body "port :4801 /native/api/draft"	allow	prose in a PR title and body	agent
+grep -rn native-v2 docs	allow	a bare name as a search pattern	agent
+rg "4801" build/research	allow	a pattern, rg is not a network client	agent
+echo 'port 4801 is the owner Studio'	allow	echo prose	agent
+curl https://example.com/api	allow	unrelated curl	agent
+curl http://127.0.0.1:4894/native/api-docs	allow	stray text that is not the route	agent
+ls build/studio-publish	allow	listing the bundles	agent
+lsof -i :4801	allow	lsof is not a network client	agent
+python3 - <<'EOF'\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF	block	heredoc fed to python3 -	agent
+python3 - <<EOF\nimport requests\nrequests.post('http://localhost:4801/x')\nEOF	block	heredoc with a port only	agent
+node - <<'EOF'\nfetch('http://127.0.0.1:4801/native/api/ha/publish',{method:'POST'})\nEOF	block	heredoc fed to node	agent
+cat <<'EOF' | python3 -\nimport studio_publish\nEOF	block	heredoc piped to python that imports the tool	agent
+echo "import urllib.request; urllib.request.urlopen('http://127.0.0.1:4801/x')" | python3 -	block	a port in text piped to an interpreter	agent
+grep -rn "/native/api" docs	allow	searching docs for a route	agent
+rg 'ha/publish' build/research	allow	rg for a route name	agent
+git log -S/native/api --oneline	allow	git log -S for a route	agent
+git log -S ha/publish --oneline	allow	git log -S with a separate pattern	agent
+grep -n studio_publish .agents/workflow/agent-roster.md	allow	searching for the tool's name	agent
+cat /Users/x/.t3/worktrees/ha-native-home-app/studio-ux2/src/workspace2/data/Row.tsx	allow	Studio source folder named data below src	agent
+python3 - <<'EOF'\nprint(1 + 1)\nEOF	allow	an ordinary heredoc to python	agent
+cp x.json /Users/x/.t3/worktrees/ha-native-home-app/data/draft.json	block	data folder at the root of the Studio checkout	agent
+git config alias.pp "!curl -X PUT http://127.0.0.1:4801/native/api/draft"	block	a ! alias that calls the Studio	agent
+git -c alias.pp='!curl http://127.0.0.1:4801/native/api/draft' pp	block	git -c alias override	agent
+git config alias.pp '!curl -X POST http://localhost:4801/native/api/ha/publish'	block	alias for the publish route	agent
+lsof -i :4801 && python3 x.py	allow	a port in a separate command, not piped into code	agent
+git commit -F - <<'EOF' && python3 x.py\nGuard /native/api/draft\nEOF	allow	a prose heredoc is skipped even when the line also runs code	agent
+git log -S/native/api --oneline	allow	git log -S still allowed	agent
+cat <<'EOF' |\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF\npython3 -	block	trailing pipe: the interpreter comes after the delimiter	agent
+python3 - \\\n<<'EOF'\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF	block	line continuation before the heredoc	agent
+cat > /tmp/x.py <<'EOF'\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF\npython3 /tmp/x.py	block	write a script, then run it	agent
+tee /tmp/y.py <<'EOF'\nimport urllib.request as u\nu.urlopen(u.Request('http://127.0.0.1:4801/native/api/draft', method='PUT'))\nEOF\npython3 /tmp/y.py	block	tee a script, then run it	agent
+git -c diff.external='curl -X PUT http://127.0.0.1:4801/native/api/draft' diff	block	git -c diff.external runs a command	agent
+git grep -O'curl -X PUT http://127.0.0.1:4801/native/api/draft' foo	block	git grep -O runs a command	agent
+git diff --ext-diff -- /native/api/draft	block	--ext-diff	agent
+git -c color.ui=never log -S/native/api --oneline	allow	a read-only -c key	agent
+git grep -nO'curl -X PUT http://127.0.0.1:4801/native/api/draft' foo	block	-O bundled in a short-option word	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts apply c1 --reason x	block	a coder may not apply	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts publish c1 --reason x	block	a coder may not publish	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts rollback c1 --reason x	block	a coder may not roll back	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts resolve c1 --reason x --owner-action	block	a coder may not resolve	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts --log x.jsonl status apply c1 --reason x	block	a global option before the mutating word	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts --base http://127.0.0.1:4801 status publish c1 --reason x	block	--base before the mutating word	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts frobnicate	block	unknown subcommand	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	status is open to every agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --json	allow	status as JSON	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts check c1	allow	check is read only	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --base http://127.0.0.1:4801 --json	allow	the CLI with its own base URL	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --base http://127.0.0.1:4894	allow	a scratch Studio base	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log x.jsonl	allow	status with a global option	agent
+@cwd {STUDIO} node_modules/.bin/tsx scripts/studio-publish.ts status	allow	relative form from the checkout	agent
+@cwd {STUDIO} ./node_modules/.bin/tsx scripts/studio-publish.ts check c1	allow	relative form with ./	agent
+@cwd {STUDIO} npm run studio:publish -- status	block	there is no npm form	agent
+@cwd {STUDIO}/scripts npm run studio:publish -- check c1	block	there is no npm form	agent
+@cwd {STUDIO} npm run studio:publish -- apply c1 --reason x	block	there is no npm form	agent
+@cwd {STUDIO} npx vitest run tests/studio-publish.test.ts	allow	the CLI's test file is not the CLI	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts apply c1 --reason x	allow	the owner's plain terminal may apply	main
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/other.ts --base http://127.0.0.1:4801/native/api/draft	block	tsx running another script gets no exemption	agent
+{STUDIO}/node_modules/.bin/tsx /tmp/x.ts --base http://127.0.0.1:4801/native/api/draft	block	tsx running a script outside the checkout gets no exemption	agent
+{NOTSTUDIO}/node_modules/.bin/tsx {NOTSTUDIO}/scripts/studio-publish.ts status	block	studio-publish.ts outside a Studio checkout	agent
+{STUDIO}/node_modules/.bin/tsx {NOTSTUDIO}/scripts/studio-publish.ts status	block	a real tsx running a look-alike script	agent
+{NOTSTUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	a look-alike tsx running the real script	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/../scripts/studio-publish.ts status	block	path traversal in the script path	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/./studio-publish.ts status	block	a dot segment in the script path	agent
+{NOTSTUDIO}/../studio/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	path traversal in the tsx path	agent
+tsx {STUDIO}/scripts/studio-publish.ts status	block	a bare tsx from PATH	agent
+npx tsx {STUDIO}/scripts/studio-publish.ts status	block	npx tsx	agent
+node --import tsx {STUDIO}/scripts/studio-publish.ts status	block	node with the tsx loader	agent
+{STUDIO}/node_modules/.bin/tsx --tsconfig x.json {STUDIO}/scripts/studio-publish.ts status	block	a tsx option before the script	agent
+npm run studio:publish -- status	block	there is no npm form	agent
+@cwd {NOTSTUDIO} npm run studio:publish -- status	block	there is no npm form	agent
+npm --prefix {STUDIO} run studio:publish -- status	block	there is no npm form	agent
+@cwd {STUDIO} npm run studio:publish -- status && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	there is no npm form	agent
+{STUDIO}/node_modules/.bin/tsx - <<'EOF'\nimport '{STUDIO}/scripts/studio-publish.ts'\nEOF	block	heredoc to tsx importing the CLI	agent
+{STUDIO}/node_modules/.bin/tsx - <<'EOF'\nfetch('http://127.0.0.1:4801/native/api/draft',{method:'PUT'})\nEOF	block	heredoc to tsx calling the draft route	agent
+python3 tools/studio_publish.py status	block	the retired Python tool is no exemption	agent
+python3 -c "import studio_publish"	block	a python import of a studio_publish module	agent
+git add scripts/studio-publish.ts tests/studio-publish.test.ts	allow	staging the CLI	agent
+grep -n studio-publish docs/agent-publish.md	allow	searching for the CLI's name	agent
+git commit -F - <<'EOF'\nGuard :4801 and studio-publish\nEOF\npython3 tools/tests/test_studio_guard.py	allow	a commit-message heredoc is not fed to the later interpreter	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/native-v2/state.json	block	output redirected into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status >{STUDIO}/native-v2/state.json	block	glued redirect into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status 2>> {STUDIO}/native-v2/err	block	stderr appended into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > $DATA_DIR/out.json	block	output redirected into $DATA_DIR	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/native-v2/l.jsonl	block	--log into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log={STUDIO}/.studio.lock	block	--log= onto the studio lock	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/data/l.jsonl	block	--log into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log={STUDIO}/data/l.jsonl	block	--log= into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/data/out.txt	block	output redirected into the checkout data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status 2>{STUDIO}/data/e	block	glued stderr redirect into the data folder	agent
+@cwd {STUDIO} {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log data/l.jsonl	block	a relative --log into the data folder	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > /tmp/studio-out.txt	allow	output redirected to an ordinary file	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log /tmp/studio-log.jsonl	allow	--log to an ordinary file	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status --log {STUDIO}/docs/l.jsonl	allow	--log into a source folder of the checkout	agent
+@cwd {STUDIO} cd {NOTSTUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a look-alike, then the relative form	agent
+@cwd {STUDIO} cd {NOTSTUDIO}; node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a look-alike with a semicolon	agent
+@cwd {STUDIO} cd {NOTSTUDIO} || node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd joined by or	agent
+@cwd {STUDIO} cd "$X" && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd to a variable, then the relative form	agent
+@cwd {STUDIO} cd - && node_modules/.bin/tsx scripts/studio-publish.ts status	block	cd - leaves the cwd unknown	agent
+@cwd {STUDIO} pushd {NOTSTUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	block	pushd leaves the cwd unknown	agent
+@cwd {NOTSTUDIO} cd {STUDIO} && node_modules/.bin/tsx scripts/studio-publish.ts status	allow	cd into the real checkout, then the relative form	agent
+@cwd {STUDIO} cd {STUDIO}/scripts && {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an absolute form after a cd	agent
+@cwd {STUDIO} cd {NOTSTUDIO} && {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an absolute form is judged by its own paths	agent
+NODE_OPTIONS=--import=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS in front of the CLI	agent
+NODE_OPTIONS="--import=data:text/javascript,fetch('http://127.0.0.1:4801/native/api/draft')" {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS carrying a draft call	agent
+NODE_PATH=/tmp {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_PATH in front of the CLI	agent
+TSX_TSCONFIG_PATH=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	a TSX_ variable	agent
+LD_PRELOAD=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	LD_PRELOAD	agent
+DYLD_INSERT_LIBRARIES=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	DYLD_INSERT_LIBRARIES	agent
+env NODE_OPTIONS=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_OPTIONS through env	agent
+env -i FOO=1 NODE_PATH=/tmp {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	NODE_PATH through env -i	agent
+env -S 'NODE_OPTIONS=x {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status'	block	NODE_OPTIONS inside a split string	agent
+FOO=/x/native-v2/y {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	block	a prefix value naming native-v2	agent
+FOO=bar {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status	allow	an ordinary variable in front of the CLI	agent
+NODE_OPTIONS="--import=data:x,fetch('http://127.0.0.1:4801/native/api/draft')" node -e 1	block	a prefix value naming the draft route	agent
+X=http://127.0.0.1:4801 curl -s $X/x	block	a prefix value naming a Studio port for a network client	agent
+{LINK}/node_modules/.bin/tsx {LINK}/scripts/studio-publish.ts status	allow	a symlinked checkout path is the same real CLI	agent
+{LINK}/node_modules/.bin/tsx {NOTSTUDIO}/scripts/studio-publish.ts status	block	a symlinked tsx with a look-alike script	agent
+bash -c '{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status'	block	bash -c around the CLI	agent
+sh -c "{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status > {STUDIO}/native-v2/s"	block	sh -c with a redirect into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status && curl -X PUT http://127.0.0.1:4801/native/api/draft	block	a chained draft write	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status; cp x {STUDIO}/native-v2/s	block	a chained copy into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee {STUDIO}/native-v2/s	block	tee into native-v2	agent
+{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee /tmp/studio-status.txt	allow	tee to an ordinary file	agent
