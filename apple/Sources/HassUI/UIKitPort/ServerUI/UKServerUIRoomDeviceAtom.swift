@@ -14,7 +14,7 @@ private final class UKDeviceTimerSelection {
 
 /// One configured control, not a feature screen. Layout, tabs, collection and draft ownership stay outside.
 @MainActor
-final class UKServerUIRoomDeviceAtom: UIView, UKGridMeasuring {
+final class UKServerUIRoomDeviceAtom: UIView, UKGridWrapping {
     private(set) var definition: ServerUIRoomDeviceControl?
     private(set) var source: ServerUIRoomDeviceSource?
     private var context = UKContext.sheetPlaceholder

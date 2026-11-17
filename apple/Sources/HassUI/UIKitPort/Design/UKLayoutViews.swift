@@ -321,7 +321,7 @@ final class UKPageSectionHeaderView: UIView, UKGridMeasuring, UKSurfaceStyled {
 /// A vertical stack of views at their natural heights, laid out by hand: the page column of a gallery, and the SwiftUI
 /// `VStack(alignment: .leading, spacing:)` inside a `ScrollView`. Children report their height from ``UKGridMeasuring`` or `sizeThatFits`.
 @MainActor
-final class UKColumnView: UIView, UKGridMeasuring {
+final class UKColumnView: UIView, UKGridWrapping {
     var spacing: CGFloat { didSet { setNeedsLayout() } }
     var insets: UIEdgeInsets { didSet { setNeedsLayout() } }
     private(set) var views: [UIView] = []

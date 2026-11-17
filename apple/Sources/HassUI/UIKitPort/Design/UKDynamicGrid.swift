@@ -17,9 +17,9 @@ struct UKGridConfiguration: Equatable {
     var hingeBand: ClosedRange<CGFloat>?
     /// How a row that leaves tracks unused is filled (duo-widths rule 1, `.agents/design/duo-widths.md`).
     var fill = UKGridFill.share
-    /// The grid keeps at least this many columns (`sh.grid-min-columns@1`), however wide a tile's own minimum is, and a tile that widens to
-    /// its content takes at most `floor(columns / minimumColumns)` tracks, so that many tiles still sit in a row. `nil` leaves the columns
-    /// to the width. Authored spans are kept. Its owner turns it off at accessibility text sizes, where one column reads best.
+    /// The grid keeps at least this many columns (`sh.grid-min-columns@1`). It sets the track count only: a column floor never caps a
+    /// tile's span, so a tile wider than a track still takes the tracks its content needs. `nil` leaves the columns to the width. Its
+    /// owner turns it off at accessibility text sizes, where one column reads best.
     var minimumColumns: Int?
 }
 
@@ -73,12 +73,11 @@ enum UKGridSolver {
         // Owner, 2026-11-01: a tile that declared a minimum takes the tracks its content needs (Quick Links' Security System, the Air
         // Purifier); every other tile keeps its explicit span. A tile is full row when its span is the cap.
         let content = metrics.spans(minimums: minimums.count == spans.count ? minimums : spans.map { _ in 0 }, spacing: configuration.spacing)
-        // With a floor on the columns, content widens a tile only up to its share of the tracks (`sh.grid-min-columns@1`).
-        let share = configuration.minimumColumns == nil ? Int.max
-            : DynamicGridMetrics.shareOfTracks(columns: metrics.spanCap, minimumColumns: configuration.minimumColumns)
+        // A column floor (`sh.grid-min-columns@1`) sets the track count only; it never caps a tile's span (owner: a tile "is never
+        // squeezed to keep a column count"), so a tile wider than a track takes `ceil(minimum / track)` tracks up to the row.
         let wanted = spans.indices.map { index -> Int in
             let minimum = index < minimums.count ? minimums[index] : 0
-            return minimum > 0 && !headers[index] ? max(spans[index], min(content[index].span, share)) : spans[index]
+            return minimum > 0 && !headers[index] ? max(spans[index], content[index].span) : spans[index]
         }
         // Grids of small controls never fill (duo-widths rule 4).
         let fill = configuration.minCellWidth < DynamicGridMetrics.controlMaxWidth ? UKGridFill.none : configuration.fill
@@ -144,6 +143,26 @@ protocol UKGridMeasuring: AnyObject {
 
 extension UKGridMeasuring {
     var gridMinimumWidth: CGFloat { 0 }
+}
+
+/// A view that only hosts other views (a column, a control atom that holds a tile): it has no content width of its own, so it reports the
+/// widest minimum among the views it hosts, and a tile inside it takes the tracks its content needs as a tile placed in the grid directly
+/// does (owner, 2026-11-01, content-aware span; `.agents/patterns/dynamic-grid.md`). A wrapper that sizes its own content declares its
+/// own ``UKGridMeasuring/gridMinimumWidth`` instead of adopting this.
+@MainActor
+protocol UKGridWrapping: UKGridMeasuring {}
+
+extension UKGridWrapping where Self: UIView {
+    var gridMinimumWidth: CGFloat { subviews.map(ukWrappedMinimum).max() ?? 0 }
+}
+
+/// The least width `view` needs: its own opinion when it is a ``UKGridMeasuring`` view, else the widest of its visible subviews, so a
+/// plain container (a stack view) between a wrapper and its tile does not hide the tile's minimum. A hidden view takes no room.
+@MainActor
+func ukWrappedMinimum(_ view: UIView) -> CGFloat {
+    if view.isHidden { return 0 }
+    if let measuring = view as? UKGridMeasuring { return measuring.gridMinimumWidth }
+    return view.subviews.map(ukWrappedMinimum).max() ?? 0
 }
 
 @MainActor

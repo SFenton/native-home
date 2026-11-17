@@ -39,4 +39,6 @@ public struct StateResolution: Equatable, Sendable {
     public var fillDark: UInt32? = nil
     /// The ink of the state line on ``fill`` (`sh.tile-ink@1`).
     public var fillInk: StateFillInk = .white
+    /// The colour of the disc's glyph while the face is unlit (`red << 16 | green << 8 | blue`); nil leaves the disc's own ink.
+    public var discGlyph: UInt32? = nil
 }

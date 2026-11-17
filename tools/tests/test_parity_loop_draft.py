@@ -120,6 +120,7 @@ class FileTests(unittest.TestCase):
         edits.write_text(json.dumps({"edits": [{"id": "demo_grid", "op": "set", "path": "/props/maxColumns", "value": 4}]}))
         rows = draft.apply_files(source, edits, out, check_ignore=False)
         self.assertEqual(rows, [{"targets": 1, "changed": 1}])
+        self.assertEqual(json.loads(out.read_text())["revision"], envelope()["revision"])  # the draft keeps its source's revision
         self.assertEqual(json.loads(source.read_text()), envelope())
         self.assertEqual(find(json.loads(out.read_text()), "demo_grid")["props"]["maxColumns"], 4)
         self.assertNotIn(": ", out.read_text())
@@ -183,6 +184,10 @@ class FileTests(unittest.TestCase):
         self.assertNotIn("FENTON_HASS_TOKEN", seen["env"])
         self.assertEqual(draft.describe(report), "rejected: invalid_value at /x")
         self.assertEqual(draft.describe({"ok": True}), "compiles: no rejection")
+        self.assertEqual(draft.describe({"ok": False, "stage": "preflight", "code": "unsupported_capability", "pointer": "/p"}),
+                         "rejected [preflight]: unsupported_capability at /p")
+        self.assertEqual(draft.describe({"ok": True, "unchecked": ["providers", "assets"]}),
+                         "compiles: no rejection (unchecked, device only: providers, assets)")
 
     def test_compile_without_a_result_is_an_error(self) -> None:
         target = self.dir / "d.json"

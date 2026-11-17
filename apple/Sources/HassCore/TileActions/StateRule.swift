@@ -30,12 +30,17 @@ public struct StateRule: Equatable, Sendable {
     /// Whether the disc reads as on in this state, when that differs from the tile's own ``isActive``. Never authored: a lowered
     /// `door-tile` sets it where its tile was lit and its disc was not.
     public var discOn: Bool?
+    /// The colour of the disc's glyph (`red << 16 | green << 8 | blue`) while the face is unlit, in the place of the face fill the state does
+    /// not draw. Never authored: a lowered `door-tile` sets it from the state's authored colour, which is the face when the state is active
+    /// and the glyph ink when it is not. nil leaves the disc's own ink.
+    public var discGlyph: UInt32?
 
     /// Creates a rule.
     public init(_ states: [String], _ stateClass: StateClass, active: Bool = false, glyph: String? = nil, words: String? = nil,
                 indicator: StateIndicator? = nil, action: StateAction? = nil, colour: StateColour? = nil,
-                fill: UInt32? = nil, discOn: Bool? = nil) {
+                fill: UInt32? = nil, discOn: Bool? = nil, discGlyph: UInt32? = nil) {
         self.fill = fill
+        self.discGlyph = discGlyph
         self.discOn = discOn
         self.states = states
         self.stateClass = stateClass

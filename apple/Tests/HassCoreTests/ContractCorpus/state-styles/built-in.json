@@ -446,11 +446,19 @@
       "rules": [
         {
           "states": [
-            "docked",
+            "docked"
+          ],
+          "class": "resting",
+          "active": false,
+          "icon": "house"
+        },
+        {
+          "states": [
             "idle"
           ],
           "class": "resting",
-          "active": false
+          "active": false,
+          "icon": "robotic.vacuum"
         },
         {
           "states": [
@@ -459,6 +467,7 @@
           ],
           "class": "resting",
           "active": true,
+          "icon": "robotic.vacuum",
           "indicator": "breathe"
         },
         {
@@ -466,21 +475,24 @@
             "paused"
           ],
           "class": "warning",
-          "active": false
+          "active": false,
+          "icon": "robotic.vacuum"
         },
         {
           "states": [
             "returning"
           ],
           "class": "in-progress",
-          "active": false
+          "active": false,
+          "icon": "robotic.vacuum"
         },
         {
           "states": [
             "error"
           ],
           "class": "error",
-          "active": false
+          "active": false,
+          "icon": "robotic.vacuum"
         },
         {
           "states": [
@@ -488,12 +500,14 @@
             "unknown"
           ],
           "class": "unknown",
-          "active": false
+          "active": false,
+          "icon": "robotic.vacuum"
         }
       ],
       "fallback": {
         "class": "unknown",
-        "active": false
+        "active": false,
+        "icon": "robotic.vacuum"
       }
     },
     {

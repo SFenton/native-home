@@ -3570,7 +3570,10 @@
         "map + status tiles left, tabs right on wide windows",
         "ax5",
         "tab bodies: controls (target tiles), rooms (order selection tiles), auto-clean (check-disc tiles), dock (action tiles with footers), info",
-        "content swap between tabs cross-fades via SmoothContentSwap"
+        "content swap between tabs cross-fades via SmoothContentSwap",
+        "map buttons: corner groups as a row or column, More (system menu) on overflow",
+        "map buttons: blocked command dimmed; robot unavailable hides Locate and Clean",
+        "map flipped horizontally, vertically, both"
       ],
       "motionHint": [
         "map grows while cleaning; tab switch cross-fades (0.13/0.17 s)",
@@ -5792,7 +5795,11 @@
         "robot position",
         "no map",
         "last reported",
-        "cleaning (grown)"
+        "cleaning (grown)",
+        "corner button groups (default Locate, row, column)",
+        "orientation (flip horizontal, vertical, both)",
+        "More closed and open",
+        "button states (blocked, unavailable, Increase Contrast)"
       ],
       "motionHint": [],
       "inFlight": null,
@@ -9421,6 +9428,23 @@
       "note": "Owner requests 2026-11-16 (task sim-fidelity): white tile icons and text by default, customizable state strings, group by state on any grid. The owner picked ink option A (uncoloured icons and every state line in the primary ink) and heading option A (title only); the state words fold was picked under the gate. Built as sh.tile-ink-default@1, sh.state-words@1 and sh.grid-state-groups@1 (lanes TC7 and NT7). Current design: brightness-tile, state-styled-tile and dynamic-grid-layout. Includes the Studio (web) inspector.",
       "decision": ".agents/decisions/2026-11-16-tile-swipe.md",
       "shippedIn": "fba79957"
+    },
+    {
+      "id": "vacuum-map-controls",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Map orientation and corner button groups",
+      "path": "proposals/vacuum-map-controls",
+      "sources": [
+        "apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift",
+        "apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift",
+        "apple/Sources/HassCore/Vacuums/ValetudoMapGeometry.swift"
+      ],
+      "status": "decided",
+      "mockup": "proposals/vacuum-map-controls/vacuum-map-controls.html",
+      "note": "Owner request 2026-11-16 (gate matches_request=yes): flip the map; button groups as a row or column in each corner, ordered; the app handles overflow with a More menu. Built on t3/native-ingest (4b066cd6). Current design: vacuum-sheet and vacuum-map-canvas. The README lists what the build settled (Clean and Locate hidden while unavailable, More a system menu).",
+      "decision": "proposals/vacuum-map-controls/README.md",
+      "shippedIn": "4b066cd6"
     }
   ]
 }

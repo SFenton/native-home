@@ -71,7 +71,7 @@ enum UKServerUIRemoteProviders {
 
 /// One configured atomic control. Reuses canonical native values/closures; never embeds a feature controller.
 @MainActor
-final class UKServerUIRemoteAtom: UIView, UKGridMeasuring {
+final class UKServerUIRemoteAtom: UIView, UKGridWrapping {
     typealias D = ServerUICompositionDocument
     private let column = UKColumnView(spacing: HassTokens.Spacing.m)
     private let bag = UKObservationBag()

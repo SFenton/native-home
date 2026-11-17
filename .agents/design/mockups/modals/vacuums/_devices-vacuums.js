@@ -424,7 +424,8 @@
   /** A trimmed Vacuums page behind the sheet: Robot Vacuums tiles and the summary. */
   vac.robotTile = function (key, sc) {
     var R = vac.ROBOTS[key], v = vac.V({ robot: key, scenario: sc || 'docked' }), vis = VIS[v.state] || VIS.idle;
-    var sym = { cleaning: 'sparkles', docked: 'house', returning: 'arrow.uturn.left.circle', paused: 'pause.circle', error: 'exclamationmark.circle', idle: 'robotic.vacuum', unavailable: 'questionmark.circle' }[v.state];
+    /* The built-in Robot style's glyph (state-styles.md): the house while docked, the robot in every other state and when unavailable. */
+    var sym = v.state === 'docked' ? 'house' : 'robotic.vacuum';
     var sub = v.state === 'unavailable' ? 'Unavailable' : vac.stateLabel(v) + (v.battery == null ? '' : ' • ' + v.battery + '%') + (v.state === 'error' && v.issue ? ' • ' + vac.cap(v.issue.replace(/ /g, ' ')) : '');
     /* Rollout M (VacuumRobotTile, VacuumActions): a navigation tile with the room page's two discs, Start / Pause (play.fill / pause.fill) and Dock (house.fill, dimmed in place while docked), then the chevron. */
     var st = v.state, pausing = st === 'cleaning' || st === 'returning';

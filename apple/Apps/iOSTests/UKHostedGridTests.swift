@@ -39,6 +39,18 @@ final class UKHostedGridTests: XCTestCase {
         XCTAssertGreaterThan(wide.frames[1].width, plain.frames[1].width)
     }
 
+    func testAColumnFloorNeverCapsATilesSpan() {
+        var config = UKGridConfiguration()
+        config.minimumColumns = 2
+        let plain = solve(width: 350, spans: [1, 1], minimums: [272, 272])
+        let floored = solve(width: 350, spans: [1, 1], minimums: [272, 272], config: config)
+        XCTAssertEqual(floored.frames.map(\.width), plain.frames.map(\.width), "the floor sets the tracks, never a tile's span")
+        XCTAssertEqual(floored.frames[0].width, 350, accuracy: 1, "a tile wider than a track takes the row")
+        XCTAssertLessThan(floored.frames[0].maxY, floored.frames[1].minY + 1)
+        let wide = solve(width: 637, spans: [1, 1], minimums: [272, 272], config: config)
+        XCTAssertEqual(wide.frames[0].minY, wide.frames[1].minY, accuracy: 1, "two across where the cards fit")
+    }
+
     func testAHingeBandKeepsTilesOffTheFold() {
         var config = UKGridConfiguration()
         config.evenColumns = true

@@ -6,7 +6,7 @@ The compiler checks the document as written, then `ServerUIVacuumLowering` rewri
 
 | Kind | Lowers to | Parts |
 |---|---|---|
-| `card` | `state-tile` over a saved `robot` style | purple fill on cleaning, returning and paused (`sh.state-style-fills@1`); subtitle, progress, two discs (`sh.tile-disc-rules@1`); the grid keeps two columns (`sh.grid-min-columns@1`) |
+| `card` | `state-tile` over a saved `robot` style | purple fill on cleaning, returning and paused (`sh.state-style-fills@1`); subtitle, progress, two discs (`sh.tile-disc-rules@1`); the grid keeps two tracks (`sh.grid-min-columns@1`), which never cap a card's span |
 | `auto-clean` | `bound-control` toggle, row surface | glyph, Enabled or Paused subtitle, hint, failure caption (`sh.bound-row-parts@1`) |
 | `choice` (`autoClean`) | `bound-control` toggle, tile surface | included while the skip switch is off |
 

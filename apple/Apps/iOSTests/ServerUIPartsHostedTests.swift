@@ -153,44 +153,30 @@ final class ServerUIPartsHostedTests: XCTestCase {
         try ids.map { try XCTUnwrap(root.nodes[$0]?.view, $0).convert(XCTUnwrap(root.nodes[$0]?.view).bounds, to: root.view) }
     }
 
-    func testTwoRobotsSitAcrossAtEveryFamilyWidth() throws {
-        for width in Self.widths {
+    /// A column floor sets the track count and never caps a tile's span (owner: a tile "is never squeezed to keep a column count"):
+    /// a robot card wider than a track takes the tracks its content needs, so it takes the row at 350 and 390 (the folded Duo and the
+    /// phone) and sits beside the other where the cards fit one track (the unfolded Duo, the iPad).
+    func testARobotCardTakesTheRowWhenNarrowAndSitsBesideTheOtherWhenItFitsAtEveryFamilyWidth() throws {
+        for width in [350] + Self.widths {
             let (_, root) = try page("parts-columns-two-robots-across", width: width, entities: [robot("docked")])
             let tiles = try frames(of: ["main-floor", "upstairs"], in: root)
-            XCTAssertEqual(tiles[0].minY, tiles[1].minY, accuracy: 1, "the robots share a row at \(width)")
-            XCTAssertLessThan(tiles[0].maxX, tiles[1].minX + 1, "side by side at \(width)")
+            let minimum = try XCTUnwrap(root.nodes["main-floor"]?.view as? UKGlassTileView).gridMinimumWidth
+            XCTAssertGreaterThanOrEqual(tiles[0].width + 0.5, minimum, "a card is never squeezed below its content at \(width)")
             XCTAssertLessThanOrEqual(tiles[1].maxX, root.view.bounds.width + 1)
+            // A simulator narrower than the family's width draws it at its own, so the page's real width decides.
+            let drawn = root.view.bounds.width
+            if drawn < 500 {
+                XCTAssertLessThan(tiles[0].maxY, tiles[1].minY + 1, "one robot card per row at \(drawn)")
+                XCTAssertEqual(tiles[0].width, tiles[1].width, accuracy: 1, "each takes the row at \(drawn)")
+            } else {
+                XCTAssertEqual(tiles[0].minY, tiles[1].minY, accuracy: 1, "the cards share a row at \(drawn)")
+                XCTAssertLessThan(tiles[0].maxX, tiles[1].minX + 1, "side by side at \(drawn)")
+            }
             HostedPage.hideTracked()
         }
     }
 
-    func testTheFloorIsWhatPutsThemAcrossAndLargeTextGivesItUp() throws {
-        // Without `minimumColumns` a tile that widens to its content takes the row on a phone; with it, the tile takes its share.
-        let without: (inout [String: JSONValue]) -> Void = { object in
-            guard case .object(var document)? = object["document"], case .array(var pages)? = document["pages"],
-                  case .object(var first) = pages[0], case .array(var components)? = first["components"],
-                  case .object(var grid) = components[0], case .object(var props)? = grid["props"] else { return }
-            props["minimumColumns"] = nil
-            grid["props"] = .object(props)
-            components[0] = .object(grid)
-            first["components"] = .array(components)
-            pages[0] = .object(first)
-            document["pages"] = .array(pages)
-            object["document"] = .object(document)
-            if case .array(let capabilities)? = object["capabilities"] {
-                object["capabilities"] = .array(capabilities.filter { $0 != .string("sh.grid-min-columns@1") })
-            }
-        }
-        let (_, floored) = try page("parts-columns-two-robots-across", width: 390, entities: [robot("docked")])
-        let across = try frames(of: ["main-floor", "upstairs"], in: floored)
-        XCTAssertEqual(across[0].minY, across[1].minY, accuracy: 1)
-        HostedPage.hideTracked()
-        let (_, plain) = try page("parts-columns-two-robots-across", width: 390, entities: [robot("docked")], change: without)
-        let stacked = try frames(of: ["main-floor", "upstairs"], in: plain)
-        XCTAssertGreaterThanOrEqual(across[0].width, 100)
-        XCTAssertLessThanOrEqual(across[0].width, stacked[0].width + 1, "the floor never makes a tile wider than the grid without it")
-        HostedPage.hideTracked()
-
+    func testAColumnFloorGivesUpAtAccessibilityTextSizes() throws {
         let (_, large) = try page("parts-columns-two-robots-across", width: 390, entities: [robot("docked")])
         large.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
         large.view.layoutIfNeeded()
@@ -207,6 +193,47 @@ final class ServerUIPartsHostedTests: XCTestCase {
             XCTAssertTrue(spoken(second).contains { $0.contains("Upstairs") }, "width \(width)")
             let grid = try XCTUnwrap(root.nodes["robots"]?.view as? UKDynamicGridView)
             XCTAssertEqual(grid.items.map(\.view), [first, second])
+            HostedPage.hideTracked()
+        }
+    }
+
+    // MARK: The robot's glyph follows its state
+
+    /// The glyph the tile draws for `name`: the style's where this OS draws it, else the tile's own authored symbol (here `fan`).
+    private func drawn(_ name: String) -> String { UIImage(systemName: name) != nil ? name : "fan" }
+
+    func testTheRobotGlyphIsTheHouseWhileDockedAndTheRobotOtherwiseAtEveryFamilyWidth() throws {
+        for width in Self.widths {
+            let (_, root) = try page("parts-columns-two-robots-across", width: width, entities: [robot("docked")])
+            let tile = try XCTUnwrap(root.nodes["main-floor"]?.view as? UKGlassTileView)
+            XCTAssertTrue(HostedPage.until(2) { tile.model.symbol == self.drawn("house") }, "docked draws the house at \(width)")
+            XCTAssertEqual(tile.model.look?.icon, drawn("house"), "the look names the same glyph at \(width)")
+            for state in ["cleaning", "returning", "paused", "idle", "error"] {
+                store.apply([robot(state)])
+                XCTAssertTrue(HostedPage.until(2) { tile.model.symbol == self.drawn("robotic.vacuum") }, "\(state) draws the robot at \(width)")
+            }
+            store.apply([robot("unavailable")])
+            XCTAssertTrue(HostedPage.until(2) { tile.model.symbol == self.drawn("robotic.vacuum") },
+                          "an unavailable robot draws the robot, not the house, at \(width)")
+            store.apply([robot("docked")])
+            XCTAssertTrue(HostedPage.until(2) { tile.model.symbol == self.drawn("house") }, "docked again draws the house at \(width)")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// The glyph is decoration: VoiceOver reads the title and the state words, never the glyph's name, and the discs keep their verbs.
+    func testTheRobotGlyphChangesNothingVoiceOverReadsAtEveryFamilyWidth() throws {
+        for width in Self.widths {
+            let (_, root) = try page("parts-columns-two-robots-across", width: width, entities: [robot("docked")])
+            let tile = try XCTUnwrap(root.nodes["main-floor"]?.view as? UKGlassTileView)
+            XCTAssertEqual(tile.accessibilityLabel, "Main Floor", "width \(width)")
+            let docked = tile.accessibilityValue ?? ""
+            XCTAssertFalse(docked.localizedCaseInsensitiveContains("house") || docked.localizedCaseInsensitiveContains("robotic"),
+                           "the value is the state words, not a glyph name (\(docked))")
+            store.apply([robot("unavailable")])
+            XCTAssertTrue(HostedPage.until(2) { tile.accessibilityValue != docked }, "the value follows the state at \(width)")
+            XCTAssertFalse((tile.accessibilityValue ?? "").localizedCaseInsensitiveContains("robotic"), "width \(width)")
+            XCTAssertEqual(tile.model.actions.first?.verb, "Start", "the disc keeps its verb at \(width)")
             HostedPage.hideTracked()
         }
     }

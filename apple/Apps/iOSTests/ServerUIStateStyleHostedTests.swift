@@ -117,7 +117,9 @@ final class ServerUIStateStyleHostedTests: XCTestCase {
             defer { window.isHidden = true }
             // The built-in robot style with the tile's overrides: the override still names the text.
             XCTAssertEqual(tile.model.look?.text, "Vacuuming", "width \(width)")
-            XCTAssertEqual(tile.model.look?.icon, "fan", "the built-in robot style gives no glyph, so the tile's own icon stands")
+            // The built-in robot style draws the robot for a robot at work; where this OS cannot draw it, the tile's own icon stands.
+            XCTAssertEqual(tile.model.look?.icon, UIImage(systemName: StateStyle.robotGlyph) != nil ? StateStyle.robotGlyph : "fan",
+                           "the built-in robot style gives the glyph, and the tile's own icon is the fallback")
             XCTAssertEqual(tile.model.look?.indicator, .pulse)
             HostedPage.hideTracked()
         }

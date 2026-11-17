@@ -34,6 +34,7 @@ import http.client
 import json
 import os
 import re
+import shutil
 import ssl
 import sys
 from dataclasses import dataclass
@@ -105,9 +106,31 @@ def asset_hashes(envelope: Dict[str, Any]) -> List[str]:
     return seen
 
 
-def write_container(data_dir: Path, proxy_url: str, account: str, envelope: bytes, assets: Dict[str, bytes]) -> Path:
-    """Write the preview inputs into the container. ``bootstrap.json`` holds the **proxy** origin and account, never a token."""
+#: The origin the preview partitions its caches on (`UKServerUIPreview`), whatever the staged server is.
+PREVIEW_PARTITION_ORIGIN = "https://preview.invalid"
+
+
+def preview_partition_digest(origin: str = PREVIEW_PARTITION_ORIGIN) -> str:
+    """The partition directory's name: sha256 of ``"<utf8 length>:<origin>"`` (``ServerUIPublicationPartition.digest``)."""
+    return hashlib.sha256(f"{len(origin.encode('utf-8'))}:{origin}".encode("utf-8")).hexdigest()
+
+
+def write_container(data_dir: Path, proxy_url: str, account: str, envelope: bytes, assets: Dict[str, bytes],
+) -> Path:
+    """Write the preview inputs into the container. ``bootstrap.json`` holds the **proxy** origin and account, never a token.
+
+    Every stage first removes the preview's persisted last-good (``publications/``: the record, staged assets and renders), live or
+    draft alike, so the preview never meets a record from an earlier stage that the store would refuse as ``staleGeneration`` (a
+    higher revision of the same epoch). It touches only this container's preview folder, which is the candidate's.
+    """
     folder = Path(data_dir) / PREVIEW_SUBPATH
+    shutil.rmtree(folder / "publications", ignore_errors=True)
+    # The app's asset stager refuses a partition directory that is not private (mode 0700), and the preview's house-config cache
+    # creates its parent directories with the default mode before staging starts. A directory made here is private, so the app finds
+    # it as its own cache would have left it (`UKServerUIPreview` partitions on `PREVIEW_PARTITION_ORIGIN`).
+    partition = folder / "publications" / preview_partition_digest()
+    partition.mkdir(parents=True, mode=0o700)
+    os.chmod(partition, 0o700)
     (folder / "assets").mkdir(parents=True, exist_ok=True)
     for stale in (folder / "assets").iterdir():
         stale.unlink()
