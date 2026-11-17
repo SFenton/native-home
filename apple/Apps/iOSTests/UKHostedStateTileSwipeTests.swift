@@ -199,7 +199,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
     /// band that follow are drawn.
     func testAHeldChangeThenTheFingerLiftsSendsTheDraggedValueAndThenDrawsTheNewState() async throws {
         for width in Self.widths {
-            let r = try await rig(width: width, revert: 0.7)
+            let r = try await rig(width: width, revert: 3)
             defer { r.window.isHidden = true }
             r.window.layoutIfNeeded()
             await HostedPage.pump(passes: 5)
