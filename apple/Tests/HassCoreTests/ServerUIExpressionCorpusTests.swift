@@ -36,7 +36,7 @@ struct ServerUIExpressionCorpusTests {
     @Test func theCorpusIsWholeAndNamedByItsFiles() throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".json") }
         #expect(Self.cases.count == names.count, "a file did not decode")
-        #expect(Self.cases.count >= 284 + 35 + 133)
+        #expect(Self.cases.count >= 284 + 35 + 133 + 80)
         let answers = Set(Self.cases.compactMap { $0.expected["tri"]?.string })
         #expect(answers == ["yes", "no", "unknown"])
         let statuses = Set(Self.cases.compactMap { $0.expected["status"]?.string })
@@ -147,6 +147,8 @@ struct ServerUIExpressionCorpusTests {
         if let stack = subject["stack"] { return try ServerUIStackLayoutTests.answer(stack) }
         if let chart = subject["chart"] { return try ServerUIChartCorpusAnswers.chart(chart, reader: env) }
         if let gauge = subject["gauge"] { return ServerUIChartCorpusAnswers.gauge(gauge) }
+        if let dial = subject["dial"] { return try ServerUIDialCorpusAnswers.dial(dial) }
+        if let arc = subject["arc"] { return try ServerUIDialCorpusAnswers.arc(arc) }
         if let condition = subject["condition"] {
             return .object(["tri": .string(try predicate(condition).evaluate(env).rawText)])
         }

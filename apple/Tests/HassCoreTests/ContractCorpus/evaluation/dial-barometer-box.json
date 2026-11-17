@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "name": "dial-barometer-box",
+  "note": "A barometer 140 wide is 100 tall (width / 1.4, UKWeatherViews.swift:489), its centre 0.56 down at (70, 56) and its radius half the width: 70 (:492-493).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0.5
+        }
+      },
+      "pick": [
+        "width",
+        "height",
+        "cx",
+        "cy",
+        "radius"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "width": 140,
+      "height": 100,
+      "cx": 70,
+      "cy": 56,
+      "radius": 70
+    }
+  }
+}

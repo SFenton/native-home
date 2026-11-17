@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "dial-normalize-over-a-turn",
+  "note": "725 degrees is 5.",
+  "subject": {
+    "dial": {
+      "op": "normalize",
+      "value": 725
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "degrees": 5
+    }
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-width-is-capped",
+  "note": "It is never wider than 200: at 300 points of room the arc is 200 wide, so the marker at 0.5 is at (100, 44).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 300,
+        "progress": 0.5
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 100,
+        "y": 44,
+        "t": 0.5
+      }
+    }
+  }
+}

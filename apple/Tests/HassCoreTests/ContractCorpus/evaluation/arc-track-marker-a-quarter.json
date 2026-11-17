@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-a-quarter",
+  "note": "At 0.25: x = 8 + 84 x 0.25 = 29, y = 40 - 72 x 0.25 x 0.75 = 26.5.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 0.25
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 29,
+        "y": 26.5,
+        "t": 0.25
+      }
+    }
+  }
+}

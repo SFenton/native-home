@@ -60,7 +60,7 @@
    "long_lines": 6
   },
   ".agents/design/mockups/components/README.md": {
-   "over_words": 439
+   "over_words": 434
   },
   ".agents/design/mockups/components/bedroom/bed-side-tile/README.md": {
    "forbidden": 2
@@ -411,7 +411,7 @@
    "links": 1
   },
   ".agents/design/mockups/modals/README.md": {
-   "over_words": 191
+   "over_words": 180
   },
   ".agents/design/mockups/modals/bedroom/bed-alarm-day-page/README.md": {
    "forbidden": 1

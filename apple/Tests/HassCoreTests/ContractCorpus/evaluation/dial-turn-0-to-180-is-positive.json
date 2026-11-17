@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-turn-0-to-180-is-positive",
+  "note": "From 0 to 180 is 180 degrees (apple/Tests/HassCoreTests/WeatherPresentationTests.swift:91).",
+  "subject": {
+    "dial": {
+      "op": "delta",
+      "from": 0,
+      "to": 180
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "delta": 180
+    }
+  }
+}

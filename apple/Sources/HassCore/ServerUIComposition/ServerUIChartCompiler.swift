@@ -9,7 +9,7 @@ extension ServerUICompositionCompiler {
     // MARK: Operands
 
     /// A number operand slot: parsed like any operand, and refused (`binding_type`) when it can only give text, a yes or no, or a structure.
-    private mutating func numberOperand(_ c: Cursor) throws -> ServerUIOperand {
+    mutating func numberOperand(_ c: Cursor) throws -> ServerUIOperand {
         let value = try operand(c)
         if let kind = value.staticKind, kind != .number { add(.bindingType, c.pointer) }
         return value

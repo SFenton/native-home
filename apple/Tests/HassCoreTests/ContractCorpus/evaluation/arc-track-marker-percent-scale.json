@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-percent-scale",
+  "note": "On the percent scale 50 is the top: (50, 22).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 50,
+        "scale": "percent"
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 50,
+        "y": 22,
+        "t": 0.5
+      }
+    }
+  }
+}

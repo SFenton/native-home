@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-turn-10-to-350",
+  "note": "From 10 to 350 is -20 degrees (apple/Tests/HassCoreTests/WeatherPresentationTests.swift:90).",
+  "subject": {
+    "dial": {
+      "op": "delta",
+      "from": 10,
+      "to": 350
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "delta": -20
+    }
+  }
+}

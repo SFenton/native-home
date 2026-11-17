@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dial-barometer-ticks-are-49",
+  "note": "49 ticks, index 0 to 48 (UKWeatherViews.swift:497).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0.5
+        }
+      },
+      "pick": [
+        "ticks.length"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "ticks.length": 49
+    }
+  }
+}

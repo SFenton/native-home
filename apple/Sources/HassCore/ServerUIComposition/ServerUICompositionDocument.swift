@@ -721,6 +721,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case repeatNode(ServerUIRepeat)
         /// A chart of one series (`sh.chart@1`) and a rail with a span and a marker (`sh.linear-gauge@1`).
         case chart(ServerUIChart), linearGauge(ServerUILinearGauge)
+        /// A circular gauge (`sh.dial@1`) and an arc with a marker (`sh.arc-track@1`).
+        case dial(ServerUIDial), arcTrack(ServerUIArcTrack)
         public var node: Node {
             switch self {
             case .text(let value): value.node
@@ -773,6 +775,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .repeatNode(let value): value.node
             case .chart(let value): value.node
             case .linearGauge(let value): value.node
+            case .dial(let value): value.node
+            case .arcTrack(let value): value.node
             }
         }
     }

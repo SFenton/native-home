@@ -10,16 +10,10 @@ public enum WeatherPresentation {
     static func clampPercent(_ value: Double) -> Double { min(100, max(0, value)) }
 
     /// `value` modulo 360 into `0..<360` (`normalizeBearingDegrees`).
-    public static func normalizeBearingDegrees(_ value: Double) -> Double {
-        let remainder = value.truncatingRemainder(dividingBy: 360)
-        return (remainder + 360).truncatingRemainder(dividingBy: 360)
-    }
+    public static func normalizeBearingDegrees(_ value: Double) -> Double { ServerUIDialLayout.normalizeDegrees(value) }
 
     /// The signed shortest rotation from one bearing to another, in `(-180, 180]` (`shortestBearingDelta`).
-    public static func shortestBearingDelta(from: Double, to: Double) -> Double {
-        let delta = ((normalizeBearingDegrees(to) - normalizeBearingDegrees(from) + 540).truncatingRemainder(dividingBy: 360)) - 180
-        return delta <= -180 ? 180 : delta
-    }
+    public static func shortestBearingDelta(from: Double, to: Double) -> Double { ServerUIDialLayout.shortestTurn(from: from, to: to) }
 
     /// How long the compass needle takes to turn, in milliseconds (`compassRotationDurationMs`).
     public static func compassRotationDurationMs(from: Double, to: Double) -> Int {

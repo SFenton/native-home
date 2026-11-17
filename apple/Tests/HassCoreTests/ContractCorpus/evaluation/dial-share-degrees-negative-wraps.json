@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-degrees-negative-wraps",
+  "note": "-90 degrees is 270: three quarters of the turn.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": -90,
+      "scale": "degrees",
+      "sweep": {
+        "start": -90,
+        "length": 360
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0.75
+    }
+  }
+}

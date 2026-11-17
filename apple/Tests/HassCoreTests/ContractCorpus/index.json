@@ -10549,6 +10549,848 @@
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/children"
       }
+    },
+    {
+      "file": "accept/dial-tick.json",
+      "outcome": "accept",
+      "note": "A ring of ticks over 250 degrees with one lit: the smallest dial."
+    },
+    {
+      "file": "accept/dial-needle.json",
+      "outcome": "accept",
+      "note": "A full turn with the closed needle, read in degrees, with letters and a flag."
+    },
+    {
+      "file": "accept/dial-percent-scale.json",
+      "outcome": "accept",
+      "note": "A value from 0 to 100."
+    },
+    {
+      "file": "accept/dial-no-pointer.json",
+      "outcome": "accept",
+      "note": "A dial with ticks and no pointer: decoration."
+    },
+    {
+      "file": "accept/dial-no-ticks.json",
+      "outcome": "accept",
+      "note": "A dial with a needle and letters and no ticks."
+    },
+    {
+      "file": "accept/dial-aspect-and-centre.json",
+      "outcome": "accept",
+      "note": "A dial drawn wide, its centre lower than the middle: 1.4 wide to 1 tall, centre 0.56 down."
+    },
+    {
+      "file": "accept/dial-size-scaled.json",
+      "outcome": "accept",
+      "note": "A size that scales with the text size and grows to at most 160 points."
+    },
+    {
+      "file": "accept/dial-center-text.json",
+      "outcome": "accept",
+      "note": "Two lines of text in the middle: a value and a unit."
+    },
+    {
+      "file": "accept/dial-pointer-bound.json",
+      "outcome": "accept",
+      "note": "The pointer follows an entity: a number read from its state."
+    },
+    {
+      "file": "accept/dial-ink-pair.json",
+      "outcome": "accept",
+      "note": "A pointer that follows light and dark: the pair id is declared too."
+    },
+    {
+      "file": "accept/dial-mirrors.json",
+      "outcome": "accept",
+      "note": "A dial that flips in a right-to-left layout."
+    },
+    {
+      "file": "accept/dial-needle-still.json",
+      "outcome": "accept",
+      "note": "A needle that does not turn when its value changes."
+    },
+    {
+      "file": "accept/dial-a11y-value.json",
+      "outcome": "accept",
+      "note": "Read as a meter: a name and a spoken value."
+    },
+    {
+      "file": "accept/dial-a11y-bound-label.json",
+      "outcome": "accept",
+      "note": "The spoken name may come from an entity."
+    },
+    {
+      "file": "accept/dial-full-turn-wraps.json",
+      "outcome": "accept",
+      "note": "A full turn in unit scale."
+    },
+    {
+      "file": "accept/dial-in-a-grid.json",
+      "outcome": "accept",
+      "note": "A dial takes a width in a grid like any node."
+    },
+    {
+      "file": "reject/dial-sweep-missing.json",
+      "outcome": "reject",
+      "note": "A dial says its sweep.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/sweep"
+      }
+    },
+    {
+      "file": "reject/dial-sweep-length-over-360.json",
+      "outcome": "reject",
+      "note": "A sweep goes round once at most.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/sweep/length"
+      }
+    },
+    {
+      "file": "reject/dial-sweep-length-zero.json",
+      "outcome": "reject",
+      "note": "A sweep goes somewhere.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/sweep/length"
+      }
+    },
+    {
+      "file": "reject/dial-sweep-start-over-360.json",
+      "outcome": "reject",
+      "note": "A sweep starts within a turn either way.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/sweep/start"
+      }
+    },
+    {
+      "file": "reject/dial-scale-unknown.json",
+      "outcome": "reject",
+      "note": "The scales are unit, percent and degrees.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/scale"
+      }
+    },
+    {
+      "file": "reject/dial-scale-degrees-needs-a-full-turn.json",
+      "outcome": "reject",
+      "note": "Degrees are of a full turn: a sweep of 250 cannot read them.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/scale"
+      }
+    },
+    {
+      "file": "reject/dial-aspect-over-2.json",
+      "outcome": "reject",
+      "note": "A dial is at most twice as wide as tall.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/aspect"
+      }
+    },
+    {
+      "file": "reject/dial-centre-over-1.json",
+      "outcome": "reject",
+      "note": "The centre is within the dial.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/centerY"
+      }
+    },
+    {
+      "file": "reject/dial-size-max-below-points.json",
+      "outcome": "reject",
+      "note": "A size never grows to less than itself.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/size/maxPoints"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-count-over-120.json",
+      "outcome": "reject",
+      "note": "A ring has at most 120 ticks.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ticks/count"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-count-one.json",
+      "outcome": "reject",
+      "note": "A ring has two ticks at least.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ticks/count"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-count-fraction.json",
+      "outcome": "reject",
+      "note": "The number of ticks is whole.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ticks/count"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-outer-below-inner.json",
+      "outcome": "reject",
+      "note": "A tick runs outward: its outer end lies beyond its inner end.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ticks/outer"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-ends-over-1.json",
+      "outcome": "reject",
+      "note": "The ends are shares of the radius, up to 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ticks/outer"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-alternate-past-outer.json",
+      "outcome": "reject",
+      "note": "The inner end of the second ticks lies short of the outer end.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ticks/alternate/inner"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-skip-past-count.json",
+      "outcome": "reject",
+      "note": "A skipped tick is one the ring has.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/ticks/skip/0"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-ink-missing.json",
+      "outcome": "reject",
+      "note": "A ring says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/ticks/ink"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-width-zero.json",
+      "outcome": "reject",
+      "note": "A tick has a width.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/ticks/width"
+      }
+    },
+    {
+      "file": "reject/dial-ticks-extra-field.json",
+      "outcome": "reject",
+      "note": "A ring has its own fields only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/ticks/dash"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-kind-unknown.json",
+      "outcome": "reject",
+      "note": "The pointers are tick and needle.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/pointer/kind"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-value-missing.json",
+      "outcome": "reject",
+      "note": "A pointer says its value.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/pointer/value"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-value-text.json",
+      "outcome": "reject",
+      "note": "A pointer's value is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/pointer/value"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-tick-outer-below-inner.json",
+      "outcome": "reject",
+      "note": "A lit tick runs outward.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/pointer/outer"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-tick-ink-missing.json",
+      "outcome": "reject",
+      "note": "A lit tick says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/pointer/ink"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-needle-tail-ink-missing.json",
+      "outcome": "reject",
+      "note": "The needle says the colour of each part: its tail too.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/pointer/tailInk"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-needle-dot-ink-missing.json",
+      "outcome": "reject",
+      "note": "And its dot.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/pointer/dotInk"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-needle-has-no-width.json",
+      "outcome": "reject",
+      "note": "The needle is one closed style: it takes no width, inner or outer end.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/pointer/width"
+      }
+    },
+    {
+      "file": "reject/dial-pointer-animates-on-a-tick.json",
+      "outcome": "reject",
+      "note": "Only the needle turns.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/pointer/animates"
+      }
+    },
+    {
+      "file": "reject/dial-labels-items-empty.json",
+      "outcome": "reject",
+      "note": "Letters, when there are some, are at least one.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/labels/items"
+      }
+    },
+    {
+      "file": "reject/dial-labels-over-12.json",
+      "outcome": "reject",
+      "note": "At most twelve letters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/labels/items"
+      }
+    },
+    {
+      "file": "reject/dial-labels-text-blank.json",
+      "outcome": "reject",
+      "note": "A letter is something.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/labels/items/0/text"
+      }
+    },
+    {
+      "file": "reject/dial-labels-text-over-8.json",
+      "outcome": "reject",
+      "note": "A letter is short: eight characters at most.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/labels/items/0/text"
+      }
+    },
+    {
+      "file": "reject/dial-labels-place-over-1.json",
+      "outcome": "reject",
+      "note": "A place along the sweep is 0 to 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/labels/items/0/at"
+      }
+    },
+    {
+      "file": "reject/dial-labels-ink-missing.json",
+      "outcome": "reject",
+      "note": "The letters say their colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/labels/ink"
+      }
+    },
+    {
+      "file": "reject/dial-labels-needs-value-without-a-pointer.json",
+      "outcome": "reject",
+      "note": "A letter that waits for a value needs a pointer to have one.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/labels/items/0/needsValue"
+      }
+    },
+    {
+      "file": "reject/dial-flag-ink-missing.json",
+      "outcome": "reject",
+      "note": "The flag says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/flag/ink"
+      }
+    },
+    {
+      "file": "reject/dial-flag-place-over-1.json",
+      "outcome": "reject",
+      "note": "The flag stands within the sweep.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/flag/at"
+      }
+    },
+    {
+      "file": "reject/dial-center-empty.json",
+      "outcome": "reject",
+      "note": "The middle holds a line at least when it is given.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/center"
+      }
+    },
+    {
+      "file": "reject/dial-center-over-3-lines.json",
+      "outcome": "reject",
+      "note": "The middle holds three lines at most.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/center"
+      }
+    },
+    {
+      "file": "reject/dial-center-line-value-missing.json",
+      "outcome": "reject",
+      "note": "A line says its words.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/center/0/value"
+      }
+    },
+    {
+      "file": "reject/dial-center-line-style-unknown.json",
+      "outcome": "reject",
+      "note": "A line has a text style of the system's.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/center/0/style"
+      }
+    },
+    {
+      "file": "reject/dial-center-ticker-needs-one-line.json",
+      "outcome": "reject",
+      "note": "A ticker slides one line.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/center/0/overflow"
+      }
+    },
+    {
+      "file": "reject/dial-center-font-max-below-points.json",
+      "outcome": "reject",
+      "note": "A scaled font never grows to less than itself.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/center/0/font/scale/maxPoints"
+      }
+    },
+    {
+      "file": "reject/dial-center-line-has-no-layout.json",
+      "outcome": "reject",
+      "note": "A line is only the props of a text.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/center/0/layout"
+      }
+    },
+    {
+      "file": "reject/dial-a11y-missing.json",
+      "outcome": "reject",
+      "note": "A dial says how it is read.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/dial-a11y-element-unknown.json",
+      "outcome": "reject",
+      "note": "It is read as nothing or a value.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/dial-a11y-hidden-with-label.json",
+      "outcome": "reject",
+      "note": "A hidden dial has no name.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/dial-a11y-value-without-label.json",
+      "outcome": "reject",
+      "note": "A dial read as a value names itself.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/dial-has-no-children.json",
+      "outcome": "reject",
+      "note": "A dial holds no nodes: its middle is lines of text.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/dial-props-extra-field.json",
+      "outcome": "reject",
+      "note": "A dial has its own fields only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/glow"
+      }
+    },
+    {
+      "file": "reject/dial-mirrors-text.json",
+      "outcome": "reject",
+      "note": "Flipping is a yes or no.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/mirrors"
+      }
+    },
+    {
+      "file": "accept/arc-track-minimal.json",
+      "outcome": "accept",
+      "note": "A dashed curve with a marker at half: the smallest arc."
+    },
+    {
+      "file": "accept/arc-track-horizon.json",
+      "outcome": "accept",
+      "note": "The curve with a horizon line."
+    },
+    {
+      "file": "accept/arc-track-solid.json",
+      "outcome": "accept",
+      "note": "A solid curve: no dashes."
+    },
+    {
+      "file": "accept/arc-track-no-marker.json",
+      "outcome": "accept",
+      "note": "A curve with no marker: decoration."
+    },
+    {
+      "file": "accept/arc-track-percent-scale.json",
+      "outcome": "accept",
+      "note": "Progress from 0 to 100."
+    },
+    {
+      "file": "accept/arc-track-progress-bound.json",
+      "outcome": "accept",
+      "note": "Progress follows an entity: a number read from its state."
+    },
+    {
+      "file": "accept/arc-track-mirrors-off.json",
+      "outcome": "accept",
+      "note": "An arc that keeps its place in a right-to-left layout."
+    },
+    {
+      "file": "accept/arc-track-ink-pair.json",
+      "outcome": "accept",
+      "note": "A line that follows light and dark: the pair id is declared too."
+    },
+    {
+      "file": "accept/arc-track-a11y-value.json",
+      "outcome": "accept",
+      "note": "Read as a meter: a name and a spoken value."
+    },
+    {
+      "file": "accept/arc-track-a11y-bound-label.json",
+      "outcome": "accept",
+      "note": "The spoken name may come from an entity."
+    },
+    {
+      "file": "accept/arc-track-other-curve.json",
+      "outcome": "accept",
+      "note": "Any curve in any box: a shallow arc."
+    },
+    {
+      "file": "accept/arc-track-in-a-grid.json",
+      "outcome": "accept",
+      "note": "An arc takes a width in a grid like any node."
+    },
+    {
+      "file": "reject/arc-track-curve-missing.json",
+      "outcome": "reject",
+      "note": "An arc says its curve.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/curve"
+      }
+    },
+    {
+      "file": "reject/arc-track-curve-control-missing.json",
+      "outcome": "reject",
+      "note": "A curve has its three points.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/curve/control"
+      }
+    },
+    {
+      "file": "reject/arc-track-curve-point-outside-the-box.json",
+      "outcome": "reject",
+      "note": "A curve point lies inside the box: the bend toward (50, 60) is below a box 48 tall.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/curve/control"
+      }
+    },
+    {
+      "file": "reject/arc-track-curve-end-outside-the-box.json",
+      "outcome": "reject",
+      "note": "The end of a curve too.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/curve/to"
+      }
+    },
+    {
+      "file": "reject/arc-track-curve-point-negative.json",
+      "outcome": "reject",
+      "note": "A point is not below 0.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/curve/from/0"
+      }
+    },
+    {
+      "file": "reject/arc-track-curve-point-has-three-numbers.json",
+      "outcome": "reject",
+      "note": "A point is an x and a y.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/curve/from"
+      }
+    },
+    {
+      "file": "reject/arc-track-box-missing.json",
+      "outcome": "reject",
+      "note": "An arc says its box.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/box"
+      }
+    },
+    {
+      "file": "reject/arc-track-box-zero.json",
+      "outcome": "reject",
+      "note": "A box has a size.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/box/1"
+      }
+    },
+    {
+      "file": "reject/arc-track-horizon-point-outside-the-box.json",
+      "outcome": "reject",
+      "note": "A horizon point lies inside the box.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/horizon/to"
+      }
+    },
+    {
+      "file": "reject/arc-track-horizon-ink-missing.json",
+      "outcome": "reject",
+      "note": "A horizon says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/horizon/ink"
+      }
+    },
+    {
+      "file": "reject/arc-track-ink-missing.json",
+      "outcome": "reject",
+      "note": "The line says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/ink"
+      }
+    },
+    {
+      "file": "reject/arc-track-width-zero.json",
+      "outcome": "reject",
+      "note": "The line has a width.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/width"
+      }
+    },
+    {
+      "file": "reject/arc-track-dash-zero.json",
+      "outcome": "reject",
+      "note": "A dash has a length.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/dash/0"
+      }
+    },
+    {
+      "file": "reject/arc-track-dash-one-number.json",
+      "outcome": "reject",
+      "note": "A dash is a stroke and a gap.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/dash"
+      }
+    },
+    {
+      "file": "reject/arc-track-scale-unknown.json",
+      "outcome": "reject",
+      "note": "The scales are unit and percent: an arc has no degrees.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/scale"
+      }
+    },
+    {
+      "file": "reject/arc-track-progress-without-a-marker.json",
+      "outcome": "reject",
+      "note": "Progress with no marker has nothing to move.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/progress"
+      }
+    },
+    {
+      "file": "reject/arc-track-marker-without-progress.json",
+      "outcome": "reject",
+      "note": "A marker with no progress has nowhere to be.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/progress"
+      }
+    },
+    {
+      "file": "reject/arc-track-progress-text.json",
+      "outcome": "reject",
+      "note": "Progress is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/progress"
+      }
+    },
+    {
+      "file": "reject/arc-track-marker-size-below-6.json",
+      "outcome": "reject",
+      "note": "A marker is at least 6 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/marker/size"
+      }
+    },
+    {
+      "file": "reject/arc-track-marker-size-over-32.json",
+      "outcome": "reject",
+      "note": "A marker is at most 32 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/marker/size"
+      }
+    },
+    {
+      "file": "reject/arc-track-marker-ink-missing.json",
+      "outcome": "reject",
+      "note": "A marker says its colour.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/marker/ink"
+      }
+    },
+    {
+      "file": "reject/arc-track-max-width-below-16.json",
+      "outcome": "reject",
+      "note": "The widest an arc is drawn is at least 16 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/maxWidth"
+      }
+    },
+    {
+      "file": "reject/arc-track-mirrors-text.json",
+      "outcome": "reject",
+      "note": "Flipping is a yes or no.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/mirrors"
+      }
+    },
+    {
+      "file": "reject/arc-track-props-extra-field.json",
+      "outcome": "reject",
+      "note": "An arc has its own fields only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/glow"
+      }
+    },
+    {
+      "file": "reject/arc-track-a11y-missing.json",
+      "outcome": "reject",
+      "note": "An arc says how it is read.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/arc-track-a11y-value-without-label.json",
+      "outcome": "reject",
+      "note": "An arc read as a value names itself.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/arc-track-has-no-children.json",
+      "outcome": "reject",
+      "note": "An arc holds no nodes.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/children"
+      }
     }
   ]
 }

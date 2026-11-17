@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-degrees-full-turn",
+  "note": "Degrees on a full turn: 90 is a quarter.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": 90,
+      "scale": "degrees",
+      "sweep": {
+        "start": -90,
+        "length": 360
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0.25
+    }
+  }
+}

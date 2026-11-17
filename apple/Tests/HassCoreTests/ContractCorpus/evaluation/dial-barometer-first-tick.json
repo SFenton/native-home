@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "dial-barometer-first-tick",
+  "note": "The first tick is at 145 degrees, lower left: between 0.78 and 0.92 of the radius (tick(0, inner: 0.78, outer: 0.92), :498).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0.5
+        }
+      },
+      "pick": [
+        "ticks.0"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "ticks.0": {
+        "x1": 25.2743,
+        "y1": 87.3173,
+        "x2": 17.2466,
+        "y2": 92.9383
+      }
+    }
+  }
+}

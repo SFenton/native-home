@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-not-a-number-is-unknown",
+  "note": "A value that is not a number gives no share.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": null,
+      "scale": "unit",
+      "sweep": {
+        "start": 145,
+        "length": 250
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": null
+    }
+  }
+}

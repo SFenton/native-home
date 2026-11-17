@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "arc-track-point-of-another-curve",
+  "note": "Any quadratic curve: from (0, 0) bent toward (10, 20) to (20, 0) is at (10, 10) at the middle: (1 - t)^2 from + 2 t (1 - t) control + t^2 to.",
+  "subject": {
+    "arc": {
+      "op": "point",
+      "curve": {
+        "from": [
+          0,
+          0
+        ],
+        "control": [
+          10,
+          20
+        ],
+        "to": [
+          20,
+          0
+        ]
+      },
+      "t": 0.5
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "x": 10,
+      "y": 10
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "dial-barometer-lit-tick-at-half",
+  "note": "The lit tick at a share of 0.5 (1010 hPa on 970 to 1050) is at 270 degrees, between 0.70 and 0.98 (lit, :501-503).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0.5
+        }
+      },
+      "pick": [
+        "lit",
+        "share"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "lit": {
+        "x1": 70,
+        "y1": 7,
+        "x2": 70,
+        "y2": -12.6
+      },
+      "share": 0.5
+    }
+  }
+}

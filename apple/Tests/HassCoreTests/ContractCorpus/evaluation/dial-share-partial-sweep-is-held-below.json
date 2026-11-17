@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-partial-sweep-is-held-below",
+  "note": "And -0.5 is 0.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": -0.5,
+      "scale": "unit",
+      "sweep": {
+        "start": 145,
+        "length": 250
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0
+    }
+  }
+}

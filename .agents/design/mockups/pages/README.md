@@ -1,6 +1,6 @@
 # Pages
 
-> **What:** every page mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need to see how a page looks today, or to find the mockup to update. A screen on a tab or pushed in a stack, always on the dimmed house photo.
+> **What:** every page mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need a page's mockup. A screen on a tab or pushed in a stack, always on the dimmed house photo.
 
 ## bedroom (1)
 

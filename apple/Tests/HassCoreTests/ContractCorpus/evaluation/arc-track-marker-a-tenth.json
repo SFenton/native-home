@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-a-tenth",
+  "note": "At 0.1: x = 16.4, y = 40 - 72 x 0.09 = 33.52.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 0.1
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 16.4,
+        "y": 33.52,
+        "t": 0.1
+      }
+    }
+  }
+}

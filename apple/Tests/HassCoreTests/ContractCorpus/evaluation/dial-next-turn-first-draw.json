@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-next-turn-first-draw",
+  "note": "The first draw turns to where the needle belongs (`from = angle ?? new`, UKWeatherViews.swift:367).",
+  "subject": {
+    "dial": {
+      "op": "next",
+      "previous": null,
+      "target": 90
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "angle": 90
+    }
+  }
+}

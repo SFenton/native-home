@@ -1,0 +1,18 @@
+# Barometer centre text keeps production's place on the shared dial
+
+Decision: B. The dial contract gains a place for the text in the middle, apart from the ring's centre, and the weather barometer uses it to stand exactly where production draws it. The question: production centres the value and unit block at half the dial's height plus 4 pt (`UKWeatherPressureGaugeView.layoutSubviews` on main: `top = (height - total) / 2 + 4`), while `sh.dial@1` centres the lines on `centerY`, which is also the ring's centre (0.56 of the height for the barometer). On `sh.dial@1` the text sits `0.06 * height - 4` pt lower: 2 pt at 140 pt wide, level at about 93 pt wide. Options judged: A, record the departure; B, a centre-text place in the dial contract; C, keep the barometer on its old native view. A lost to the owner's choice of production's exact pixels, C to "One dial" and to authoring.
+Replaces: the open "Barometer text" row in `.agents/patterns/dial.md` on this branch ("Open, for the Designer").
+Rule home: .agents/patterns/dial.md
+Gate: matches_request=yes. The owner asked for the old app's logic to be configured in the Studio, "extend native or Studio as needed, approved", and picked production's exact words and pixels for the dial, compass and sun arc (`build/decisions/studio-logic.md`, pick 4). `tools/jev_gate.py` on this plan read it as not visible (`design.user_visible` p=0.24, `decision.needs_owner` p=0.09) and so printed no `gate:` line: with B the weather panel draws what production draws.
+
+## Options judged
+
+- A, record the departure (text up to 2 pt lower at the widest tile). Lost: the owner's edge-logic pick of 2026-11-17 keeps production's exact pixels and approves extending the Studio or native to get them, and the owner's choice ranks above the HIG, web parity and convenience. The HIG does not settle it either way: Layout says "Align related elements", which both places satisfy, and it gives no figure for text inside a gauge. A is the cheapest option, which is the lowest reason in the precedence.
+- B, a centre-text place in the contract under a new capability id, ingested by native. Won: it is the only option that keeps both things the owner asked for, production's pixels and one authorable dial. Its cost is a contract change, a capability id that publishes only once a shipped build declares it, and a native follow-up; the owner approved that kind of cost for this task.
+- C, keep the barometer on its old native view. Lost: the pixels match, but the barometer stays hand-built and cannot be authored, which is what the task exists to end, and it breaks the "One dial" rule in the pattern.
+
+The field's meaning (the contract picks its name): the centre of the block of lines stands at a share of the dial's height, the ring's `centerY` when absent, plus an offset in points, 0 when absent. The offset is plain points and does not scale with the text size, as production's 4 pt does not. The barometer says a share of 0.5 and an offset of 4. A dial that says neither draws as `sh.dial@1` does today, so no authored dial and no corpus case moves.
+
+Until the contract carries the field, the barometer does not ship with the 2 pt shift: either the native dial model carries the place and only `WeatherDialSpecs.barometer` sets it (preferred: one dial now, the decoder reads it when the capability lands), or the barometer stays on its old view until then.
+
+No pair stills were judged: the pick follows from the owner's choice and the arithmetic of the two layouts, not from how 2 pt looks. The built result is checked against production on iPhone, Duo and iPad, at the default and an accessibility text size, with and without a unit, before the verdict.

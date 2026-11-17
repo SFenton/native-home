@@ -1,6 +1,6 @@
 # Components
 
-> **What:** every component mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need to see how a component looks today, or to find the mockup to update. Reusable views: design-system pieces, per-feature pieces and extension surfaces.
+> **What:** every component mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need a component's mockup. 
 
 ## bedroom (2)
 
@@ -37,7 +37,7 @@
 |---|---|---|---|---|
 | [Brightness tile (drag dragger)](tiles/brightness-tile/brightness-tile.html) | `brightness-tile` | shipped | iphone, duo, ipad |  |
 
-## design (31)
+## design (32)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
@@ -47,6 +47,7 @@
 | [ChipRail (scroll, wrap)](chips/chip-rail/chip-rail.html) | `chip-rail` | shipped | iphone, duo, ipad |  |
 | [Colour families and palettes (tokens)](tokens/color-families/color-families.html) | `color-families` | shipped | iphone, duo, ipad |  |
 | [ContentGate (loading gate)](loading/content-gate/content-gate.html) | `content-gate` | shipped | iphone, duo, ipad |  |
+| [Dial and arc track](controls/dial-arc-track/dial-arc-track.html) | `dial-arc-track` | shipped | iphone, duo, ipad |  |
 | [DynamicGridLayout (equal heights, spans, grid headers)](grids/dynamic-grid-layout/dynamic-grid-layout.html) | `dynamic-grid-layout` | shipped | iphone, duo, ipad |  |
 | [Empty and error states (ContentUnavailable usage)](forms/content-unavailable/content-unavailable.html) | `content-unavailable` | shipped | iphone, duo, ipad |  |
 | [FilterSheet, FilterSection, FilterOptionRow](modals/filter-sheet/filter-sheet.html) | `filter-sheet` | shipped | iphone, duo, ipad |  |

@@ -1,0 +1,70 @@
+{
+  "format": 1,
+  "name": "dial-needle-right-to-left-is-not-mirrored",
+  "note": "A compass keeps its places: bearing 90 is east in either direction.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 104,
+        "sweep": {
+          "start": -90,
+          "length": 360
+        },
+        "scale": "degrees",
+        "ticks": {
+          "count": 48,
+          "inner": 0.8,
+          "outer": 0.92,
+          "width": 1.2,
+          "alternate": {
+            "inner": 0.85
+          },
+          "skip": [
+            0
+          ]
+        },
+        "pointer": {
+          "kind": "needle",
+          "value": 90
+        },
+        "flag": {
+          "at": 0
+        },
+        "labels": [
+          {
+            "at": 0,
+            "text": "N"
+          },
+          {
+            "at": 0.25,
+            "text": "E",
+            "needsValue": true
+          },
+          {
+            "at": 0.5,
+            "text": "S"
+          },
+          {
+            "at": 0.75,
+            "text": "W",
+            "needsValue": true
+          }
+        ],
+        "rtl": true
+      },
+      "pick": [
+        "needle"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "needle": {
+        "rotation": 90,
+        "angle": 0
+      }
+    }
+  }
+}

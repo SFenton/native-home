@@ -60,6 +60,10 @@ public enum ServerUIIngestedCapabilities {
     /// Swipe to adjust, the words a tile says for its states, the default tile ink and a grid grouped by state (lane `ni-tilecontract`).
     public static let tileContract: [String] = ["sh.tile-swipe@1", "sh.state-words@1", ServerUITileInkDefault.capability, "sh.grid-state-groups@1"]
 
+    /// The circular gauge and the arc with a marker (lane `ne-dial-arc`): ticks, letters, a flag and a pointer on a sweep with text in the middle, and
+    /// a curve with a horizon and a marker; the weather panel's compass, barometer and sun arc draw through them.
+    public static let gaugeParts: [String] = ["sh.dial@1", "sh.arc-track@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts }
 }

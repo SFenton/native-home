@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "arc-track-progress-not-a-number",
+  "note": "Not a number is no progress.",
+  "subject": {
+    "arc": {
+      "op": "progress",
+      "value": null
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "t": null
+    }
+  }
+}

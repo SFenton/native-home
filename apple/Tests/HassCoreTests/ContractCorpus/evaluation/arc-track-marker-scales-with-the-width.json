@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-scales-with-the-width",
+  "note": "The arc is as wide as the room: at 150 points the marker at 0.5 is at (75, 33), the box scaled by 1.5 (drawWidth / 100, :562).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 150,
+        "progress": 0.5
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 75,
+        "y": 33,
+        "t": 0.5
+      }
+    }
+  }
+}
