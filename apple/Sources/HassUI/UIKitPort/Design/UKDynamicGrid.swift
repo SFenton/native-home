@@ -253,6 +253,16 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         invalidate()
     }
 
+    /// Replaces the children but keeps the views that stay where they are in the hierarchy, so moving a tile between groups is a keyed move of the
+    /// same element and can animate (`sh.grid-state-groups@1`).
+    func regroupItems(_ items: [UKGridItem]) {
+        let kept = Set(items.map { ObjectIdentifier($0.view) })
+        self.items.filter { !kept.contains(ObjectIdentifier($0.view)) }.forEach { $0.view.removeFromSuperview() }
+        self.items = items
+        for item in items where item.view.superview !== self { addSubview(item.view) }
+        invalidate()
+    }
+
     /// Measures again: a child's content changed, so its height may have.
     func invalidateLayout() { invalidate() }
 

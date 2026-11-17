@@ -22,6 +22,8 @@ public struct ServerUIDeviceControl: Equatable, Sendable {
     public let zone: Int?
     public let action: ServerUICompositionDocument.Action?
     public let confirmation: ServerUIBedroomControl.Question?
+    /// The words a brightness control says for its states (`sh.state-words@1`).
+    public var words: ServerUIStateWords? = nil
 }
 
 extension ServerUICompositionShape {
@@ -40,7 +42,7 @@ extension ServerUICompositionShape {
                 fields["zone"] = .number(0, 31, integer: true)
             }
             if [.card, .zone, .program].contains(kind) { fields["action"] = action }
-            if kind == .brightness { fields["action"] = .optional(action) }
+            if kind == .brightness { fields["action"] = .optional(action); fields["words"] = .optional(stateWords) }
             if kind == .resetAll || kind == .applyAll {
                 fields["confirmation"] = object(["title": title, "message": .text(2000, blank: false),
                                                  "confirmLabel": label, "cancelLabel": fixed("Cancel")])

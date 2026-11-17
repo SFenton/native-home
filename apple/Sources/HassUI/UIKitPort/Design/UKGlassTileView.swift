@@ -198,6 +198,13 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     var onPerform: ((TileActionItem.ID) -> Void)?
     /// VoiceOver's swipe up (`true`) and down on the body (`tileAdjustable(_:)`): a light's brightness steps. Nil: the tile is not adjustable.
     var onAdjust: ((Bool) -> Void)?
+    /// The swipe that adjusts this tile (`sh.tile-swipe@1`); `onAdjust` is its increment and decrement, and its noun names the two actions.
+    var swipe: UKTileSwipeController?
+    /// The face the tile draws now, for a grid grouped by state (`sh.grid-state-groups@1`).
+    var gridFace: UKGridFace { model.isUnavailable && !isInert ? .unavailable : model.isActive ? .active : .idle }
+    private var lastGridFace: UKGridFace?
+    /// How many times ``configure(_:environment:animated:action:perform:)`` ran; a drag must not add to it (`build/design/tile-swipe.md`, C8).
+    private(set) var configureCount = 0
     /// The face, for views that wrap a tile.
     let face: UKGlassTileFaceView
     private(set) var accessory: UIView?
@@ -311,6 +318,15 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
 
     private func configureNow(_ model: UKGlassTileModel, environment: UKTileEnvironment?, animated: Bool, action: (() -> Void)?,
                               perform: ((TileActionItem.ID) -> Void)?) {
+        configureCount += 1
+        defer {
+            // A grouped grid moves a tile whose face changed (`sh.grid-state-groups@1`).
+            let face = gridFace
+            if face != lastGridFace {
+                lastGridFace = face
+                NotificationCenter.default.post(name: .ukTileFaceChanged, object: self)
+            }
+        }
         let old = self.model
         let oldShape = TileActionShape(motion.held?.actions ?? old.actions, hasAccessory: motion.held?.hasAccessory ?? hasAccessory(for: old))
         self.model = model
@@ -474,12 +490,31 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         return shownActions.first(where: { $0.id == id }).map { $0.phase != .ready } ?? false
     }
 
+    /// What a swipe in progress draws over the model: the band, the state line and the lit face follow the finger with no `configure`.
+    private var swipeFrame: (level: Double?, subtitle: String?, isActive: Bool?)?
+
+    private func swipedContent(_ placement: Placement) -> UKTileFaceContent {
+        var content = faceContent(placement)
+        guard let swipeFrame else { return content }
+        content.level = swipeFrame.level
+        if let subtitle = swipeFrame.subtitle { content.subtitle = subtitle }
+        if let active = swipeFrame.isActive { content.isActive = active }
+        return content
+    }
+
+    /// Draws one sample of a swipe: the band at `level` (0 to 1), and for a light the state line and the lit face, without rebuilding the tile.
+    /// `nil` hands the face back to the model.
+    func showSwipeFrame(level: Double?, subtitle: String? = nil, isActive: Bool? = nil, usesBand: Bool = true) {
+        swipeFrame = level.map { (usesBand ? $0 : model.progress, subtitle, isActive) }
+        face.apply(swipedContent(placement(width: layoutWidth)), environment: environment, animated: false)
+    }
+
     private func apply(animated: Bool) {
         // A state tile is not a button: never dimmed as disabled.
         isEnabled = isInert ? true : !(model.isUnavailable || bodyBlocked)
         face.isEnabled = isEnabled
         let placement = placement(width: layoutWidth)
-        let content = faceContent(placement)
+        let content = swipedContent(placement)
         face.apply(content, environment: environment, animated: animated)
         configureStrip(animated: animated)
         configureAccessibility()
@@ -589,7 +624,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     override func sizeThatFits(_ size: CGSize) -> CGSize {
         let width = size.width.isFinite && size.width > 0 ? size.width : layoutWidth
         let placement = placement(width: width)
-        let content = faceContent(placement)
+        let content = swipedContent(placement)
         if face.content != content { face.apply(content, environment: environment, animated: false) }
         return face.sizeThatFits(CGSize(width: width, height: size.height))
     }
@@ -600,8 +635,9 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
 
     override func layoutSubviews() {
         super.layoutSubviews()
+        swipe?.hostDidLayout(width: bounds.width)
         let placement = placement(width: bounds.width)
-        let content = faceContent(placement)
+        let content = swipedContent(placement)
         if face.content != content { face.apply(content, environment: environment, animated: false) }
         face.frame = bounds
         let pad = HassTokens.Spacing.m
@@ -824,6 +860,8 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         // While the arc stands in, or the class is unknown, the button trait stays with not-enabled added, no hint, and no response to interaction.
         accessibilityHint = takesTaps ? spokenHint : nil
         accessibilityRespondsToUserInteraction = takesTaps
+        let named = swipeActions()
+        accessibilityCustomActions = single ? named : nil
         if exposesControls {
             let element = bodyElement ?? UKTileAccessibilityElement(accessibilityContainer: self)
             element.accessibilityLabel = model.spokenLabel ?? model.title
@@ -833,6 +871,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
             element.accessibilityHint = accessibilityHint
             element.accessibilityRespondsToUserInteraction = takesTaps
             element.onAdjust = onAdjust
+            element.accessibilityCustomActions = named
             element.activate = { [weak self] in
                 guard let self, !isInert, isEnabled else { return false }
                 tapped()
@@ -852,9 +891,28 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         }
     }
 
+    /// "Increase Brightness" and "Decrease Brightness" (`sh.tile-swipe@1`): what increment and decrement do, by name, for Switch Control and
+    /// Voice Control. Nil unless the tile swipes, is adjustable and takes input.
+    private func swipeActions() -> [UIAccessibilityCustomAction]? {
+        guard let swipe, onAdjust != nil, isEnabled else { return nil }
+        return [(true, "Increase"), (false, "Decrease")].map { up, verb in
+            UIAccessibilityCustomAction(name: "\(verb) \(swipe.actionNoun)") { [weak self] _ in
+                self?.onAdjust?(up)
+                return self?.onAdjust != nil
+            }
+        }
+    }
+
     /// The body's hint: the caller's, else for a tile whose one disc is hidden (it repeats the body) what a double-tap does, worded as that
     /// disc would be ("Cancel Hot Flash Mode"); nil otherwise.
     private var spokenHint: String? {
+        let tapHint = baseHint
+        // A swiped tile that takes input adds how to adjust it (`sh.tile-swipe@1`); a tile that cannot be adjusted now says nothing of it.
+        guard let swipe, onAdjust != nil, isEnabled else { return tapHint }
+        return [tapHint, swipe.adjustHint].compactMap { $0 }.joined(separator: " ")
+    }
+
+    private var baseHint: String? {
         if let hint = model.bodyHint, !hint.isEmpty { return hint }
         guard discIsHidden, let item = shownActions.first else { return nil }
         return item.label ?? "\(item.verb) \(model.title)"

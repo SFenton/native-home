@@ -2395,6 +2395,54 @@
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "tile-swipe",
+      "title": "Tile swipe, words, ink and groups",
+      "status": "current",
+      "doc": ".agents/patterns/tile-swipe.md",
+      "summary": "swipe to adjust a tile, the state words, the default tile ink and grids grouped by state.",
+      "keywords": [
+        "swipe",
+        "adjust",
+        "bubble",
+        "state words",
+        "tile ink",
+        "groups",
+        "regroup"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift",
+            "symbol": "UKTileSwipeController"
+          },
+          {
+            "path": "apple/Sources/HassDesign/TileSwipe.swift",
+            "symbol": "TileSwipe"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/TileSwipe.swift",
+        "apple/Sources/HassDesign/TileInkDefault.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLightWords.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGridFace.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileSwipe.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIInkDefault.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIGridGrouping.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile",
+          "dynamic-grid"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

@@ -94,6 +94,8 @@ extension ServerUICompositionDocument {
         public var look = ServerUITileLook()
         /// The icon and button icon colours and the cell fit (`sh.tile-ink@1`).
         public var ink = ServerUITileInk()
+        /// Swipe to adjust (`sh.tile-swipe@1`); `nil` is off.
+        public var swipe: ServerUITileSwipe? = nil
     }
 }
 

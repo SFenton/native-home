@@ -59,6 +59,9 @@ public struct ServerUICompositionPublication: Equatable, Sendable {
     /// SHA-256 of the compiler's canonical document bytes, independent of publication metadata.
     public let documentSha256: String
 
+    /// The ink a dark tile face draws by default, from the manifest (`sh.tile-ink-default@1`).
+    public var inkDefault: ServerUITileInkDefault { .declared(by: capabilities) }
+
     /// The exact semantic profile understood by this compiler, not a UIKit support claim.
     public static let firstSliceCapabilities = [
         "sh.actions.navigation@1", "sh.assets.publisher@1", "sh.backdrop@1",

@@ -50,6 +50,8 @@ struct ServerUICompositionCompiler {
     private var optimisticRefs: [(sourceId: String, pointer: String)] = []
     /// Whether `control` operands are valid where the action being compiled sits (a bound control's own calls).
     var controlContext = false
+    /// Swipe, words and group checks that wait for the sources (`sh.state-words@1`).
+    var tileContract = ServerUITileContractRefs()
     /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
     private var components = ServerUIComponentExpansion(.null)
 
@@ -109,7 +111,7 @@ struct ServerUICompositionCompiler {
         // The vacuum kinds the generic parts can draw become those parts here, after the document was checked as written.
         document = ServerUIVacuumLowering.lower(document)
         try Self.checkKnownCapabilities(capabilities)
-        guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
+        guard ServerUITileInkDefault.matches(capabilities, requirements: requirements) else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")
         let digest = SHA256.hash(data: Data(ServerUICompositionJSON.canonical(manifest.value).utf8))
             .map { String(format: "%02x", $0) }.joined()
@@ -993,7 +995,9 @@ struct ServerUICompositionCompiler {
                     homePowerRefs.append((source, power, props.path("powerSourceId")))
                     if intent == nil { add(.invalidCombination, props.path("powerSourceId")) }
                 }
-                return try .roomOverviewTile(.init(chip: chip, hidesContactSubtitle: props.b("hidesContactSubtitle"), powerSourceId: power))
+                let words = try stateWords(props, allowed: nil)
+                if let words { tileContract.overviewWords.append((source, words, props.path("words"))) }
+                return try .roomOverviewTile(.init(chip: chip, hidesContactSubtitle: props.b("hidesContactSubtitle"), powerSourceId: power, words: words))
             }
             return .statusChip(chip)
         case "status-rail":
@@ -1011,7 +1015,8 @@ struct ServerUICompositionCompiler {
             require("light-group-tile"); require("home-light"); require("bindings")
             let source = try props.s("sourceId")
             homeRefs.append((source, "home-light@1", props.path("sourceId")))
-            return .homeLightTile(.init(node: node, sourceId: source))
+            return try .homeLightTile(.init(node: node, sourceId: source, swipe: tileSwipe(props, tile: .lightGroup),
+                                            words: stateWords(props, allowed: ServerUIStateWords.lightGroupKeys)))
         case "weather-panel":
             require("weather-panel"); require("home-weather"); require("bindings")
             let source = try props.s("sourceId")
@@ -1472,7 +1477,7 @@ struct ServerUICompositionCompiler {
                 spacing: space(props.field("spacing")), equalRowHeights: props.b("equalRowHeights"),
                 shortRow: props.e("shortRow"), fold: props.e("fold"),
                 children: components(c.field("children"), depth: depth + 1, gridChild: true),
-                minimumColumns: minimumColumns(props)
+                minimumColumns: minimumColumns(props), groups: gridGroups(props)
             ))
         default: return nil
         }
@@ -1689,9 +1694,11 @@ struct ServerUICompositionCompiler {
                 default: add(.invalidCombination, props.path("action"))
                 }
             }
-            let control = try ServerUIDeviceControl(node: node, domain: domain, sourceId: props.s("sourceId"),
+            let lightWords = try props.value["words"] == nil ? nil : stateWords(props, allowed: ServerUIStateWords.brightnessKeys)
+            var control = try ServerUIDeviceControl(node: node, domain: domain, sourceId: props.s("sourceId"),
                 kind: props.e("kind"), entityId: props.optionalString("entityId"), copySourceId: props.optionalString("copySourceId"),
                 zone: props.value["zone"].map { _ in try props.i("zone") }, action: intent, confirmation: question)
+            control.words = lightWords
             providerControlRefs.append((control, props.pointer))
             return .deviceControl(control)
         case "remote-control":
@@ -1936,6 +1943,7 @@ struct ServerUICompositionCompiler {
             try tileParts(c, props: props, into: &tile)
             tile.ink = tileInk(c)
             if tile.ink.isDeclared { require("tile-ink") }
+            tile.swipe = try tileSwipe(props, tile: .state)
             return .stateTile(tile)
         case "action-tile":
             require("tiles"); require("bindings"); require("power-toggle")
@@ -2191,6 +2199,7 @@ struct ServerUICompositionCompiler {
             }
             if !matches { add(.bindingType, pointer) }
         }
+        checkOverviewWords(document)
         for (statusID, powerID, pointer) in homePowerRefs {
             guard case .homeStatus(_, let status) = sources[statusID],
                   case .homeLight(_, let target, let members) = sources[powerID] else { continue }

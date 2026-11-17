@@ -37,6 +37,8 @@ struct UKContext {
     var isPane = false
     /// A page on the wallpaper, or the inside of a sheet (``TileSurface``).
     var surface: TileSurface = .page
+    /// The ink a dark tile face draws by default, from the published document's manifest (`sh.tile-ink-default@1`).
+    var inkDefault: TileInkDefault = .muted
     /// No state has arrived yet (first sign-in): tiles and pills show a soft bar for their value.
     ///
     /// Set once by the shell at launch (`true` while nothing has arrived), it then follows the store: the getter is false as soon as

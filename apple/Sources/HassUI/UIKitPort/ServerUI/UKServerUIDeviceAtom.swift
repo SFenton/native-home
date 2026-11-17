@@ -116,6 +116,7 @@ final class UKServerUIDeviceAtom: UIView, UKGridMeasuring {
             let tile = UKBrightnessTileView(title: value.node.title, tint: UIColor(HassTokens.RGB.Tint.light), percent: 0)
             tile.environment = UKTileEnvironment(context: context)
             tile.identifier = value.node.id
+            tile.words = UKLightWords(value.words)
             if value.action != nil { tile.onOpen = open }
             let send: (LightControl.Command) -> Void = { [weak self] command in
                 do {

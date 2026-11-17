@@ -6119,6 +6119,783 @@
         "code": "binding_type",
         "pointer": "/document/pages/2/components/0/props/sourceId"
       }
+    },
+    {
+      "file": "accept/state-words-light-group-all-keys.json",
+      "outcome": "accept",
+      "note": "A light group tile with every word it can draw: on, off, unavailable and the level with its token."
+    },
+    {
+      "file": "accept/state-words-light-group-on-only.json",
+      "outcome": "accept",
+      "note": "One word is enough: the others draw the app's own."
+    },
+    {
+      "file": "accept/state-words-light-group-level-only.json",
+      "outcome": "accept",
+      "note": "A level text with its `{value}` token."
+    },
+    {
+      "file": "accept/state-words-light-group-empty-object.json",
+      "outcome": "accept",
+      "note": "An empty `words` object changes nothing, and still declares the id: the id is needed exactly when `words` is present."
+    },
+    {
+      "file": "accept/state-words-light-group-without-words-needs-no-id.json",
+      "outcome": "accept",
+      "note": "A tile with no `words` needs no new id and draws production's words."
+    },
+    {
+      "file": "accept/state-words-custom-light-brightness.json",
+      "outcome": "accept",
+      "note": "The Custom Lights brightness tile takes off, unavailable and the level."
+    },
+    {
+      "file": "accept/state-words-overview-lights-all-keys.json",
+      "outcome": "accept",
+      "note": "A lights room overview: on for a room with one light, count for more, off and unavailable."
+    },
+    {
+      "file": "accept/state-words-overview-occupancy.json",
+      "outcome": "accept",
+      "note": "An occupancy overview has its two words and the unavailable one: \"Occupied\" and \"Not Occupied\" are the defaults."
+    },
+    {
+      "file": "accept/state-words-overview-contacts-unavailable.json",
+      "outcome": "accept",
+      "note": "A contacts overview takes only the unavailable word: its other phrases are computed (\"2 Doors Open\")."
+    },
+    {
+      "file": "accept/state-words-max-length-words.json",
+      "outcome": "accept",
+      "note": "The longest words: 240 characters for on, off and unavailable, 80 for count and level."
+    },
+    {
+      "file": "reject/state-words-light-group-count.json",
+      "outcome": "reject",
+      "note": "A light group tile has no count: a room overview does.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/count"
+      }
+    },
+    {
+      "file": "reject/state-words-custom-light-on.json",
+      "outcome": "reject",
+      "note": "The brightness tile has no \"on\": it says the level, or \"Off\".",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/on"
+      }
+    },
+    {
+      "file": "reject/state-words-custom-light-count.json",
+      "outcome": "reject",
+      "note": "The brightness tile has no count.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/count"
+      }
+    },
+    {
+      "file": "reject/state-words-custom-light-other-kind.json",
+      "outcome": "reject",
+      "note": "Only the brightness kind takes `words`: a manual switch has nothing to say.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/words"
+      }
+    },
+    {
+      "file": "reject/state-words-overview-lights-level.json",
+      "outcome": "reject",
+      "note": "A lights overview has no level: it counts its lights.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/level"
+      }
+    },
+    {
+      "file": "reject/state-words-overview-occupancy-count.json",
+      "outcome": "reject",
+      "note": "An occupancy overview has no count.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/count"
+      }
+    },
+    {
+      "file": "reject/state-words-overview-contacts-on.json",
+      "outcome": "reject",
+      "note": "A contacts overview computes its phrases: \"on\" is a key it cannot draw.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/on"
+      }
+    },
+    {
+      "file": "reject/state-words-overview-contacts-off.json",
+      "outcome": "reject",
+      "note": "A contacts overview has no \"off\" either.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/words/off"
+      }
+    },
+    {
+      "file": "reject/state-words-count-without-token.json",
+      "outcome": "reject",
+      "note": "Count Text must hold `{count}`, or every room would read the same.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/count"
+      }
+    },
+    {
+      "file": "reject/state-words-level-without-token.json",
+      "outcome": "reject",
+      "note": "Level Text must hold `{value}`.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/level"
+      }
+    },
+    {
+      "file": "reject/state-words-level-with-count-token.json",
+      "outcome": "reject",
+      "note": "The level's token is `{value}`, not `{count}`.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/level"
+      }
+    },
+    {
+      "file": "reject/state-words-count-with-unknown-token.json",
+      "outcome": "reject",
+      "note": "No token but `{count}`.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/count"
+      }
+    },
+    {
+      "file": "reject/state-words-on-with-a-token.json",
+      "outcome": "reject",
+      "note": "On, off and unavailable hold no token.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/on"
+      }
+    },
+    {
+      "file": "reject/state-words-stray-brace.json",
+      "outcome": "reject",
+      "note": "A brace that is not a token is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/off"
+      }
+    },
+    {
+      "file": "reject/state-words-on-too-long.json",
+      "outcome": "reject",
+      "note": "A word of 241 characters is over the 240 that `on` allows.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/words/on"
+      }
+    },
+    {
+      "file": "reject/state-words-level-too-long.json",
+      "outcome": "reject",
+      "note": "Level Text is at most 80 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/words/level"
+      }
+    },
+    {
+      "file": "reject/state-words-blank-word.json",
+      "outcome": "reject",
+      "note": "A blank word is refused: an empty field stores nothing, so the key is absent.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/words/off"
+      }
+    },
+    {
+      "file": "reject/state-words-unknown-key.json",
+      "outcome": "reject",
+      "note": "A word the contract does not have is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/words/loading"
+      }
+    },
+    {
+      "file": "reject/state-words-capability-not-declared.json",
+      "outcome": "reject",
+      "note": "A document with `words` whose manifest lacks `sh.state-words@1` does not match.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "accept/tile-swipe-light-minimal.json",
+      "outcome": "accept",
+      "note": "A light group tile with the smallest swipe: the range is the light's own, 0 to 100 by 1, and the source owns the call."
+    },
+    {
+      "file": "accept/tile-swipe-light-detent-haptic-none-band-off.json",
+      "outcome": "accept",
+      "note": "A light group tile with its own detent, no haptic ticks and no band: the bubble still shows."
+    },
+    {
+      "file": "accept/tile-swipe-light-with-no-swipe-needs-no-id.json",
+      "outcome": "accept",
+      "note": "A light group tile with no swipe needs no new id and is the tile it always was."
+    },
+    {
+      "file": "accept/tile-swipe-cover-position.json",
+      "outcome": "accept",
+      "note": "A cover tile that sets its position from the drag: value is the entity's `current_position`, the call carries `control`."
+    },
+    {
+      "file": "accept/tile-swipe-fan-percentage.json",
+      "outcome": "accept",
+      "note": "A fan tile: the speed in percent, a step the fan reports (10) and a detent of 20."
+    },
+    {
+      "file": "accept/tile-swipe-climate-setpoint-half-degrees.json",
+      "outcome": "accept",
+      "note": "A setpoint from 60 to 85 by 0.5: 50 steps, a detent of 1 (a multiple of the step) and 25 ticks across the range."
+    },
+    {
+      "file": "accept/tile-swipe-volume-divide.json",
+      "outcome": "accept",
+      "note": "A speaker's volume is a level from 0 to 1: the call divides `control` by 100, the shape a progress percentage uses."
+    },
+    {
+      "file": "accept/tile-swipe-label-and-format.json",
+      "outcome": "accept",
+      "note": "The words VoiceOver and the bubble use: a label and a format with the value token."
+    },
+    {
+      "file": "accept/tile-swipe-together-with-progress-and-discs.json",
+      "outcome": "accept",
+      "note": "A swipe beside the tile's progress and two buttons: one band, and the swipe's value is the one drawn."
+    },
+    {
+      "file": "accept/tile-swipe-one-hundred-steps.json",
+      "outcome": "accept",
+      "note": "The most steps a range holds: 100 across 0 to 100 by 1 is allowed."
+    },
+    {
+      "file": "accept/tile-swipe-twenty-five-detents.json",
+      "outcome": "accept",
+      "note": "The most ticks across a range: a detent of 4 over 0 to 100 gives 25."
+    },
+    {
+      "file": "accept/tile-swipe-haptic-detent-explicit.json",
+      "outcome": "accept",
+      "note": "The default haptic written out."
+    },
+    {
+      "file": "accept/tile-swipe-band-off-state-tile.json",
+      "outcome": "accept",
+      "note": "A setpoint's share of its range means nothing to the eye: the band is off, the bubble stays."
+    },
+    {
+      "file": "reject/tile-swipe-axis-vertical.json",
+      "outcome": "reject",
+      "note": "A vertical swipe belongs to the scroll: `axis` is a list of one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/swipe/axis"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-axis-missing.json",
+      "outcome": "reject",
+      "note": "`axis` is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/axis"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-commit-live.json",
+      "outcome": "reject",
+      "note": "A throttled live commit is `@2`: `commit` is a list of one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/swipe/commit"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-commit-missing.json",
+      "outcome": "reject",
+      "note": "`commit` is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/commit"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-track-field.json",
+      "outcome": "reject",
+      "note": "Tracking is always absolute: there is no `track` field.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/swipe/track"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-feedback-field.json",
+      "outcome": "reject",
+      "note": "The band is `band` and the bubble is always drawn: there is no `feedback` field.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/swipe/feedback"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-extra-field.json",
+      "outcome": "reject",
+      "note": "An unknown field is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/swipe/sound"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-on-another-tile.json",
+      "outcome": "reject",
+      "note": "Only a light group tile and a state tile take a swipe: an action tile refuses it.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/swipe"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-capability-not-declared.json",
+      "outcome": "reject",
+      "note": "A swipe whose manifest does not list `sh.tile-swipe@1` does not match the document.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-min-not-below-max.json",
+      "outcome": "reject",
+      "note": "`min` must be below `max`.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/range/max"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-min-above-max.json",
+      "outcome": "reject",
+      "note": "`min` above `max` is the same fault.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/range/max"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-step-zero.json",
+      "outcome": "reject",
+      "note": "`step` must be above zero.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/range/step"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-step-negative.json",
+      "outcome": "reject",
+      "note": "A negative `step` is the same fault.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/range/step"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-over-100-steps.json",
+      "outcome": "reject",
+      "note": "More than 100 steps is under 1.5 points of travel a step on the narrowest tile: refused.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/swipe/range/step"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-range-missing.json",
+      "outcome": "reject",
+      "note": "`range` is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/range"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-detent-zero.json",
+      "outcome": "reject",
+      "note": "`detent` must be above zero.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/detent"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-detent-negative.json",
+      "outcome": "reject",
+      "note": "A negative `detent` is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/detent"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-detent-beyond-span.json",
+      "outcome": "reject",
+      "note": "`detent` beyond the span is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/detent"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-detent-not-a-multiple-of-step.json",
+      "outcome": "reject",
+      "note": "`detent` must be a multiple of `step`: 7 is not a multiple of 5.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/detent"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-detent-over-25-ticks.json",
+      "outcome": "reject",
+      "note": "More than 25 ticks across the range is under 6 points apart on the narrowest tile: 100 / 2 is 50.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/swipe/detent"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-format-without-value.json",
+      "outcome": "reject",
+      "note": "The bubble must show the number: a format with no `{value}` is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/format"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-format-unknown-token.json",
+      "outcome": "reject",
+      "note": "The only token is `{value}`.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/format"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-light-with-value.json",
+      "outcome": "reject",
+      "note": "The light source owns the value: a `value` on a light group tile is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/value"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-light-with-action.json",
+      "outcome": "reject",
+      "note": "The light source owns the call (turn on with `brightness_pct`, off at 0, never toggle): an `action` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/action"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-light-with-label.json",
+      "outcome": "reject",
+      "note": "A light group tile is fixed to \"brightness\": a `label` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/label"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-light-with-format.json",
+      "outcome": "reject",
+      "note": "The words of a light group tile are its own (\"Off\", \"45%\"): a `format` is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/format"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-light-range-not-percent.json",
+      "outcome": "reject",
+      "note": "A light dims over 0 to 100 by 1: another range is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/swipe/range"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-without-value.json",
+      "outcome": "reject",
+      "note": "A state tile must say the number it shows now.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/value"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-without-action.json",
+      "outcome": "reject",
+      "note": "A state tile must say what a release sends.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/action"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-without-label.json",
+      "outcome": "reject",
+      "note": "A state tile must name what it adjusts: VoiceOver says \"Swipe up or down to adjust <label>.\"",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/swipe/label"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-call-never-uses-control.json",
+      "outcome": "reject",
+      "note": "A call that never uses `control` would change nothing: refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/action"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-call-asks-first.json",
+      "outcome": "reject",
+      "note": "A drag that ends in a question is not feedback that predicts the result: a call that asks first is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/action/confirmation"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-value-is-text.json",
+      "outcome": "reject",
+      "note": "The value is a number: a text read is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/swipe/value"
+      }
+    },
+    {
+      "file": "reject/tile-swipe-state-value-uses-control.json",
+      "outcome": "reject",
+      "note": "`control` is the committed number, not the number the tile shows now.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/swipe/value"
+      }
+    },
+    {
+      "file": "accept/tile-ink-default-state-tile.json",
+      "outcome": "accept",
+      "note": "A state tile with no family and no tint: its glyph and its state line draw the primary ink when idle."
+    },
+    {
+      "file": "accept/tile-ink-default-light-group-tile.json",
+      "outcome": "accept",
+      "note": "A light group tile: the idle bulb and its \"Off\" line draw the primary ink."
+    },
+    {
+      "file": "accept/tile-ink-default-room-overview-tile.json",
+      "outcome": "accept",
+      "note": "A room overview tile: the idle glyph and its count line draw the primary ink."
+    },
+    {
+      "file": "accept/tile-ink-default-action-tile.json",
+      "outcome": "accept",
+      "note": "A power action tile with the neutral family: its glyph and state line draw the primary ink when off."
+    },
+    {
+      "file": "accept/grid-groups-two-groups.json",
+      "outcome": "accept",
+      "note": "Production's split: \"On\" holds the active tiles, \"Off\" the idle and the unavailable ones."
+    },
+    {
+      "file": "accept/grid-groups-three-groups.json",
+      "outcome": "accept",
+      "note": "One group for each state, in the order they are drawn."
+    },
+    {
+      "file": "accept/grid-groups-single-group.json",
+      "outcome": "accept",
+      "note": "One group holding every state: a heading over the whole grid."
+    },
+    {
+      "file": "accept/grid-groups-order-follows-the-list.json",
+      "outcome": "accept",
+      "note": "The list's order is the drawn order: \"Off\" first, then \"On\"."
+    },
+    {
+      "file": "accept/grid-groups-with-equal-row-heights.json",
+      "outcome": "accept",
+      "note": "Groups in a grid that shares one row height: still one grid, one row height."
+    },
+    {
+      "file": "accept/grid-groups-without-groups-needs-no-id.json",
+      "outcome": "accept",
+      "note": "A grid with no `groups` is today's grid and needs no new id."
+    },
+    {
+      "file": "reject/grid-groups-state-twice.json",
+      "outcome": "reject",
+      "note": "A state may be in one group only: `idle` is in both.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/groups/items/1/states/0"
+      }
+    },
+    {
+      "file": "reject/grid-groups-state-twice-in-one-group.json",
+      "outcome": "reject",
+      "note": "A state twice in one group is the same refusal.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/states"
+      }
+    },
+    {
+      "file": "reject/grid-groups-state-missing.json",
+      "outcome": "reject",
+      "note": "Every state is in a group: `unavailable` is in none.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/groups/items"
+      }
+    },
+    {
+      "file": "reject/grid-groups-title-blank.json",
+      "outcome": "reject",
+      "note": "A heading needs words.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/title"
+      }
+    },
+    {
+      "file": "reject/grid-groups-title-too-long.json",
+      "outcome": "reject",
+      "note": "A heading is at most 80 characters.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/title"
+      }
+    },
+    {
+      "file": "reject/grid-groups-four-groups.json",
+      "outcome": "reject",
+      "note": "At most three groups, one for each state.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items"
+      }
+    },
+    {
+      "file": "reject/grid-groups-no-groups.json",
+      "outcome": "reject",
+      "note": "An empty list of groups is not grouping: leave `groups` out.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items"
+      }
+    },
+    {
+      "file": "reject/grid-groups-group-without-states.json",
+      "outcome": "reject",
+      "note": "A group holds at least one state.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/states"
+      }
+    },
+    {
+      "file": "reject/grid-groups-duplicate-group-id.json",
+      "outcome": "reject",
+      "note": "Group ids are unique within a grid.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/2/components/0/props/groups/items/1/id"
+      }
+    },
+    {
+      "file": "reject/grid-groups-by-something-else.json",
+      "outcome": "reject",
+      "note": "Only `by: \"state\"` is defined.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/groups/by"
+      }
+    },
+    {
+      "file": "reject/grid-groups-by-missing.json",
+      "outcome": "reject",
+      "note": "`by` is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/groups/by"
+      }
+    },
+    {
+      "file": "reject/grid-groups-unknown-state.json",
+      "outcome": "reject",
+      "note": "A state is one of the three the tile draws.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/states"
+      }
+    },
+    {
+      "file": "reject/grid-groups-unknown-state-name.json",
+      "outcome": "reject",
+      "note": "A state the tile cannot draw is refused.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/groups/items/0/states/0"
+      }
+    },
+    {
+      "file": "reject/grid-groups-unknown-field.json",
+      "outcome": "reject",
+      "note": "A count or a collapse is not in `@1`: the heading is title only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/groups/count"
+      }
+    },
+    {
+      "file": "reject/grid-groups-capability-not-declared.json",
+      "outcome": "reject",
+      "note": "A grid with `groups` whose manifest lacks `sh.grid-state-groups@1` does not match.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
     }
   ]
 }
