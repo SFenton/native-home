@@ -5,7 +5,7 @@ import XCTest
 @testable import HassUI
 
 /// A pan recognizer that reports what the test says.
-final class ScriptedPan: UIPanGestureRecognizer {
+final class ScriptedSwipePan: UIPanGestureRecognizer {
     var scriptedState: UIGestureRecognizer.State = .possible
     var point = CGPoint.zero
     var speed = CGPoint(x: 120, y: 0)
@@ -55,7 +55,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
     /// Plays `fractions` of the tile's width as one touch: began, changed for the rest, then `end`.
     private func drag(_ controller: UKTileSwipeController, tile: UIView, _ fractions: [Double], end: UIGestureRecognizer.State = .ended,
                       speed: CGPoint = CGPoint(x: 120, y: 0)) {
-        let pan = ScriptedPan()
+        let pan = ScriptedSwipePan()
         pan.speed = speed
         let selector = NSSelectorFromString("panned:")
         for (index, fraction) in fractions.enumerated() {
@@ -136,7 +136,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
         let (_, tile, window) = lightTile(width: 179)
         defer { window.isHidden = true }
         let controller = try XCTUnwrap(tile.swipe)
-        let pan = ScriptedPan()
+        let pan = ScriptedSwipePan()
         pan.speed = CGPoint(x: 10, y: 120)
         XCTAssertFalse(controller.gestureRecognizerShouldBegin(pan), "a vertical start is the page's scroll (C1)")
         pan.speed = CGPoint(x: 120, y: 10)
@@ -164,7 +164,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
         scroller.addSubview(view)
         view.layoutIfNeeded()
         let tile = try XCTUnwrap(HostedPage.descendants(of: view).compactMap { $0 as? UKGlassTileView }.first)
-        XCTAssertFalse(try XCTUnwrap(tile.swipe).gestureRecognizerShouldBegin(ScriptedPan()), "the scroller above wins (C3)")
+        XCTAssertFalse(try XCTUnwrap(tile.swipe).gestureRecognizerShouldBegin(ScriptedSwipePan()), "the scroller above wins (C3)")
         XCTAssertTrue(traits(of: tile).contains(.adjustable), "the value is still settable by VoiceOver there")
     }
 
@@ -174,9 +174,9 @@ final class UKHostedTileSwipeTests: XCTestCase {
         let (_, second, window2) = lightTile(width: 179)
         defer { window2.isHidden = true }
         drag(try XCTUnwrap(first.swipe), tile: first, [0.2, 0.5], end: .possible)
-        XCTAssertFalse(try XCTUnwrap(second.swipe).gestureRecognizerShouldBegin(ScriptedPan()), "a second tile does not begin during a drag (C6)")
+        XCTAssertFalse(try XCTUnwrap(second.swipe).gestureRecognizerShouldBegin(ScriptedSwipePan()), "a second tile does not begin during a drag (C6)")
         try XCTUnwrap(first.swipe).cancel()
-        XCTAssertTrue(try XCTUnwrap(second.swipe).gestureRecognizerShouldBegin(ScriptedPan()))
+        XCTAssertTrue(try XCTUnwrap(second.swipe).gestureRecognizerShouldBegin(ScriptedSwipePan()))
     }
 
     func testRightToLeftMirrorsTheMapAndTheBubbleKeepsItsDigits() throws {
@@ -299,7 +299,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
         XCTAssertFalse(traits(of: tile).contains(.adjustable))
         XCTAssertNil(element(of: tile)?.accessibilityCustomActions)
         XCTAssertFalse((element(of: tile)?.accessibilityHint ?? "").contains("Swipe"))
-        XCTAssertFalse(try XCTUnwrap(tile.swipe).gestureRecognizerShouldBegin(ScriptedPan()), "an unavailable tile takes no drag")
+        XCTAssertFalse(try XCTUnwrap(tile.swipe).gestureRecognizerShouldBegin(ScriptedSwipePan()), "an unavailable tile takes no drag")
     }
 
     func testTheBubbleIsNotAnAccessibilityElement() throws {

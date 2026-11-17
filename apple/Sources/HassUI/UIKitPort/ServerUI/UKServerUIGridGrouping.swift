@@ -34,7 +34,8 @@ final class UKServerUIGridGrouping: NSObject, UIGestureRecognizerDelegate {
     private var isPending = false
     private var held = false
     /// Tells a held change the scroll is over (``UKTickerScrollGate``: it watches the offset and the drag and deceleration flags, so it sees the end of a deceleration).
-    private var scrollEnd: NSObjectProtocol?
+    // Written on the main actor and read in `deinit`, when no other reference exists; removing an observer is thread-safe.
+    nonisolated(unsafe) private var scrollEnd: NSObjectProtocol?
     private var touchStartOffset: CGPoint?
     private var seenReapply = 0
     /// The store's reapply generation now: a change since the last arrangement is a snapshot or reconnect.

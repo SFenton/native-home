@@ -1,8 +1,8 @@
-# Tile swipe, words, ink and groups
+# Tile swipe, words and ink
 
-> **What:** the four tile-contract capabilities the native app draws. **Read when:** touching a tile's swipe, state line, idle ink or a grouped grid.
+> **What:** the three tile-contract capabilities the native app draws on a tile. **Read when:** touching a tile's swipe, state line or idle ink. Grid groups: [dynamic-grid](dynamic-grid.md).
 
-Code: `UKTileSwipeController`, `HassDesign/TileSwipe`, `TileInkDefault`, `UKServerUIGridGrouping`.
+Code: `UKTileSwipeController`, `HassDesign/TileSwipe`, `TileInkDefault`.
 
 ## Swipe to adjust (`sh.tile-swipe@1`)
 
@@ -16,7 +16,7 @@ Code: `UKTileSwipeController`, `HassDesign/TileSwipe`, `TileInkDefault`, `UKServ
 - Absent means off: no pan, no adjustable trait, no hint. Existing light tiles keep the 0 to 100 by 10 brightness swipe.
 - VoiceOver: adjustable, the value, increment and decrement by one detent, named actions "Increase" and "Decrease" plus the label.
 - Not the swipe: a vertical start, a disc, a horizontal scroller above, the edge pans, another tile dragging.
-- HIG: Sliders, Gestures, Accessibility. Departure: `UKTileVolumeSlider` keeps its own drag, its handle sits inside the tile.
+- HIG: Sliders, Gestures, Accessibility. Volume departure: [entity-tile](entity-tile.md).
 
 ## State words (`sh.state-words@1`)
 
@@ -27,13 +27,6 @@ Code: `UKTileSwipeController`, `HassDesign/TileSwipe`, `TileInkDefault`, `UKServ
 
 - A document that declares it draws an idle or tinted icon with no colour of its own, and the state line, in the primary ink.
 - Primary is white on a dark face and black on a light sheet. Lit, filled, error, authored tint and family keep their ink.
-- A warning keeps its amber. Unavailable stays grey at 50%.
+- A warning's state line is primary on every dark face; its icon keeps the amber, so shape or icon carries the state beside colour.
+- Unavailable stays grey at 50%, a read-only state tile included.
 - A document without the id keeps today's grey.
-
-## Groups by state (`sh.grid-state-groups@1`)
-
-- A tile-grid puts its tiles under one to three headings by the face each draws: lit, idle, unavailable.
-- Headings are the section heading, header trait, a full row. A group with no tile is dropped. Columns are solved once.
-- A tile whose face changed moves as the same view. A person's tap slides it on the standard duration.
-- A change the house made, a snapshot or a reconnect moves with no animation. Nothing moves under a finger or a scroll.
-- Reduce Motion: the moved tile fades in on the quick duration. A `LayoutChange` signpost spans the move.

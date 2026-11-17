@@ -49,7 +49,7 @@ final class UKHostedGridGroupsPerformanceTests: XCTestCase {
                                                 .init(id: "gone", title: "Not Answering", states: [.unavailable])])
         let grouping = UKServerUIGridGrouping(groups, gridID: "grid", grid: grid, surface: .page)
         grid.regroupItems(grouping.items(tiles.map { ($0, 1) }))
-        grid.frame = CGRect(x: 0, y: 0, width: 393, height: grid.sizeThatFits(CGSize(width: 393, height: .greatestFiniteMagnitude)).height)
+        grid.frame = CGRect(x: 0, y: 0, width: 393, height: grid.sizeThatFits(CGSize(width: 393, height: CGFloat.greatestFiniteMagnitude)).height)
         scroll.contentSize = grid.frame.size
         grid.layoutIfNeeded()
         var even = true

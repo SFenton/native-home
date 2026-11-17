@@ -14,10 +14,10 @@ private final class ScriptedPress: UILongPressGestureRecognizer {
 
 /// A scroll view whose drag and deceleration flags the test sets, as a finger and a fling would.
 private final class ScriptedScroll: UIScrollView {
-    var dragging = false
-    var decelerating = false
-    override var isDragging: Bool { dragging }
-    override var isDecelerating: Bool { decelerating }
+    var scriptedDragging = false
+    var scriptedDecelerating = false
+    override var isDragging: Bool { scriptedDragging }
+    override var isDecelerating: Bool { scriptedDecelerating }
 }
 
 // MARK: - Grid groups, UX and accessibility
@@ -221,19 +221,19 @@ final class UKHostedGridGroupsTests: XCTestCase {
         for width in Self.widths {
             let f = fixture(width: width, faces: [(false, false), (true, false)])
             defer { f.window.isHidden = true }
-            f.scroll.dragging = true
+            f.scroll.scriptedDragging = true
             f.tiles[0].configure(model("Tile 0", active: true), animated: false)
             HostedPage.wait(0.2)
             XCTAssertEqual(f.grouping.regroupCount, 0, "nothing moves under a dragging scroll (width \(width))")
             // The finger lifts into a fling: the offset keeps changing while it decelerates.
-            f.scroll.dragging = false
-            f.scroll.decelerating = true
+            f.scroll.scriptedDragging = false
+            f.scroll.scriptedDecelerating = true
             f.scroll.contentOffset = CGPoint(x: 0, y: 40)
             HostedPage.wait(0.2)
             f.scroll.contentOffset = CGPoint(x: 0, y: 55)
             XCTAssertEqual(f.grouping.regroupCount, 0, "still decelerating: still held")
             // The last offset change happens while the flag is still set; the flag clears with no further change.
-            f.scroll.decelerating = false
+            f.scroll.scriptedDecelerating = false
             HostedPage.wait(0.5)
             XCTAssertEqual(f.grouping.regroupCount, 1, "applied once the scroll is over, with no new touch (width \(width))")
             XCTAssertEqual(order(f), ["#grid.group.on", "Tile 0", "Tile 1"])

@@ -87,7 +87,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
     }
 
     private func drag(_ rig: Rig, _ fractions: [Double], end: UIGestureRecognizer.State = .ended) {
-        let pan = ScriptedPan()
+        let pan = ScriptedSwipePan()
         let selector = NSSelectorFromString("panned:")
         for (index, fraction) in fractions.enumerated() {
             pan.scriptedState = index == 0 ? .began : .changed
@@ -186,7 +186,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         for width in Self.widths {
             let r = try await rig(width: width, enabledWhen: true, gateOn: false)
             defer { r.window.isHidden = true }
-            XCTAssertFalse(r.controller.gestureRecognizerShouldBegin(ScriptedPan()), "the rule says no: no drag (width \(width))")
+            XCTAssertFalse(r.controller.gestureRecognizerShouldBegin(ScriptedSwipePan()), "the rule says no: no drag (width \(width))")
             drag(r, [0.2, 0.7])
             body(r.tile)?.accessibilityIncrement()
             await HostedPage.pump(passes: 5)
@@ -194,7 +194,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             r.store.apply([EntityState(entityId: Self.gate, state: "on")])
             let enabled = await HostedPage.settle { r.tile.onAdjust != nil }
             XCTAssertTrue(enabled, "the rule says yes: the tile adjusts again, in place")
-            XCTAssertTrue(r.controller.gestureRecognizerShouldBegin(ScriptedPan()))
+            XCTAssertTrue(r.controller.gestureRecognizerShouldBegin(ScriptedSwipePan()))
             HostedPage.hideTracked()
         }
     }
@@ -202,7 +202,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
     func testAnUnavailableEntityTakesNoDrag() async throws {
         let r = try await rig(width: 393, state: "unavailable")
         defer { r.window.isHidden = true }
-        XCTAssertFalse(r.controller.gestureRecognizerShouldBegin(ScriptedPan()))
+        XCTAssertFalse(r.controller.gestureRecognizerShouldBegin(ScriptedSwipePan()))
         drag(r, [0.2, 0.7])
         await HostedPage.pump(passes: 3)
         XCTAssertEqual(r.caller.calls, [])

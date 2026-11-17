@@ -773,7 +773,7 @@
   ".agents/design/motion.md": {
    "forbidden": 20,
    "long_lines": 8,
-   "over_words": 2184
+   "over_words": 2168
   },
   ".agents/design/profile-badge.md": {
    "forbidden": 14,
@@ -934,14 +934,14 @@
    "long_lines": 2
   },
   ".agents/patterns/dynamic-grid.md": {
-   "forbidden": 16,
-   "long_lines": 10,
-   "over_words": 12
+   "forbidden": 14,
+   "long_lines": 9,
+   "over_words": 3
   },
   ".agents/patterns/entity-tile.md": {
-   "forbidden": 27,
+   "forbidden": 24,
    "long_lines": 18,
-   "over_words": 1208
+   "over_words": 1200
   },
   ".agents/patterns/floating-actions.md": {
    "forbidden": 7,
