@@ -43,6 +43,11 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
     var onFrame: (Double?) -> Void = { _ in }
     /// The release: the one call, with the snapped value.
     var onCommit: (Double) -> Void = { _ in }
+    /// Asked right after ``onCommit``: whether the commit left an optimistic value behind, so the band can stay at the committed value until the
+    /// tile's next `configure`. A consumer that sets none (or refreshes at once) answers no and the frame is released in the same turn.
+    var holdsCommittedFrame: () -> Bool = { false }
+    /// The commit left a value behind: the tile keeps the band where the finger left it and releases it in its next `configure`.
+    var onFrameHold: () -> Void = {}
     /// Whether the tile takes input now (not unavailable, not dimmed by `enabledWhen`).
     var isEnabled: () -> Bool = { true }
 
@@ -139,8 +144,17 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         case .ended:
             let value = dragValue
             let shown = shownValue()
-            finish()
-            if let value, let commit = config.swipe.commit(value, shown: shown) { onCommit(commit) }
+            if let value, let commit = config.swipe.commit(value, shown: shown) {
+                // A release that sends the value: the call and its pending value come before any redraw, the held `configure` is dropped unrun (the
+                // rebuilt model that follows carries the live state under the optimistic value), and the band stays at the committed value.
+                endDrag()
+                deferred = nil
+                onCommit(commit)
+                // A consumer that set no value behind the call (or refreshed itself, as a light does) gets the frame back in this turn.
+                if holdsCommittedFrame() { onFrameHold() } else { onFrame(nil) }
+            } else {
+                finish()
+            }
         case .cancelled, .failed:
             finish()
         default: break
@@ -171,12 +185,19 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         finish()
     }
 
-    private func finish() {
+    /// Ends the drag's own state: no finger, no lift, no bubble. The band and the held `configure` are the caller's.
+    @discardableResult
+    private func endDrag() -> Bool {
         let wasDragging = isDragging
         dragValue = nil
         lastSample = nil
         if Self.active === self { Self.active = nil }
         setLifted(false)
+        return wasDragging
+    }
+
+    private func finish() {
+        let wasDragging = endDrag()
         if wasDragging {
             onFrame(nil)
             let work = deferred

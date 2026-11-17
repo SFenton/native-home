@@ -61,6 +61,8 @@ final class UKServerUITileSwipeBinding {
             view.showSwipeFrame(level: value.map { config.swipe.fraction(of: $0) }, usesBand: config.showsBand)
         }
         controller.onCommit = { [weak self] value in self?.commit(value) }
+        controller.holdsCommittedFrame = { [weak self] in self?.pending != nil }
+        controller.onFrameHold = { [weak view] in view?.holdSwipeFrameUntilConfigure() }
         view.swipe = controller
     }
 

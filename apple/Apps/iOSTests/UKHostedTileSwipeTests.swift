@@ -350,6 +350,80 @@ final class UKHostedTileSwipeTests: XCTestCase {
         XCTAssertEqual(tile.face.content.subtitle, "Unavailable")
     }
 
+    // MARK: What a release draws (`build/design/tile-swipe-release.md`)
+
+    /// The controller's order on a release, with a fake host: a release that sends the value commits first, drops the held configure unrun and
+    /// keeps the frame; a release that sends nothing, and a cancel, clear the frame and run the held configure once.
+    func testTheControllerCommitsBeforeAnyRedrawAndDropsTheHeldConfigureOnlyWhenItSendsTheValue() throws {
+        let host = UIViewController()
+        let window = HostedPage.show(host)
+        defer { window.isHidden = true }
+        let view = UIView(frame: CGRect(x: 20, y: 120, width: 170, height: 90))
+        host.view.addSubview(view)
+        func rig(shown: Double, holds: Bool) -> (UKTileSwipeController, () -> [String], () -> Int) {
+            var events: [String] = []
+            var held = 0
+            let controller = UKTileSwipeController(host: view, config: .brightness)
+            controller.shownValue = { shown }
+            controller.onFrame = { events.append($0 == nil ? "frame cleared" : "frame") }
+            controller.onCommit = { _ in events.append("commit") }
+            controller.holdsCommittedFrame = { holds }
+            controller.onFrameHold = { events.append("frame kept") }
+            drag(controller, tile: view, [0.2, 0.6], end: .possible)
+            XCTAssertTrue(controller.hold { held += 1 })
+            events.removeAll()
+            return (controller, { events }, { held })
+        }
+        let (kept, keptEvents, keptHeld) = rig(shown: 40, holds: true)
+        drag(kept, tile: view, [0.6], end: .ended)
+        XCTAssertEqual(keptEvents(), ["frame", "commit", "frame kept"], "the call first, the frame kept")
+        XCTAssertEqual(keptHeld(), 0, "the held configure is dropped, never run")
+        XCTAssertFalse(kept.isDragging)
+        kept.detach()
+
+        let (bare, bareEvents, bareHeld) = rig(shown: 40, holds: false)
+        drag(bare, tile: view, [0.6], end: .ended)
+        XCTAssertEqual(bareEvents(), ["frame", "commit", "frame cleared"], "no value behind the call: the frame goes back in the same turn")
+        XCTAssertEqual(bareHeld(), 0)
+        bare.detach()
+
+        let (same, sameEvents, sameHeld) = rig(shown: 60, holds: true)
+        drag(same, tile: view, [0.6], end: .ended)
+        XCTAssertEqual(sameEvents(), ["frame", "frame cleared"], "a release at the shown value sends nothing")
+        XCTAssertEqual(sameHeld(), 1, "and the held configure runs once")
+        same.detach()
+
+        let (cancelled, cancelEvents, cancelHeld) = rig(shown: 40, holds: true)
+        drag(cancelled, tile: view, [0.6], end: .cancelled)
+        XCTAssertEqual(cancelEvents(), ["frame", "frame cleared"])
+        XCTAssertEqual(cancelHeld(), 1)
+        cancelled.detach()
+    }
+
+    /// The light group tile shares the controller: a live change held under the finger never draws between the drag and the commit.
+    func testALightsCommittedBandNeverLeavesTheCommittedValueAfterAHeldLiveChange() throws {
+        for width in Self.widths {
+            let (view, tile, window) = lightTile(width: width, percent: 40)
+            defer { window.isHidden = true }
+            tile.tracesBand = true
+            var levels: [Int] = []
+            view.onBrightness = { levels.append($0) }
+            let controller = try XCTUnwrap(tile.swipe)
+            drag(controller, tile: tile, [0.2, 0.6], end: .possible)
+            view.update(fillTint: nil, percent: 20, isUnavailable: false)
+            let traced = tile.bandTrace.count
+            drag(controller, tile: tile, [0.6])
+            HostedPage.wait(0.5)
+            XCTAssertEqual(levels, [60], "width \(width)")
+            var collapsed: [Double] = []
+            for level in tile.bandTrace.dropFirst(traced) {
+                let value = ((level ?? -1) * 1000).rounded() / 1000
+                if collapsed.last != value { collapsed.append(value) }
+            }
+            XCTAssertEqual(collapsed, [0.6], "the band is 60 from the lift on, never the held 20 or the old 40")
+        }
+    }
+
     // MARK: Ink
 
     private func inkTile(_ ink: TileInkDefault, surface: TileSurface, style: UIUserInterfaceStyle, family: ColorFamily? = .neutral,

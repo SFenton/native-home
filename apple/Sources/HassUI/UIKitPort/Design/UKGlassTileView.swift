@@ -319,6 +319,10 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     private func configureNow(_ model: UKGlassTileModel, environment: UKTileEnvironment?, animated: Bool, action: (() -> Void)?,
                               perform: ((TileActionItem.ID) -> Void)?) {
         configureCount += 1
+        if swipeFrameEndsAtConfigure {
+            swipeFrame = nil
+            swipeFrameEndsAtConfigure = false
+        }
         defer {
             // A grouped grid moves a tile whose face changed (`sh.grid-state-groups@1`).
             let face = gridFace
@@ -492,6 +496,14 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
 
     /// What a swipe in progress draws over the model: the band, the state line and the lit face follow the finger with no `configure`.
     private var swipeFrame: (level: Double?, subtitle: String?, isActive: Bool?)?
+    /// A committed swipe keeps its frame until the next `configure`, which already carries the optimistic value, and releases it in that pass.
+    private var swipeFrameEndsAtConfigure = false
+    /// Records every band level given to the face while true, for the tests of what a release draws.
+    var tracesBand = false
+    private(set) var bandTrace: [Double?] = []
+
+    /// Keeps the swipe's frame after the finger lifted, until the next ``configure(_:environment:animated:action:perform:)``.
+    func holdSwipeFrameUntilConfigure() { swipeFrameEndsAtConfigure = true }
 
     private func swipedContent(_ placement: Placement) -> UKTileFaceContent {
         var content = faceContent(placement)
@@ -506,7 +518,10 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// `nil` hands the face back to the model.
     func showSwipeFrame(level: Double?, subtitle: String? = nil, isActive: Bool? = nil, usesBand: Bool = true) {
         swipeFrame = level.map { (usesBand ? $0 : model.progress, subtitle, isActive) }
-        face.apply(swipedContent(placement(width: layoutWidth)), environment: environment, animated: false)
+        swipeFrameEndsAtConfigure = false
+        let content = swipedContent(placement(width: layoutWidth))
+        if tracesBand { bandTrace.append(content.level) }
+        face.apply(content, environment: environment, animated: false)
     }
 
     private func apply(animated: Bool) {
@@ -515,6 +530,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
         face.isEnabled = !(model.isUnavailable || bodyBlocked)
         let placement = placement(width: layoutWidth)
         let content = swipedContent(placement)
+        if tracesBand { bandTrace.append(content.level) }
         face.apply(content, environment: environment, animated: animated)
         configureStrip(animated: animated)
         configureAccessibility()

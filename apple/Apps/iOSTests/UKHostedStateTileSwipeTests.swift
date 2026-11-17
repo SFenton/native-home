@@ -82,6 +82,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         let landed = await HostedPage.settle { page.nodes["blinds-tile"]?.view is UKGlassTileView }
         XCTAssertTrue(landed, "the tile is drawn (width \(width))")
         let tile = try XCTUnwrap(page.nodes["blinds-tile"]?.view as? UKGlassTileView)
+        tile.tracesBand = true
         await HostedPage.pump(passes: 3)
         return Rig(host: host, store: store, window: window, caller: caller, tile: tile, controller: try XCTUnwrap(tile.swipe))
     }
@@ -100,6 +101,17 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         rig.controller.perform(selector, with: pan)
     }
 
+    /// The band levels the face was given, from `start`, with consecutive repeats collapsed and a missing band as -1: `[0.7, 0.4]` is a band that
+    /// stayed at 70 and then went to 40, and a flash would show as `[0.7, 0.4, 0.7]`.
+    private func levels(_ tile: UKGlassTileView, from start: Int) -> [Double] {
+        var out: [Double] = []
+        for level in tile.bandTrace.dropFirst(start) {
+            let value = ((level ?? -1) * 1000).rounded() / 1000
+            if out.last != value { out.append(value) }
+        }
+        return out
+    }
+
     private func body(_ tile: UKGlassTileView) -> NSObject? { tile.accessibilityElements?.first as? NSObject }
 
     private func sent(_ caller: HostedCaller) -> [Double] {
@@ -113,7 +125,9 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             let r = try await rig(width: width)
             defer { r.window.isHidden = true }
             XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.4, accuracy: 0.001, "the band starts at the live value (width \(width))")
-            drag(r, [0.2, 0.5, 0.7])
+            drag(r, [0.2, 0.5, 0.7], end: .possible)
+            let traced = r.tile.bandTrace.count
+            drag(r, [0.7])
             let called = await HostedPage.settle { !r.caller.calls.isEmpty }
             XCTAssertTrue(called, "width \(width)")
             XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "one call on release")
@@ -124,6 +138,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             // Home Assistant never answers: the hold ends at `revertAfterSeconds` and the live value draws again.
             let reverted = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.4) < 0.001 }
             XCTAssertTrue(reverted, "the band reverts to the live 40% (width \(width))")
+            XCTAssertEqual(levels(r.tile, from: traced), [0.7, 0.4], "the band is the committed 70 until the hold ends, never the live 40 first (width \(width))")
             XCTAssertEqual(r.caller.calls.count, 1, "reverting sends nothing")
             HostedPage.hideTracked()
         }
@@ -195,9 +210,13 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         }
     }
 
-    /// C8 release as a lift: after a held "closing" change the finger lifts at the dragged value. One call carries it, then the state word and the
-    /// band that follow are drawn.
-    func testAHeldChangeThenTheFingerLiftsSendsTheDraggedValueAndThenDrawsTheNewState() async throws {
+    /// What a release draws (`build/design/tile-swipe-release.md`): live 40, a drag to 50, "closing" 20 held under the finger, the lift at 50 and a
+    /// hold of 3 s the house never answers.
+    /// 1. one call with 50 and the band stays at 50, the held configure never drawn;
+    /// 2. the first configure after the lift keeps the band at 50 and speaks "50%";
+    /// 3. nothing moves the band until the deadline;
+    /// 4. at the deadline the store's live state is drawn: "closing", 20.
+    func testAHeldChangeThenTheFingerLiftsDrawsTheCommittedBandUntilTheHoldEndsThenTheStoresState() async throws {
         for width in Self.widths {
             let r = try await rig(width: width, revert: 3)
             defer { r.window.isHidden = true }
@@ -208,20 +227,74 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
             await HostedPage.pump(passes: 8)
             XCTAssertTrue(r.controller.isDragging, r.controller.lastCancelReason ?? "")
-            XCTAssertEqual(r.tile.model.subtitle, heldSubtitle, "held under the finger (width \(width))")
+            XCTAssertEqual(r.tile.model.subtitle, heldSubtitle, "row 0: held under the finger (width \(width))")
+            let traced = r.tile.bandTrace.count
+            let configures = r.tile.configureCount
             drag(r, [0.5], end: .ended)
+            XCTAssertFalse(r.controller.isDragging, "row 1: the lift ends the drag in the same turn")
             let called = await HostedPage.settle { !r.caller.calls.isEmpty }
-            XCTAssertTrue(called, "width \(width)")
-            XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "one call")
-            XCTAssertEqual(sent(r.caller), [50], "the value the finger chose, not the house's 20")
-            // The call's optimistic feedback keeps the tile at the committed value (the band) and the word it asked for ("open").
-            let held = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.5) < 0.001 }
-            XCTAssertTrue(held, "the band holds the committed value (\(String(describing: r.tile.model.progress)))")
-            // When the hold ends, the house's state the finger held back is drawn: its word and its band.
-            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 }
-            XCTAssertTrue(drawn, "the held state follows once the hold ends: \(String(describing: r.tile.model.subtitle)), \(String(describing: r.tile.model.progress))")
+            XCTAssertTrue(called)
+            XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "row 1: one call")
+            XCTAssertEqual(sent(r.caller), [50])
+            let configured = await HostedPage.settle { r.tile.configureCount > configures }
+            XCTAssertTrue(configured, "row 2: the tile is configured after the lift")
+            XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.5, accuracy: 0.001, "row 2: the model carries the committed value")
+            let element = try XCTUnwrap(body(r.tile))
+            XCTAssertTrue((element.accessibilityValue ?? "").hasPrefix("50%"), "row 2: spoken \(element.accessibilityValue ?? "nil")")
+            // Row 3: sample until just before the deadline.
+            try await Task.sleep(for: .seconds(1.5))
+            XCTAssertEqual(levels(r.tile, from: traced), [0.5], "rows 1 to 3: the band is 50 and never 20 or 40 (width \(width))")
+            XCTAssertTrue((element.accessibilityValue ?? "").hasPrefix("50%"), "row 3: still \(element.accessibilityValue ?? "nil")")
+            XCTAssertEqual(r.caller.calls.count, 1, "row 3: no second call")
+            // Row 4: the deadline draws the store's state.
+            let ended = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 && r.tile.model.subtitle != heldSubtitle }
+            XCTAssertTrue(ended, "row 4: the store's state at the deadline: \(String(describing: r.tile.model.subtitle)), \(String(describing: r.tile.model.progress))")
+            XCTAssertEqual(levels(r.tile, from: traced), [0.5, 0.2], "the band went 50 to 20 once")
+            XCTAssertEqual(r.caller.calls.count, 1, "row 4: no call, no second send")
             HostedPage.hideTracked()
         }
+    }
+
+    /// 4a: a house update that moves the value during the hold ends it at once, well before the deadline.
+    func testAHouseUpdateDuringTheHoldEndsItAtOnce() async throws {
+        let r = try await rig(width: 393, revert: 30)
+        defer { r.window.isHidden = true }
+        r.window.layoutIfNeeded()
+        await HostedPage.pump(passes: 5)
+        drag(r, [0.2, 0.5], end: .possible)
+        r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+        await HostedPage.pump(passes: 8)
+        drag(r, [0.5], end: .ended)
+        _ = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.5) < 0.001 }
+        r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(35)])])
+        let followed = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.35) < 0.001 }
+        XCTAssertTrue(followed, "the new live value ends the hold: \(String(describing: r.tile.model.progress))")
+        XCTAssertEqual(r.caller.calls.count, 1)
+    }
+
+    /// The held update alone does not end the hold (`liveAtCommit` is read at the commit, after that update reached the store).
+    func testTheUpdateHeldUnderTheFingerDoesNotEndTheHoldItself() async throws {
+        let r = try await rig(width: 393, revert: 3)
+        defer { r.window.isHidden = true }
+        r.window.layoutIfNeeded()
+        await HostedPage.pump(passes: 5)
+        drag(r, [0.2, 0.5], end: .possible)
+        r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+        await HostedPage.pump(passes: 8)
+        drag(r, [0.5], end: .ended)
+        try await Task.sleep(for: .seconds(2))
+        XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.5, accuracy: 0.001, "a second before the deadline the band is still 50")
+    }
+
+    /// Nothing arrives during the hold: at the deadline the tile draws the store's last word, the held state, because the house said nothing since.
+    func testWithNoUpdateAtAllTheDeadlineDrawsTheLiveValueNotTheDraggedOne() async throws {
+        let r = try await rig(width: 393, revert: 1)
+        defer { r.window.isHidden = true }
+        r.window.layoutIfNeeded()
+        await HostedPage.pump(passes: 5)
+        drag(r, [0.2, 0.7])
+        let reverted = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.4) < 0.001 && !r.caller.calls.isEmpty }
+        XCTAssertTrue(reverted, "the unconfirmed 70 is dropped for the store's 40")
     }
 
     /// A relayout of the container during a lifted drag keeps the tile's bounds equal to the slot (the container places by bounds and centre, as a
@@ -366,6 +439,29 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             XCTAssertNil(element?.accessibilityCustomActions)
             XCTAssertFalse((element?.accessibilityHint ?? "").contains("Swipe"))
             XCTAssertNil(r.tile.onAdjust)
+        }
+    }
+
+    /// After a committing release the spoken value is the committed one at the first read and until the deadline; a step through VoiceOver is
+    /// unchanged and sends one call.
+    func testTheSpokenValueIsTheCommittedOneAfterAHeldReleaseUntilTheHoldEnds() async throws {
+        for width in Self.widths {
+            let r = try await rig(width: width, revert: 3)
+            defer { r.window.isHidden = true }
+            r.window.layoutIfNeeded()
+            await HostedPage.pump(passes: 5)
+            drag(r, [0.2, 0.5], end: .possible)
+            r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+            await HostedPage.pump(passes: 8)
+            drag(r, [0.5], end: .ended)
+            let element = try XCTUnwrap(body(r.tile))
+            let committed = await HostedPage.settle { (element.accessibilityValue ?? "").hasPrefix("50%") }
+            XCTAssertTrue(committed, "the first read after the lift: \(element.accessibilityValue ?? "nil") (width \(width))")
+            for _ in 0..<20 {
+                XCTAssertFalse((element.accessibilityValue ?? "").hasPrefix("20%"), "the held value is never spoken before the deadline")
+                try await Task.sleep(for: .milliseconds(80))
+            }
+            HostedPage.hideTracked()
         }
     }
 }
