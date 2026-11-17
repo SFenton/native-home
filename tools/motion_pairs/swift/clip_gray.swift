@@ -6,11 +6,21 @@
 import AVFoundation
 import Foundation
 
+// MARK: - Arguments
+
+/// The program arguments: clip, output file, optional output width.
 let args = CommandLine.arguments
+/// The clip being read.
 let asset = AVURLAsset(url: URL(fileURLWithPath: args[1]))
+/// Where the binary frame dump is written.
 let outPath = args[2]
+/// Width in pixels of each reduced frame (120 by default); the height keeps the clip's aspect ratio.
 let outW = args.count > 3 ? Int(args[3])! : 120
+/// Signalled when the decoding task finishes, so the process waits for it.
 let sem = DispatchSemaphore(value: 0)
+
+// MARK: - Sequential decode and reduction
+
 Task {
     let track = try! await asset.loadTracks(withMediaType: .video).first!
     let reader = try! AVAssetReader(asset: asset)

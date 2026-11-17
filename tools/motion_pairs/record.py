@@ -11,15 +11,17 @@ sequence needs (the spike's 54 s run).
 from __future__ import annotations
 
 import glob
+import json
 import os
 import shlex
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Mapping, Optional
 
 from tools.parity_loop import launch as pl_launch
+from tools.parity_loop import simguard
 from tools.parity_loop.capture import Agent
 from tools.parity_loop.common import BUNDLE_ID, Runner, run
 
@@ -99,6 +101,11 @@ def stage_gallery_bootstrap(data_dir: Path, source: Path) -> None:
 def relaunch(device: Device, scenario: Scenario, reduce_motion: bool, runner: Runner = run, sleep=time.sleep) -> None:
     """Terminate and launch with Reduce Motion explicit, attach the agent, and reach the scenario's starting screen."""
     gallery = device.side == REFERENCE or scenario.native_mode == "gallery"
+    env = launch_env(os.environ, reduce_motion, scenario.env)
+    if device.publication and not gallery:
+        problems = validate_publication(device.publication)
+        if problems:
+            raise Refused("; ".join(problems))
     data = pl_launch.container(runner, device.udid, "data") if gallery or device.publication else None
     if gallery:
         if device.gallery_bootstrap:
@@ -107,10 +114,6 @@ def relaunch(device: Device, scenario: Scenario, reduce_motion: bool, runner: Ru
     elif device.publication:
         pl_launch.feed_preview(data, device.publication)
     runner(["xcrun", "simctl", "terminate", device.udid, BUNDLE_ID])
-    env = os.environ.copy()
-    env["SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS"] = "reduceMotion" if reduce_motion else "none"
-    for name, value in scenario.env.items():
-        env["SIMCTL_CHILD_" + name] = value
     args = ["--gallery-fixture"] if gallery else ["--server-ui-preview"]
     runner(["xcrun", "simctl", "launch", device.udid, BUNDLE_ID, *args], env)
     sleep(3.5 if gallery else 4.5)
@@ -154,9 +157,11 @@ def record_take(device: Device, scenario: Scenario, out: Path, index: int, reduc
 
 
 def record_pair(devices: Dict[str, Device], scenario: Scenario, out_dir: Path, takes: int, reduce_motion: bool = False,
-                load_limit: float = LOAD_LIMIT, retries: int = 1, load_wait_s: float = 900.0) -> Dict[str, List[Take]]:
-    """``takes`` takes per side. The two sides record at the same time (one simulator each; two can record at once), and each
+                load_limit: float = LOAD_LIMIT, retries: int = 1, load_wait_s: float = 900.0,
+                env: Optional[Mapping[str, str]] = None) -> Dict[str, List[Take]]:
+    """The simulator guard first (nothing is touched when it refuses), then ``takes`` takes per side. The two sides record at the same time (one simulator each; two can record at once), and each
     side's takes run in turn. A refused or discarded take is retried up to ``retries`` times."""
+    guard_simulators([d.udid for d in devices.values()], os.environ if env is None else env)
     results: Dict[str, List[Take]] = {side: [] for side in devices}
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -180,12 +185,61 @@ def record_pair(devices: Dict[str, Device], scenario: Scenario, out_dir: Path, t
     return results
 
 
+#: Launch variables the tool may pass (as ``SIMCTL_CHILD_<name>``). Nothing else reaches the app: an inherited ``SIMCTL_CHILD_`` variable
+#: (a preview token, a server address) is dropped, and a scenario asking for another name is refused.
+ALLOWED_LAUNCH_ENV = frozenset({"FENTON_SYSTEM_SETTINGS", "FENTON_UK_EXTRAS"})
+LOOPBACK_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+
+
+class Refused(Exception):
+    """A run the tool will not start; the message says why and carries no secret."""
+
+
+def guard_simulators(udids: List[str], env: Mapping[str, str]) -> None:
+    """The one shared guard (``tools/parity_loop/simguard.py``): refuse a protected simulator and any simulator this process holds no
+    ``device-<UDID>`` gate for. Called before any install, launch, container write or recording; there is no second guard here."""
+    simguard.guard(udids, env)
+
+
+def launch_env(base: Mapping[str, str], reduce_motion: bool, scenario_env: Mapping[str, str]) -> Dict[str, str]:
+    """The environment of a ``simctl launch``: the host's own variables, no inherited ``SIMCTL_CHILD_*``, then exactly the allowlisted
+    names the tool sets (Reduce Motion always, explicit)."""
+    refused = sorted(set(scenario_env) - ALLOWED_LAUNCH_ENV)
+    if refused:
+        raise Refused("launch variable(s) not on the allowlist: " + ", ".join(refused))
+    env = {k: v for k, v in base.items() if not k.startswith("SIMCTL_CHILD_")}
+    env["SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS"] = "reduceMotion" if reduce_motion else "none"
+    for name, value in scenario_env.items():
+        env["SIMCTL_CHILD_" + name] = value
+    return env
+
+
+def fixture_problems(bootstrap: Mapping[str, object]) -> List[str]:
+    """Why a preview ``bootstrap.json`` is not fixtures only: a ``live`` block (what ``stage.py`` writes for a live preview), a ``server``
+    or ``origin`` key, or an ``endpoint`` that is not a loopback address."""
+    from urllib.parse import urlsplit
+    problems = []
+    for key in ("live", "server", "origin"):
+        if key in bootstrap:
+            problems.append(f"bootstrap.json carries a {key!r} block: a publication for a live server is refused (fixtures only)")
+    endpoint = bootstrap.get("endpoint")
+    if endpoint is not None and (urlsplit(str(endpoint)).hostname or "") not in LOOPBACK_HOSTS:
+        problems.append(f"bootstrap.json endpoint {endpoint!r} is not a loopback address (fixtures only)")
+    return problems
+
+
 def validate_publication(path: Path) -> List[str]:
     """Problems with a native preview publication directory (the one ``feed_preview`` copies from): the files it needs and its assets."""
     path = Path(path)
     problems = [f"{path / name} is missing" for name in ("bootstrap.json", "publication.json") if not (path / name).is_file()]
     if not (path / "assets").is_dir():
         problems.append(f"{path / 'assets'} is missing")
+    boot = path / "bootstrap.json"
+    if boot.is_file():
+        try:
+            problems += fixture_problems(json.loads(boot.read_text(encoding="utf-8")))
+        except ValueError:
+            problems.append(f"{boot} is not valid JSON")
     return problems
 
 
@@ -210,6 +264,7 @@ def dry_run(scenario: Scenario, publication: Optional[Path], gallery_bootstrap: 
             video.tool(name)
         except Exception as error:  # a swiftc failure is a problem to report, not to raise
             problems.append(f"{name}: {error}")
+    problems += [f"{side} simulator {udid} is protected: a run would be refused" for side, udid in udids.items() if simguard.is_protected(udid)]
     if simulators is not None:
         problems += [f"{side} simulator {udid} is not in simctl list" for side, udid in udids.items() if udid not in simulators]
     try:

@@ -1,6 +1,6 @@
 # motion_pairs: the reference against native, one transition at a time
 
-> **What:** records one named transition on the reference (the production UIKit app, gallery fixtures) and on native (preview mode, fixtures) at the same time, then measures onset, duration, easing and trajectory and writes a paired GIF, a +0/50/100/200/300 ms strip and a JSON row with pass or fail. **Read when:** you compare a push, sheet, modal or control animation across the two apps, or add a transition to the inventory.
+> **What:** records one named transition on the shipped Expo reference build (gallery fixtures) and on native (preview mode, fixtures) at the same time, then measures onset, duration, easing and trajectory and writes a paired GIF, a +0/50/100/200/300 ms strip and a JSON row with pass or fail. **Read when:** you compare a push, sheet, modal or control animation across the two apps, or add a transition to the inventory.
 
 ## Method
 
@@ -22,6 +22,8 @@
 | `overshoot` | 0.02 | yes |
 | `frameDiff` | 3 % mean of pixels over 8/255 after onset alignment | reported only: a fixtures run puts different content on each side |
 
+A row is a pass only when everything that gates was measured on both sides: no onset-anchored curve on a side reads `unmeasured: curve`; a cut against a cut passes only when the scenario step expects a cut and most takes of both sides measured one (`unmeasured: cut` otherwise); `--fixture-polluted EVENT --fixture-note TEXT` gives the row the verdict `fixture-polluted`, which never counts as a pass.
+
 The defaults are the research note's starting values. Override any of them with `--tolerances FILE.json` (a flat object of these names; `gate` lists the checks that decide).
 
 ## Use
@@ -31,10 +33,10 @@ python3 -m tools.motion_pairs inventory                          # rewrite trans
 python3 -m tools.motion_pairs analyze [--fixture-polluted EVENT ...] --scenario S --reference a.mp4 b.mp4 --native c.mp4 d.mp4 --out DIR
 tools/devcap.py run --sim REF_UDID --sim NATIVE_UDID -- \
   python3 -m tools.motion_pairs record --scenario S --reference-udid REF_UDID --native-udid NATIVE_UDID \
-  --publication build/evidence/native-ingest/fullpair --takes 5 --out DIR [--reference-agent CMD --native-agent CMD]
+  --publication PUBLICATION_DIR --takes 5 --out DIR [--reference-agent CMD --native-agent CMD]
 ```
 
-`record --dry-run` resolves selectors, publication, tools and simulators without recording. `record` refuses without a devcap simulator hold, waits up to 15 minutes per take for the load to drop under 40, and closes its agent sessions at the end (an open session keeps the device claimed). Pass the bound `agent-device` commands from `device_open`; without them it builds the standalone form (own session and state dir). Output, per event: `<event>.json`, `<event>-pair.gif`, `<event>-strip.png`, plus `motion.json`, `index.md` and the clips under `takes/`. Keep them under a git-ignored folder.
+`PUBLICATION_DIR` is the folder that holds `bootstrap.json`, `publication.json` and `assets/` (for the native-ingest `fullpair` run, its `pub` folder, not `fullpair` itself); a publication with a `live`, `server` or `origin` block or a non-loopback `endpoint` is refused (fixtures only). `record` calls the shared simulator guard (`tools/parity_loop/simguard.py`) first: a protected simulator or one without its own `devcap` gate is refused before anything runs, and the launch passes only `FENTON_SYSTEM_SETTINGS` and `FENTON_UK_EXTRAS` as `SIMCTL_CHILD_` variables. `record --dry-run` resolves selectors, publication, tools and simulators without recording. `record` refuses without a devcap simulator hold, waits up to 15 minutes per take for the load to drop under 40, and closes its agent sessions at the end (an open session keeps the device claimed). Pass the bound `agent-device` commands from `device_open`; without them it builds the standalone form (own session and state dir). Output, per event: `<event>.json`, `<event>-pair.gif`, `<event>-strip.png`, plus `motion.json`, `index.md` and the clips under `takes/`. Keep them under a git-ignored folder.
 
 ## Files
 
@@ -45,7 +47,7 @@ tools/devcap.py run --sim REF_UDID --sim NATIVE_UDID -- \
 | `pair.py` | Medians, tolerances, the verdict |
 | `record.py`, `scenarios.py`, `calibration.py` | The recorder wrapper, the scenario shape and the calibration scenarios |
 | `analyze.py`, `report.py`, `video.py`, `swift/` | Clip decoding, GIFs and strips, the Swift readers |
-| `inventory.py`, `transitions.json` | Every transition the atlas and `motion.md` name, with the trigger path on each side |
+| `inventory.py`, `transitions.json` | Every transition the atlas and `motion.md` name, with the trigger path on each side. Regenerate with `python3 -m tools.motion_pairs inventory` after the atlas catalog, `motion.md` section 3 or `surfaces.json` changes; the test checks structure, not counts |
 
 ## Limits
 

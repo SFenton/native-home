@@ -32,7 +32,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     an.add_argument("--out", type=Path, required=True)
     an.add_argument("--tolerances", type=Path)
     an.add_argument("--title", default="Motion pairs")
-    an.add_argument("--fixture-polluted", nargs="*", default=[], help="events whose two sides drew different content (class fixture-polluted)")
+    an.add_argument("--fixture-polluted", nargs="*", default=[], help="events whose two sides drew different content (verdict fixture-polluted, never a pass)")
+    an.add_argument("--fixture-note", default="", help="what differs between the two sides' content; required with --fixture-polluted")
     rec = sub.add_parser("record", help="record takes on both sides (inside a devcap hold for both simulators), then analyze")
     rec.add_argument("--scenario", required=True)
     rec.add_argument("--reference-udid", required=True)
@@ -54,16 +55,20 @@ def main(argv: Optional[List[str]] = None) -> int:
         data = inventory.write(args.out)
         print(json.dumps({"out": str(args.out), "count": data["count"], "byKind": data["byKind"]}))
         return 0
+    if args.cmd == "analyze" and args.fixture_polluted and not args.fixture_note:
+        raise SystemExit("--fixture-polluted needs --fixture-note: say what differs between the two sides' content")
     scenario = _scenario(args.scenario)
     tolerances = pair.Tolerances.load(args.tolerances)
     if args.cmd == "analyze":
         rows = analyze.analyze_pair(scenario, {REFERENCE: args.reference, NATIVE: args.native}, args.out, tolerances,
-                                    fixture_polluted=args.fixture_polluted)
+                                    fixture_polluted=args.fixture_polluted, fixture_note=args.fixture_note)
         analyze.write_index(args.out, rows, args.title)
         print(json.dumps([{"event": r["event"], "verdict": r["verdict"]} for r in rows]))
         return 0
-    from tools.parity_loop import launch as pl_launch
+    from tools.parity_loop import simguard
     from tools.parity_loop.capture import Agent
+    if not args.dry_run:
+        record.guard_simulators([args.reference_udid, args.native_udid], os.environ)
     state = args.out / "agent-state"
     ref_cmd = args.reference_agent or record.standalone_agent(args.reference_udid, "motion-ref", state / "ref")
     nat_cmd = args.native_agent or record.standalone_agent(args.native_udid, "motion-nat", state / "nat")
@@ -74,7 +79,6 @@ def main(argv: Optional[List[str]] = None) -> int:
                               {REFERENCE: args.reference_udid, NATIVE: args.native_udid}, {REFERENCE: ref_cmd, NATIVE: nat_cmd}, listing)
         print(json.dumps(plan, indent=1))
         return 1 if plan["problems"] else 0
-    pl_launch.require_hold(os.environ)
     problems = record.validate_publication(args.publication) if scenario.native_mode == "preview" else []
     if problems:
         print(json.dumps({"error": "publication", "problems": problems}))

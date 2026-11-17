@@ -40,7 +40,8 @@ def representative(takes: Sequence[Dict[str, Any]], index: int) -> Optional[Dict
 
 
 def analyze_pair(scenario: Scenario, clips: Dict[str, Sequence[Path]], out_dir: Path, tolerances: pair.Tolerances,
-                 meta: Optional[Dict[str, Any]] = None, images: bool = True, fixture_polluted: Sequence[str] = ()) -> List[Dict[str, Any]]:
+                 meta: Optional[Dict[str, Any]] = None, images: bool = True, fixture_polluted: Sequence[str] = (),
+                 fixture_note: str = "") -> List[Dict[str, Any]]:
     """Measure every take, pair the sides event by event and write the evidence. Returns the rows."""
     out_dir.mkdir(parents=True, exist_ok=True)
     takes = {side: [analyze_clip(Path(c), scenario) for c in clips[side]] for side in SIDES}
@@ -54,14 +55,13 @@ def analyze_pair(scenario: Scenario, clips: Dict[str, Sequence[Path]], out_dir: 
             window = max(er["settleMs"] or 0, en["settleMs"] or 0, 300.0)
             frame_diff = progress.frame_sequence_diff(rep[REFERENCE]["pts"], rep[REFERENCE]["frames"], er["onsetMs"],
                                                       rep[NATIVE]["pts"], rep[NATIVE]["frames"], en["onsetMs"], window)
-        verdict = pair.judge(summaries[REFERENCE], summaries[NATIVE], tolerances, frame_diff)
+        verdict = pair.judge(summaries[REFERENCE], summaries[NATIVE], tolerances, frame_diff, scenario.expects_cut(cfg.name))
         row: Dict[str, Any] = {"event": cfg.name, "scenario": scenario.id, **(meta or {}),
                                "reference": summaries[REFERENCE], "native": summaries[NATIVE],
                                "trajectory": {side: _trajectory(rep[side], index) for side in SIDES},
                                "tolerances": {k: v for k, v in vars(tolerances).items()}, **verdict}
         if cfg.name in fixture_polluted:
-            row["class"] = "fixture-polluted"  # the two sides drew different content, so the timing is not a motion finding
-            row["fixtureNote"] = "native drew different content from the reference (service-unavailable page); timing is polluted"
+            pair.mark_polluted(row, fixture_note)
         row["pace"] = {side: [t["pace"].get("gapMaxMs") for t in takes[side]] for side in SIDES}
         if images and rep[REFERENCE] and rep[NATIVE]:
             er, en = rep[REFERENCE]["events"][index], rep[NATIVE]["events"][index]

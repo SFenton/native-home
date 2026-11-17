@@ -283,10 +283,11 @@ class TapAnchorTests(unittest.TestCase):
     def test_a_side_with_only_hitched_takes_is_still_judged_on_the_tap_basis_without_curve_checks(self):
         ref = self.side(800, 450)
         nat = pair.summarize_side([{"found": True, "settleMs": 80.0, "leadToOnsetMs": 0.0, "overshoot": 0.0, "kind": "slide-x", "lateOnset": True,
-                                    "tapToRestMs": 810.0, "tapToOnsetMs": 700.0, "progress": [(0.0, 0.6), (50.0, 1.0)]}] * 3)
+                                    "tapToRestMs": 810.0, "tapToOnsetMs": 460.0, "progress": [(0.0, 0.6), (50.0, 1.0)]}] * 3)
         self.assertEqual(nat["usable"], 0)
         v = pair.judge(ref, nat, pair.Tolerances())
-        self.assertNotEqual(v["verdict"], "unmeasured")
+        self.assertEqual(v["verdict"], "unmeasured: curve")
+        self.assertFalse(v["pass"])
         self.assertNotIn("curve", v["checks"])
         self.assertFalse(v["curveMeasured"])
 
@@ -375,12 +376,158 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(by["home:control-1"]["expect"]["tokens"], ["state"])
         self.assertEqual(data["byKind"]["push"], 1)
 
-    def test_committed_inventory_matches_a_fresh_build(self):
+    def test_committed_inventory_has_the_structure_every_row_needs(self):
         committed = json.loads((Path(inventory.__file__).with_name("transitions.json")).read_text(encoding="utf-8"))
-        fresh = inventory.build()
-        self.assertEqual(committed["count"], fresh["count"])
-        self.assertEqual([t["id"] for t in committed["transitions"]], [t["id"] for t in fresh["transitions"]])
-        self.assertEqual(len({t["id"] for t in fresh["transitions"]}), fresh["count"], "transition ids are unique")
+        rows = committed["transitions"]
+        self.assertEqual(committed["count"], len(rows))
+        self.assertEqual(len({t["id"] for t in rows}), len(rows), "transition ids are unique")
+        for t in rows:
+            self.assertTrue({"id", "kind", "title", "expect"} <= set(t), t["id"])
+            self.assertIn("text", t["expect"])
+            if t["kind"] != "policy":
+                self.assertEqual(sorted(t["trigger"]), ["from", "native", "reference", "status"], t["id"])
+                self.assertIn(t["trigger"]["status"], ("mapped", "unmapped", "calibrated"), t["id"])
+        calibrated = [t["id"] for t in rows if t.get("scenario")]
+        self.assertTrue(calibrated and all(t in {r["id"] for r in rows} for t in calibrated))
+        self.assertEqual(sum(committed["byKind"].values()), len(rows))
+
+
+
+class SafetyTests(unittest.TestCase):
+    """The shared simulator guard, a fixtures-only publication and an explicit launch environment, all before any side effect."""
+    REF = "74239575-A116-4C48-BEA0-599948E52E39"
+    NAT = "2559ED4B-6DBA-4B56-B92F-2C2C7DC3CF31"
+
+    def devices(self, ref=None, nat=None):
+        self.agents = {"reference": FakeAgent(), "native": FakeAgent()}
+        return {"reference": record.Device("reference", ref or self.REF, self.agents["reference"]),
+                "native": record.Device("native", nat or self.NAT, self.agents["native"])}
+
+    def held(self, *udids):
+        return {"DEVCAP_HELD": ",".join(["simulator"] + ["device-" + u for u in udids])}
+
+    def scenario(self):
+        return Scenario("s", "s", "chores", [Step('label="A"', 100, "push")], lead_ms=100)
+
+    def refused(self, devices, env):
+        with TemporaryDirectory() as tmp:
+            out = Path(tmp) / "takes"
+            with self.assertRaises(record.simguard.Refused):
+                record.record_pair(devices, self.scenario(), out, 1, env=env)
+            self.assertFalse(out.exists(), "nothing was created before the refusal")
+        self.assertEqual([a.calls for a in self.agents.values()], [[], []], "no agent call before the refusal")
+
+    def test_protected_simulators_are_refused_before_any_side_effect(self):
+        for udid in ("D14299B9-9F37-437D-85CE-208E13B01087", "366D4D0F-8AE1-44F1-988B-E4D2DBDD1672"):
+            devices = self.devices(nat=udid)
+            self.refused(devices, self.held(self.REF, udid))
+
+    def test_a_missing_per_device_hold_is_refused_before_any_side_effect(self):
+        self.refused(self.devices(), self.held(self.REF))  # the native gate is not held
+        self.refused(self.devices(), {"DEVCAP_HELD": "simulator"})
+        self.refused(self.devices(), {})
+
+    def test_held_simulators_pass_the_guard(self):
+        original = record.record_take
+        record.record_take = lambda *a, **k: record.Take("x", 1, ok=True)
+        try:
+            with TemporaryDirectory() as tmp:
+                out = record.record_pair(self.devices(), self.scenario(), Path(tmp) / "t", 1, env=self.held(self.REF, self.NAT))
+        finally:
+            record.record_take = original
+        self.assertTrue(all(t.ok for ts in out.values() for t in ts))
+
+    def test_the_dry_run_reports_a_protected_simulator(self):
+        plan = record.dry_run(self.scenario(), None, None, Path("/tmp/motion-dry-x"), {"reference": self.REF, "native": "366D4D0F-8AE1-44F1-988B-E4D2DBDD1672"}, {})
+        self.assertTrue(any("protected" in p for p in plan["problems"]))
+
+    def test_a_publication_for_a_live_server_is_refused(self):
+        self.assertEqual(record.fixture_problems({"endpoint": "http://127.0.0.1:4801", "entities": {}}), [])
+        self.assertTrue(record.fixture_problems({"live": {"server": "https://ha.example", "accountID": "x"}}))
+        self.assertTrue(record.fixture_problems({"endpoint": "https://ha.example:8123"}))
+        self.assertTrue(record.fixture_problems({"server": "https://ha.example"}))
+
+    def test_validate_publication_reads_the_bootstrap_and_relaunch_refuses_before_any_command(self):
+        with TemporaryDirectory() as tmp:
+            pub = Path(tmp) / "pub"
+            (pub / "assets").mkdir(parents=True)
+            (pub / "publication.json").write_text("{}")
+            (pub / "bootstrap.json").write_text(json.dumps({"live": {"server": "https://ha.example"}}))
+            self.assertTrue(any("'live'" in p for p in record.validate_publication(pub)))
+            calls = []
+            dev = record.Device("native", "U", FakeAgent(), publication=pub)
+            with self.assertRaises(record.Refused):
+                record.relaunch(dev, self.scenario(), False, runner=lambda argv, env=None, timeout=0: calls.append(argv), sleep=lambda s: None)
+            self.assertEqual(calls, [])
+            (pub / "bootstrap.json").write_text(json.dumps({"endpoint": "http://127.0.0.1:4801"}))
+            self.assertEqual(record.validate_publication(pub), [])
+
+    def test_launch_env_drops_inherited_child_variables_and_keeps_the_allowlist(self):
+        base = {"PATH": "/usr/bin", "SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN": "secret", "SIMCTL_CHILD_FENTON_HASS_SERVER": "https://ha.example"}
+        env = record.launch_env(base, True, {"FENTON_UK_EXTRAS": "1"})
+        self.assertEqual({k for k in env if k.startswith("SIMCTL_CHILD_")}, {"SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS", "SIMCTL_CHILD_FENTON_UK_EXTRAS"})
+        self.assertEqual(env["SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS"], "reduceMotion")
+        self.assertEqual(env["PATH"], "/usr/bin")
+        self.assertEqual(record.launch_env(base, False, {})["SIMCTL_CHILD_FENTON_SYSTEM_SETTINGS"], "none")
+        with self.assertRaises(record.Refused):
+            record.launch_env(base, False, {"FENTON_HASS_TOKEN": "x"})
+
+
+class VerdictTests(unittest.TestCase):
+    """A row is a pass only when everything that gates was measured on both sides."""
+
+    def take(self, kind="slide-x", late=False, rest=800.0, onset=450.0, settle=300.0):
+        f = curves.bezier(0, 0, 0.58, 1)
+        return {"found": True, "settleMs": settle if kind != "cut" else 0.0, "leadToOnsetMs": 40.0, "overshoot": 0.0, "kind": kind, "slideRatio": 0.5,
+                "lateOnset": late or kind == "cut", "tapToRestMs": rest, "tapToOnsetMs": onset,
+                "progress": [(float(t), f(t / 300)) for t in range(0, 420, 10)] if kind != "cut" else [(0.0, 0.98), (10.0, 1.0)]}
+
+    def side(self, kind="slide-x", late=False, n=5):
+        return pair.summarize_side([self.take(kind, late) for _ in range(n)])
+
+    def test_a_fixture_polluted_row_is_never_a_pass(self):
+        row = {"pass": True, "verdict": "pass", "class": "ok", "checks": {"duration": {"pass": True}}}
+        pair.mark_polluted(row, "native drew another page")
+        self.assertFalse(row["pass"])
+        self.assertEqual((row["verdict"], row["class"]), ("fixture-polluted", "fixture-polluted"))
+        self.assertEqual(row["measured"]["verdict"], "pass")
+        self.assertEqual(row["fixtureNote"], "native drew another page")
+
+    def test_a_row_whose_curve_was_not_measured_on_a_side_is_unmeasured_not_a_pass(self):
+        ref, nat = self.side(), self.side(late=True)
+        v = pair.judge(ref, nat, pair.Tolerances())
+        self.assertEqual(v["verdict"], "unmeasured: curve")
+        self.assertFalse(v["pass"])
+        both_on_time = pair.judge(self.side(), self.side(), pair.Tolerances())
+        self.assertTrue(both_on_time["pass"])
+
+    def test_a_cut_against_a_cut_passes_only_when_the_row_expects_a_cut_and_both_sides_measured_one(self):
+        ref, nat = self.side("cut"), self.side("cut")
+        ok = pair.judge(ref, nat, pair.Tolerances(), expects_cut=True)
+        self.assertTrue(ok["pass"], ok)
+        self.assertEqual(ok["verdict"], "pass")
+        unexpected = pair.judge(ref, nat, pair.Tolerances(), expects_cut=False)
+        self.assertEqual(unexpected["verdict"], "unmeasured: cut")
+        self.assertFalse(unexpected["pass"])
+        mixed = pair.summarize_side([self.take("cut"), self.take("slide-x", late=True), self.take("slide-x", late=True), self.take("slide-x", late=True)])
+        self.assertNotEqual(mixed["kind"], "cut")
+        self.assertFalse(pair.judge(ref, mixed, pair.Tolerances(), expects_cut=True)["pass"])
+        untapped = [{**self.take("cut"), "tapToRestMs": None, "tapToOnsetMs": None} for _ in range(5)]
+        no_tap = pair.summarize_side(untapped)
+        verdict = pair.judge(no_tap, no_tap, pair.Tolerances(), expects_cut=True)
+        self.assertTrue(verdict["verdict"].startswith("unmeasured"))
+        self.assertFalse(verdict["pass"])
+
+    def test_a_cut_against_a_movement_fails_on_type(self):
+        v = pair.judge(self.side("cut"), self.side("fade"), pair.Tolerances(), expects_cut=True)
+        self.assertFalse(v["pass"])
+        self.assertIn("type", v["verdict"])
+
+    def test_the_scenario_knows_which_events_expect_a_cut(self):
+        from tools.motion_pairs import calibration
+        self.assertTrue(calibration.CONTROL.expects_cut("disable"))
+        self.assertFalse(calibration.CONTROL.expects_cut("enable"))
+        self.assertFalse(calibration.CHORES.expects_cut("push"))
 
 
 class ScenarioTests(unittest.TestCase):

@@ -66,7 +66,8 @@ def summarize_side(events: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     found = [e for e in events if e.get("found") and e.get("progress") and e.get("settleMs") is not None]
     ok = [e for e in found if not e.get("lateOnset")]
     late = sum(1 for e in found if e.get("lateOnset"))
-    out: Dict[str, Any] = {"takes": len(events), "usable": len(ok), "lateOnsetTakes": late, "found": len(found)}
+    out: Dict[str, Any] = {"takes": len(events), "usable": len(ok), "lateOnsetTakes": late, "found": len(found),
+                           "cutTakes": sum(1 for e in found if e.get("kind") == "cut")}
     tapped = [e for e in found if e.get("tapToRestMs") is not None]
     if tapped:
         rest = [e["tapToRestMs"] for e in tapped]
@@ -96,13 +97,17 @@ def summarize_side(events: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
 # MARK: - Verdict
 
 def judge(reference: Mapping[str, Any], native: Mapping[str, Any], tol: Tolerances,
-          frame_diff: Optional[Mapping[str, float]] = None) -> Dict[str, Any]:
+          frame_diff: Optional[Mapping[str, float]] = None, expects_cut: bool = False) -> Dict[str, Any]:
     """Compare two side summaries: every check with its value, its limit, whether it passed and whether it gates.
 
     ``duration`` compares the tap-to-settled time when both sides have tap times (the robust basis), else the onset-to-settled
     time. ``latency`` compares tap to first changed frame: the recorder's own start offset is the same on both sides, so the
-    difference is meaningful and the absolute value is not. The curve, overshoot and lead checks need onset-anchored takes on
-    both sides and are left out (not failed) when a side has none."""
+    difference is meaningful and the absolute value is not.
+
+    A pass needs everything that gates to have been measured on both sides. When no onset-anchored curve exists on a side the
+    verdict is ``unmeasured: curve`` and never a pass. The one exception is a cut against a cut: it passes only when the row expects
+    a cut (``expects_cut``), most takes of both sides measured as cuts, and tap times exist on both sides (a recording that
+    missed the move would otherwise read as a matching cut)."""
     tap = bool(reference.get("tapTakes") and native.get("tapTakes"))
     onset = bool(reference.get("usable") and native.get("usable"))
     if not tap and not onset:
@@ -139,8 +144,25 @@ def judge(reference: Mapping[str, Any], native: Mapping[str, Any], tol: Toleranc
     for name, check in checks.items():
         check["gate"] = name in tol.gate
     failed = [n for n, c in checks.items() if c["gate"] and not c["pass"]]
+    both_cut = kinds == ("cut", "cut")
+    if both_cut and not failed:
+        real = all(s.get("found") and s.get("cutTakes", 0) * 2 > s["found"] for s in (reference, native))
+        if not (expects_cut and real and tap):
+            why = "the row does not expect a cut" if not expects_cut else "most takes were not measured as cuts with tap times"
+            return {"pass": False, "verdict": "unmeasured: cut", "checks": checks, "class": "infra", "reason": why, "basis": "tap", "curveMeasured": False}
+    elif not onset and not failed:
+        return {"pass": False, "verdict": "unmeasured: curve", "checks": checks, "class": "infra", "basis": "tap" if tap else "onset",
+                "curveMeasured": False, "reason": "no onset-anchored curve on one side (first-frame hitch or no usable take)"}
     return {"pass": not failed, "verdict": "pass" if not failed else "fail: " + ", ".join(failed), "checks": checks,
             "class": "ok" if not failed else "motion", "basis": "tap" if tap else "onset", "curveMeasured": onset}
+
+
+def mark_polluted(row: Dict[str, Any], note: str) -> Dict[str, Any]:
+    """The two sides drew different content, so the numbers are not a motion finding: the row's verdict is ``fixture-polluted`` and it
+    never counts as a pass. What the judge made of the numbers stays under ``measured``."""
+    row["measured"] = {k: row[k] for k in ("pass", "verdict", "class") if k in row}
+    row.update({"pass": False, "verdict": "fixture-polluted", "class": "fixture-polluted", "fixtureNote": note})
+    return row
 
 
 def row_json(row: Mapping[str, Any]) -> str:

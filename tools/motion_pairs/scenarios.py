@@ -26,6 +26,8 @@ class Step:
     onset_threshold: float = 1.0
     min_frames: int = 10
     roi: Optional[Roi] = None
+    #: The row expects a swap in one frame (a cut), not a movement: only then does a measured cut against a cut count as a match.
+    expect_cut: bool = False
 
     def selector(self, side: str) -> str:
         return self.press[side] if isinstance(self.press, Mapping) else str(self.press)
@@ -52,6 +54,9 @@ class Scenario:
 
     def events(self) -> List[EventConfig]:
         return [c for c in (s.config() for s in self.steps) if c]
+
+    def expects_cut(self, event: str) -> bool:
+        return any(s.expect_cut for s in self.steps if s.event == event)
 
     def event_steps(self) -> List[int]:
         """The index of the step (and so of the tap in the recording's gesture telemetry) behind each event."""

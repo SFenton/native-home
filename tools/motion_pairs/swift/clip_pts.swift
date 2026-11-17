@@ -3,10 +3,18 @@
 import AVFoundation
 import Foundation
 
+// MARK: - Arguments
+
+/// The clip to read (a `.mov` or `.mp4`).
 let path = CommandLine.arguments[1]
 let asset = AVURLAsset(url: URL(fileURLWithPath: path))
+/// Signalled when the reading task finishes, so the process waits for it.
 let sem = DispatchSemaphore(value: 0)
+/// The JSON object printed at the end: size, rates, gap statistics and the timestamp list.
 var out: [String: Any] = [:]
+
+// MARK: - Reading
+
 Task {
     do {
         let tracks = try await asset.loadTracks(withMediaType: .video)
@@ -27,6 +35,7 @@ Task {
         var gaps: [Double] = []
         for i in 1..<max(pts.count, 1) { gaps.append(pts[i] - pts[i - 1]) }
         let sorted = gaps.sorted()
+        /// The gap at fraction `p` of the sorted gaps (0 when there are none).
         func pct(_ p: Double) -> Double { sorted.isEmpty ? 0 : sorted[min(sorted.count - 1, Int(Double(sorted.count) * p))] }
         let span = (pts.last ?? 0) - (pts.first ?? 0)
         out["file"] = path

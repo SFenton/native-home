@@ -18,6 +18,6 @@ CHORES = register(Scenario(
 
 CONTROL = register(Scenario(
     "control-calib", "Motion gallery: the primary button's enabled state", "motion",
-    [Step('label="Toggle Primary"', 1500, "disable", onset_threshold=0.02, min_frames=6, roi=(0.0, 0.27, 1.0, 0.38)),
+    [Step('label="Toggle Primary"', 1500, "disable", onset_threshold=0.02, min_frames=6, roi=(0.0, 0.27, 1.0, 0.38), expect_cut=True),
      Step('label="Toggle Primary"', 1500, "enable", onset_threshold=0.02, min_frames=6, roi=(0.0, 0.27, 1.0, 0.38))],
     native_mode="gallery"))

@@ -7,6 +7,9 @@ import AppKit
 import CoreImage
 import Foundation
 
+// MARK: - Arguments
+
+/// The command-line arguments after the program name; the clip and the output folder are taken off the front, the rest are times and options.
 var args = Array(CommandLine.arguments.dropFirst())
 let clip = args.removeFirst(); let outDir = args.removeFirst()
 var width = 0.0
@@ -17,8 +20,13 @@ while i < args.count {
 }
 times.sort()
 try? FileManager.default.createDirectory(atPath: outDir, withIntermediateDirectories: true)
+// MARK: - Writing frames
+
+/// The clip being read.
 let asset = AVURLAsset(url: URL(fileURLWithPath: clip))
+/// Converts a decoded frame to an image for the PNG.
 let ci = CIContext()
+/// Writes `pb` as a PNG at `name`, scaled to `width` points wide when `width` is set.
 func write(_ pb: CVPixelBuffer, _ name: String) {
     var img = CIImage(cvPixelBuffer: pb)
     if width > 0 { let s = width / img.extent.width; img = img.transformed(by: CGAffineTransform(scaleX: s, y: s)) }
@@ -26,6 +34,9 @@ func write(_ pb: CVPixelBuffer, _ name: String) {
     let rep = NSBitmapImageRep(cgImage: cg)
     try? rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: name))
 }
+// MARK: - Sequential decode
+
+/// Signalled when the decoding task finishes, so the process waits for it.
 let sem = DispatchSemaphore(value: 0)
 Task {
     let track = try! await asset.loadTracks(withMediaType: .video).first!
