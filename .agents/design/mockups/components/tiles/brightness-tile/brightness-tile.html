@@ -5,41 +5,81 @@
 <link rel="stylesheet" href="../../../_kit/kit.css">
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../components/media/_media-lights-cameras.js"></script>
+<script src="../_tile-contract.js"></script>
 </head><body>
 <script>
 (function () {
   var h = Mock.h, K = Mock.components;
-  function t(o) { return function () { return h('div', { style: { width: '220px', position: 'relative', paddingTop: o && o.dragging ? '30px' : '0' } }, MLC.lightTile(o)); }; }
+  function t(o) { return function () {
+    var tile = MLC.lightTile(Object.assign({}, o, { dragging: false }));
+    if (o && o.dragging) TC.drag(tile, o.percent / 100, o.percent + '%');
+    return h('div', { style: { width: '220px', position: 'relative', paddingTop: o && o.dragging ? '44px' : '0' } }, tile); }; }
+  /* ---- the native tile contract (lane NT6 and NT7; helpers in ../_tile-contract.js) ---- */
+  /** A tile in a box of the tile's own width, with room above for the bubble. */
+  function box(tile, w, pad) { return h('div', { style: { width: w + 'px', maxWidth: '100%', position: 'relative', paddingTop: (pad == null ? 44 : pad) + 'px' } }, tile); }
+  function light(pct, x) { return K.BrightnessTile(Object.assign({ title: 'Table Light', percent: pct }, x || {})); }
+  /** One swipe sample at the three tile widths the grid makes: the folded Duo, iPhone and iPad (measured stills, native-tilecontract-fba79957). */
+  function widths(ctx, label, frac, text, o) {
+    return MLC.grid([['iPhone Duo folded', 170], ['iPhone', 179], ['iPad', 192]].map(function (d) {
+      return MLC.sw(ctx, 'page', d[0] + ', tile ' + d[1] + ' pt · ' + label, box(TC.drag(light(Math.round(frac * 100)), frac, text, o), d[1], o && o.ax ? 60 : 44), { flex: '0 0 auto' });
+    }));
+  }
+  /** The same node on a page and in a sheet, each drawn from a document with or without `sh.tile-ink-default@1`. */
+  function inkPair(ctx, label, make) {
+    return MLC.grid([false, true].map(function (on) { return MLC.sw(ctx, 'page', label + (on ? ' · the document declares the id' : ' · no id (today\'s ink)'), TC.ink(box(make(), 220, 0), on), { flex: '0 0 auto' }); })
+      .concat([false, true].map(function (on) { return MLC.sw(ctx, 'sheet', label + (on ? ' · the document declares the id' : ' · no id (today\'s ink)'), TC.ink(box(make(), 220, 0), on), { flex: '0 0 auto' }); })));
+  }
+  var WORDS = { off: 'Dark', level: '{value} percent' };
   function both(ctx, label, o, extra) { return MLC.grid([MLC.sw(ctx, 'page', label, t(o)(), { flex: '0 0 auto', note: extra }), MLC.sw(ctx, 'sheet', label, t(o)(), { flex: '0 0 auto' })]); }
   function G(items) { return function (ctx) { return MLC.stack(items.map(function (x) { return both(ctx, x[0], x[1], x[2]); })); }; }
 
   Mock.mount({
     kind: 'component', id: 'brightness-tile', title: 'Brightness tile (the light dragger)', area: 'tiles', status: 'shipped', frame: false,
-    summary: 'A dimmable light as the warm lit tile whose bright band is the brightness. Tap flips power (or opens the light\'s details, with a chevron); a horizontal drag sets brightness, a "30%" bubble floats over the band edge, the tile lifts, a haptic ticks every 10%.',
-    source: ['apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift'],
-    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md'],
-    patterns: ['entity-tile'], hig: ['Sliders', 'Buttons', 'Playing haptics'], entities: ['light.demo_front_door_door_8'],
+    summary: 'A dimmable light as the warm lit tile whose bright band is the brightness. Tap flips power (or opens the light\'s details, with a chevron); a horizontal drag sets brightness, a "30%" bubble floats over the band edge, the tile lifts, a haptic ticks every 10%. The drag is the shared tile swipe (sh.tile-swipe@1): absolute, one call on release. Its words can be authored (sh.state-words@1) and its off ink follows the document (sh.tile-ink-default@1).',
+    source: ['apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassDesign/TileSwipe.swift', 'apple/Sources/HassDesign/TileInkDefault.swift', 'apple/Sources/HassDesign/TileFaceInk.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKBrightnessTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/CustomLights/CustomLightsScreen.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md', '.agents/patterns/tile-swipe.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
+    patterns: ['entity-tile', 'tile-swipe'], hig: ['Sliders', 'Gestures', 'Buttons', 'Playing haptics', 'Right to left', 'Accessibility'], entities: ['light.demo_front_door_door_8'],
     kitComponents: ['GlassTile', 'BrightnessTile'], devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
     states: {
       'on': { title: 'On at 80% (opens details) and 41%', note: 'status line "80%" (not "On at 80%": the kit\'s BrightnessTile says that, the app does not); chevron when tap opens the sheet', render: G([['80%, opens details', { title: 'Bollard 1', percent: 80, open: true }], ['41%, power tile (no chevron)', { title: 'Bollard 5', percent: 41 }]]) },
       'off': { title: 'Off', note: 'the off face: status "Off"', render: G([['off', { title: 'Bollard 6', percent: 0, open: true }]]) },
       'colour': { title: 'Colour fill (a coloured bulb tints the band)', note: 'the band takes the light\'s rgb_color, never past dark-ink contrast', render: G([['red', { title: 'Bollard 2', percent: 71, rgb: [255, 0, 0], open: true }], ['green', { title: 'Left Door Light', percent: 100, rgb: [0, 255, 0], open: true }], ['blue', { title: 'Right Door Light', percent: 90, rgb: [0, 0, 255], open: true }]]) },
       'dragging': { title: 'Dragging: lifted, bubble', note: 'scale 1.03 and a shadow; with Reduce Motion only the shadow and bubble', render: G([['drag to 30%', { title: 'Bollard 2', percent: 30, rgb: [255, 0, 0], dragging: true, open: true }]]) },
+      'swipe-track': { title: 'Swipe tracking: the bubble at the minimum, over the band\'s edge and at the maximum', note: 'absolute tracking: the band\'s edge is under the finger, snapped to the step and clamped. The bubble is a 60 x 32 pt capsule centred 24 pt above the tile (8 pt clear), over the band\'s edge and kept inside the tile: "Off" flush with the leading edge, "100%" 68 x 32 pt flush with the trailing edge. Nothing is sent until release, and only if the value changed',
+        render: function (ctx) { return MLC.stack([widths(ctx, 'minimum', 0, 'Off'), widths(ctx, '55%', .55, '55%'), widths(ctx, 'maximum', 1, '100%')]); } },
+      'swipe-detents': { title: 'Detents: one selection tick per line', note: 'the app draws no marks; the ruler is an annotation. A tick plays each time the snapped value crosses a detent line (min + k x detent, both ends included), never on the first sample and at most one per touch sample. Brightness: 0 to 100, step 1, detent 10. A contract detent is a multiple of the step with at most 25 across the range',
+        render: function (ctx) { function d() { return TC.withRuler(TC.drag(light(50), .5, '50%'), 10); } return MLC.grid([MLC.sw(ctx, 'page', 'detent 10: 11 lines', h('div', { style: { width: '220px' } }, d()), { flex: '0 0 auto' }), MLC.sw(ctx, 'sheet', 'detent 10: 11 lines', h('div', { style: { width: '220px' } }, d()), { flex: '0 0 auto' })]); } },
+      'swipe-edges': { title: 'Right to left, and the top of the scroller', note: 'right to left mirrors the band and the mapping, so the minimum stays on the leading edge; digits are never reversed. With less than 44 pt above the tile inside the visible scroll area the bubble moves down only as far as it must (4 pt inside the scroller\'s top), over the tile, never below it',
+        render: function (ctx) { return MLC.grid([MLC.sw(ctx, 'page', 'right to left, 30%', box(TC.drag(light(30), .3, '30%', { rtl: true }), 179), { flex: '0 0 auto' }), MLC.sw(ctx, 'page', 'top row: the bubble overlaps the tile', box(TC.drag(light(55), .55, '55%', { top: -14 }), 179, 18), { flex: '0 0 auto' })]); } },
+      'swipe-ax5': { title: 'Swipe at accessibility text sizes', override: { ts: 'ax5' }, note: 'the bubble is 44 pt tall and at least 84 pt wide, its centre 30 pt above the tile so the gap stays 8 pt',
+        render: function (ctx) { return MLC.grid([MLC.sw(ctx, 'page', '55%', h('div', { style: { width: '100%', position: 'relative', paddingTop: '60px' } }, TC.drag(light(55), .55, '55%', { ax: true })))]); } },
+      'state-words': { title: 'State words (sh.state-words@1)', note: 'authored words replace the app\'s in the state line, the spoken value and the swipe bubble: here When Off "Dark" and Level Text "{value} percent". An absent key draws the app\'s word (Off, 45%, Unavailable), so a tile with no words is unchanged',
+        render: function (ctx) {
+          function sw(label, node, pad) { return MLC.sw(ctx, 'page', label, box(node, 220, pad || 0), { flex: '0 0 auto' }); }
+          return MLC.stack([MLC.grid([sw('authored level: "60 percent"', TC.wordTile({ title: 'Table Light', percent: 60 }, WORDS)), sw('authored off: "Dark"', TC.wordTile({ title: 'Table Light', percent: 0 }, WORDS)), sw('no unavailable word: the app\'s', TC.wordTile({ title: 'Table Light', percent: 0, unavailable: true }, WORDS))]),
+            MLC.grid([sw('swiped to 0: the bubble says "Dark"', TC.drag(TC.wordTile({ title: 'Table Light', percent: 0 }, WORDS), 0, 'Dark', { status: false }), 44), sw('swiped to 40', TC.drag(TC.wordTile({ title: 'Table Light', percent: 40 }, WORDS), .4, '40 percent', { status: false }), 44), sw('no words: the app\'s text', TC.wordTile({ title: 'Table Light', percent: 60 }, null))])]); } },
+      'ink': { title: 'Tile ink (sh.tile-ink-default@1)', note: 'under a document that declares the id the off tile\'s state line is the primary ink (white on a page and a dark sheet, black on a light sheet: use the Appearance control) and its bulb keeps the lights tint. The lit tile keeps its ink. An unavailable tile stays grey: the glyph at 50% and today\'s state line. A document without the id draws today\'s ink',
+        render: function (ctx) { return MLC.stack([inkPair(ctx, 'off', function () { return light(0, { chevron: true }); }), inkPair(ctx, 'unavailable', function () { return light(0, { chevron: true, unavailable: true }); }), inkPair(ctx, 'on (unchanged)', function () { return light(70, { chevron: true }); })]); } },
       'unavailable': { title: 'Unavailable', note: 'status "Unavailable", glyph dims, no touch', render: G([['unavailable', { title: 'Back Deck Light', percent: 0, unavailable: true, open: true }]]) },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the stacked tile; the status stays one line', render: G([['80%', { title: 'Bollard 1', percent: 80, open: true }]]) },
     },
     motion: [
       { id: 'drag', what: 'A horizontal drag: the tile lifts, the band and bubble follow the finger, a haptic ticks every 10%', token: 'quick 0.2 s easeOut for the band and bubble, 1.03 lift', source: 'BrightnessTile.swift motionSafeAnimation(quick); motion-components.md BrightnessTile (done)', reduce: 'no scale: shadow and bubble fade; the band jumps', state: 'on',
         play: function (stage) { return MLC.drag(stage.querySelector('.ui-tile.lit'), [80, 55, 25, 60, 95, 80]); } },
+      { id: 'swipe-detents', what: 'A swipe across the detents: the band and bubble follow each sample with no animation, a selection tick at each 10% line, one call on release', token: 'none while tracking; the lift, and the bubble and lift leaving on release: quick 0.2 s', source: 'UKTileSwipeController; TileSwipe.swift (snap, detent lines); UKTapFeedback.step()', reduce: 'no scale: the shadow only; the bubble fades in 0.2 s', state: 'swipe-detents',
+        play: function (stage) { return TC.play(stage.querySelector('.ui-tile'), [[.5, '50%'], [.6, '60%'], [.7, '70%'], [.8, '80%'], [.6, '60%'], [.3, '30%'], [.1, '10%'], [0, 'Off'], [.2, '20%'], [.5, '50%']]).then(function () { TC.drag(stage.querySelector('.ui-tile'), .5, '50%'); }); } },
       { id: 'power', what: 'Tap flips power: optimistic full, then the restored level arrives', token: 'quick 0.2 s on the band; the face colour on state 0.6 s', source: 'BrightnessInteraction.flip; pendingTimeout 4 s', reduce: 'unchanged (no movement)', state: 'on',
         play: function (stage) { var tile = stage.querySelectorAll('.ui-tile.lit')[1], band = tile.querySelector('.band'), st = tile.querySelector('.st'); band.style.width = '0%'; st.textContent = 'Off'; return Mock.sleep(900).then(function () { band.style.width = '100%'; st.textContent = '100%'; return Mock.sleep(700); }).then(function () { band.style.width = '41%'; st.textContent = '41%'; return Mock.sleep(500); }); } },
     ],
     a11y: [
       { rule: 'Element', note: 'One adjustable button: label the light, value "71%", "Off" or "Unavailable", hint "Double-tap for details. Swipe up or down to adjust brightness." (or "Double-tap to turn on or off" without a chevron).' },
+      { rule: 'Named actions', note: 'Beside the adjustable trait the tile offers "Increase {title}" and "Decrease {title}". Each moves one detent, clamped, and sends one call. An unavailable tile, or one whose swipe is absent, has no adjustable trait, no hint and no actions.' },
+      { rule: 'Words', note: 'The spoken value is the drawn word: an authored "Dark" or "60 percent" is read as written.' },
       { rule: 'Adjust', note: 'Swipe up or down steps by 10% (clamped 0 to 100) and sends once; where tap opens details a 44 pt power button ("Turn On/Off {title}") sits where the chevron was, and the VoiceOver action is not repeated.' },
       { rule: 'Drag', note: 'Only a mostly horizontal pan sets brightness; a vertical one scrolls the page (a UIKit pan from iOS 18).' },
       { rule: 'Not colour alone', note: 'Level is shown as the band, the percentage and Off or Unavailable words; the bubble is hidden from VoiceOver (the value is read).' },
-      { rule: 'Targets and type', note: '72 pt tall minimum; the bubble caps its type at xxLarge.' },
+      { rule: 'Targets and type', note: '72 pt tall minimum; the bubble caps its type at xxLarge and grows to 44 pt tall and 84 pt wide at accessibility sizes.' },
+      { rule: 'Contrast', note: 'The primary state line on the off face is 13.9:1 on the dark sheet cell and 21:1 on the light one (computed); the unavailable grey marks a tile that takes no input and never stands alone: the line says Unavailable.' },
     ],
     reviews: {
       date: '2026-10-23',
@@ -57,8 +97,10 @@
         { by: 'swiftui-pro skill', rule: 'views.md: no timing heuristics for gesture disambiguation', verdict: 'pass', note: 'Fixed: the clock is gone; BrightnessDrag holds the tap and drag as one gesture with precedence (iOS 18 UIKit pan cancels the tap; elsewhere DragGesture.exclusively(before: TapGesture)).' },
       ],
     },
-    notes: ['Kit gap: Mock.components.BrightnessTile draws "On at 70%" and has no chevron; the app draws "70%" (BrightnessTile.status) and a chevron with onOpen. This page uses MLC.lightTile; promote to kit.', 'The unavailable tile is the off face with the glyph at 50%.', 'The lit tile\'s cream and band colours are the kit tokens (direction-g.md "Lit tiles").'],
-    changelog: [{ date: '2026-10-23', note: 'First pass.' }],
+    notes: ['Kit gap: Mock.components.BrightnessTile draws "On at 70%" and has no chevron; the app draws "70%" (BrightnessTile.status) and a chevron with onOpen. This page uses MLC.lightTile; promote to kit.', 'The unavailable tile is the off face with the glyph at 50%.', 'The lit tile\'s cream and band colours are the kit tokens (direction-g.md "Lit tiles").',
+      'Tile contract (lanes NT6 and NT7, head fba79957): the swipe, words and ink states are drawn from the hosted stills (build/evidence/screens/native-tilecontract-fba79957, iPhone simulator at tile widths 170, 179 and 192 pt) and the hosted tests on the three families. No device run of the swipe yet. Helpers: components/tiles/_tile-contract.js (promote to kit).',
+      'The swipe proposal is proposals/tile-swipe; the ink and words proposal is proposals/sim-fidelity-contract (both decided).'],
+    changelog: [{ date: '2026-11-16', note: 'Native tile contract: swipe tracking with the measured bubble at the three tile widths, detents, right to left, the top row, the accessibility bubble, state words and the tile ink. The dragging state uses the measured bubble offset.' }, { date: '2026-10-23', note: 'First pass.' }],
   });
 })();
 </script></body></html>
