@@ -62,6 +62,9 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
     /// The latest `configure` a republish asked for while the finger was down, run once it lifts (C8).
     private var deferred: (() -> Void)?
 
+    /// Why the last drag was dropped without sending ("resign", "width 170.0 to 171.0", "detach"); tests and diagnostics read it.
+    private(set) var lastCancelReason: String?
+
     /// Whether the finger is down. The tile's republish guard reads it (`hasActiveInteraction`).
     var isDragging: Bool { dragValue != nil }
 
@@ -80,7 +83,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         bubble.alpha = 0
         bubble.isUserInteractionEnabled = false
         resignObserver = NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.cancel() }
+            MainActor.assumeIsolated { self?.cancel(reason: "resign") }
         }
     }
 
@@ -90,7 +93,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
 
     /// Detaches the pan and the bubble.
     func detach() {
-        cancel()
+        cancel(reason: "detach")
         host?.removeGestureRecognizer(pan)
         bubble.removeFromSuperview()
     }
@@ -160,8 +163,9 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
     }
 
     /// Drops the drag without sending: a scroll, an edge swipe, a rotation, a fold or the app leaving the foreground (C7).
-    func cancel() {
+    func cancel(reason: String = "cancel") {
         guard isDragging else { return }
+        lastCancelReason = reason
         pan.isEnabled = false
         pan.isEnabled = true
         finish()
@@ -183,7 +187,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
 
     /// A host whose width changed under the finger (a fold, a posture change, a split) drops the drag (C7).
     func hostDidLayout(width newWidth: CGFloat) {
-        if isDragging, abs(newWidth - width) > 0.5 { cancel() }
+        if isDragging, abs(newWidth - width) > 0.5 { cancel(reason: "width \(width) to \(newWidth)") }
     }
 
     // MARK: Look

@@ -635,7 +635,9 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        swipe?.hostDidLayout(width: bounds.width)
+        // The room the container gave the tile, not its bounds: a container that sets the frame of a tile lifted by the swipe's 1.03 scale leaves it
+        // with `bounds` 1.03 times smaller, and that is no change of window.
+        swipe?.hostDidLayout(width: bounds.width * transform.a)
         let placement = placement(width: bounds.width)
         let content = swipedContent(placement)
         if face.content != content { face.apply(content, environment: environment, animated: false) }

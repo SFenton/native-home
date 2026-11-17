@@ -357,8 +357,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
         var environment = UKTileEnvironment()
         environment.surface = surface
         environment.inkDefault = ink
-        let model = UKGlassTileModel(title: "Fan", subtitle: "Off", symbol: "fan", family: family, isActive: false, isUnavailable: unavailable, kind: kind)
-        var model = model
+        var model = UKGlassTileModel(title: "Fan", subtitle: "Off", symbol: "fan", family: family, isActive: false, isUnavailable: unavailable, kind: kind)
         model.isWarning = warning
         let tile = UKGlassTileView(model: model, environment: environment)
         let host = UIViewController()

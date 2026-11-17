@@ -166,22 +166,47 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         }
     }
 
-    func testAChangeDuringADragWaitsForTheFingerAndConfigureRunsOnceAfter() async throws {
+    /// C8, the user's case: the house sends a new state with a new word while a finger is on the tile. Nothing about the tile changes under the
+    /// finger, its width included; the drag stays live and the new state is drawn on release.
+    func testAChangeWithANewWordDuringADragWaitsForTheFingerAndIsDrawnOnRelease() async throws {
         for width in Self.widths {
             let r = try await rig(width: width, revert: 30)
             defer { r.window.isHidden = true }
-            drag(r, [0.2, 0.5], end: .possible)
-            let before = r.tile.configureCount
-            r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+            r.window.layoutIfNeeded()
             await HostedPage.pump(passes: 5)
-            XCTAssertEqual(r.tile.configureCount, before, "no configure while the finger is down (C8, width \(width))")
-            XCTAssertNotEqual(r.tile.model.subtitle, "Closing", "the held model is not drawn yet")
+            let tileWidth = r.tile.bounds.width
+            drag(r, [0.2, 0.5], end: .possible)
+            XCTAssertTrue(r.controller.isDragging, "the finger is down (width \(width))")
+            let heldSubtitle = r.tile.model.subtitle
+            let heldProgress = try XCTUnwrap(r.tile.model.progress)
+            r.store.apply([EntityState(entityId: Self.blinds, state: "closing", attributes: ["current_position": .number(20)])])
+            await HostedPage.pump(passes: 8)
+            XCTAssertTrue(r.controller.isDragging, "the drag stays live (width \(width)): \(r.controller.lastCancelReason ?? "not cancelled")")
+            XCTAssertEqual(r.tile.bounds.width * r.tile.transform.a, tileWidth, accuracy: 0.5, "the tile keeps the room it was given under the finger")
+            XCTAssertEqual(r.tile.model.subtitle, heldSubtitle, "the held subtitle is drawn")
+            XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), heldProgress, accuracy: 0.001, "the held band is drawn")
             drag(r, [0.5], end: .cancelled)
-            let applied = await HostedPage.settle { r.tile.configureCount > before }
-            XCTAssertTrue(applied, "the latest model is applied when the finger lifts")
+            let applied = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 }
+            XCTAssertTrue(applied, "the new state is drawn after release (width \(width))")
             XCTAssertEqual(r.caller.calls, [], "a cancelled drag sends nothing")
             HostedPage.hideTracked()
         }
+    }
+
+    /// A value-only change (same word) during a drag: the band holds, then follows.
+    func testAValueOnlyChangeDuringADragHoldsTheBandUntilRelease() async throws {
+        let r = try await rig(width: 393, revert: 30)
+        defer { r.window.isHidden = true }
+        r.window.layoutIfNeeded()
+        await HostedPage.pump(passes: 5)
+        drag(r, [0.2, 0.5], end: .possible)
+        r.store.apply([EntityState(entityId: Self.blinds, state: "open", attributes: ["current_position": .number(20)])])
+        await HostedPage.pump(passes: 8)
+        XCTAssertTrue(r.controller.isDragging, r.controller.lastCancelReason ?? "")
+        XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.4, accuracy: 0.001)
+        drag(r, [0.5], end: .cancelled)
+        let applied = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 }
+        XCTAssertTrue(applied)
     }
 
     func testEnabledWhenSaysNoAndTheTileTakesNoDragNoStepAndSendsNothing() async throws {
@@ -232,11 +257,11 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             let element = try XCTUnwrap(body(r.tile))
             element.accessibilityIncrement()
             _ = await HostedPage.settle { r.caller.calls.count == 1 }
-            XCTAssertEqual(sent(r.caller), [41], "one step up through the renderer (width \(width))")
+            XCTAssertEqual(sent(r.caller), [50], "one detent up (10) through the renderer (width \(width))")
             let action = try XCTUnwrap(element.accessibilityCustomActions?.last)
             _ = action.actionHandler?(action)
             _ = await HostedPage.settle { r.caller.calls.count == 2 }
-            XCTAssertEqual(sent(r.caller), [41, 40], "the named action steps from the value the tile shows, not the stale live one")
+            XCTAssertEqual(sent(r.caller), [50, 40], "the named action steps from the value the tile shows, not the stale live one")
             HostedPage.hideTracked()
         }
     }
