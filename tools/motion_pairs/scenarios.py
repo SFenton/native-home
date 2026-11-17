@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Mapping, Optional
 
-from .progress import EventConfig, Roi
+from .curves import EventConfig, Roi
 
 REFERENCE = "reference"
 NATIVE = "native"

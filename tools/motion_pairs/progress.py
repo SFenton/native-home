@@ -9,24 +9,13 @@ few, a cross-fade has all of them).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from . import curves
 
-Roi = Tuple[float, float, float, float]  # x0, y0, x1, y1 as fractions of the frame
-
-
-@dataclass
-class EventConfig:
-    """How to find one event in a clip. ``onset_threshold`` is the mean frame-to-frame change (0 to 255) that starts it:
-    1.0 for a full-screen move (a button highlight changes less), far lower for a small control, with ``roi`` cropping to it."""
-    name: str
-    onset_threshold: float = 1.0
-    min_frames: int = 10
-    roi: Optional[Roi] = None
+from .curves import EventConfig, Roi  # noqa: E402,F401  (pure module, so scenarios need no numpy)
 
 
 def crop(frames: np.ndarray, roi: Optional[Roi]) -> np.ndarray:

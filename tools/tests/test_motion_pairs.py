@@ -300,13 +300,13 @@ class TapAnchorTests(unittest.TestCase):
         self.assertEqual(v["checks"]["duration"]["basis"], "onset to settled")
 
     def test_load_taps_reads_the_telemetry_beside_the_clip(self):
-        from tools.motion_pairs import analyze
+        from tools.motion_pairs import taps
         with TemporaryDirectory() as tmp:
             clip = Path(tmp) / "reference-1.mp4"
             (Path(tmp) / "reference-1.gesture-telemetry.json").write_text(json.dumps(
                 {"events": [{"kind": "tap", "tMs": 1500.5}, {"kind": "swipe", "tMs": 2000}, {"kind": "tap", "tMs": 3800}]}))
-            self.assertEqual(analyze.load_taps(clip), [1500.5, 3800.0])
-            self.assertIsNone(analyze.load_taps(Path(tmp) / "other.mp4"))
+            self.assertEqual(taps.load_taps(clip), [1500.5, 3800.0])
+            self.assertIsNone(taps.load_taps(Path(tmp) / "other.mp4"))
 
     def test_event_steps_name_the_tap_behind_each_event(self):
         sc = Scenario("s", "s", "p", [Step("a", event="x"), Step("b"), Step("c", event="y")])

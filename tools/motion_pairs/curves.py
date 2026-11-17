@@ -13,6 +13,17 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 
 Series = Sequence[Tuple[float, float]]
+Roi = Tuple[float, float, float, float]  # x0, y0, x1, y1 as fractions of the frame
+
+
+@dataclass
+class EventConfig:
+    """How to find one event in a clip. ``onset_threshold`` is the mean frame-to-frame change (0 to 255) that starts it:
+    1.0 for a full-screen move (a button highlight changes less), far lower for a small control, with ``roi`` cropping to it."""
+    name: str
+    onset_threshold: float = 1.0
+    min_frames: int = 10
+    roi: Optional[Roi] = None
 
 #: A change that settles this fast after its onset (a frame or two at the recorder's pace) is a cut, not a movement.
 CUT_MS = 25.0

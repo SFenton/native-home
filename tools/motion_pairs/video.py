@@ -14,7 +14,6 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Tuple
 
-import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
@@ -36,8 +35,10 @@ def tool(name: str) -> Path:
     return out
 
 
-def load_gray(clip: Path, width: int = 120, scratch: Path = None) -> Tuple[np.ndarray, np.ndarray]:
+def load_gray(clip: Path, width: int = 120, scratch: Path = None) -> Tuple["np.ndarray", "np.ndarray"]:
     """``(pts_ms, frames)``: ``pts_ms`` shape (n,), ``frames`` uint8 (n, h, w), pts 0 at the first sample."""
+    import numpy as np
+
     binary = Path(scratch or tools_dir()) / (Path(clip).stem + ".gray.bin")
     binary.parent.mkdir(parents=True, exist_ok=True)
     done = subprocess.run([str(tool("clip_gray")), str(clip), str(binary), str(width)], capture_output=True, text=True)

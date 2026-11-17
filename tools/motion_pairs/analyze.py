@@ -10,9 +10,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-import numpy as np
-
 from . import curves, pair, progress, report, video
+from .taps import load_taps
 from .scenarios import NATIVE, REFERENCE, SIDES, Scenario
 
 
@@ -29,18 +28,6 @@ def analyze_clip(clip: Path, scenario: Scenario) -> Dict[str, Any]:
                 event["tapToOnsetMs"] = event["onsetMs"] - tap
                 event["tapToRestMs"] = event["onsetMs"] + event["settleMs"] - tap
     return {"clip": str(clip), "pts": pts, "frames": frames, "events": events, "pace": video.pts_stats(clip), "taps": taps}
-
-
-def load_taps(clip: Path) -> Optional[List[float]]:
-    """Tap times (ms on the recorder's start clock) from the ``<clip>.gesture-telemetry.json`` agent-device writes beside the clip.
-    That clock runs a roughly constant 0.5 to 0.8 s ahead of the clip's own (the recorder starts after its start time is written), so
-    only differences between the two sides' tap-anchored times mean anything. ``None`` when the file is missing or unreadable."""
-    path = clip.with_name(clip.stem + ".gesture-telemetry.json")
-    try:
-        events = json.loads(path.read_text(encoding="utf-8")).get("events", [])
-    except (OSError, ValueError):
-        return None
-    return [float(e["tMs"]) for e in events if e.get("kind") == "tap" and "tMs" in e]
 
 
 def representative(takes: Sequence[Dict[str, Any]], index: int) -> Optional[Dict[str, Any]]:
@@ -101,6 +88,8 @@ def _trajectory(take: Optional[Dict[str, Any]], index: int) -> Optional[Dict[str
 
 
 def _plain(value: Any) -> Any:
+    import numpy as np
+
     if isinstance(value, (np.floating, np.integer)):
         return value.item()
     if isinstance(value, np.ndarray):
