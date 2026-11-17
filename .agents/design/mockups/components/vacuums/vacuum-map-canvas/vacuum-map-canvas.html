@@ -6,20 +6,28 @@
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../modals/room-devices/_devices-vacuums.js"></script>
 <script src="../../../modals/vacuums/_devices-vacuums.js"></script>
+<script src="../../../modals/vacuums/_map-controls.js"></script>
 </head><body>
 <script>
 (function () {
   var h = Mock.h, K = Mock.components, dv = Mock.dv, vac = dv.vac;
   function card(o) { return function () { return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, vac.mapCard(o), o.after || null); }; }
+  var MC = vac.mapControls, B = MC.B;
+  var ROW = MC.DEFAULT.concat([{ corner: 'top-trailing', axis: 'row', buttons: [B.lights, B.fan, B.outlet] }]);
+  var COLUMN = MC.DEFAULT.concat([{ corner: 'bottom-leading', axis: 'column', buttons: [B.lights, B.fan] }]);
+  var EIGHT = [{ corner: 'top-trailing', axis: 'column', buttons: [B.lights, B.fan, B.outlet, B.night, B.day, B.purifier, B.humidifier, B.plants] }];
+  var STATE = MC.DEFAULT.concat([{ corner: 'top-trailing', axis: 'row', buttons: [B.clean, B.lights, B.fan] }]);
+  var RUN = { map: 'main', selected: ['kitchen', 'living_room'], robot: [220, 110], path: [[40, 50], [110, 80], [170, 40], [240, 90], [220, 110]] };
+  function mc(c, o) { return Object.assign({ map: 'main', selected: [], robot: 'dock' }, o, { controls: c }); }
   function sw(label, o, note, w) { return { label: label, surface: 'sheet', w: w || 340, build: card(o), note: note }; }
 
   Mock.mount({
-    kind: 'component', id: 'vacuum-map-canvas', title: 'Valetudo map canvas and map frame', area: 'vacuums', status: 'shipped', frame: false,
-    summary: 'The vacuum map as direction G draws it (decided 2026-10-28: no room names): flat neutral rooms on a #262628 card, selected rooms white with black numbered badges, skipped rooms hatched, the robot, dock and path, and the loading and unavailable fallbacks. Always dark, in both appearances.',
+    kind: 'component', id: 'vacuum-map-canvas', title: 'Valetudo map canvas and map frame', area: 'vacuums', status: 'in-flight:t3/native-ingest', frame: false,
+    summary: 'The vacuum map as direction G draws it (decided 2026-10-28: no room names): flat neutral rooms on a #262628 card, selected rooms white with black numbered badges, skipped rooms hatched, the robot, dock and path, the loading and unavailable fallbacks, the map\'s flip, and the corner button groups over the card. Always dark, in both appearances.',
     source: ['apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassCore/Vacuums/ValetudoMap.swift', 'apple/Sources/HassCore/Vacuums/ValetudoMapStyle.swift', 'apple/Sources/HassCore/Vacuums/ValetudoMapGeometry.swift', 'apple/Sources/HassCore/Vacuums/ValetudoMapFocus.swift'],
     spec: ['.agents/patterns/valetudo-map.md', '.agents/design/direction-g.md'],
     patterns: ['valetudo-map', 'vacuum-sheet'],
-    hig: ['Color', 'Accessibility', 'Gestures', 'Dark Mode'],
+    hig: ['Color', 'Accessibility', 'Gestures', 'Dark Mode', 'Buttons', 'Menus', 'Materials'],
     entities: ['camera.demo_lower_deck_camera_item_1', 'camera.demo_example_1', 'camera.demo_example_2'],
     kitComponents: ['ArcSpinner', 'InlineAlert', 'NavigationGlass'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
@@ -35,6 +43,20 @@
       'area': { title: 'Cleaning area', render: function (ctx) { return dv.swatches(ctx, [sw('Area outline', { map: 'main', selected: [], robot: 'dock', area: { x: 24, y: 24, w: 150, h: 120 } }, 'action blue at 22% fill and a 2 pt stroke'), sw('With corner handles', { map: 'main', selected: [], robot: 'dock', area: { x: 24, y: 24, w: 150, h: 120 }, handles: true }, '16 pt white discs with a blue ring; 22 pt hit radius')], ['sheet']); } },
       'frame': { title: 'Map frame', render: function (ctx) { return dv.swatches(ctx, [sw('Default (max height 300 pt) with Locate', { map: 'music', selected: ['music_room'], robot: 'dock', title: 'Studio' }, 'a glass 44 pt circle at the top leading corner asks the robot to play a sound'),
         sw('Cleaning (grown to 460 pt)', { map: 'main', selected: ['kitchen', 'living_room'], robot: [220, 110], big: true }, 'while a run is going the controls collapse and the map takes the space'), sw('Unavailable: no Locate', { map: 'main', selected: [], robot: 'dock', locate: false })], ['sheet']); } },
+      'controls': { title: 'Corner button groups', render: function (ctx) { return dv.swatches(ctx, [sw('Nothing authored: Locate alone', mc({}), 'today\'s map: one 44 pt glass circle, 8 pt from the top and leading edges'),
+        sw('A row of three at top trailing', mc({ groups: ROW }), 'one glass capsule, 132 by 44 pt, 8 pt in; buttons in the authored order; taps beside a group reach the map'),
+        sw('A column of two at bottom leading', mc({ groups: COLUMN }), 'one capsule, 44 by 88 pt; a group of one is a circle and counts as a column')], ['sheet']); } },
+      'orientation': { title: 'Orientation: the flip', render: function (ctx) { return dv.swatches(ctx, [sw('No flip', mc({}, RUN), 'Kitchen is 1 and Living Room is 2 in all four'), sw('Flip Horizontally', mc({ flipH: true }, RUN), 'the picture, path, robot and dock mirror together after the rotation; taps land on what is drawn'),
+        sw('Flip Vertically', mc({ flipV: true }, RUN)), sw('Both', mc({ flipH: true, flipV: true }, RUN), 'badges stay upright on their rooms; Locate stays at top leading'),
+        sw('Flipped, a skipped room', mc({ flipH: true }, { skipped: ['guest_room', 'gym'] }), 'hatching keeps its on-screen direction')], ['sheet']); } },
+      'more': { title: 'More: buttons that do not fit', render: function (ctx) { return dv.swatches(ctx, [sw('A column of eight on a 200 pt card', mc({ groups: EIGHT, height: 200 }), 'the card fits four slots (184 pt over 44 pt), so it draws three buttons and More (the ellipsis)', 420),
+        sw('More, open', mc({ groups: EIGHT, height: 200, menu: 'top-trailing' }, { after: h('div', { style: { height: '120px' } }) }), 'a system menu of the other five, in order, each with its label and symbol; opens on touch down (a stand-in: the stills do not capture it)', 420),
+        sw('Two groups on one edge', mc({ groups: [{ corner: 'top-leading', axis: 'row', buttons: [B.locate, B.clean, B.lights, B.fan, B.outlet] }, { corner: 'top-trailing', axis: 'row', buttons: [B.night, B.day, B.purifier, B.humidifier, B.plants] }] }), 'two rows share the top edge less 12 pt between them: each gets at least half, and one that needs less gives the rest to the other', 420)], ['sheet']); } },
+      'control-states': { title: 'Button states', render: function (ctx) { return dv.swatches(ctx, [sw('Available', mc({ groups: STATE }), 'Locate; Clean (a vacuum command); Kitchen Lights and Hallway Fan (service calls)'),
+        sw('Clean offered but blocked', mc({ groups: STATE, blocked: { clean: 'This service is not available in Home Assistant.' } }), 'dimmed in place (symbol at 40%), does nothing, the reason is its VoiceOver value'),
+        sw('Robot unavailable', mc({ groups: STATE, unoffered: ['clean'] }, { locate: false, robot: [60, 300], reported: true }), 'Locate is hidden; Clean is hidden, not dimmed, because the vacuum does not offer it; the service buttons follow their own rules'),
+        sw('Map Unavailable under a top group', mc({ groups: STATE, unoffered: ['clean'] }, { locate: false, fallback: 'unavailable' }), 'the fallback\'s words start 60 pt down'),
+        sw('Increase Contrast', mc({ groups: STATE, contrast: true }), 'an opaque plate with a 1 pt outline in the symbol colour; Reduce Transparency gives the opaque plate alone')], ['sheet']); } },
       'fallback': { title: 'Loading and unavailable', render: function (ctx) { return dv.swatches(ctx, [sw('Loading Current Map…', { fallback: 'loading', map: 'main' }, 'the arc spinner and a line of text on the dark card; at least 220 pt tall'), sw('Loading Last Vacuum Map Position…', { fallback: 'loading-last', map: 'main' }, 'while the robot is unavailable and its last map is fetched'), sw('Map Unavailable', { fallback: 'unavailable', map: 'main' }, 'Home Assistant cannot confirm the map or position')], ['sheet']); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the map itself does not scale (labels are fixed 11 pt, drawn, hidden from VoiceOver); only the fallback texts and the surrounding notice grow', render: function (ctx) { return dv.swatches(ctx, [sw('Map with badges', { map: 'main', selected: ['kitchen', 'living_room'], robot: 'dock' }), sw('Map Unavailable', { fallback: 'unavailable', map: 'main' })], ['sheet']); } },
     },
@@ -53,6 +75,8 @@
       { rule: 'Not colour alone', note: 'Selection is white plus a numbered badge (the badge carries the order); skipped rooms are hatched; the robot is a disc with a ring; nothing relies on hue.' },
       { rule: 'Contrast', note: 'The badge is white on #1C1C1E (16:1) over the white selected room; there is no text on the other rooms.' },
       { rule: 'Locate', note: 'A 44 pt glass button, label "Locate", hint "Asks the robot to play a sound." (vacuum.locate); absent while the robot is unavailable.' },
+      { rule: 'Map buttons', note: 'Each is its own element with the authored label, an optional hint and the button trait, read in place order (leading to trailing, top to bottom). A dimmed button adds Not Enabled and its reason as the value; a hidden one is not in the tree. More is "More Map Controls" with the hint "Shows the rest of the buttons in this corner." (map.controls.more.<corner>). Each shows its symbol and label in the large content viewer.' },
+      { rule: 'Nothing read is mirrored', note: 'A flip moves the picture and what sits on it; badges, the robot and dock markers and the buttons are drawn upright.' },
       { rule: 'Fallbacks', note: 'The loading and unavailable cards are combined into one element each (vacuum.map.fallback); the spinner is hidden.' },
     ],
 
@@ -63,6 +87,9 @@
         { rule: 'Dark Mode: a fixed dark card', verdict: 'departure', note: 'The map card stays #262628 in both appearances; direction G, Controls: Vacuum map, so the room palette keeps its contrast whatever the sheet\'s appearance.', by: 'apple-hig skill' },
         { rule: 'Accessibility: custom graphics need a description', verdict: 'pass', note: 'The Canvas is hidden and the frame is one element "Main Floor Valetudo map" whose value lists the selected rooms (VacuumMapPanel.swift:102-104); rooms are reachable through the Rooms section.', by: 'apple-hig skill' },
         { rule: 'Typography: do not overload dense graphics with text', verdict: 'pass', note: 'Room names are no longer drawn (owner, 2026-10-28, reversing 2026-10-24): the map carries only order badges, so no name collides with another or a badge.', by: 'apple-hig skill' },
+        { rule: 'Buttons: "As a general rule, the hit region is at least 44x44 pt"', verdict: 'pass', note: 'Reviewed 2026-11-16 from the native stills (build/evidence/screens/native-mapctl-cd641867): every map button is 44 by 44 pt on iPhone, Duo and iPad; a group is one glass shape, 8 pt in, 12 pt from a neighbour.', by: 'apple-hig skill' },
+        { rule: 'Pull-down buttons: "Consider a More pull-down button for items that don\'t need prominent positions."', verdict: 'pass', note: 'Reviewed 2026-11-16: only the buttons that do not fit move behind More, in the authored order, so the first ones stay on the map; the HIG notes the ellipsis "can hinder discoverability", which is why More appears only on overflow.', by: 'apple-hig skill' },
+        { rule: 'Menus: "Show when an item is unavailable, often dimmed and unresponsive."; "Treat items in the same group uniformly: icons for all or none."', verdict: 'pass', note: 'Reviewed 2026-11-16 from the hosted tests (the open menu is not in the stills): a blocked button is a disabled menu item with its reason as the subtitle, and every item carries its symbol.', by: 'apple-hig skill' },
         { rule: 'Loading: show something quickly', verdict: 'pass', note: 'The fallback is an arc and "Loading Current Map..." or "Map Unavailable" with a sentence, white on the dark card (VacuumMapPanel.swift:166-186).', by: 'apple-hig skill' },
       ],
       swiftui: [
@@ -73,13 +100,18 @@
     },
 
     notes: [
+      'In flight on t3/native-ingest (4b066cd6): the flip and the corner button groups. Was: Locate alone at top leading, no flip. Nothing authored draws that map unchanged.',
+      'The groups, the fit rule and the flip are drawn by modals/vacuums/_map-controls.js (promote to kit), a stand-in for UKMapControlsView, MapControlFit and MapOrientation on t3/native-ingest (rules: .agents/patterns/map-controls.md there). Those files are not in this checkout yet, so source and spec do not list them.',
+      'The swatches follow the native stills (build/evidence/screens/native-mapctl-cd641867): default, row at top trailing, column at bottom leading, the three flips, More closed on a 200 pt card. The stills label the buttons Button 1 to 8; the names here are fixtures.',
+      'Open, from the stills: in the light appearance the glass plate over the dark card is a lighter grey and the symbols are white on iPhone but dark on Duo and iPad; the mockup draws the kit\'s glass ink. More open is not in the stills; the hosted tests assert its items.',
+      'Not drawn: a right-to-left language (leading and trailing corners swap sides; the picture follows only the authored flip).',
       'This is a stand-in floor plan drawn by the helper (modals/vacuums/_devices-vacuums.js); the app decodes the real map from the Valetudo camera PNG (zTXt chunk) and rasterises it. Colours and badge sizes are the real palette (ValetudoMapScene.Palette).',
       'loading and error are shown as the fallback states; there is no offline variant (the map polls every 3.5 s while live and falls back to the last reported map).',
       'Main Floor is rotated 180 degrees (mapRotationDegrees); badges stay upright. Studio is focus-cropped to three segments.',
       'Decided 2026-10-28 (vacuum-sheet-redesign). Order badges are HTML overlays at a fixed 22 pt here.',
       'Promote to kit: vac.mapCanvas and vac.mapCard.',
     ],
-    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: rooms, selected, hatched, robot and path, area, frame, loading and unavailable, AX5.' }, { date: '2026-10-28', note: 'No room names (owner decision); badges only.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: rooms, selected, hatched, robot and path, area, frame, loading and unavailable, AX5.' }, { date: '2026-10-28', note: 'No room names (owner decision); badges only.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }, { date: '2026-11-16', note: 'Corner button groups, the fit rule with More, button states and the flip, as built on t3/native-ingest (4b066cd6), from proposals/vacuum-map-controls.' }],
   });
 })();
 </script></body></html>

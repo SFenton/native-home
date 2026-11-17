@@ -161,6 +161,6 @@
 | [Cleaning outcome report (pushed)](vacuums/vacuum-outcome-report/vacuum-outcome-report.html) | `vacuum-outcome-report` | shipped | iphone, duo, ipad | from `vacuum-sheet` |
 | [Use Area / Use Rooms (confirmation)](vacuums/vacuum-switch-dialog/vacuum-switch-dialog.html) | `vacuum-switch-dialog` | shipped | iphone, duo, ipad | from `vacuum-sheet` |
 | [Vacuum area editor (pushed)](vacuums/vacuum-area-editor/vacuum-area-editor.html) | `vacuum-area-editor` | shipped | iphone, duo, ipad | from `vacuum-sheet` |
-| [Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)](vacuums/vacuum-sheet/vacuum-sheet.html) | `vacuum-sheet` | shipped | iphone, duo, ipad | from `vacuums`, `room-page`; opens `vacuum-area-editor`, `vacuum-outcome-report`, `vacuum-switch-dialog` |
+| [Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)](vacuums/vacuum-sheet/vacuum-sheet.html) | `vacuum-sheet` | in flight (t3/native-ingest) | iphone, duo, ipad | from `vacuums`, `room-page`; opens `vacuum-area-editor`, `vacuum-outcome-report`, `vacuum-switch-dialog` |
 
 Open any file in a browser (`python3 -m http.server --directory .agents/design/mockups`). How to author or update one: [_kit/AUTHORING.md](../_kit/AUTHORING.md).

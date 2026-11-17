@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Map orientation and corner button groups · proposal mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../modals/room-devices/_devices-vacuums.js"></script>
+<script src="../../modals/vacuums/_devices-vacuums.js"></script>
+<script src="../action-navigation-tiles/_action-tiles.js"></script>
+<script src="../selection-tiles/_selection.js"></script>
+<style>
+  /* Corner groups (local helper; promote to kit as MapControlGroup when built). 44 pt buttons, 8 pt from the card's edges, one glass shape per group. */
+  .mc-grp { position: absolute; z-index: 3; display: flex; border-radius: 22px; padding: 0; }
+  .mc-grp.col { flex-direction: column; }
+  .mc-grp.top-leading { top: 8px; left: 8px; } .mc-grp.top-trailing { top: 8px; right: 8px; }
+  .mc-grp.bottom-leading { bottom: 8px; left: 8px; } .mc-grp.bottom-trailing { bottom: 8px; right: 8px; }
+  .mc-b { width: 44px; height: 44px; flex: none; border: 0; padding: 0; background: none; color: inherit; display: grid; place-items: center; border-radius: 22px; cursor: pointer; font: inherit; }
+  .mc-b svg { width: 20px; height: 20px; } .mc-b[disabled] { opacity: .38; }
+  .mc-b.sel { box-shadow: inset 0 0 0 2px #0A84FF; }
+  .mc-contrast .mc-grp, .mc-contrast .vc-locate { border: 1px solid currentColor; background: #1C1C1E; color: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .g-light .mc-contrast .mc-grp, .g-light .mc-contrast .vc-locate { background: #fff; color: #000; }
+  .mc-four { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; } .mc-four figure { margin: 0; } .mc-four figcaption { font: 12px/1.4 var(--font); color: var(--k-fg2); margin-top: 6px; }
+  /* Studio inspector (a web surface; its own light and dark, not the app's tokens). */
+  .mi { --b: #fff; --b2: #f3f4f6; --f: #16181d; --f2: #5b6270; --ln: #d9dde4; --ac: #0066cc; --acs: #e3effc; --bad: #b3261e; --ok: #1e7b34;
+    display: grid; grid-template-columns: 320px 320px minmax(300px, 1fr); border: 1px solid var(--ln); border-radius: 12px; overflow: hidden; background: var(--b); color: var(--f); font: 13px/1.4 var(--font); min-width: 980px; margin-bottom: 18px; }
+  .mi.dk { --b: #1a1d23; --b2: #23272f; --f: #eef0f4; --f2: #a6adba; --ln: #2e333c; --ac: #409cff; --acs: #152a44; --bad: #ff6961; --ok: #30d158; }
+  .mi > div { padding: 14px; min-width: 0; } .mi > div + div { border-left: 1px solid var(--ln); }
+  .mi .crumb { color: var(--f2); font-size: 12px; margin-bottom: 4px; } .mi .ttl { font: 600 16px var(--font); margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .mi .grp { font: 600 11px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--f2); margin: 16px 0 6px; display: flex; align-items: center; gap: 8px; } .mi .grp:first-of-type { margin-top: 0; }
+  .mi .tag { font: 600 10px var(--font); letter-spacing: 0; text-transform: none; border: 1px solid var(--ln); border-radius: 99px; padding: 1px 7px; color: var(--f2); }
+  .mi .row { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0; } .mi .row > .sp { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mi .foot { color: var(--f2); font-size: 12px; margin: 4px 0 0; }
+  .mi .sw { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .mi .sw.on { background: var(--ok); }
+  .mi .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .mi .sw.on::after { left: 16px; }
+  .mi .seg { display: inline-flex; border: 1px solid var(--ln); border-radius: 7px; overflow: hidden; flex: none; } .mi .seg span { padding: 3px 9px; font-size: 12px; } .mi .seg span.on { background: var(--ac); color: #fff; }
+  .mi .ib { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--ln); background: transparent; color: var(--f); display: inline-grid; place-items: center; font: 14px var(--font); flex: none; padding: 0; } .mi .ib[disabled] { opacity: .4; }
+  .mi .corner { display: flex; align-items: center; gap: 8px; margin: 12px 0 2px; font-weight: 600; } .mi .corner small { font-weight: 400; color: var(--f2); }
+  .mi .cg { width: 18px; height: 13px; border: 1.5px solid var(--f2); border-radius: 3px; position: relative; flex: none; } .mi .cg::after { content: ""; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: var(--ac); }
+  .mi .cg.tl::after { top: 1px; left: 1px; } .mi .cg.tt::after { top: 1px; right: 1px; } .mi .cg.bl::after { bottom: 1px; left: 1px; } .mi .cg.bt::after { bottom: 1px; right: 1px; }
+  .mi .item { display: flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 4px 0 2px; border-radius: 8px; } .mi .item.sel { background: var(--acs); } .mi .item.lift { box-shadow: 0 4px 14px rgba(0,0,0,.25); background: var(--b2); }
+  .mi .grip { color: var(--f2); width: 18px; text-align: center; cursor: grab; letter-spacing: -2px; flex: none; } .mi .gly { width: 20px; height: 20px; display: inline-grid; flex: none; } .mi .gly svg { width: 18px; height: 18px; }
+  .mi .empty { color: var(--f2); padding: 4px 0 4px 26px; font-size: 12px; } .mi .drop { border: 1.5px dashed var(--ac); border-radius: 8px; color: var(--ac); padding: 6px 10px; margin: 2px 0; font-size: 12px; }
+  .mi .menu { border: 1px solid var(--ln); border-radius: 9px; background: var(--b); box-shadow: 0 8px 24px rgba(0,0,0,.22); padding: 4px; width: 190px; margin: 2px 0 6px auto; } .mi .menu div { padding: 5px 9px; border-radius: 6px; display: flex; justify-content: space-between; }
+  .mi .menu div.hi { background: var(--acs); } .mi .menu div.dis { color: var(--f2); opacity: .6; } .mi .menu div.bad { color: var(--bad); } .mi .menu hr { border: 0; border-top: 1px solid var(--ln); margin: 4px 0; }
+  .mi .fld { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 8px; background: var(--b2); min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .mi .lbl { width: 78px; flex: none; color: var(--f2); }
+  .mi .check { border: 1px solid var(--ln); border-radius: 8px; padding: 7px 10px; margin-top: 12px; color: var(--f2); font-size: 12px; } .mi .check b { color: var(--f); }
+  .mi .pv { background: var(--b2); } .mi .pv .cap { font: 600 11px var(--font); color: var(--f2); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; }
+  .mi .pv .dev { border-radius: 26px; background: #111; padding: 10px; } .mi .pvtag { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 3; font: 600 10px var(--font); color: #fff; background: rgba(0,0,0,.55); border-radius: 99px; padding: 2px 8px; }
+  .mi .btn { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 10px; background: transparent; color: var(--f); font: 13px var(--font); } .mi .btn.bad { color: var(--bad); }
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, I = Mock.icon, dv = Mock.dv, vac = dv.vac, V = vac.V;
+
+  /* ---- buttons the states use: {id, sym, label, own?: a map action that hides while the robot is unavailable} */
+  var B = {
+    locate: { id: 'locate', sym: 'scope', label: 'Locate', own: true },
+    pause: { id: 'pause', sym: 'pause.fill', label: 'Pause' },
+    dock: { id: 'dock', sym: 'house.fill', label: 'Return to Dock' },
+    lights: { id: 'lights', sym: 'lightbulb.fill', label: 'Kitchen Lights' },
+    fan: { id: 'fan', sym: 'fan', label: 'Hallway Fan' },
+    area: { id: 'area', sym: 'pencil', label: 'Edit Area' },
+  };
+  var MORE = { id: 'more', sym: 'ellipsis', label: 'More Map Controls' };
+  var NAMES = { 'top-leading': 'Top Leading', 'top-trailing': 'Top Trailing', 'bottom-leading': 'Bottom Leading', 'bottom-trailing': 'Bottom Trailing' };
+  var DEFAULT = [{ corner: 'top-leading', axis: 'column', buttons: [B.locate] }];
+
+  function btn(b, sel) { return h('button.mc-b' + (sel === b.id ? '.sel' : ''), { type: 'button', 'aria-label': b.label, title: b.label, html: I(b.sym, { weight: 2 }) }); }
+  /* The fit rule of the spec (build/design/vacuum-map-ctl.md, Corner groups: fit): 44 pt per button, 8 pt insets, 12 pt between two groups on one edge; what does not fit goes behind More. */
+  function place(frame, groups, sel) {
+    var W = frame.offsetWidth, H = frame.offsetHeight; if (!W || !H) return;
+    var by = {}; groups.forEach(function (g) { by[g.corner] = g; });
+    groups.forEach(function (g) {
+      var row = g.axis === 'row' && g.buttons.length > 1, L = row ? W : H, n = g.buttons.length, p = g.corner.split('-');
+      var o = by[row ? p[0] + '-' + (p[1] === 'leading' ? 'trailing' : 'leading') : (p[0] === 'top' ? 'bottom' : 'top') + '-' + p[1]], avail = L - 16;
+      if (o) { var same = (o.axis === 'row' && o.buttons.length > 1) === row, total = L - 16 - 12, need = same ? 44 * o.buttons.length : 44; avail = 44 * n + need <= total ? 44 * n : same ? Math.max(Math.floor(total / 2), total - need) : total - 44; }
+      var k = Math.max(1, Math.floor(avail / 44)), shown = n <= k ? g.buttons : g.buttons.slice(0, k - 1).concat([MORE]);
+      g.el.className = 'mc-grp ui-glass ' + g.corner + (row ? '' : ' col');
+      g.el.replaceChildren.apply(g.el, shown.map(function (b) { return btn(b, sel); }));
+    });
+  }
+  /** Adds orientation and corner groups to a vac.mapCard node. c: {flipH, flipV, groups, contrast, sel, available} */
+  function decorate(card, c) {
+    c = c || {};
+    if (c.flipH || c.flipV) {
+      var map = card.querySelector('.vc-map');
+      if (map) {
+        map.firstChild.style.transform = 'scale(' + (c.flipH ? -1 : 1) + ',' + (c.flipV ? -1 : 1) + ')';   // the picture mirrors; the badges below are placed, never mirrored
+        map.querySelectorAll('.lb').forEach(function (l) { if (c.flipH) l.style.left = (100 - parseFloat(l.style.left)) + '%'; if (c.flipV) l.style.top = (100 - parseFloat(l.style.top)) + '%'; });
+      }
+    }
+    if (c.contrast) card.classList.add('mc-contrast');
+    if (!c.groups) return card;   // the default: today's Locate, untouched
+    var old = card.querySelector('.vc-locate'); if (old) old.remove();
+    var groups = c.groups.map(function (g) { return { corner: g.corner, axis: g.axis, buttons: g.buttons.filter(function (b) { return c.available !== false || !b.own; }) }; }).filter(function (g) { return g.buttons.length; });
+    groups.forEach(function (g) { g.el = h('div', { role: 'group', 'aria-label': 'Map Controls, ' + NAMES[g.corner] }); card.appendChild(g.el); });
+    place(card, groups, c.sel);
+    if (window.ResizeObserver) new ResizeObserver(function () { place(card, groups, c.sel); }).observe(card);
+    return card;
+  }
+  var CUR = null, baseCard = vac.mapCard;
+  vac.mapCard = function (o) { var c = CUR || {}; return decorate(baseCard(Object.assign({}, o, c.groups ? { locate: true } : null)), Object.assign({ available: o.locate !== false }, c)); };
+  function S(o, c) { return function (ctx) { CUR = c || null; try { return vac.sheet(ctx, o || {}); } finally { CUR = null; } }; }
+
+  var ROW3 = DEFAULT.concat([{ corner: 'top-trailing', axis: 'row', buttons: [B.pause, B.dock, B.lights] }]);
+  var COL2 = [{ corner: 'bottom-leading', axis: 'column', buttons: [B.locate, B.dock] }];
+  var MANY = DEFAULT.concat([{ corner: 'top-trailing', axis: 'column', buttons: [B.pause, B.dock, B.lights, B.fan, B.area] }, { corner: 'bottom-trailing', axis: 'row', buttons: [B.area, B.fan] }]);
+  var states = {};
+  function add(key, title, note, o, c, extra) {
+    states[key] = Object.assign({ title: title + ' (dark)', note: note, override: Object.assign({ appearance: 'dark' }, extra), render: S(o, c) });
+    states[key + '-light'] = Object.assign({ title: title + ' (light)', note: 'The same in the light appearance. The map card stays dark in both.', override: Object.assign({ appearance: 'light' }, extra), render: S(o, c) });
+  }
+  add('default', 'Default: no flip, Locate alone', 'Exactly today\'s map: one 44 pt glass circle 8 pt from the card\'s top and leading edges. A document with no orientation and no controls draws this.', {}, null);
+  add('row-top-trailing', 'A row of three at top trailing', 'Pause, Return to Dock and Kitchen Lights share one glass capsule, 132 by 44 pt, 8 pt from the top and trailing edges. Locate stays where it is.', {}, { groups: ROW3 });
+  add('column-bottom-leading', 'A column of two at bottom leading', 'Locate was moved here from top leading and Return to Dock added below it: one capsule, 44 by 88 pt, 8 pt from the bottom and leading edges.', {}, { groups: COL2 });
+  add('flipped', 'Map flipped horizontally', 'The rooms, walls, dock, robot and path mirror left to right. The order badges keep their digits upright and sit on their rooms. The buttons do not move.', {}, { flipH: true });
+  add('inverted', 'Map flipped both ways (the invert)', 'Both flips together read as the map turned upside down. Badges stay upright.', {}, { flipH: true, flipV: true, groups: ROW3 });
+  add('overflow', 'A short map: what does not fit goes behind More', 'Studio\'s map is short. The column of five at top trailing shares the trailing edge with the row at bottom trailing, so it shows as many buttons as fit and ends in More, a menu holding the rest.', { v: V({ robot: 'music' }) }, { groups: MANY });
+  add('unavailable', 'Robot unavailable', 'Locate hides, as today. Authored service and navigation buttons stay. The fallback text keeps clear of a corner that holds buttons.', { v: V({ scenario: 'unavailable' }) }, { groups: ROW3 });
+  add('reduce-transparency', 'Reduce Transparency', 'The glass becomes an opaque fill: dark grey in dark, white in light.', {}, { groups: ROW3 }, { reduceTransparency: true });
+  add('increase-contrast', 'Increase Contrast', 'An opaque fill with a 1 pt outline in the symbol colour; the symbols are 21:1 on it.', {}, { groups: ROW3, contrast: true });
+  add('ax5', 'Accessibility 5 text size', 'The buttons keep 44 pt and their symbols keep their size; a long press shows the label large. The text around the map grows.', {}, { groups: ROW3 }, { ts: 'ax5' });
+
+  /* ---- sections: the four orientations side by side, and the Studio inspector */
+  function four() {
+    function one(label, c) { return h('figure', h('div.k-swatch.sheet.in-sheet.g-dark', { style: { padding: '10px' } }, decorate(baseCard({ map: 'main', selected: ['kitchen', 'living_room'], robot: [220, 110], path: [[40, 50], [110, 80], [170, 40], [240, 90], [220, 110]] }), c)), h('figcaption', label)); }
+    return [h('p', 'One map, four orientations. Kitchen is 1 and Living Room is 2 in every picture: the badges follow their rooms and never mirror, the path and robot follow the floor, Locate stays in its corner.'),
+      h('div.mc-four', one('No flip (default)', {}), one('Flip Horizontally', { flipH: true }), one('Flip Vertically', { flipV: true }), one('Both (invert)', { flipH: true, flipV: true }))];
+  }
+  function inspector(dark) {
+    function sym(n) { return h('span.gly', { html: I(n, { weight: 2 }) }); }
+    function item(b, cls, more) { return h('div.item' + (cls || ''), h('span.grip', { title: 'Drag to move. Space lifts, arrows move.' }, '⋮⋮'), sym(b.sym), h('span.sp', { style: { flex: 1 } }, b.label), h('button.ib', { type: 'button', 'aria-label': 'More for ' + b.label, style: { border: 0 } }, more || '···')); }
+    function corner(cls, name, count, axis) { return h('div.corner', h('span.cg.' + cls), h('span', name), h('small', count), h('span', { style: { flex: 1 } }), axis ? h('span.seg', { role: 'radiogroup', 'aria-label': name + ' layout' }, h('span' + (axis === 'row' ? '.on' : ''), 'Row'), h('span' + (axis === 'column' ? '.on' : ''), 'Column')) : null, h('button.ib', { type: 'button', 'aria-label': 'Add a button to ' + name }, '+')); }
+    var card = decorate(baseCard({ map: 'main', selected: ['kitchen', 'living_room'], robot: [150, 165] }), { flipH: true, groups: ROW3, sel: 'lights' });
+    card.appendChild(h('span.pvtag', 'Live map'));
+    return h('div.mi' + (dark ? '.dk' : ''), { role: 'group', 'aria-label': 'Studio inspector, ' + (dark ? 'dark' : 'light') },
+      h('div', h('div.crumb', 'Main Floor Robot Vacuum › Map'), h('div.ttl', 'Map'),
+        h('div.grp', 'Orientation', h('span.tag', 'Main Floor vacuum')),
+        h('div.row', h('span.sp', 'Flip Horizontally'), h('button.sw.on', { type: 'button', role: 'switch', 'aria-checked': 'true', 'aria-label': 'Flip Horizontally' })),
+        h('div.row', h('span.sp', 'Flip Vertically'), h('button.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Flip Vertically' })),
+        h('div.row', h('span.sp', 'Rotation'), h('span.fld', { style: { flex: 'none', width: '70px' } }, '180°')),
+        h('p.foot', 'Applies everywhere this vacuum\'s map is drawn. Badges and buttons never mirror.'),
+        h('div.grp', 'Map Buttons'),
+        corner('tl', 'Top Leading', '1'), item(B.locate),
+        corner('tt', 'Top Trailing', '3', 'row'), item(B.pause), item(B.dock), item(B.lights, '.sel'),
+        h('div.menu', { role: 'menu', 'aria-label': 'More for Kitchen Lights' }, h('div', 'Move Up'), h('div.dis', 'Move Down'), h('div.hi', 'Move to Corner', h('span', '›')), h('hr'), h('div.bad', 'Remove Button')),
+        corner('bl', 'Bottom Leading', 'Empty'), corner('bt', 'Bottom Trailing', 'Empty'),
+        h('div.check', h('b', 'Fits. '), 'Top Trailing shows all 3 buttons on iPhone, iPhone Duo and iPad.')),
+      h('div', h('div.crumb', '‹ Map'), h('div.ttl', sym('lightbulb.fill'), 'Kitchen Lights'),
+        h('div.grp', 'Button'),
+        h('div.row', h('span.lbl', 'Icon'), h('span.fld', 'lightbulb.fill ▾')),
+        h('div.row', h('span.lbl', 'Label'), h('span.fld', 'Kitchen Lights')),
+        h('p.foot', 'VoiceOver and Voice Control use the label. It is required.'),
+        h('div.row', h('span.lbl', 'Hint'), h('span.fld', 'Turns the kitchen lights on or off.')),
+        h('div.grp', 'Action'),
+        h('div.row', h('span.lbl', 'Type'), h('span.seg', h('span.on', 'Service'), h('span', 'Navigate'))),
+        h('div.row', h('span.lbl', 'Service'), h('span.fld', 'light.toggle')),
+        h('div.row', h('span.lbl', 'Target'), h('span.fld', 'light.demo_kitchen_1')),
+        h('div.row', h('span.lbl', 'Ask First'), h('span', { style: { flex: 1 } }), h('button.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Ask First' })),
+        h('div.grp', 'Place'),
+        h('div.row', h('span.lbl', 'Corner'), h('span.fld', 'Top Trailing ▾')),
+        h('div.row', h('span.lbl', 'Order'), h('span.sp', '3 of 3'), h('button.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights up' }, '↑'), h('button.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights down', disabled: true }, '↓')),
+        h('div.row', { style: { marginTop: '12px' } }, h('button.btn.bad', { type: 'button' }, 'Remove Button'))),
+      h('div.pv', h('div.cap', 'Preview · iPhone'), h('div.dev', h('div.in-sheet.g-dark', card)),
+        h('p.foot', 'The simulator draws the flip and the groups as the app will. The button being edited is ringed; clicking a button here opens its page. The Live map tag moves to the bottom centre when a bottom corner is used.'),
+        h('div.grp', { style: { marginTop: '14px' } }, 'While dragging'),
+        item(B.lights, '.lift'), h('div.drop', 'Bottom Leading · drop to move here, position 1'),
+        h('p.foot', 'A row drags within its corner and onto another corner. The More menu and the keyboard do the same without a drag.')));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'vacuum-map-controls', title: 'Map orientation and corner button groups', status: 'decided',
+    summary: 'Owner request 2026-11-16: flip the map horizontally, vertically or both, and place any number of map buttons as a row or a column in each of the four corners, in an order the owner sets. The default draws today\'s map: no flip, Locate alone at top leading. Shown on the vacuum sheet for iPhone, iPhone Duo and iPad in dark and light, with the Studio inspector that authors it. Built as drawn on t3/native-ingest (4b066cd6); the current design is the vacuum sheet and map canvas mockups, and README.md beside this page lists what the build settled.',
+    source: ['apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift', 'apple/Sources/HassCore/Vacuums/ValetudoMapGeometry.swift'],
+    spec: ['.agents/patterns/valetudo-map.md', '.agents/patterns/vacuum-sheet.md'],
+    patterns: ['valetudo-map', 'vacuum-sheet', 'tap-feedback'],
+    hig: ['Maps', 'Buttons', 'Materials', 'Layout', 'Accessibility', 'Toolbars', 'Drag and drop', 'Right to left'],
+    kitComponents: ['HassModal', 'ModalTabBar', 'NavigationGlass'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    sections: [
+      { id: 'orientations', title: 'Orientation: the four results', build: four },
+      { id: 'inspector', title: 'Studio inspector (light and dark)', build: function () { return [h('p', 'The Studio is a web surface. Left: the map\'s inspector with the Orientation and Map Buttons groups, a row\'s More menu open. Middle: the page a button row opens. Right: the simulator preview and the drag.'), h('div', { style: { overflowX: 'auto' } }, inspector(false), inspector(true))]; } },
+    ],
+    a11y: [
+      { rule: 'Every button is its own element', note: 'Label from the document (required), optional hint, button trait. Locate keeps the label "Locate", the hint "Asks the robot to play a sound." and the identifier vacuum.locate.' },
+      { rule: 'Reading order', note: 'The map element, then the groups top leading, top trailing, bottom leading, bottom trailing, each in its authored order. More is last in its group and opens a menu of the hidden buttons by label.' },
+      { rule: '44 pt targets', note: 'Every button is 44 by 44 pt at every text size (HIG Buttons: "the hit region is at least 44x44 pt"). Two groups on one edge keep 12 pt apart.' },
+      { rule: 'Nothing mirrors that is read', note: 'A flip mirrors the floor picture only. Order badges, the robot and dock markers, the area handles and every button are placed from the flipped positions and drawn upright.' },
+      { rule: 'Reduce Transparency and Increase Contrast', note: 'Opaque fill under Reduce Transparency; opaque fill with a 1 pt outline under Increase Contrast. Symbols stay monochrome and at least 4.5:1 on the fill.' },
+      { rule: 'The inspector', note: 'Each row has a grip (drag; Space lifts, arrows move) and a More menu with Move Up, Move Down, Move to Corner and Remove Button, so nothing needs a drag (HIG Drag and drop: "Offer alternatives to drag and drop, like menu commands").' },
+    ],
+    reviews: {
+      date: '2026-11-16',
+      hig: [
+        { rule: 'Maps: contrast between custom controls and the map', verdict: 'pass', note: 'One glass shape per group with its rim and shadow over the dark card ("Consider a thin stroke or light drop shadow on controls").', by: 'apple-hig skill' },
+        { rule: 'Materials: Liquid Glass for controls floating above content, used sparingly', verdict: 'pass', note: 'A group is one glass shape however many buttons it holds; the map card itself keeps its flat fill.', by: 'apple-hig skill' },
+        { rule: 'Buttons: 44 by 44 pt hit region; same-size buttons read as a set', verdict: 'pass', note: 'Every button is 44 pt; the buttons of a group are equal and share one shape.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: about 12 pt around elements with a bezel', verdict: 'pass', note: 'Groups on one edge keep 12 pt apart; a group that cannot keep it collapses into More.', by: 'apple-hig skill' },
+        { rule: 'Right to left: preserve what points to a fixed onscreen area; never flip numeral glyphs', verdict: 'pass', note: 'Corners are leading and trailing, so groups swap sides in a right-to-left language. The map picture follows only the authored flip, and badges keep their digits.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Touch targets and labels on symbol-only controls', verdict: 'pass', note: 'UIKit controls, 44 pt, each with a label, a hint where authored and the large content viewer at accessibility sizes.', by: 'swiftui-pro skill' },
+        { rule: 'One transform, no per-frame work', verdict: 'pass', note: 'The flip is one factor in the map\'s existing matrix; markers and badges are already placed from it, so nothing is laid out twice.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Decided 2026-11-16 and built on t3/native-ingest (4b066cd6). This page is the record of the request; see README.md for what the build settled and modals/vacuums/vacuum-sheet for the current design.',
+      'Local helpers in this page (promote to kit when built): the corner group, its fit rule and the flip. The flip mirrors the kit\'s stand-in floor plan and re-places the badges.',
+      'The stand-in Main Floor map is already rotated 180 degrees (mapRotationDegrees); the flip applies after the rotation, on what is seen.',
+      'Increase Contrast has no kit control, so it is a state. Reduce Transparency is the kit control and also a state.',
+      'The inspector is drawn with stand-in web tokens, not the Studio\'s; the Studio contract lane draws it with workspace2\'s own rows.',
+    ],
+    changelog: [{ date: '2026-11-16', note: 'First pass: default, row of three, column of two, flipped, inverted, overflow, unavailable, Reduce Transparency, Increase Contrast, AX5; the four orientations; the Studio inspector in light and dark.' }, { date: '2026-11-16', note: 'Decided and built; frozen as the record.' }],
+  });
+})();
+</script></body></html>
