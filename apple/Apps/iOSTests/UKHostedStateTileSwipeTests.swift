@@ -442,8 +442,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         }
     }
 
-    /// After a committing release the spoken value is the committed one at the first read and until the deadline; a step through VoiceOver is
-    /// unchanged and sends one call.
+    /// After a committing release the spoken value is the committed one at the first read and until the deadline.
     func testTheSpokenValueIsTheCommittedOneAfterAHeldReleaseUntilTheHoldEnds() async throws {
         for width in Self.widths {
             let r = try await rig(width: width, revert: 3)

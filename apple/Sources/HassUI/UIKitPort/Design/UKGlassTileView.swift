@@ -500,6 +500,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     private var swipeFrameEndsAtConfigure = false
     /// Records every band level given to the face while true, for the tests of what a release draws.
     var tracesBand = false
+    /// The band level (`nil` for none) of each face update made while ``tracesBand`` was true, oldest first.
     private(set) var bandTrace: [Double?] = []
 
     /// Keeps the swipe's frame after the finger lifted, until the next ``configure(_:environment:animated:action:perform:)``.

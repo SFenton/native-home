@@ -17,7 +17,7 @@
   .nk-b .ui-tile.off:not(.unavail) .glyph, .nk-b .ui-tile.tinted[data-nofam] .glyph { color: var(--tile-ink); }
   /* Group headings: option B's count and option C's disclosure button (local; neither is in the kit because production has neither). */
   .in-sheet .ui-hdr .detail.gd { color: var(--ink-sheet-2); }
-  .ui-hdr .gc { flex: none; width: 44px; height: 44px; margin: -12px -10px -12px 0; border: 0; background: none; color: inherit; display: grid; place-items: center; font-size: var(--fs-sub); opacity: .8; }
+  .ui-hdr .group-chev { flex: none; width: 44px; height: 44px; margin: -12px -10px -12px 0; border: 0; background: none; color: inherit; display: grid; place-items: center; font-size: var(--fs-sub); opacity: .8; }
   .ui-hdr.gcol h2 { color: var(--ink, #fff); }
   /* Studio inspector (a web surface; stand-in tokens, not the app's and not the Studio's). */
   .si { --b: #fff; --b2: #f3f4f6; --f: #16181d; --f2: #5b6270; --ln: #d9dde4; --ac: #0066cc; --acs: #e3effc; --warn: #8a5a00; --ok: #1e7b34;
@@ -30,8 +30,8 @@
   .si .row.nav { border-radius: 8px; padding: 2px 6px; margin: 0 -6px; } .si .row.nav.sel { background: var(--acs); } .si .row .val { color: var(--f2); } .si .row .chev { color: var(--f2); }
   .si .row.inert .fld, .si .row.inert .lbl { opacity: .5; }
   .si .foot { color: var(--f2); font-size: 12px; margin: 2px 0 6px; } .si .warn { color: var(--warn); font-size: 12px; margin: 2px 0 6px; }
-  .si .sw { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .sw.on { background: var(--ok); }
-  .si .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .sw.on::after { left: 16px; }
+  .si .switch-ctl { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .switch-ctl.on { background: var(--ok); }
+  .si .switch-ctl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .switch-ctl.on::after { left: 16px; }
   .si .fld { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 8px; background: var(--b2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .si .fld.w { flex: 1; } .si .fld.ph { color: var(--f2); }
   .si .lbl { width: 128px; flex: none; color: var(--f2); }
   .si .fold { border: 1px solid var(--ln); border-radius: 9px; padding: 4px 10px 8px; margin: 6px 0; } .si .fold > .row:first-child { font-weight: 600; }
@@ -101,7 +101,7 @@
     gs.forEach(function (g, i) {
       var shut = i === gs.length - 1 && gs.length > 1, ti = g.hd.querySelector('h2').textContent;
       g.hd.classList.add('gcol');
-      g.hd.appendChild(h('button.gc', { type: 'button', 'aria-expanded': shut ? 'false' : 'true', 'aria-label': (shut ? 'Show ' : 'Hide ') + ti, html: Mock.icon(shut ? 'chevron.right' : 'chevron.down') }));
+      g.hd.appendChild(h('span.group-chev', { tabindex: '0', role: 'button', 'aria-expanded': shut ? 'false' : 'true', 'aria-label': (shut ? 'Show ' : 'Hide ') + ti, html: Mock.icon(shut ? 'chevron.right' : 'chevron.down') }));
       if (shut) g.tiles.forEach(function (t) { t.remove(); });
     });
   }
@@ -194,7 +194,7 @@
   }
 
   function inspector(dark) {
-    function sw(on, label) { return h('button.sw' + (on ? '.on' : ''), { type: 'button', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
+    function sw(on, label) { return h('span.switch-ctl' + (on ? '.on' : ''), { tabindex: '0', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
     function nav(label, val, sel) { return h('div.row.nav' + (sel ? '.sel' : ''), { role: 'button', tabindex: '0' }, h('span.sp', label), h('span.val', val), h('span.chev', { 'aria-hidden': 'true' }, '›')); }
     function word(label, v, ph) { return h('div.row', h('span.lbl', label), h('span.fld.w' + (ph ? '.ph' : ''), v)); }
     function pick(label, v, ph, on) { return h('div.row.inert', h('span.chk' + (on ? '' : '.no'), { role: 'checkbox', 'aria-checked': on ? 'true' : 'false', 'aria-label': 'Set ' + label + ' per place' }, on ? '✓' : ''), h('span.lbl', label), h('span.fld.w' + (ph ? '.ph' : ''), v)); }

@@ -21,8 +21,8 @@
   .si .row { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0; } .si .row > .sp { flex: 1; min-width: 0; }
   .si .row.nav { border-radius: 8px; padding: 2px 6px; margin: 0 -6px; } .si .row.nav.sel { background: var(--acs); } .si .row .val { color: var(--f2); } .si .row .chev { color: var(--f2); }
   .si .foot { color: var(--f2); font-size: 12px; margin: 2px 0 6px; } .si .warn { color: var(--warn); font-size: 12px; margin: 2px 0 6px; }
-  .si .sw { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .sw.on { background: var(--ok); }
-  .si .sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .sw.on::after { left: 16px; }
+  .si .switch-ctl { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .switch-ctl.on { background: var(--ok); }
+  .si .switch-ctl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .switch-ctl.on::after { left: 16px; }
   .si .fld { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 8px; background: var(--b2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .si .fld.n { width: 64px; flex: none; text-align: right; } .si .fld.w { flex: 1; }
   .si .lbl { width: 96px; flex: none; color: var(--f2); }
   .si .menu { border: 1px solid var(--ln); border-radius: 9px; background: var(--b); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); padding: 4px; width: 190px; margin: 2px 0 6px auto; } .si .menu div { padding: 5px 9px; border-radius: 6px; }
@@ -162,7 +162,7 @@
   }
 
   function inspector(dark) {
-    function sw(on, label) { return h('button.sw' + (on ? '.on' : ''), { type: 'button', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
+    function sw(on, label) { return h('span.switch-ctl' + (on ? '.on' : ''), { tabindex: '0', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
     function row(label, ctl) { return h('div.row', h('span.sp', label), ctl); }
     function num(label, v) { return h('div.row', h('span.lbl', label), h('span.sp'), h('span.fld.n', v)); }
     function nav(label, val, sel) { return h('div.row.nav' + (sel ? '.sel' : ''), { role: 'button', tabindex: '0' }, h('span.sp', label), h('span.val', val), h('span.chev', { 'aria-hidden': 'true' }, '›')); }
