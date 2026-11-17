@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "chart-source-points-index-label",
+  "note": "The label may be built from the position: \"H\" then the 0-based index.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 3,
+        "x": {
+          "label": {
+            "type": "format",
+            "pattern": "H{n}",
+            "args": {
+              "n": {
+                "type": "index"
+              }
+            }
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "level": 1
+        },
+        {
+          "level": 2
+        },
+        {
+          "level": 3
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "H0",
+          "value": 1
+        },
+        {
+          "label": "H1",
+          "value": 2
+        },
+        {
+          "label": "H2",
+          "value": 3
+        }
+      ]
+    }
+  }
+}

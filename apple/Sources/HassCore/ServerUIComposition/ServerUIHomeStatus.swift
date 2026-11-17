@@ -12,12 +12,39 @@ public enum ServerUIHomeStatus {
         public let active: Bool
         public let unavailable: Bool
         public let color: RoomColor?
+        /// How many members are active (lit, occupied, open); `nil` when that cannot be said (loading, redacted, every member
+        /// missing, or a projection with no notion of active). Read as `count` (`sh.home-status-counts@1`).
+        public var count: Int?
+        /// How many members the status names. Read as `total`.
+        public var total = 0
+        /// How many members are unavailable or missing. Read as `unavailableCount`.
+        public var unavailableCount = 0
     }
 
-    /// Projects the authored status onto the current entity values.
+    /// Projects the authored status onto the current entity values, with the counts of its members.
+    ///
+    /// `words` are the room overview tile's own (`sh.state-words@1`); where both it and the source's labels hold a word, the tile's wins.
     public static func project(_ configuration: ServerUICompositionDocument.HomeStatus, pending: Bool = false,
-                               redacted: Bool = false, read: @escaping (String) -> EntityState?) -> Value {
+                               redacted: Bool = false, words: ServerUIStateWords? = nil, read: @escaping (String) -> EntityState?) -> Value {
+        var value = projectState(configuration, pending: pending, redacted: redacted, words: words, read: read)
+        let entities = configuration.entityIds.map(read)
+        value.total = entities.count
+        value.unavailableCount = entities.count { $0?.isUnavailable ?? true }
+        guard !["loading", "hidden", "unavailable"].contains(value.state) else { return value }
+        let isMember: ((EntityState) -> Bool)? = switch configuration.projection {
+        case .lights: { RoomFormat.isActive($0) }
+        case .occupancy: { RoomFormat.isOccupied($0) }
+        case .contacts: { RoomFormat.isOpen($0) }
+        default: nil
+        }
+        if let isMember { value.count = entities.compactMap { $0 }.count(where: isMember) }
+        return value
+    }
+
+    private static func projectState(_ configuration: ServerUICompositionDocument.HomeStatus, pending: Bool,
+                                     redacted: Bool, words: ServerUIStateWords?, read: @escaping (String) -> EntityState?) -> Value {
         let c = configuration
+        let unavailableWord = words?.unavailable ?? c.labels.unavailable
         func value(_ state: String, _ text: String, active: Bool = false, unavailable: Bool = false,
                    spoken: String? = nil) -> Value {
             let color: RoomColor?
@@ -37,7 +64,7 @@ public enum ServerUIHomeStatus {
         let hasSecondaryAir = c.projection == .airQuality && c.secondaryEntityId.flatMap(read)?.isUnavailable == false
         let hasClimateRange = c.projection == .climate && c.rangeEntityId.flatMap(read)?.isUnavailable == false
         guard missing < entities.count || hasSecondaryAir || hasClimateRange else {
-            return value("unavailable", c.labels.unavailable, unavailable: true)
+            return value("unavailable", unavailableWord, unavailable: true)
         }
         // A partial sensor set cannot vouch for a closed/unoccupied/off house.
         let group = RoomGroup("", entityId: c.rangeEntityId, c.entityIds.map { id in
@@ -53,7 +80,7 @@ public enum ServerUIHomeStatus {
         var state = "idle"
         switch c.projection {
         case .entity:
-            guard let entity = entities.first ?? nil else { return value("unavailable", c.labels.unavailable, unavailable: true) }
+            guard let entity = entities.first ?? nil else { return value("unavailable", unavailableWord, unavailable: true) }
             return value(entity.state, entity.state)
         case .lights, .occupancy, .contacts:
             let count = entities.compactMap { $0 }.count {
@@ -65,7 +92,7 @@ public enum ServerUIHomeStatus {
             }
             active = c.projection == .lights && c.format != .summary
                 ? RoomOverview.isActive(.lights, group, read: safeRead) : count > 0
-            if missing > 0, !active { return value("unavailable", c.labels.unavailable, unavailable: true) }
+            if missing > 0, !active { return value("unavailable", unavailableWord, unavailable: true) }
             if c.format == .item {
                 text = switch c.projection {
                 case .contacts: RoomFormat.contact(entities.first ?? nil)
@@ -74,8 +101,8 @@ public enum ServerUIHomeStatus {
                 }
             } else if c.format == .room || c.format == .detail {
                 let kind: RoomOverviewKind = c.projection == .lights ? .lights : c.projection == .contacts ? .contacts : .occupancy
-                text = c.format == .detail ? RoomOverview.detailSubtitle(kind, group, read: safeRead)
-                    : RoomOverview.cardSubtitle(kind, group, read: safeRead)
+                text = c.format == .detail ? RoomOverview.detailSubtitle(kind, group, read: safeRead, words: words)
+                    : RoomOverview.cardSubtitle(kind, group, read: safeRead, words: words)
             } else {
                 text = active ? (c.projection == .occupancy ? c.labels.active : "\(count)\(c.labels.countSuffix)") : c.labels.idle
             }
@@ -98,14 +125,14 @@ public enum ServerUIHomeStatus {
                 state = active ? "active" : "idle"
             } else if c.format == .summary {
                 guard let id = c.rangeEntityId ?? c.entityIds.first, let state = safeRead(id)?.state else {
-                    return value("unavailable", c.labels.unavailable, unavailable: true)
+                    return value("unavailable", unavailableWord, unavailable: true)
                 }
                 text = state
             } else if let range = c.rangeEntityId.flatMap({ safeRead($0)?.state }).flatMap(RoomOverview.normalizedRange) {
                 text = range
             } else {
                 let sensors = c.entityIds.compactMap(safeRead).filter { $0.attributes["unit_of_measurement"]?.string != nil && Double($0.state)?.isFinite == true }
-                guard !sensors.isEmpty else { return value("unavailable", c.labels.unavailable, unavailable: true) }
+                guard !sensors.isEmpty else { return value("unavailable", unavailableWord, unavailable: true) }
                 text = RoomOverview.climateSubtitle(group, read: safeRead)
             }
         case .airQuality:
@@ -114,7 +141,7 @@ public enum ServerUIHomeStatus {
             text = c.format == .summary ? RoomOverview.airQualityChipSummary(aqi: aqi, pm25: pm25)
                 : RoomFormat.airSummary(aqi: aqi, pm25: pm25)
         }
-        let spoken = missing > 0 && c.projection != .airQuality ? "\(text), \(missing) \(c.labels.unavailable)" : text
+        let spoken = missing > 0 && c.projection != .airQuality ? "\(text), \(missing) \(unavailableWord)" : text
         return value(state, text, active: active, spoken: spoken)
     }
 }

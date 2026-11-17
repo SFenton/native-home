@@ -1,0 +1,128 @@
+{
+  "format": 1,
+  "name": "running-sum-first-hour-unknown",
+  "note": "A window whose first hour is unknown never has a total.",
+  "response": [
+    {
+      "a": null
+    },
+    {
+      "a": 1
+    }
+  ],
+  "compiles": true,
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "a": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number",
+                    "integer": true
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "total",
+        "op": "running-sum",
+        "value": {
+          "type": "item",
+          "path": [
+            "a"
+          ]
+        },
+        "into": "total",
+        "nullPropagates": true
+      }
+    ],
+    "output": {
+      "kind": "records",
+      "max": 24
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "a": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "number",
+                  "integer": true
+                }
+              ]
+            }
+          },
+          "total": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "number"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "a": null,
+        "total": null
+      },
+      {
+        "a": 1,
+        "total": null
+      }
+    ]
+  }
+}

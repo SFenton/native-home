@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "legacy-state-yes",
+  "note": "The state leaf still works on a value.",
+  "subject": {
+    "condition": {
+      "type": "state",
+      "sourceId": "guest-fan",
+      "path": [
+        "state"
+      ],
+      "in": [
+        "on",
+        "auto"
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "guest-fan/state": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

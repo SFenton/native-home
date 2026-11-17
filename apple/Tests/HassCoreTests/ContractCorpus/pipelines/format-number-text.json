@@ -1,0 +1,185 @@
+{
+  "format": 1,
+  "name": "format-number-text",
+  "note": "A number prints as Swift prints a Double: no \".0\" below 1e15, \".0\" to 1e16, then exponent form, and an exponent of two digits.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {
+          "a": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "b": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "c": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "d": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "e": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "f": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "g": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "h": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "i": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "text": {
+            "type": "format",
+            "pattern": "{a}|{b}|{c}|{d}|{e}|{f}|{g}|{h}|{i}",
+            "args": {
+              "a": {
+                "type": "item",
+                "path": [
+                  "a"
+                ]
+              },
+              "b": {
+                "type": "item",
+                "path": [
+                  "b"
+                ]
+              },
+              "c": {
+                "type": "item",
+                "path": [
+                  "c"
+                ]
+              },
+              "d": {
+                "type": "item",
+                "path": [
+                  "d"
+                ]
+              },
+              "e": {
+                "type": "item",
+                "path": [
+                  "e"
+                ]
+              },
+              "f": {
+                "type": "item",
+                "path": [
+                  "f"
+                ]
+              },
+              "g": {
+                "type": "item",
+                "path": [
+                  "g"
+                ]
+              },
+              "h": {
+                "type": "item",
+                "path": [
+                  "h"
+                ]
+              },
+              "i": {
+                "type": "item",
+                "path": [
+                  "i"
+                ]
+              }
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "record"
+    },
+    "schema": {
+      "kind": "object",
+      "fields": {
+        "text": {
+          "shape": {
+            "kind": "string"
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {
+    "a": 3,
+    "b": 1.5,
+    "c": 1000000000000000,
+    "d": 10000000000000000,
+    "e": 0.000001,
+    "f": 1.5e-7,
+    "g": 0.0001,
+    "h": 123456789012345680000,
+    "i": 0
+  },
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": {
+      "text": "3|1.5|1000000000000000.0|1e+16|1e-06|1.5e-07|0.0001|1.2345678901234568e+20|0"
+    }
+  },
+  "compiles": true
+}

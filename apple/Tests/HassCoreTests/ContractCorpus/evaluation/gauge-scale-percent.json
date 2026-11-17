@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "gauge-scale-percent",
+  "note": "On the percent scale 72 is 72: the marker at 144 - 6 = 138.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "scale": "percent",
+      "value": 72,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 72,
+        "left": 138
+      }
+    }
+  }
+}

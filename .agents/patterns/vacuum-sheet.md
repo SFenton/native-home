@@ -12,7 +12,7 @@ Web source: `ha-sfenton-react-dash@9ac2a46:src/components/hass/VacuumCard.tsx`, 
 | Status contract, runtime mode, tabs | `HassCore/Vacuums/VacuumStatus.swift` |
 | While-away report parsing and reconciliation | `HassCore/Vacuums/VacuumOutcomes.swift` |
 | Commands, rooms, settings, queued clean | `HassCore/Vacuums/VacuumController.swift` |
-| Auto-Clean switches (Vacuums page) | `HassCore/Vacuums/VacuumAutoCleanController.swift` |
+| Lowered kinds | [vacuum-lowering](vacuum-lowering.md) |
 | Sheet, tabs, layout, navigation | `HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift`, `HassCore/Vacuums/VacuumSheetModel.swift` |
 | Section bar symbols | `HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift` |
 | Map panel, status summary, report | `HassUI/UIKitPort/Features/Vacuums/UKVacuumMapPanel.swift` |
@@ -39,7 +39,7 @@ disabled tiles. Settings take authored role order, titles and hints.
 
 The optional `autoCleanControl` descriptor names the page switch and its
 `automation`/`pause` semantics. `auto-clean` renders the canonical module toggle
-through `VacuumAutoCleanController` with an explicit control catalog; no house-global
+(see [vacuum-lowering](vacuum-lowering.md)) with an explicit control catalog; no house-global
 lookup or duplicated inversion logic. Actual transport and optimistic state both
 pin source identity. `UKServerUIVacuumEnvironment` injects fixture/read-only map
 loaders, `serviceNames` and `mapURL` without replacing the command caller.

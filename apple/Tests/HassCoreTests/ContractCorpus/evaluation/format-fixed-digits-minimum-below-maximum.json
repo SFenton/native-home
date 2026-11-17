@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-minimum-below-maximum",
+  "note": "Between the two, zeros are trimmed down to the minimum: 72.5 with at most 3 and at least 1 is \"72.5\", and 72 is \"72.0\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a} {b}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": 72.5
+        },
+        "b": {
+          "type": "literal",
+          "value": 72
+        }
+      },
+      "formats": {
+        "a": {
+          "number": {
+            "maximumFractionDigits": 3,
+            "minimumFractionDigits": 1
+          }
+        },
+        "b": {
+          "number": {
+            "maximumFractionDigits": 3,
+            "minimumFractionDigits": 1
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "72.5 72.0"
+  }
+}

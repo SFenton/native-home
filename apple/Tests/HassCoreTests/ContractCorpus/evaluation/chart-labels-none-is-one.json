@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "chart-labels-none-is-one",
+  "note": "No labels: cadence 1 and no index. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 0,
+      "plotWidth": 100,
+      "widestLabelWidth": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 1,
+      "indices": []
+    }
+  }
+}

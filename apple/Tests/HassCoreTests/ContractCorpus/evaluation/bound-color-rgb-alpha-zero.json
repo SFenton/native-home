@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-rgb-alpha-zero",
+  "note": "rgba() with alpha 0 is no color.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "rgba(0, 150, 136, 0)"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 60,
+      "green": 60,
+      "blue": 67
+    },
+    "status": "value"
+  }
+}

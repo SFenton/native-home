@@ -331,7 +331,7 @@ final class UKDialFace: UIView {
         let side = laidOutSide
         let displayed = displayed
         let dragging = editor.activeHandle != nil
-        let animated = requested && !dragging && !UIAccessibility.isReduceMotionEnabled && window != nil
+        let animated = requested && !dragging && !UKMotion.reduceMotion && window != nil
         let inactive = configuration.isInactive
         let colorKey = configuration.colorKey
         let colorChanged = colorKey != lastColorKey

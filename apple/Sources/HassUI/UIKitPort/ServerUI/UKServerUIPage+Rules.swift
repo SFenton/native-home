@@ -50,7 +50,7 @@ extension UKServerUIPage {
                 wrapper.button.title = control.node.title
                 wrapper.button.accessibilityIdentifier = control.node.id
                 wrapper.button.systemImage = control.icon?.drawn
-                wrapper.button.isEnabled = renderer.isEnabled(.callService(call), from: self)
+                wrapper.button.isEnabled = renderer.isEnabled(.callService(call), from: self) && renderer.isEnabled(node: control.node)
                 wrapper.button.action = { [weak self, weak wrapper] in
                     guard let self else { return }
                     self.renderer?.activate(.callService(call), from: self, source: wrapper?.button, symbol: control.icon?.drawn ?? "",
@@ -68,15 +68,16 @@ extension UKServerUIPage {
                 let busy = renderer.callRunner.isBusy(node: control.node.id)
                 let failed = renderer.callRunner.isFailed(node: control.node.id)
                 let call = isOn ? control.offAction : control.onAction
+                let allowed = renderer.isEnabled(node: control.node)
                 let symbol = control.icon?.drawn ?? "power"
                 var confirmation: TileActionSpec.Confirmation?
-                if let call, call.asksConfirmation(of: reader.viewer),
+                if let call, call.asksConfirmation(of: reader.viewer, in: reader),
                    case .additional(let style, let title, let message, let confirmLabel, _, let destructive) = call.confirmation {
                     confirmation = .init(title: title, message: message, confirmVerb: confirmLabel, isDestructive: destructive,
                                          style: style == .dialog ? .dialog : .alert)
                 }
                 let spec = TileActionSpec(id: "toggle", verb: isOn ? "Turn Off" : "Turn On", symbol: symbol, isOn: isOn,
-                                          phase: unknown ? .unavailable : (busy ? .inFlight : .ready), feedback: .optimistic,
+                                          phase: unknown || !allowed ? .unavailable : (busy ? .inFlight : .ready), feedback: .optimistic,
                                           isError: failed, confirmation: confirmation)
                 var model = UKGlassTileModel(title: control.node.title, subtitle: unknown ? control.unavailableText : (isOn ? "On" : "Off"),
                                              symbol: symbol, family: .neutral, isActive: isOn, isUnavailable: unknown, isError: failed,
@@ -86,7 +87,7 @@ extension UKServerUIPage {
                 view.configure(model, environment: UKTileEnvironment(context: self.context), animated: !first, perform: { [weak self, weak view] _ in
                     guard let self, let renderer = self.renderer else { return }
                     let now = control.isOn?.evaluate(renderer.reader()) ?? .unknown
-                    guard now != .unknown, let call = now == .yes ? control.offAction : control.onAction else { return }
+                    guard now != .unknown, renderer.isEnabled(node: control.node), let call = now == .yes ? control.offAction : control.onAction else { return }
                     // The tile already asked the question it was configured with, when the direction has not flipped since.
                     renderer.activate(.callService(call), from: self, source: view, control: .bool(now != .yes),
                                       site: control.node.id + (now == .yes ? "#off" : "#on"), confirmed: (now == .yes) == isOn && confirmation != nil)
@@ -100,11 +101,14 @@ extension UKServerUIPage {
                 guard let self, let view, let renderer else { return }
                 // Read so the shown value is put back when a call ends, whether or not Home Assistant echoed it.
                 _ = renderer.callRunner.isBusy(node: control.node.id)
-                let binding = UKServerUIBoundBinding(control: control, reader: renderer.reader()) { [weak self, weak view] call, value, slot in
+                var binding = UKServerUIBoundBinding(control: control, reader: renderer.reader()) { [weak self, weak view] call, value, slot in
                     guard let self else { return }
                     self.renderer?.activate(.callService(call), from: self, source: view, control: value, site: control.node.id + "#" + slot)
                 }
-                view.apply(binding, surface: self.context.surface)
+                // A row's own parts: its subtitle follows the house, and its failure words show while the failed face does.
+                binding.strings = { renderer.bindings.string($0) }
+                binding.failed = renderer.callRunner.isFailed(node: control.node.id)
+                view.apply(binding, surface: self.context.surface, enabled: renderer.isEnabled(node: control.node))
             }
         }
     }

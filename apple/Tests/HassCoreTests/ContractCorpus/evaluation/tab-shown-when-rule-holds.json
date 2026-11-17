@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "tab-shown-when-rule-holds",
+  "note": "The tab asked for shows while its rule holds.",
+  "subject": {
+    "tab": {
+      "tabs": [
+        {
+          "id": "controls"
+        },
+        {
+          "id": "rooms",
+          "visibleWhen": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "whenUnknown": "hide"
+        },
+        {
+          "id": "dock"
+        }
+      ],
+      "requested": "rooms",
+      "fallback": "dock"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "80"
+      }
+    }
+  },
+  "expected": {
+    "tab": "rooms"
+  }
+}

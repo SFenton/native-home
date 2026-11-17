@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "chart-spoken-empty",
+  "note": "No points say nothing.",
+  "subject": {
+    "chart": {
+      "op": "spoken",
+      "points": [],
+      "pattern": "{value}",
+      "digits": 0,
+      "unknownText": "Unavailable"
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "spoken": ""
+    }
+  }
+}

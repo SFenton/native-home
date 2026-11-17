@@ -26,6 +26,11 @@ extension ServerUICompositionDocument {
         public struct Option: Equatable, Sendable {
             public let id: String
             public let label: String
+            /// The symbol a segmented choice draws for the option, and the words VoiceOver adds after the label (`sh.choice-icons@1`).
+            public var symbol: ServerUICompositionDocument.Symbol?
+            public var hint: String?
+            /// Whether the option carries a symbol or a hint, which only a segmented choice draws.
+            public var isDecorated: Bool { symbol != nil || hint != nil }
             /// Creates a option.
             public init(id: String, label: String) { self.id = id; self.label = label }
         }
@@ -78,7 +83,7 @@ extension ServerUICompositionDocument {
         public let density: Density
         public let hasGlyphs: Bool
         public let spacing: Space
-        public let children: [Component]
+        public internal(set) var children: [Component]
         public var presentationProviderId: String? = nil
         /// The authored style choices.
         public enum Style: String, Sendable { case plain, moduleList = "module-list" }
@@ -104,6 +109,8 @@ extension ServerUICompositionDocument {
         public let detail: StringValue
         public let tone: Tone
         public let unavailableText: String
+        /// The cases that choose the tone by rule (`sh.rules@1`); ``tone`` is then the `otherwise`.
+        public var toneCases: [ServerUIConditional<Tone>.Case] = []
         /// The authored tone choices.
         public enum Tone: String, Sendable { case neutral, ok, active, warning, danger, unavailable }
     }
@@ -114,7 +121,16 @@ extension ServerUICompositionDocument {
         public let perPage: Int
         public let pageLabel: String
         public let showsIndicator: Bool
-        public let children: [Component]
+        public internal(set) var children: [Component]
+
+        /// Creates a paged row (a `repeat` draws its pages through the same row).
+        public init(node: Node, perPage: Int, pageLabel: String, showsIndicator: Bool, children: [Component] = []) {
+            self.node = node
+            self.perPage = perPage
+            self.pageLabel = pageLabel
+            self.showsIndicator = showsIndicator
+            self.children = children
+        }
     }
 
     /// The canonical row's slots. There is deliberately no feature/page discriminator.
@@ -144,6 +160,12 @@ extension ServerUICompositionDocument {
         public var retainsAutomaticSelection = false
         /// Rules that choose the panel from entity state, first match first (`sh.selected-when@1`).
         public var automatic: [AutomaticRule] = []
+        /// The tab to open when the one the container would choose cannot show (`sh.tab-fallback@1`); `nil` means the first tab.
+        public var fallbackTabId: String? = nil
+        /// Where the bar sits and what it shows (`sh.tab-bar@1`); `nil` keeps the shipped forms.
+        public var tabBar: ServerUITabBar? = nil
+        /// The areas, in draw order (`sh.tab-blocks@1`); empty for the shipped shape, where each tab holds its own children.
+        public var areas: [ServerUITabArea] = []
         /// A panel the document picks while its predicate holds.
         public struct AutomaticRule: Equatable, Sendable {
             public let tabId: String
@@ -153,9 +175,11 @@ extension ServerUICompositionDocument {
         public struct TabContent: Equatable, Sendable {
             public let id: String
             public let label: String
-            public let children: [Component]
+            public internal(set) var children: [Component]
             public var icon: Symbol? = nil
             public var centerWhenFits = false
+            /// Shows or hides the tab by a rule (`sh.tab-blocks@1`); `nil` for a tab that is always there.
+            public var visibility: ServerUIVisibility? = nil
         }
     }
 
@@ -187,6 +211,12 @@ extension ServerUICompositionDocument {
         public let unavailableText: String
         public let errorText: String
         public let staleText: String
+        /// What a tap on a row does (`sh.list-parts@1`); never a domain action.
+        public var rowAction: Action?
+        /// Whether pulling the list runs its flow again (`sh.list-parts@1`).
+        public var refreshable = false
+        /// The line under the empty title (`sh.list-parts@1`).
+        public var emptyMessage: StringValue?
     }
 }
 
@@ -202,20 +232,29 @@ extension ServerUICompositionDocument.Component {
         case .pinnedActions(let value): value.children
         case .statusRail(let value): value.children
         case .roomSection(let value): value.children
-        case .localTabs(let value): value.tabs.flatMap(\.children)
+        case .localTabs(let value): value.tabs.flatMap(\.children) + value.areas.flatMap(\.children)
+        case .overlay(let value): value.children
+        case .stack(let value): value.children
+        case .repeatNode(let value): value.children
         default: []
         }
     }
 
-    public var ownActions: [ServerUICompositionDocument.Action] {
+    /// The plain actions the component can run: an action chosen by rule counts as each action it can pick.
+    public var ownActions: [ServerUICompositionDocument.Action] { declaredActions.flatMap(\.plainActions) }
+
+    /// The actions as authored, a rule counting as one.
+    private var declaredActions: [ServerUICompositionDocument.Action] {
         switch self {
         case .navigationTile(let value): return [value.action]
         case .actionTile(let value): return [.domain(value.action)]
         case .row(let value): return value.action.map { [$0] } ?? []
+        case .stack(let value): return value.action.map { [$0] } ?? []
         case .climate(let value): return value.action.map { [$0] } ?? []
         case .button(let value): return [value.action]
         case .boundControl(let value): return value.actions.map { .callService($0) }
         case .collection(let value): return value.selection.map { [$0] } ?? []
+        case .rowCollection(let value): return value.rowAction.map { [$0] } ?? []
         case .form(let value): return value.success.map { [$0] } ?? []
         case .pinnedActions(let value): return value.items.map(\.action)
         case .statusChip(let value): return value.action.map { [$0] } ?? []
@@ -239,6 +278,7 @@ extension ServerUICompositionDocument.Component {
             default: return []
             }
         case .cameraTile(let value): return [value.action]
+        case .stateTile(let value): return value.parts.discs.map(\.action) + (value.action.map { [$0] } ?? [])
         default: return []
         }
     }

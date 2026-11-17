@@ -41,7 +41,7 @@ public enum SecurityConfig {
         case alarm
         /// Locks or unlocks.
         case lock
-        /// A garage door: open/close with the command state machine (``GarageDoorController``).
+        /// A garage door: one morphing open/close action whose request feedback is the state style's (`StateStyle.garageDoor`).
         case garageDoor
         /// The car's door lock.
         case vehicle

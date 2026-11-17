@@ -48,6 +48,16 @@ final class UKSuggestedRecipesView: UIView, UKGridMeasuring, UIScrollViewDelegat
     /// Clip pages to the carousel's own width. Set it when the carousel shares a row with other content (the hub's split columns).
     var clipsPages = false { didSet { if clipsPages != oldValue { updateClipping() } } }
 
+    /// The line under the empty state's title, in place of the copy's own (a publication's authored empty text).
+    var emptyMessage: String? {
+        didSet {
+            guard emptyMessage != oldValue else { return }
+            builtKey = ""
+            setNeedsLayout()
+            invalidateHost()
+        }
+    }
+
     private let copy: UKSuggestedRecipesCopy
     private let header: UKPageSectionHeaderView
     private let pages = UIScrollView()
@@ -170,7 +180,7 @@ final class UKSuggestedRecipesView: UIView, UKGridMeasuring, UIScrollViewDelegat
                                       identifier: copy.errorIdentifier)
         }
         if plan.showsEmpty {
-            return UKStateMessageView(symbol: copy.stateSymbol, title: copy.emptyTitle, message: copy.emptyMessage,
+            return UKStateMessageView(symbol: copy.stateSymbol, title: copy.emptyTitle, message: emptyMessage ?? copy.emptyMessage,
                                       identifier: copy.emptyIdentifier)
         }
         return nil
@@ -294,7 +304,7 @@ final class UKSuggestedRecipesView: UIView, UKGridMeasuring, UIScrollViewDelegat
 
     private func scroll(toPage target: Int) {
         setNeighbours(true)
-        let reduce = UIAccessibility.isReduceMotionEnabled
+        let reduce = UKMotion.reduceMotion
         // Reduce Motion: jump to the page rather than scrolling the carousel across.
         pages.setContentOffset(CGPoint(x: pages.bounds.width * CGFloat(target), y: 0), animated: !reduce)
         if reduce {

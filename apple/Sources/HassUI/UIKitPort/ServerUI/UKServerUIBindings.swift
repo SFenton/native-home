@@ -28,7 +28,6 @@ final class UKServerUIBindings {
     private(set) var weather: [String: UKServerUIWeatherSource] = [:]
     private(set) var lights: [String: ServerUIHomeLightSource] = [:]
     private var homeLightActions: OptimisticActions?
-    private(set) var doors: [String: UKServerUIDoorSource]
     private(set) var climates: [String: ServerUIClimateAdapter]
     private var climateController: ClimateController?
     let roomVisits: ServerUIRoomVisits?
@@ -45,6 +44,8 @@ final class UKServerUIBindings {
     let cameraPool: CameraStreamPool
     private let weatherReader: ServerUIWeatherReader?
     private let cameraReader: UKCameraReadProvider?
+    /// The `app-state@1` values: window, clock, system, notifications and preferences (``UKServerUIAppStateSource``).
+    let appState: UKServerUIAppStateSource
 
     init(sources: [D.Source], context: UKContext,
          scheduleStorage: (any HassScheduleStoring)? = nil,
@@ -56,6 +57,7 @@ final class UKServerUIBindings {
          cameraPool: CameraStreamPool = .shared,
          weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil) {
         self.context = context
+        appState = context.appState ?? UKServerUIAppStateSource(push: context.push)
         self.weatherReader = weatherReader
         self.cameraReader = cameraReader
         roomVisits = context.caller.map { ServerUIRoomVisits(caller: $0) }
@@ -81,12 +83,6 @@ final class UKServerUIBindings {
         alarms = Dictionary(uniqueKeysWithValues: sources.compactMap {
             if case .alarmMode(_, let entityID) = $0 {
                 return ($0.id, UKServerUIAlarmSource(entityID: entityID, context: context))
-            }
-            return nil
-        })
-        doors = Dictionary(uniqueKeysWithValues: sources.compactMap {
-            if case .securityDoor(_, let entityID, let kind) = $0 {
-                return ($0.id, UKServerUIDoorSource(entityID: entityID, kind: kind, context: context))
             }
             return nil
         })
@@ -130,7 +126,6 @@ final class UKServerUIBindings {
         if !changed.isEmpty, powers.values.contains(where: \.hasPendingIntent)
             || alarms.values.contains(where: \.hasPendingIntent)
             || lights.values.contains(where: \.hasPendingIntent)
-            || doors.values.contains(where: \.hasPendingIntent)
             || climates.values.contains(where: \.hasPendingIntent)
             || devices.values.contains(where: \.hasPendingIntent)
             || vacuums.values.contains(where: \.isPinned)
@@ -163,11 +158,6 @@ final class UKServerUIBindings {
             guard case .alarmMode(_, let entityID) = source else { return nil }
             let retained = definitions[source.id] == source ? alarms[source.id] : nil
             return (source.id, retained ?? UKServerUIAlarmSource(entityID: entityID, context: context))
-        })
-        doors = Dictionary(uniqueKeysWithValues: sources.compactMap { source in
-            guard case .securityDoor(_, let entityID, let kind) = source else { return nil }
-            let retained = definitions[source.id] == source ? doors[source.id] : nil
-            return (source.id, retained ?? UKServerUIDoorSource(entityID: entityID, kind: kind, context: context))
         })
         devices = Dictionary(uniqueKeysWithValues: sources.compactMap { source in
             guard case .roomDevice(_, let descriptor) = source, let caller = context.caller ?? context.connection else { return nil }
@@ -233,11 +223,12 @@ final class UKServerUIBindings {
         })
     }
 
-    func status(_ sourceId: String) -> ServerUIHomeStatus.Value? {
+    /// The projected status of a source; `words` are a room overview tile's own (`sh.state-words@1`).
+    func status(_ sourceId: String, words: ServerUIStateWords? = nil) -> ServerUIHomeStatus.Value? {
         guard case .homeStatus(_, let configuration) = definitions[sourceId] else { return nil }
         return ServerUIHomeStatus.project(configuration, pending: context.valuesPending,
                                           redacted: ScreenshotPrivacy.isRedacting && [.occupancy, .entity].contains(configuration.projection),
-                                          read: homeEntity)
+                                          words: words, read: homeEntity)
     }
 
     /// Shell binds navigation copy over exactly the sources its overview tiles use.
@@ -271,16 +262,40 @@ final class UKServerUIBindings {
         }).sorted()
     }
 
+    /// Gives expressions the environment they are evaluated in (entity boxes, the optimistic overlay, the viewer, app state). The
+    /// renderer sets it once it exists; without one an expression sees an empty house and is unavailable.
+    var readerProvider: (() -> UKServerUIReader)?
+
+    /// The repeat cell whose expressions are being run now, or `nil`. It is set around a cell's observations and around a tap in a cell
+    /// (``UKServerUICellScope``), never held across a turn.
+    var cell: UKServerUICellScope?
+
+    /// A text slot's value: a literal, a typed read, or an operand (`sh.rules@1`), each with the fallback it carries
+    /// (``ServerUIStringResolver``). Evaluated inside the caller's observation, so it follows exactly the entities it reads.
     func string(_ value: D.StringValue) -> UKServerUIValue<String> {
-        switch value {
-        case .literal(let text): return .ready(text)
-        case .read(let read):
-            switch self.read(read) {
-            case .loading: return .loading
-            case .unavailable: return .unavailable
-            case .ready(.string(let text)): return .ready(text)
-            case .ready: return .unavailable
-            }
+        let readValue: (D.Read) -> ServerUIReadResult = { self.textResult($0) }
+        let result: ServerUIReadResult
+        if let environment = readerProvider?() {
+            result = ServerUIStringResolver.resolve(value, read: readValue, in: environment)
+        } else if case .expression = value {
+            return .unavailable
+        } else {
+            result = ServerUIStringResolver.resolve(value, read: readValue, in: UKEmptyReading())
+        }
+        switch result {
+        case .value(.string(let text)): return .ready(text)
+        case .loading: return .loading
+        case .value, .unavailable: return .unavailable
+        }
+    }
+
+    /// A typed read as text for a text slot: a value that is not text is unavailable.
+    func textResult(_ read: D.Read) -> ServerUIReadResult {
+        switch self.read(read) {
+        case .loading: .loading
+        case .unavailable: .unavailable
+        case .ready(.string(let text)): .value(.string(text))
+        case .ready: .unavailable
         }
     }
 
@@ -314,7 +329,19 @@ final class UKServerUIBindings {
             case ["state"]: return .ready(.string(status.state))
             case ["phase"]: return .ready(.string(status.unavailable ? "unavailable" : status.state == "loading" ? "loading" : "ready"))
             case ["isActive"]: return .ready(.bool(status.active))
+            case ["count"], ["total"], ["unavailableCount"]:
+                // The counts of `sh.home-status-counts@1`: a number once the members have answered, loading until then.
+                if status.state == "loading" { return .loading }
+                let number: Int? = read.path == ["count"] ? status.count : read.path == ["total"] ? status.total : status.unavailableCount
+                return status.state == "hidden" ? .unavailable : number.map { .ready(.number(Double($0))) } ?? .unavailable
             default: return .unavailable
+            }
+        }
+        if case .appState(_, let topic) = source, read.path.count == 1 {
+            switch appState.read(topic, field: read.path[0]) {
+            case .value(let value): return .ready(value)
+            case .loading: return .loading
+            case .unavailable: return .unavailable
             }
         }
         if case .todoCounts(_, let configuration) = source {
@@ -449,8 +476,12 @@ final class UKServerUIBindings {
             let phase = alarm.projection.spec.phase
             return .ready(.string(context.valuesPending ? "loading" : phase == .ready ? "ready" : phase == .inFlight ? "inFlight" : "unavailable"))
         case .securityDoor:
-            guard read.path == ["phase"], let door = doors[read.sourceId] else { return .unavailable }
-            return .ready(.string(context.valuesPending ? "loading" : door.spec.phase == .ready ? "ready" : door.spec.phase == .inFlight ? "inFlight" : "unavailable"))
+            // The door's phase comes from the entity alone: the tile that shows it is a `state-tile` (`ServerUIDoorLowering`).
+            guard read.path == ["phase"], case .securityDoor(_, let entityID, _)? = definitions[read.sourceId] else { return .unavailable }
+            if context.valuesPending { return .ready(.string("loading")) }
+            let live = context.store.entity(entityID).state
+            let sendable = context.caller != nil && context.connection.map({ SecurityScreen.canSend($0.status) }) != false
+            return .ready(.string(sendable && !ScreenshotPrivacy.isRedacting && live?.isUnavailable == false ? "ready" : "unavailable"))
         case .climate:
             guard read.path.count == 1, let climate = climates[read.sourceId] else { return .unavailable }
             if read.path != ["phase"] {
@@ -475,7 +506,7 @@ final class UKServerUIBindings {
             default: return .unavailable
             }
         case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .bedroom,
-             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider:
+             .mediaRemote, .deviceProvider, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .camera, .settingsProvider, .appState, .pipeline:
             return .unavailable
         case .homeStatus, .homeWeather, .homeLight: return .unavailable
         }

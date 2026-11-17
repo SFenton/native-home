@@ -23,6 +23,8 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
     }
 
     let configuration: Configuration
+    /// The state flags this preview was launched with (``UKServerUIPreviewFlags``).
+    let flags: UKServerUIPreviewFlags
     let store: EntityStore
     let caller: UKServerUIPreviewFixtureCaller
     let recordService: UKServerUIPreviewFixtureRecords
@@ -41,7 +43,7 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
     private let defaults: UserDefaults
     private let defaultsName = "ServerUIPreviewFixtures-" + UUID().uuidString
 
-    init(configuration: Configuration, store: EntityStore) throws {
+    init(configuration: Configuration, store: EntityStore, flags: UKServerUIPreviewFlags = .init()) throws {
         let bedroomScenario = configuration.bedroomScenario.flatMap(BedroomFixtures.Scenario.init(rawValue:))
         guard configuration.bedroomScenario == nil || bedroomScenario != nil else {
             throw UKServerUIRendererError(code: .unavailableSource, pointer: "/preview/gallery/bedroomScenario")
@@ -52,12 +54,14 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
             throw UKServerUIRendererError(code: .unavailableSource, pointer: "/preview/gallery")
         }
         self.configuration = configuration
+        self.flags = flags
         self.store = store
         self.defaults = defaults
         name = person.name
         if let bedroomScenario { store.apply(BedroomFixtures.states(bedroomScenario)) }
-        recordService = UKServerUIPreviewFixtureRecords(store: store)
-        caller = UKServerUIPreviewFixtureCaller(store: store, isCurrent: { [recordService] in recordService.isCurrent })
+        recordService = UKServerUIPreviewFixtureRecords(store: store, empty: flags.empty, failsCalls: flags.failCalls)
+        caller = UKServerUIPreviewFixtureCaller(store: store, failsCalls: flags.failCalls,
+                                                isCurrent: { [recordService] in recordService.isCurrent })
         viewerKey = person.key
         viewerUserID = person.haUserId
         recordAccessToken = { [recordService] in
@@ -79,8 +83,8 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
     var header: UKServerUIShellHeaderSource {
         .init(state: { [weak self] in
             guard let self, isCurrent else { return .init(profileName: nil) }
-            return .init(profileName: name,
-                attentionCount: ShellAttention.count(store: store, viewerUserId: configuration.viewerUserID))
+            return flags.applying(to: .init(profileName: name,
+                attentionCount: ShellAttention.count(store: store, viewerUserId: configuration.viewerUserID)))
         })
     }
 
@@ -89,7 +93,7 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
             guard case .homeWeather(_, let configuration) = source else { return nil }
             return configuration.weatherEntityId
         }
-        return ServerUIWeatherReader(entityIds: Set(ids), caller: WeatherFixtureCaller(mode: .normal), connected: { true })
+        return ServerUIWeatherReader(entityIds: Set(ids), caller: WeatherFixtureCaller(mode: .normal), connected: { [flags] in flags.isConnected })
     }
 
     /// Existing models own selections and drafts; each provider is retained for this preview's lifetime.
@@ -119,7 +123,9 @@ final class UKServerUIPreviewFixtures: UKServerUIAccountProvider {
                     configuration: DemoHouse.config, document: publication.document, store: store, caller: caller, current: current)
             case .away:
                 let away = try UKServerUIHouseholdProviders.away(id: definition.providerId,
-                    configuration: DemoHouse.config, authenticatedUserID: configuration.viewerUserID,
+                    configuration: UKServerUIPreviewPlaceholders.houseConfig(for: publication.document,
+                                                                             awayProviderId: definition.providerId),
+                    authenticatedUserID: configuration.viewerUserID,
                     store: store, caller: caller, current: current)
                 try away.addPresentations(to: &records)
                 provider = away

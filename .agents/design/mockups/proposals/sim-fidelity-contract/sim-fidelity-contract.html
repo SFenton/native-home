@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tile ink, state words and grid groups · proposal mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<script src="../../modals/home/_room-overview-data.js"></script>
+<script src="../../modals/home/_room-overview.js"></script>
+<style>
+  /* sh.tile-ink-default@1 (local helper; becomes the kit's .ui-tile rules when the owner has picked and it is built).
+     Only the dark faces change: .off (idle) and .tinted (active with no fill). Lit, filled, power, coloured and error faces keep their ink; .unavail keeps today's grey.
+     A: glyphs with no colour of their own, and every state line. B: every idle glyph too. C: A's glyphs, the state line one step softer (Ink.secondary, 72%). */
+  .nk-a .ui-tile.off:not(.unavail) .st, .nk-a .ui-tile.tinted .st, .nk-b .ui-tile.off:not(.unavail) .st, .nk-b .ui-tile.tinted .st { color: var(--tile-ink); }
+  .nk-c .ui-tile.off:not(.unavail) .st, .nk-c .ui-tile.tinted .st { color: color-mix(in srgb, var(--tile-ink) 72%, transparent); }
+  .nk-a .ui-tile.off[data-nofam]:not(.unavail) .glyph, .nk-a .ui-tile.tinted[data-nofam] .glyph,
+  .nk-c .ui-tile.off[data-nofam]:not(.unavail) .glyph, .nk-c .ui-tile.tinted[data-nofam] .glyph,
+  .nk-b .ui-tile.off:not(.unavail) .glyph, .nk-b .ui-tile.tinted[data-nofam] .glyph { color: var(--tile-ink); }
+  /* Group headings: option B's count and option C's disclosure button (local; neither is in the kit because production has neither). */
+  .in-sheet .ui-hdr .detail.gd { color: var(--ink-sheet-2); }
+  .ui-hdr .group-chev { flex: none; width: 44px; height: 44px; margin: -12px -10px -12px 0; border: 0; background: none; color: inherit; display: grid; place-items: center; font-size: var(--fs-sub); opacity: .8; }
+  .ui-hdr.gcol h2 { color: var(--ink, #fff); }
+  /* Studio inspector (a web surface; stand-in tokens, not the app's and not the Studio's). */
+  .si { --b: #fff; --b2: #f3f4f6; --f: #16181d; --f2: #5b6270; --ln: #d9dde4; --ac: #0066cc; --acs: #e3effc; --warn: #8a5a00; --ok: #1e7b34;
+    display: grid; grid-template-columns: 320px 320px minmax(320px, 1fr); border: 1px solid var(--ln); border-radius: 12px; overflow: hidden; background: var(--b); color: var(--f); font: 13px/1.4 var(--font); min-width: 1000px; margin-bottom: 18px; }
+  .si.dk { --b: #1a1d23; --b2: #23272f; --f: #eef0f4; --f2: #a6adba; --ln: #2e333c; --ac: #409cff; --acs: #152a44; --warn: #ffd60a; --ok: #30d158; }
+  .si > div { padding: 14px; min-width: 0; } .si > div + div { border-left: 1px solid var(--ln); }
+  .si .crumb { color: var(--f2); font-size: 12px; margin-bottom: 4px; } .si .ttl { font: 600 16px var(--font); margin-bottom: 12px; }
+  .si .grp { font: 600 11px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--f2); margin: 16px 0 6px; } .si .grp:first-of-type { margin-top: 0; }
+  .si .row { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0; } .si .row > .sp { flex: 1; min-width: 0; }
+  .si .row.nav { border-radius: 8px; padding: 2px 6px; margin: 0 -6px; } .si .row.nav.sel { background: var(--acs); } .si .row .val { color: var(--f2); } .si .row .chev { color: var(--f2); }
+  .si .row.inert .fld, .si .row.inert .lbl { opacity: .5; }
+  .si .foot { color: var(--f2); font-size: 12px; margin: 2px 0 6px; } .si .warn { color: var(--warn); font-size: 12px; margin: 2px 0 6px; }
+  .si .switch-ctl { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .switch-ctl.on { background: var(--ok); }
+  .si .switch-ctl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .switch-ctl.on::after { left: 16px; }
+  .si .fld { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 8px; background: var(--b2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .si .fld.w { flex: 1; } .si .fld.ph { color: var(--f2); }
+  .si .lbl { width: 128px; flex: none; color: var(--f2); }
+  .si .fold { border: 1px solid var(--ln); border-radius: 9px; padding: 4px 10px 8px; margin: 6px 0; } .si .fold > .row:first-child { font-weight: 600; }
+  .si .pv { background: var(--b2); } .si .cap { font: 600 11px var(--font); color: var(--f2); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; }
+  .si .dev { border-radius: 22px; background: #111; padding: 16px 14px; } .si .dev .ui-hdr h2 { color: #fff; font-size: 17px; margin: 0; }
+  .si .btn { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 10px; background: transparent; color: var(--f); font: 13px var(--font); } .si .btn[disabled] { opacity: .5; }
+  .si .chk { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--ac); background: var(--ac); color: #fff; display: inline-grid; place-items: center; font-size: 11px; flex: none; } .si .chk.no { background: transparent; }
+  .si .bar { display: flex; align-items: center; gap: 8px; background: var(--acs); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; } .si .bar .sp { flex: 1; }
+  .si .link { color: var(--ac); } .si .card { border: 1px solid var(--ln); border-radius: 9px; padding: 6px 10px; margin: 6px 0; }
+  .ct td, .ct th { font-variant-numeric: tabular-nums; }
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, A = Mock.anim;
+
+  /* ---- 1. tile ink ------------------------------------------------------------------------------------------------------------------------------------ */
+  /** A kit tile; `nofam` marks a glyph with no colour of its own (no family, no authored tint). */
+  function T(p, nofam) { var t = Mock.tile(p); if (nofam) t.dataset.nofam = '1'; return t; }
+  /** One tile of every face the rule touches or leaves alone (fixture names). */
+  function inkTiles() {
+    return [
+      T({ title: 'Guest Mode', subtitle: 'Off', symbol: 'person.2', isActive: false }, true),
+      T({ title: 'Front Door', subtitle: 'Locked', symbol: 'lock.fill', isActive: false, kind: 'state' }, true),
+      T({ title: 'Cameras', subtitle: '4 Cameras', symbol: 'video', kind: 'navigate' }, true),
+      T({ title: 'Floor Fan', subtitle: 'Off', symbol: 'fan', family: 'air', isActive: false }),
+      T({ title: 'Hallway', subtitle: 'Not Occupied', symbol: 'figure.walk', family: 'occupancy', isActive: false, kind: 'state' }),
+      K.BrightnessTile({ title: 'Floor Lamp', percent: 0 }),
+      K.BrightnessTile({ title: 'Table Light', percent: 70 }),
+      T({ title: 'Kitchen Speaker', subtitle: 'Playing', symbol: 'hifispeaker', family: 'media', isActive: true }),
+      T({ title: 'Towel Rack', subtitle: 'On', symbol: 'power', family: 'power', isActive: true }),
+      T({ title: 'Garage Door', subtitle: 'Unavailable', symbol: 'door.garage.closed', isUnavailable: true }, true),
+      T({ title: 'Dishwasher', subtitle: 'Leak Detected', symbol: 'dishwasher', family: 'cleaning', isError: true }),
+    ];
+  }
+  function mark(node, opt) { if (opt) node.classList.add('nk-' + opt); return node; }
+  function inkPage(opt) {
+    return function (ctx) {
+      return mark(Mock.page(ctx, { title: 'Living Room', section: 'home', back: 'Rooms', badge: 3, choresBadge: 2,
+        body: [K.PageSectionHeader({ title: 'Devices' }), K.TileGrid({ items: inkTiles(), min: 150, max: 4 })] }), opt);
+    };
+  }
+  function inkSheet(opt) {
+    return function (ctx) {
+      return mark(Mock.sheet(ctx, { title: 'Devices', detent: 'large', size: 'page', leading: 'none', trailing: 'close',
+        content: [K.TileGrid({ items: inkTiles(), min: 150, max: 4 })],
+        presenter: Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [] }) }), opt);
+    };
+  }
+
+  /* ---- 2. grid groups --------------------------------------------------------------------------------------------------------------------------------- */
+  /** The groups of a rendered grid: each heading and the tiles up to the next heading. */
+  function groupsOf(root) {
+    var out = [];
+    [].forEach.call((root.querySelector('.ui-sheet') || root).querySelectorAll('.gridheader'), function (hd) {
+      var n = hd.nextElementSibling, tiles = [];
+      while (n && !n.classList.contains('gridheader')) { tiles.push(n); n = n.nextElementSibling; }
+      out.push({ hd: hd, tiles: tiles });
+    });
+    return out;
+  }
+  /** Option B: the number of tiles in the group, trailing on the heading's baseline. */
+  function addCounts(root) { groupsOf(root).forEach(function (g) { g.hd.appendChild(h('span.detail.gd', { 'aria-label': g.tiles.length + ' rooms' }, String(g.tiles.length))); }); }
+  /** Option C: a disclosure button on every heading; the last group is drawn collapsed. */
+  function addCollapse(root) {
+    var gs = groupsOf(root);
+    gs.forEach(function (g, i) {
+      var shut = i === gs.length - 1 && gs.length > 1, ti = g.hd.querySelector('h2').textContent;
+      g.hd.classList.add('gcol');
+      g.hd.appendChild(h('span.group-chev', { tabindex: '0', role: 'button', 'aria-expanded': shut ? 'false' : 'true', 'aria-label': (shut ? 'Show ' : 'Hide ') + ti, html: Mock.icon(shut ? 'chevron.right' : 'chevron.down') }));
+      if (shut) g.tiles.forEach(function (t) { t.remove(); });
+    });
+  }
+  /** Authored state words on the Lights cards: When Off "All Off", Count Text "{count} Lights On". */
+  function reword(root) {
+    [].forEach.call((root.querySelector('.ui-sheet') || root).querySelectorAll('.ui-tile .st'), function (s) {
+      var t = s.textContent, m = /^(\d+) On$/.exec(t);
+      if (m) s.textContent = m[1] + ' Lights On'; else if (t === 'Off') s.textContent = 'All Off';
+    });
+  }
+  /** The production overview sheet (its sections are the grouped grid), with the recommended ink. o: {kind, world, count, collapse, words} */
+  function overview(o) {
+    o = o || {};
+    return function (ctx) {
+      var s = RO.sheet(ctx, { kind: o.kind || 'lights', W: RO.world(o.world || 'mixed') });
+      if (o.count) addCounts(s);
+      if (o.collapse) addCollapse(s);
+      if (o.words) reword(s);
+      return mark(s, 'a');
+    };
+  }
+  /** A grouped grid on a page: the preset's two groups with their first titles. */
+  function groupedPage(ctx) {
+    function hd(t) { var n = K.PageSectionHeader({ title: t }); n.classList.add('gridheader'); return n; }
+    var items = [hd('On'),
+      T({ title: 'Floor Fan', subtitle: 'On', symbol: 'fan', family: 'air', isActive: true }),
+      T({ title: 'Air Purifier', subtitle: 'On', symbol: 'fan', family: 'air', isActive: true }),
+      hd('Off'),
+      T({ title: 'Ceiling Fan', subtitle: 'Off', symbol: 'fan', family: 'air', isActive: false }),
+      T({ title: 'Bath Fan', subtitle: 'Off', symbol: 'fan', family: 'air', isActive: false }),
+      T({ title: 'Desk Fan', subtitle: 'Off', symbol: 'fan', family: 'air', isActive: false }),
+      T({ title: 'Garage Fan', subtitle: 'Unavailable', symbol: 'fan', family: 'air', isUnavailable: true })];
+    return mark(Mock.page(ctx, { title: 'Fans', section: 'home', back: 'Home', badge: 3, choresBadge: 2, body: [K.TileGrid({ items: items, min: 150, max: 4 })] }), 'a');
+  }
+
+  var states = {
+    'default': { title: 'Ink A on a page: uncoloured icons and the state line', note: 'Recommended, not picked: the gate parked this choice for the owner. An icon with no colour of its own (Guest Mode, Front Door, Cameras) and every state line draw white. Floor Fan, Hallway and Floor Lamp keep their family tint while idle. Table Light, Kitchen Speaker and Towel Rack are filled faces and do not change. Garage Door is unavailable and stays grey at 50%. Dishwasher keeps its red.', render: inkPage('a') },
+    'ink-today': { title: 'Today on a page', note: 'What a document without the capability keeps: the grey #8E8E93 icon and the secondary state line.', render: inkPage(null) },
+    'ink-b': { title: 'Ink B on a page: every idle icon', note: 'As A, and the idle family icons (Floor Fan, Hallway, Floor Lamp) are white too. A family colour then shows only while the tile is on.', render: inkPage('b') },
+    'ink-c': { title: 'Ink C on a page: white icons, softer state line', note: 'A\'s icons. The state line is the primary ink at 72% (the app\'s secondary ink), one step under the title as HIG Labels describes for supplemental text.', render: inkPage('c') },
+    'ink-a-sheet-dark': { title: 'Ink A in a dark sheet', note: 'White on the #2C2C2E cell: 13.9:1 (today\'s state line is 5.3:1, today\'s icon 4.3:1).', override: { appearance: 'dark' }, render: inkSheet('a') },
+    'ink-a-sheet-light': { title: 'Ink A in a light sheet', note: 'The primary ink is black on the white cell: 21:1 (today\'s state line is 5.3:1, today\'s icon 3.9:1). The icon never disappears on white.', override: { appearance: 'light' }, render: inkSheet('a') },
+    'ink-today-sheet-light': { title: 'Today in a light sheet', note: 'For comparison.', override: { appearance: 'light' }, render: inkSheet(null) },
+    'ink-b-sheet-light': { title: 'Ink B in a light sheet', note: 'Every idle icon black.', override: { appearance: 'light' }, render: inkSheet('b') },
+    'ink-c-sheet-light': { title: 'Ink C in a light sheet', note: 'State line black at 72%: 9.2:1 on white.', override: { appearance: 'light' }, render: inkSheet('c') },
+    'ink-c-sheet-dark': { title: 'Ink C in a dark sheet', note: 'State line white at 72%: 8.0:1 on #2C2C2E.', override: { appearance: 'dark' }, render: inkSheet('c') },
+    'groups-a': { title: 'Groups A: title only (production)', note: 'Recommended, not picked: the gate parked this choice for the owner. The Lights grid grouped by state: "Lights On" then "Lights Off", each heading a full row inside the one grid, 20 pt bold in the primary ink, no count, no control. The sheet\'s subtitle carries the count. Drawn with Ink A.', override: { appearance: 'dark' }, render: overview() },
+    'groups-a-light': { title: 'Groups A in a light sheet', note: 'The heading is the primary ink, black here.', override: { appearance: 'light' }, render: overview() },
+    'groups-b': { title: 'Groups B: title and count', note: 'The number of tiles in the group on the heading\'s baseline, in the secondary ink. Here it counts rooms while the sheet\'s subtitle counts lights.', override: { appearance: 'dark' }, render: overview({ count: true }) },
+    'groups-c': { title: 'Groups C: headings that collapse', note: 'A 44 pt disclosure button on each heading; "Lights Off" is shown collapsed. The app would have to remember what is collapsed on each device.', override: { appearance: 'dark' }, render: overview({ collapse: true }) },
+    'groups-occupancy': { title: 'Occupancy grouped: Occupied, Clear', note: 'The same option on the Occupancy grid. Occupied rooms fill with the occupancy colour; idle rooms keep the family tint on the icon under Ink A.', override: { appearance: 'dark' }, render: overview({ kind: 'occupancy' }) },
+    'groups-empty': { title: 'An empty group is dropped', note: 'Every light off: "Lights On" has no tile, so its heading is not drawn and "Lights Off" is the first row.', override: { appearance: 'dark' }, render: overview({ world: 'quiet' }) },
+    'groups-unavailable': { title: 'Unavailable tiles sit with idle', note: 'The preset puts Unavailable in the second group, as production does: a room whose lights do not answer is under "Lights Off" and says "Unavailable".', override: { appearance: 'dark' }, render: overview({ world: 'unavailable' }) },
+    'groups-page': { title: 'A grouped grid on a page', note: 'Any grid can be grouped. On a page the heading is white on the wallpaper with no top inset. A short last row fills its width, as every grid\'s does.', render: groupedPage },
+    'words': { title: 'Authored state words', note: 'sh.state-words@1 on the Lights cards: When Off is "All Off" and Count Text is "{count} Lights On". A tile with no authored words draws production\'s: On, Off, Unavailable, "{count} On", "{value}%".', override: { appearance: 'dark' }, render: overview({ words: true }) },
+    'ax5': { title: 'Accessibility 5 text size', note: 'One column. Headings wrap and keep the heading trait; tiles stack the icon over the name and the state line.', override: { ts: 'ax5', appearance: 'dark' }, render: overview() },
+  };
+
+  /* ---- motion: a tile changing group ------------------------------------------------------------------------------------------------------------------- */
+  /** Moves the first "Lights Off" card to the end of "Lights On": every displaced tile slides on `standard`; Reduce Motion fades the moved tile instead. */
+  function regroup(stage, animated) {
+    var gs = groupsOf(stage); if (gs.length < 2 || !gs[1].tiles.length) return Promise.resolve();
+    var tile = gs[1].tiles[0], grid = tile.parentNode, kids = [].slice.call(grid.children);
+    var k = grid.offsetWidth ? grid.getBoundingClientRect().width / grid.offsetWidth : 1;
+    var was = kids.map(function (n) { return n.getBoundingClientRect(); });
+    RO.flipTile(tile, true, { subtitle: 'On' });
+    grid.insertBefore(tile, gs[1].hd);
+    if (!animated) return Mock.sleep(900);
+    if (Mock.settings.reduceMotion) { tile.animate([{ opacity: 0 }, { opacity: 1 }], { duration: A.ms.quick(), easing: A.easing.quick }); return Mock.sleep(900); }
+    kids.forEach(function (n, i) {
+      var now = n.getBoundingClientRect(), dx = (was[i].left - now.left) / k, dy = (was[i].top - now.top) / k;
+      if (dx || dy) n.animate([{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], { duration: A.ms.standard(), easing: A.easing.standard });
+    });
+    return Mock.sleep(A.ms.standard() + 700);
+  }
+
+  /* ---- sections ------------------------------------------------------------------------------------------------------------------------------------------ */
+  function contrast() {
+    function tr(cells, head) { return h('tr', cells.map(function (c) { return h(head ? 'th' : 'td', c); })); }
+    var rows = [
+      ['Dark sheet cell #2C2C2E', '13.9', '8.0', '5.3', '4.3', '2.1'],
+      ['Page module over a black wallpaper', '18.6', '9.9', '7.7 to 11.5', '5.7', '2.3'],
+      ['Page module over a mid grey wallpaper', '10.7', '6.4', '5.2 to 7.0', '3.3', '1.9'],
+      ['Page module over a white wallpaper (the bound)', '5.5', '3.7', '3.1 to 3.8', '1.7', '1.3'],
+      ['Light sheet cell #FFFFFF', '21.0', '9.2', '5.3', '3.9', '1.8'],
+    ];
+    return [h('p', 'WCAG ratios computed from the token values (HIG Accessibility: 4.5:1 for text up to 17 pt, 3:1 for bold text). The primary ink is never lower than today\'s ink on any ground, because it is the same hue taken to the end of the scale. Filled faces do not change: white on the 27 family fills is 5.4:1 (Security Triggered) to 10.0:1, the 92% supporting ink 4.7:1 to 8.6:1, and the dark ink on Power yellow 12.1:1.'),
+      h('table.ct', h('thead', tr(['Ground', 'Primary ink (A, B)', 'Primary at 72% (C state line)', 'Today\'s state line', 'Today\'s grey icon', 'Unavailable icon (grey at 50%)'], true)), h('tbody', rows.map(function (r) { return tr(r); }))),
+      h('p', 'The unavailable icon is under 3:1 by design, today and after: the tile takes no input, its state line says "Unavailable" and VoiceOver reads it as dimmed. Not measured on a device: the wallpaper under a page tile, and Increase Contrast.')];
+  }
+
+  function inspector(dark) {
+    function sw(on, label) { return h('span.switch-ctl' + (on ? '.on' : ''), { tabindex: '0', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
+    function nav(label, val, sel) { return h('div.row.nav' + (sel ? '.sel' : ''), { role: 'button', tabindex: '0' }, h('span.sp', label), h('span.val', val), h('span.chev', { 'aria-hidden': 'true' }, '›')); }
+    function word(label, v, ph) { return h('div.row', h('span.lbl', label), h('span.fld.w' + (ph ? '.ph' : ''), v)); }
+    function pick(label, v, ph, on) { return h('div.row.inert', h('span.chk' + (on ? '' : '.no'), { role: 'checkbox', 'aria-checked': on ? 'true' : 'false', 'aria-label': 'Set ' + label + ' per place' }, on ? '✓' : ''), h('span.lbl', label), h('span.fld.w' + (ph ? '.ph' : ''), v)); }
+    function box(on, label) { return h('span', { style: { display: 'inline-flex', alignItems: 'center', gap: '5px', marginRight: '10px' } }, h('span.chk' + (on ? '' : '.no'), { role: 'checkbox', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }, on ? '✓' : ''), label); }
+    function hd(t) { var n = K.PageSectionHeader({ title: t }); return n; }
+    function mini(p) { var t = Mock.tile(p); t.style.minHeight = '56px'; return t; }
+    return h('div.si' + (dark ? '.dk' : ''), { role: 'group', 'aria-label': 'Studio inspector, ' + (dark ? 'dark' : 'light') },
+      /* column 1: the State Words fold of a tile */
+      h('div',
+        h('div.crumb', 'Lights › Rooms'), h('div.ttl', 'Kitchen'),
+        h('div.grp', 'Content'),
+        h('div.row', h('span.lbl', 'Title'), h('span.fld.w', 'Kitchen')),
+        nav('Tap', 'Open Kitchen Lights'),
+        h('div.fold', { role: 'group', 'aria-label': 'State Words' },
+          h('div.row', h('span.sp', '▾ State Words'), h('span.val', '2 Changed')),
+          word('When On', 'On', true),
+          word('When Off', 'All Off'),
+          word('When Unavailable', 'Unavailable', true),
+          word('Count Text', '{count} Lights On'),
+          h('p.foot', 'Shows "2 Lights On".'),
+          h('p.foot', 'An empty field uses the app\'s word, shown in grey.')),
+        h('div.grp', { style: { marginTop: '18px' } }, 'On a light tile'),
+        h('div.fold', { role: 'group', 'aria-label': 'State Words, light tile' },
+          h('div.row', h('span.sp', '▾ State Words'), h('span.val', 'Default')),
+          word('When On', 'On', true), word('When Off', 'Off', true), word('When Unavailable', 'Unavailable', true),
+          word('Level Text', '{value}%', true),
+          h('p.foot', 'Shows 1% to 100% on a light that dims. With swipe on, the bubble uses these words too.')),
+        h('div.grp', 'At rest, closed'),
+        h('div.fold', h('div.row', h('span.sp', '▸ State Words'), h('span.val', 'Default')))),
+      /* column 2: Choose Fields on the fold, and a place */
+      h('div',
+        h('div.crumb', 'Template › Room Lights Card'), h('div.ttl', 'Kitchen'),
+        h('div.bar', { role: 'region', 'aria-label': 'Choose fields' }, h('span.sp', 'Select the fields each place sets.'), h('button.btn', { type: 'button' }, 'Done')),
+        h('div.fold', { role: 'group', 'aria-label': 'Fields each place sets' },
+          h('div.row', h('span.sp', '▾ State Words'), h('span.val', '2 Changed')),
+          pick('When On', 'On', true, false),
+          pick('When Off', 'All Off', false, true),
+          h('p.foot', 'Set per place as When Off.'),
+          pick('When Unavailable', 'Unavailable', true, false),
+          pick('Count Text', '{count} Lights On', false, false)),
+        h('p.foot', 'Each word is its own row, so each is its own setting. A word is plain text, the kind the app already takes per place.'),
+        h('div.grp', 'In one place'),
+        h('div.card',
+          h('div.row', h('span.lbl', 'Room'), h('span.fld.w', 'Garage')),
+          h('div.row', h('span.lbl', 'When Off'), h('span.fld.w', 'Dark')),
+          h('p.foot', 'Differs from the template. ', h('span.link', 'Reset'))),
+        h('div.grp', 'Checks, where they apply'),
+        h('p.warn', 'Count Text has no {count}, so every room would read the same.'),
+        h('p.warn', '"All Lights Are Off" does not fit the swipe bubble on the narrowest tile.'),
+        h('p.foot', 'Words of more than one line shrink to one line on the tile, as every state line does.')),
+      /* column 3: Group by State on a grid */
+      h('div.pv',
+        h('div.crumb', 'Lights › Rooms'), h('div.ttl', 'Group by State'),
+        h('div.row', h('span.sp', 'Group by State'), sw(true, 'Group by State')),
+        h('p.foot', 'Tiles sit under a heading for their state. A group with no tiles is not shown.'),
+        h('div.card', h('div.row', h('span.lbl', 'Title'), h('span.fld.w', 'Lights On'), h('span.val', { 'aria-hidden': 'true' }, '≡')), h('div.row', box(true, 'On'), box(false, 'Off'), box(false, 'Unavailable'))),
+        h('div.card', h('div.row', h('span.lbl', 'Title'), h('span.fld.w', 'Lights Off'), h('span.val', { 'aria-hidden': 'true' }, '≡')), h('div.row', box(false, 'On'), box(true, 'Off'), box(true, 'Unavailable'))),
+        h('div.row', h('button.btn', { type: 'button', disabled: 'disabled' }, 'Add Group'), h('span.foot', { style: { margin: 0 } }, 'Every state is in a group.')),
+        h('p.foot', 'Drag a group to change the order. Tiles keep the grid\'s order inside a group.'),
+        h('div.cap', { style: { marginTop: '12px' } }, 'Preview'),
+        h('div.dev', h('div', { style: { display: 'grid', gap: '10px' } }, hd('Lights On'), mini({ title: 'Kitchen', subtitle: '2 Lights On', symbol: 'lightbulb.2', family: 'lights', isActive: true, kind: 'navigate' }),
+          hd('Lights Off'), mark(h('div', mini({ title: 'Office', subtitle: 'All Off', symbol: 'lightbulb', family: 'lights', isActive: false, kind: 'navigate' })), 'a'))),
+        h('div.grp', 'In the grid\'s panel, at rest'),
+        nav('Group by State', '2 Groups', true),
+        h('p.foot', 'A new grid reads "Off" here and its document holds no groups.')));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'sim-fidelity-contract', title: 'Tile ink, state words and grid groups', status: 'proposed',
+    summary: 'Owner requests 2026-11-16 (task sim-fidelity): white tile icons and text by default, customizable state strings, and a generic group-by-state option on grids. Three capabilities a published document declares: sh.tile-ink-default@1, sh.state-words@1 and sh.grid-state-groups@1. The app-UI gate parked the ink and the group heading for the owner, so each is drawn as three options with one recommended; the state words editor is picked. Spec: build/design/sim-fidelity-contract.md. Not built.',
+    source: ['apple/Sources/HassDesign/TileFaceInk.swift', 'apple/Sources/HassDesign/ColorFamily.swift', 'apple/Sources/HassCore/Rooms/RoomOverview.swift', 'apple/Sources/HassUI/UIKitPort/Features/Home/UKRoomOverview.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKDynamicGrid.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/patterns/room-overview-sheet.md', '.agents/patterns/dynamic-grid.md', '.agents/design/motion.md'],
+    patterns: ['entity-tile', 'room-overview-sheet', 'dynamic-grid', 'optimistic-actions'],
+    hig: ['Color', 'Dark Mode', 'Labels', 'Typography', 'Accessibility', 'Collections', 'Lists and tables', 'VoiceOver', 'Designing for iPhone Duo'],
+    kitComponents: ['GlassTile', 'BrightnessTile', 'TileGrid', 'PageSectionHeader', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'regroup-person', what: 'A person turns a room on from its power disc: the card lights and moves to the end of "Lights On"', token: 'standard 0.3 s smooth for the move; the face cross-fades on state 0.6 s', source: 'build/design/sim-fidelity-contract.md, section 3 (not built); today UKRoomOverviewViewController.rebuild sets the items with no animation',
+        reduce: 'no slide: the moved card fades in at its new place on quick 0.2 s and the others jump', state: 'groups-a', play: function (stage) { return regroup(stage, true); } },
+      { id: 'regroup-house', what: 'The house turns a room on: the card changes group with no movement', token: 'none (motion.md section 6: an order that must change applies without animation unless the person caused it); the face still cross-fades on state 0.6 s', source: 'build/design/sim-fidelity-contract.md, section 3 (not built)',
+        reduce: 'the same: nothing moves', state: 'groups-a', play: function (stage) { return regroup(stage, false); } },
+    ],
+    sections: [
+      { id: 'contrast', title: 'Contrast, computed', build: contrast },
+      { id: 'inspector', title: 'Studio inspector (light and dark)', build: function () { return [h('p', 'The Studio is a web surface. Left: the State Words fold of a tile, open with two words changed, the fold a light tile gets, and the fold closed at rest. Middle: Choose Fields with one word ticked, the same word in one place, and the checks. Right: the Group by State page of a grid with its preview, and the row that opens it.'), h('div', { style: { overflowX: 'auto' } }, inspector(false), inspector(true))]; } },
+    ],
+    a11y: [
+      { rule: 'Group headings', note: 'Each heading is one element with the header trait, so the rotor\'s Headings jumps between groups. Reading order is the heading, then its tiles in grid order. A dropped group has no element.' },
+      { rule: 'A tile that moves group', note: 'It is the same element, so VoiceOver focus stays on it. The move is posted as a layout change. Nothing is announced by hand: the tile\'s value already changed ("Off" to "On").' },
+      { rule: 'State is not colour alone', note: 'A group is named in words, and every tile keeps its state line. Unavailable is the word "Unavailable", the dimmed trait and the grey icon together.' },
+      { rule: 'Contrast', note: 'The primary ink is 13.9:1 on a dark sheet cell and 21:1 on a light one; it is never lower than the ink it replaces. See "Contrast, computed".' },
+      { rule: 'Spoken words', note: 'VoiceOver reads the authored state words as the tile\'s value, the same text the eye sees, plus today\'s note for sensors that do not answer.' },
+      { rule: 'Dynamic Type', note: 'Headings use the title3 style and wrap. At accessibility sizes the grid is one column; option B\'s count would move under the title.' },
+      { rule: 'The inspector', note: 'Words are labelled text fields; an empty field names its default as the placeholder. Group states are labelled checkboxes; the order has Move Up and Move Down beside the drag.' },
+    ],
+    reviews: {
+      date: '2026-11-16',
+      hig: [
+        { rule: 'Labels: use system-provided label colors to communicate relative importance', verdict: 'pass', note: 'Ink A and B draw the state line in the label colour: on a status tile the state is the primary information and the title names it. Weight and size still rank the two (Typography: "Adjust weight, size and color as needed"). Ink C keeps the secondary step instead.', by: 'apple-hig skill' },
+        { rule: 'Labels: tertiary label for text describing an unavailable item', verdict: 'pass', note: 'An unavailable tile keeps today\'s muted icon and state line, so grey now means only "cannot be used".', by: 'apple-hig skill' },
+        { rule: 'Color: make sure all colors work in light, dark and increased contrast contexts', verdict: 'pass', note: 'The primary ink is white on the always-dark page and in a dark sheet, black in a light sheet. Increase Contrast has nothing to raise.', by: 'apple-hig skill' },
+        { rule: 'Color: avoid using the same color to mean different things', verdict: 'pass', note: 'Under Ink A a family tint still means the kind of device, on or off. Under Ink B it means "on" only.', by: 'apple-hig skill' },
+        { rule: 'Dark Mode: keep foreground and background contrast at least 4.5:1', verdict: 'pass', note: 'Computed for every ground the tile sits on; the worst case, a page tile over a white wallpaper, is 5.5:1.', by: 'apple-hig skill' },
+        { rule: 'Collections: avoid changing layout while people view or interact with it unless an explicit action caused the change', verdict: 'departure', note: 'A grouped grid moves a tile when the house changes its state. Owner, 2026-11-16: "Yes, generic option", for production\'s Lights On and Lights Off split. The move waits while the grid is touched or scrolling and is not animated.', by: 'apple-hig skill' },
+        { rule: 'VoiceOver: use accurate section headings; support the rotor', verdict: 'pass', note: 'Group headings carry the header trait, as the production section heading does.', by: 'apple-hig skill' },
+        { rule: 'Lists and tables: give a heading-less single-column table a label or header for context', verdict: 'pass', note: 'A group\'s title is required; a group cannot be drawn without its heading.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: keep important elements clear of the center', verdict: 'fix', note: 'A heading on a page grid that a hinge band crosses must lay its title in the leading side. Written as a rule; not run on a device.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'One box update per entity change', verdict: 'pass', note: 'A tile\'s group is read from the face it already resolved; a change of group is one keyed move in the grid, not a rebuild of the tiles.', by: 'swiftui-pro skill' },
+        { rule: 'Dynamic Type and 44 pt targets', verdict: 'pass', note: 'Headings scale with title3. Option C\'s disclosure button is 44 pt; A and B add no control.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Not built. The gate (tools/jev_gate.py, 2026-11-16) answered "park, route=session" for the ink and for the grid groups, and "autonomous" for the state words. The Designer has not picked the ink or the group heading: the owner types those picks from the ink and groups states.',
+      'Groups A draws what production draws today (RoomOverview.sections, UKPageSectionHeaderView inSheet). The groups states use Ink A so the page shows the three capabilities together.',
+      'Local helpers in this page: the .nk-a, .nk-b and .nk-c ink rules, the count and the disclosure button on a heading, the regroup move. Promote the picked ink to kit.css and nothing else until it is built.',
+      'The mockup borrows the room overview helpers of modals/home (fixture house). The Lights cards carry the room power disc, so each is two tracks wide.',
+      'Not shown: Increase Contrast, the hinge band crossing a grouped page grid, a redacted Occupancy grid (drawn ungrouped with no group headings).',
+      'States every proposal skips, with the reason: loading, error, offline, reconnecting, refreshing, empty and long-text draw the tiles\' own existing states and add nothing to the three choices.',
+    ],
+    changelog: [{ date: '2026-11-16', note: 'Proposed: three ink options, three group heading options, the state words fold and the Group by State page.' }],
+  });
+})();
+</script></body></html>

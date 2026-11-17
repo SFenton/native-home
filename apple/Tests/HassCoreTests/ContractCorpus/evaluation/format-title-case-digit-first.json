@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-title-case-digit-first",
+  "note": "A word that starts with a digit is unchanged: \"2nd_floor\" is \"2nd Floor\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "2nd_floor"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "title"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2nd Floor"
+  }
+}

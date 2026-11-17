@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "badge-zero",
+  "note": "A value of 0 draws no badge.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": 0
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

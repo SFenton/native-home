@@ -24,11 +24,15 @@ final class UKTileActionDisc: UIControl {
     private var hasConfigured = false
     /// The ink the standing-in arc takes: the face's primary ink, the title's colour, never the warning or error ink. Nil takes the glyph's.
     var arcTint: UIColor? { didSet { if arcTint != oldValue { restyle(animated: false, symbolTransition: false) } } }
+    /// The authored colour of the glyph while the disc is off on a dark face (`sh.tile-ink@1`, `discGlyphTint`); nil draws the face's own ink.
+    var glyphTint: HassRGB? { didSet { if glyphTint != oldValue { restyle(animated: false, symbolTransition: false) } } }
     /// The selection face's disc (``TileSelection``): an empty ring, or a solid white disc with the order or a check, 28 pt inside the 44 pt
     /// target (`TileActionDisc.selectionDisc`).
     private var choiceLayer: UKChoiceDiscView?
     /// Replaces "verb title" as the spoken label (the brightness tile's "Turn Off Kitchen Lights").
     var spokenLabel: String? { didSet { accessibilityLabel = spokenLabel ?? defaultLabel } }
+    /// The colour the glyph is drawn in, for tests of the inks.
+    var drawnGlyphColor: UIColor { glyph.tintColor }
     /// "Unlock Front Door", or the item's own whole label ("Turn Off TV") (`TileActionDisc.label(for:title:)`).
     private var defaultLabel: String { item.label ?? "\(item.verb) \(tileTitle)" }
 
@@ -83,7 +87,7 @@ final class UKTileActionDisc: UIControl {
 
     private func restyle(animated: Bool, symbolTransition: Bool) {
         let item = item
-        let ink = TileActionInk.resolveTokens(face: face, isOn: item.isOn == true || item.isEmphasized, family: family)
+        let ink = TileActionInk.resolveTokens(face: face, isOn: item.isOn == true || item.isEmphasized, family: family, discGlyphTint: glyphTint)
         let appearance = UKDesign.tileAppearance(surface: surface, traits: traitCollection)
         let glyphColor = item.isError ? UIColor.ukRGB(appearance.errorRGB) : UIColor(ink.glyph)
         let unavailable = item.phase == .unavailable
@@ -349,18 +353,20 @@ final class UKTileActionStrip: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     func configure(items: [TileActionItem], title: String, tileIdentifier: String?, face: TileActionFace, family: ColorFamily?,
-                   surface: TileSurface, animated: Bool, arcTint: UIColor? = nil) {
+                   surface: TileSurface, animated: Bool, arcTint: UIColor? = nil, discGlyphTint: HassRGB? = nil) {
         let existing = Dictionary(discs.map { ($0.item.id, $0) }, uniquingKeysWith: { first, _ in first })
         var next: [UKTileActionDisc] = []
         for item in items {
             let identifier = [tileIdentifier, "action", item.id].compactMap { $0 }.joined(separator: ".")
             if let disc = existing[item.id] {
                 disc.arcTint = arcTint
+                disc.glyphTint = discGlyphTint
                 disc.configure(item: item, face: face, family: family, surface: surface, title: title, identifier: identifier, animated: animated)
                 next.append(disc)
             } else {
                 let disc = UKTileActionDisc(item: item, face: face, family: family, surface: surface, title: title, identifier: identifier)
                 disc.arcTint = arcTint
+                disc.glyphTint = discGlyphTint
                 let id = item.id
                 disc.addAction(UIAction { [weak self] _ in
                     UKTapFeedback.tap()

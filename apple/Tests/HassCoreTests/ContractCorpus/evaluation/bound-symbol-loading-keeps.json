@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "bound-symbol-loading-keeps",
+  "note": "While loading the slot keeps what it showed.",
+  "subject": {
+    "symbol": {
+      "type": "bound-symbol",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "s",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "sf-symbol",
+        "name": "lightbulb",
+        "rendering": "canonical",
+        "unavailable": "fallback"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "s/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

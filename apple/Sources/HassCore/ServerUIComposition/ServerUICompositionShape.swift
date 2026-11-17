@@ -13,14 +13,29 @@ enum ServerUICompositionShape {
         case pattern(String, Int)
         case dictionary(Shape, Shape, Int)
         case identifier, hash, bool, nullableID
+        /// A number between the bounds, or `null` (`sh.chart@1` literal points: a value not known).
+        case nullableNumber(Double, Double)
         case number(Double, Double, integer: Bool)
         case choice([String])
         case variant(String, [String: Shape])
+        /// As ``variant``, but a tag no variant takes is refused at the value itself (the whole choice is the wrong one), as a union is.
+        case closedVariant(String, [String: Shape])
         case emptyObject(String, Int)
         case unsupported(String?)
+        /// A text or an object, each checked by its own shape (a tone that is one word or a rule).
+        case either(text: Shape, object: Shape)
+        /// A rule that reports as one: any failure inside it is the slot not matching (`unknown_variant` at the slot), except an empty
+        /// `cases`, which is a limit of its own. This is how the Studio reports a rule inside a union of plain and ruled forms.
+        case collapsed(Shape)
         case component
         /// An authored operand, predicate or `call-service` action, checked by ``ServerUIExpressionParser``.
         case operand, predicate, callService
+        /// The text `all`, or a list of one to `maximum` identifiers (`sh.tab-blocks@1`).
+        case allOrIdentifiers(Int)
+        /// An operand or a condition inside a Data Flow, where `item` and `param` may stand (`sh.pipeline@1`); the flow compiler types them.
+        case flowOperand, flowPredicate
+        /// A shape of the flow shape language (`sh.pipeline@1`).
+        case flowShape
     }
 
     typealias Issue = ServerUICompositionError
@@ -64,7 +79,8 @@ enum ServerUICompositionShape {
             "liveActivities": array(activityPresentation, 16),
             "bootstrap": .optional(bootstrap),
             "extensions": .optional(extensionPresentation),
-            "stateStyles": .optional(stateStyleLibrary)
+            "stateStyles": .optional(stateStyleLibrary),
+            "componentLibrary": .optional(array(componentEntry, 100))
         ])
     }()
     static let bootstrap: Shape = {
@@ -154,7 +170,7 @@ enum ServerUICompositionShape {
         object([
             "initialPageId": id, "initialTabId": .nullableID, "initialArguments": arguments,
             "tabs": array(object(["id": id, "label": label, "icon": symbol, "pageId": id, "arguments": arguments,
-                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown)]), 8),
+                                  "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown), "badge": .optional(badge)]), 8),
             "policy": object([
                 "type": fixed("canonical-shell@1"), "tabSwitch": fixed("preserve-cut@1"),
                 "reselect": fixed("pop-root-then-scroll@1"), "stackMotion": fixed("canonical-stack@1"),
@@ -182,8 +198,9 @@ enum ServerUICompositionShape {
                 "visibility": .choice(["always", "root-only"]), "priority": .choice(["required", "normal", "low"]),
                 "rail": .choice(["eligible", "horizontal-only"]),
                 "badge": .variant("type", ["none": object(["type": fixed("none")]),
-                                          "count": .unsupported("sh.profile-count@1")]),
-                "action": action
+                                          "count": .unsupported("sh.profile-count@1"),
+                                          "value": object(["type": fixed("value"), "value": operand])]),
+                "action": ruledAction
             ]),
             "shell-header": object([
                 "id": id, "type": fixed("shell-header"), "visibility": .choice(["always", "root-only"]),
@@ -251,20 +268,29 @@ enum ServerUICompositionShape {
 
     // MARK: - Values, source descriptors and actions
 
-    static func value(literal: Shape) -> Shape {
-        .variant("type", [
-            "literal": object(["type": fixed("literal"), "value": literal]),
-            "read": object([
-                "type": fixed("read"), "from": .variant("type", [
-                    "source": object([
-                        "type": fixed("source"), "sourceId": id, "path": array(.text(160, blank: false), 8, minimum: 1)
-                    ]),
-                    "variable": .unsupported("sh.local-state@1"),
-                    "parameter": .unsupported("sh.route-arguments@1")
+    static func value(literal: Shape) -> Shape { value(literal: literal, fallback: nil) }
+
+    /// A text slot (`sh.rules@1`): a literal, a read or an `expr` operand, the last two with the text to draw while unavailable.
+    static func textValue(_ literal: Shape) -> Shape { value(literal: literal, fallback: literal) }
+
+    private static func value(literal: Shape, fallback: Shape?) -> Shape {
+        var read: [String: Shape] = [
+            "type": fixed("read"), "from": .variant("type", [
+                "source": object([
+                    "type": fixed("source"), "sourceId": id, "path": array(.text(160, blank: false), 8, minimum: 1)
                 ]),
-                "as": .choice(["string", "number", "boolean", "entity-id"]), "missing": fixed("unavailable")
-            ])
-        ])
+                "variable": .unsupported("sh.local-state@1"),
+                "parameter": .unsupported("sh.route-arguments@1")
+            ]),
+            "as": .choice(["string", "number", "boolean", "entity-id"]), "missing": fixed("unavailable")
+        ]
+        var variants: [String: Shape] = ["literal": object(["type": fixed("literal"), "value": literal])]
+        if let fallback {
+            read["fallback"] = .optional(fallback)
+            variants["expr"] = object(["type": fixed("expr"), "value": operand, "fallback": .optional(fallback)])
+        }
+        variants["read"] = object(read)
+        return .variant("type", variants)
     }
     static let source: Shape = {
         .variant("kind", [
@@ -290,6 +316,10 @@ enum ServerUICompositionShape {
                     "id": id, "kind": fixed("model"), "model": fixed("vacuum@1"), "inputs": vacuumDescriptor
                 ]),
                 "camera-stream@1": cameraSource,
+                "app-state@1": object([
+                    "id": id, "kind": fixed("model"), "model": fixed("app-state@1"),
+                    "inputs": object(["topic": .choice(ServerUIAppState.Topic.allCases.map(\.rawValue))])
+                ]),
                 "power-toggle@1": object([
                     "id": id, "kind": fixed("model"), "model": fixed("power-toggle@1"),
                     "inputs": object(["entityId": value(literal: .text(160, blank: false))])
@@ -363,7 +393,8 @@ enum ServerUICompositionShape {
                     "id": id, "kind": fixed("model"), "model": fixed("inventory-list@1"),
                     "inputs": object(["space": .choice(["all-food", "pantry", "fridge", "freezer", "spice-rack", "cabinet"])])
                 ]),
-                "todo-collection@1": todoCollectionSource
+                "todo-collection@1": todoCollectionSource,
+                "pipeline@1": pipelineSource
             ])
         ])
     }()
@@ -411,7 +442,7 @@ enum ServerUICompositionShape {
                                              "alarmSourceId": .optional(id), "homeAwaySourceId": .optional(id),
                                              "awaySourceIds": array(id, 16), "pluralContacts": .bool])),
             "personalization": .optional(object(["residentId": id, "ownTitle": title, "otherTitle": title])),
-            "stateColors": .optional(array(object(["state": .text(160, blank: false), "fill": solidFill]), 32)),
+            "stateColors": .optional(array(object(["state": .text(160, blank: false), "fill": solidSlot]), 32)),
             "climateActionTone": .optional(.bool),
             "action": .optional(navigationAction), "power": .optional(powerAction)
         ])
@@ -444,6 +475,51 @@ enum ServerUICompositionShape {
         object(["type": fixed("solid-rgb"), "red": .number(0, 255, integer: true),
                 "green": .number(0, 255, integer: true), "blue": .number(0, 255, integer: true)])
     }()
+    static let standardFill = object(["type": fixed("standard")])
+    /// A colour that differs by appearance (`sh.solid-appearance@1`): an exact colour for each of light and dark, both required. A member is a
+    /// `solid-rgb`, so a standard member or a nested pair is refused at the member's first missing channel.
+    static let solidAppearance: Shape = {
+        object(["type": fixed("solid-appearance"), "light": solidFill, "dark": solidFill])
+    }()
+    /// An exact colour a slot may hold: one colour, or one for each appearance.
+    static let exactSolid: Shape = .variant("type", ["solid-rgb": solidFill, "solid-appearance": solidAppearance])
+
+    // MARK: Rules (`sh.rules@1`, `sh.enabled-when@1`)
+
+    /// A rule's value: the first case whose condition holds gives `then`, else `otherwise`. Cases hold exact looks.
+    static func conditional(_ then: Shape) -> Shape {
+        object(["type": fixed("conditional"), "cases": array(object(["when": predicate, "then": then]), 16, minimum: 1),
+                "otherwise": then])
+    }
+    /// A color named by an entity's text; the fallback is required.
+    static func boundColor(_ fallback: Shape) -> Shape {
+        object(["type": fixed("bound-color"), "value": operand, "fallback": fallback])
+    }
+    /// A fill that may follow a rule or an entity's color: standard or exact, a `conditional`, or a `bound-color`.
+    static let fillSlot: Shape = {
+        let both = Shape.variant("type", ["standard": standardFill, "solid-rgb": solidFill, "solid-appearance": solidAppearance])
+        return .variant("type", ["standard": standardFill, "solid-rgb": solidFill, "solid-appearance": solidAppearance,
+                                 "conditional": conditional(both), "bound-color": boundColor(both)])
+    }()
+    /// The same for a slot with no standard look: an exact color, a `conditional` of exact colors, or a `bound-color` with an exact fallback.
+    static let solidSlot: Shape = {
+        .variant("type", ["solid-rgb": solidFill, "solid-appearance": solidAppearance,
+                          "conditional": conditional(exactSolid), "bound-color": boundColor(exactSolid)])
+    }()
+    /// A symbol that may follow a rule or an entity's text: exact, a `conditional`, or a `bound-symbol` with a fallback symbol.
+    static let symbolSlot: Shape = {
+        .variant("type", ["sf-symbol": symbol, "conditional": conditional(symbol),
+                          "bound-symbol": object(["type": fixed("bound-symbol"), "value": operand, "fallback": symbol])])
+    }()
+    /// A readout tone: one word, or a rule whose cases each hold one.
+    static let toneSlot: Shape = {
+        let tone = Shape.choice(["neutral", "ok", "active", "warning", "danger", "unavailable"])
+        return .either(text: tone, object: .collapsed(conditional(tone)))
+    }()
+    /// `enabledWhen`: a condition and what to do while it cannot be answered. Both are required.
+    static let enabledWhen: Shape = {
+        object(["condition": predicate, "whenUnknown": .choice(ServerUIEnabledUnknown.allCases.map(\.rawValue))])
+    }()
     static let alarmAppearance: Shape = {
         object(["icon": symbol, "fill": solidFill, "text": title])
     }()
@@ -469,12 +545,17 @@ enum ServerUICompositionShape {
             "additional": object([
                 "type": fixed("additional"), "style": .choice(["alert", "dialog"]), "title": title,
                 "message": .optional(.text(2_000, blank: true)), "confirmLabel": title,
-                "cancelLabel": fixed("Cancel"), "destructive": .bool
+                "cancelLabel": fixed("Cancel"), "destructive": .bool, "when": .optional(predicate)
             ])
         ])
     }()
     static let action: Shape = {
         action(allowing: nil)
+    }()
+    /// A power toggle on a data source.
+    static let domainAction: Shape = {
+        object(["type": fixed("domain"), "sourceId": id, "intent": fixed("power.toggle"),
+                "feedback": fixed("policy"), "confirmation": confirmation])
     }()
     static let navigationAction: Shape = {
         action(allowing: ["push", "select-tab", "present", "dismiss-then-push", "set-local"])
@@ -482,7 +563,8 @@ enum ServerUICompositionShape {
     static let powerAction: Shape = {
         action(allowing: ["domain", "set-local"])
     }()
-    private static func action(allowing allowed: Set<String>?) -> Shape {
+    /// The actions an action slot allows; `ruled` also allows the action chosen by rule (`sh.action-rules@1`).
+    private static func action(allowing allowed: Set<String>?, ruled: Bool = false) -> Shape {
         let variants: [String: Shape] = [
             "push": push,
             "select-tab": object(["type": fixed("select-tab"), "tabId": id]),
@@ -490,31 +572,40 @@ enum ServerUICompositionShape {
             "back": object(["type": fixed("back")]),
             "dismiss": object(["type": fixed("dismiss"), "scope": fixed("current-modal")]),
             "dismiss-then-push": object(["type": fixed("dismiss-then-push"), "destination": push]),
-            "domain": object([
-                "type": fixed("domain"), "sourceId": id, "intent": fixed("power.toggle"),
-                "feedback": fixed("policy"), "confirmation": confirmation
-            ]),
+            "domain": domainAction,
             "set-local": object(["type": fixed("set-local"), "stateId": id, "value": localValue]),
             "call-service": .callService
         ]
-        return .variant("type", variants.filter { allowed?.contains($0.key) ?? true })
+        let plain = variants.filter { allowed?.contains($0.key) ?? true }
+        guard ruled else { return .variant("type", plain) }
+        // One level: a case holds a plain action, never another rule; `otherwise` may also be `none`.
+        let choice = Shape.variant("type", plain.merging(["none": object(["type": fixed("none")])]))
+        let rule = object(["type": fixed("conditional"),
+                           "cases": array(object(["when": predicate, "then": .variant("type", plain)]), 16, minimum: 1),
+                           "otherwise": choice])
+        return .variant("type", plain.merging(["conditional": .collapsed(rule)]))
     }
+    /// Any action, or any action chosen by rule.
+    static let ruledAction: Shape = { action(allowing: nil, ruled: true) }()
+    /// A navigation tile's action: any action (the compiler keeps it to navigation), or one chosen by rule.
+    static let ruledNavigationAction: Shape = ruledAction
     static let component: Shape = {
         let base: [String: Shape] = [
-            "id": id, "title": title, "layout": object(["span": .number(1, 4, integer: true)]),
+            "id": id, "title": title, "layout": layoutSpan,
             "visibleWhen": .optional(predicate), "whenUnknown": .optional(whenUnknown)
         ]
         func node(_ type: String, _ extra: [String: Shape]) -> Shape {
             object(base.merging(["type": fixed(type)]).merging(extra))
         }
         return .variant("type", shellNodes(base: base).merging([
-            "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(homeNavigationAction)]),
+            "component-ref": componentRef,
+            "status-chip": node("status-chip", ["props": object(statusProps), "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)]),
             "status-rail": node("status-rail", ["props": object([:]), "children": array(.component, 20)]),
             "room-overview-tile": node("room-overview-tile", [
-                "props": object(statusProps.merging(["hidesContactSubtitle": .bool, "powerSourceId": .optional(id)])),
-                "action": .optional(homeNavigationAction)
+                "props": object(statusProps.merging(["hidesContactSubtitle": .bool, "powerSourceId": .optional(id), "words": .optional(stateWords)])),
+                "action": .optional(ruledHomeNavigationAction), "badge": .optional(badge)
             ]),
-            "light-group-tile": node("light-group-tile", ["props": object(["sourceId": id])]),
+            "light-group-tile": node("light-group-tile", ["props": object(["sourceId": id, "swipe": .optional(tileSwipe), "words": .optional(stateWords)])]),
             "weather-panel": node("weather-panel", ["props": weatherProps, "action": .optional(homeNavigationAction)]),
             "alarm-panel": node("alarm-panel", ["props": alarmPanelProps]),
             "door-tile": node("door-tile", ["props": doorTileProps]),
@@ -540,10 +631,10 @@ enum ServerUICompositionShape {
             ]),
             "text": node("text", [
                 "props": object([
-                    "value": value(literal: .text(16_384, blank: true)),
+                    "value": textValue(.text(16_384, blank: true)),
                     "style": .choice(ServerUICompositionDocument.TextStyle.allCases.map(\.rawValue)),
                     "unavailableText": .text(16_384, blank: false)
-                ])
+                ].merging(textLookFields) { _, rhs in rhs })
             ]),
             "account-header": node("account-header", [
                 "binding": object(["sourceId": id, "projection": fixed("profile-account@1")]),
@@ -572,18 +663,18 @@ enum ServerUICompositionShape {
                 "props": object([
                     "minimum": .choice(["tile@1", "tile-dynamic-type@1", "section-wide@1"]), "maxColumns": .number(1, 4, integer: true),
                     "spacing": space, "equalRowHeights": .bool, "shortRow": .choice(["share", "leading"]),
-                    "fold": .choice(["page", "container"])
+                    "fold": .choice(["page", "container"]), "minimumColumns": .optional(.number(2, 4, integer: true)), "groups": .optional(gridGroups)
                 ]),
                 "children": array(.component, 100)
             ]),
             "info-box": node("info-box", [
-                "props": object(["message": value(literal: .text(2_000, blank: true)), "tone": .choice(["neutral", "success"]),
+                "props": object(["message": textValue(.text(2_000, blank: true)), "tone": .choice(["neutral", "success"]),
                                  "unavailableText": label])
             ]),
             "status-pill": node("status-pill", [
                 "icon": symbol, "props": object([
-                    "value": value(literal: .text(2_000, blank: true)), "detail": value(literal: .text(2_000, blank: true)),
-                    "tone": .choice(["neutral", "ok", "active", "warning", "danger", "unavailable"]), "unavailableText": label
+                    "value": textValue(.text(2_000, blank: true)), "detail": textValue(.text(2_000, blank: true)),
+                    "tone": toneSlot, "unavailableText": label
                 ])
             ]),
             "paged-row": node("paged-row", [
@@ -594,25 +685,17 @@ enum ServerUICompositionShape {
                 "icon": symbol, "props": object([
                     "family": .choice(["neutral", "lights", "groceries", "chore-resident-1", "chore-resident-2", "chore-unassigned", "chore-home"]),
                     "selected": .choice(["navigation-path", "none"]), "titleProviderId": .optional(id),
-                    "subtitle": value(literal: .text(2_000, blank: true)),
+                    "subtitle": textValue(.text(2_000, blank: true)),
                     "alarm": .optional(alarmNavigation),
                     "roomVisibility": .optional(roomVisibility),
                     "presentation": .optional(object([
                         "layout": .choice(["standard", "anchored-bottom"]),
                         "titleLines": .number(0, 2, integer: true),
-                        "fill": .variant("type", [
-                            "standard": object(["type": fixed("standard")]),
-                            "solid-rgb": object([
-                                "type": fixed("solid-rgb"),
-                                "red": .number(0, 255, integer: true),
-                                "green": .number(0, 255, integer: true),
-                                "blue": .number(0, 255, integer: true)
-                            ])
-                        ]),
+                        "fill": fillSlot,
                         "bodyHint": .optional(.text(240, blank: false))
                     ]))
                 ]),
-                "action": action
+                "action": ruledNavigationAction, "badge": .optional(badge)
             ]),
             "bootstrap-message": node("bootstrap-message", [
                 "icon": symbol, "props": object(["message": .text(2_000, blank: true)])
@@ -620,7 +703,8 @@ enum ServerUICompositionShape {
             "notification-permission-banner": node("notification-permission-banner", [
                 "props": object(["message": .text(2_000, blank: false), "enableLabel": label, "dismissLabel": label])
             ]),
-            "state-tile": node("state-tile", ["icon": symbol, "props": object([:]), "binding": stateTileBinding]),
+            "state-tile": node("state-tile", ["icon": symbol, "props": tileParts, "binding": stateTileBinding,
+                                              "enabledWhen": .optional(enabledWhen)].merging(stateTileFields)),
             "action-tile": node("action-tile", [
                 "icon": symbol, "binding": object(["sourceId": id, "projection": fixed("power-tile@1")]),
                 "props": object([
@@ -628,7 +712,7 @@ enum ServerUICompositionShape {
                     "actionOrder": .array(fixed("power"), 1, 1), "stateText": fixed("provider"), "feedback": fixed("policy"),
                     "powerLabels": .optional(object(["on": title, "off": title]))
                 ]),
-                "action": action
+                "action": domainAction
             ]),
             "room-card": node("room-card", [
                 "icon": symbol, "binding": object(["sourceId": id, "projection": fixed("room-state@1")]),
@@ -655,7 +739,7 @@ enum ServerUICompositionShape {
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
             "content-panes": .unsupported("sh.content-panes@1")
-        ]) { _, rhs in rhs })
+        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs }.merging(chartNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
         object([
@@ -741,6 +825,8 @@ enum ServerUICompositionShape {
             guard case .string(let text) = value, validID(text) else { issue(.invalidValue); return }
         case .nullableID:
             if value != .null { walk(value, shape: .identifier, pointer: pointer, issues: &issues, unsupported: &unsupported) }
+        case .nullableNumber(let minimum, let maximum):
+            if value != .null { walk(value, shape: .number(minimum, maximum, integer: false), pointer: pointer, issues: &issues, unsupported: &unsupported) }
         case .hash:
             guard case .string(let text) = value, matches(text, "^[0-9a-f]{64}$") else { issue(.invalidValue); return }
         case .bool:
@@ -763,6 +849,13 @@ enum ServerUICompositionShape {
             } else {
                 walk(value, shape: variant, pointer: pointer, issues: &issues, unsupported: &unsupported)
             }
+        case .closedVariant(let key, let variants):
+            guard case .object(let object) = value else { issue(.invalidValue); return }
+            let path = ServerUICompositionJSON.pointer(pointer, key)
+            guard let tag = object[key] else { issue(.missingRequired, path); return }
+            guard case .string(let text) = tag else { issue(.invalidValue, path); return }
+            guard let variant = variants[text] else { issue(.unknownVariant); return }
+            walk(value, shape: variant, pointer: pointer, issues: &issues, unsupported: &unsupported)
         case .emptyObject(let capability, let maximum):
             guard case .object(let object) = value else { issue(.invalidValue); return }
             if object.count > maximum { issue(.limitExceeded) }
@@ -770,20 +863,46 @@ enum ServerUICompositionShape {
             if !object.isEmpty { unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability)) }
         case .unsupported(let capability):
             unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability))
+        case .collapsed(let inner):
+            var inside: [Issue] = []
+            walk(value, shape: inner, pointer: pointer, issues: &inside, unsupported: &unsupported)
+            guard !inside.isEmpty else { break }
+            if case .object(let object) = value, case .array(let cases)? = object["cases"], cases.isEmpty {
+                issues.append(Issue(.limitExceeded, ServerUICompositionJSON.pointer(pointer, "cases")))
+            } else { issue(.unknownVariant) }
+        case .either(let text, let object):
+            if case .string = value {
+                walk(value, shape: text, pointer: pointer, issues: &issues, unsupported: &unsupported)
+            } else {
+                walk(value, shape: object, pointer: pointer, issues: &issues, unsupported: &unsupported)
+            }
         case .component:
             walk(value, shape: component, pointer: pointer, issues: &issues, unsupported: &unsupported)
         case .operand:
-            var parser = ServerUIExpressionParser(allowControl: true)
+            var parser = ServerUIExpressionParser(allowControl: true, scope: .lenient)
             _ = parser.operand(value, at: pointer)
             issues += parser.issues
         case .predicate:
-            var parser = ServerUIExpressionParser()
+            var parser = ServerUIExpressionParser(scope: .lenient)
             _ = parser.predicate(value, at: pointer)
             issues += parser.issues
         case .callService:
-            var parser = ServerUIExpressionParser(allowControl: true)
+            var parser = ServerUIExpressionParser(allowControl: true, scope: .lenient)
             _ = parser.callService(value, at: pointer)
             issues += parser.issues
+        case .flowOperand:
+            var parser = ServerUIExpressionParser(flow: true)
+            _ = parser.operand(value, at: pointer)
+            issues += parser.issues
+        case .flowPredicate:
+            var parser = ServerUIExpressionParser(flow: true)
+            _ = parser.predicate(value, at: pointer)
+            issues += parser.issues
+        case .flowShape:
+            issues += ServerUIFlowShape.issues(in: value, at: pointer)
+        case .allOrIdentifiers(let maximum):
+            if value == .string("all") { return }
+            walk(value, shape: .array(.identifier, 1, maximum), pointer: pointer, issues: &issues, unsupported: &unsupported)
         }
     }
 }
@@ -811,7 +930,8 @@ extension ServerUICompositionShape {
         "icon": .optional(word), "text": .optional(word),
         "indicator": .optional(.choice(StateIndicator.allCases.map(\.rawValue))),
         "colour": .optional(.choice(StateColour.allCases.map(\.rawValue))),
-        "action": .optional(stateAction)
+        "action": .optional(stateAction), "fill": .optional(exactSolid),
+        "fillInk": .optional(.collapsed(.choice(StateFillInk.allCases.map(\.rawValue))))
     ]
     private static let stateRequest: Shape = {
         object([
@@ -828,7 +948,7 @@ extension ServerUICompositionShape {
             "styles": array(object([
                 "id": id, "name": label, "base": .optional(.choice(StateStyle.builtIn.map(\.id))),
                 "domain": .pattern("^[a-z][a-z0-9_]*$", 64), "actionId": .optional(id),
-                "togglesDisc": .optional(.bool), "drawsErrorDisc": .optional(.bool),
+                "togglesDisc": .optional(.bool), "drawsErrorDisc": .optional(.bool), "hiddenWords": .optional(word),
                 "rules": array(object(stateLook.merging(["states": array(word, 16, minimum: 1)]) { $1 }), 32, minimum: 1),
                 "fallback": object(stateLook), "request": .optional(stateRequest)
             ]), 32)

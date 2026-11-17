@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-zero",
+  "note": "A progress of 0 is no fill, and is still a number.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "0"
+      }
+    }
+  },
+  "expected": {
+    "progress": 0
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "gauge-cell-share-high",
+  "note": "A record at the top of the range puts the marker at 1.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "scale",
+      "args": [
+        {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        },
+        {
+          "type": "literal",
+          "value": 50
+        },
+        {
+          "type": "literal",
+          "value": 90
+        },
+        {
+          "type": "literal",
+          "value": 0
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "level": 90
+    },
+    "index": 2
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

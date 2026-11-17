@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "badge-fraction",
+  "note": "A number prints as every other number does.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": 12.5
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": "12.5"
+  }
+}

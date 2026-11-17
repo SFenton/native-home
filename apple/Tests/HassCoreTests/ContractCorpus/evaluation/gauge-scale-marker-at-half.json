@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-scale-marker-at-half",
+  "note": "A scale gauge on a track of 200 points with a marker of 12: a value of 0.5 puts the marker's left edge at 100 - 6 = 94, and the span covers the track (UKWeatherRailView.applyFrames, UKWeatherViews.swift:190-205).",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0.5,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 50,
+        "left": 94
+      }
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "format-words-case-null-unavailable",
+  "note": "A null argument has no text: the format is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": null
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

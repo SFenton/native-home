@@ -28,6 +28,14 @@ public struct ServerUIStateStyleLibrary: Equatable, Sendable {
 
     init(entries: [Entry]) { self.entries = entries }
 
+    /// Whether any style carries a per-state fill or hidden words, which need `sh.state-style-fills@1`.
+    public var usesFills: Bool {
+        entries.contains { $0.style.hiddenWords != nil || $0.style.rules.contains { $0.fill != nil } }
+    }
+
+    /// Whether any rule names the ink of its state line on a fill, which needs `sh.tile-ink@1`.
+    public var usesFillInk: Bool { entries.contains { $0.style.rules.contains { $0.fillInk != nil } } }
+
     /// The saved style with `id`.
     public func style(id: String) -> StateStyle? { entries.first { $0.style.id == id }?.style }
 }
@@ -78,6 +86,16 @@ extension ServerUICompositionDocument {
         public let node: Node
         public let icon: Symbol
         public let binding: ServerUIStateTileBinding
+        /// The tile's own subtitle, progress and buttons (`sh.tile-parts@1`).
+        public var parts = ServerUITileParts()
+        /// Where a tap on the tile goes (`sh.tile-parts@1`).
+        public var action: Action? = nil
+        /// The conditions that decide the tile's faces (`sh.tile-look@1`).
+        public var look = ServerUITileLook()
+        /// The icon and button icon colours and the cell fit (`sh.tile-ink@1`).
+        public var ink = ServerUITileInk()
+        /// Swipe to adjust (`sh.tile-swipe@1`); `nil` is off.
+        public var swipe: ServerUITileSwipe? = nil
     }
 }
 
@@ -150,7 +168,8 @@ enum ServerUIStateStyles {
             let style = StateStyle(
                 id: id, name: item["name"]?.string ?? id, domain: item["domain"]?.string ?? "", actionId: item["actionId"]?.string ?? id,
                 rules: rules + [fallbackRule], request: item["request"].map(decodeRequest),
-                togglesDisc: item["togglesDisc"]?.bool ?? false, drawsErrorDisc: item["drawsErrorDisc"]?.bool ?? false)
+                togglesDisc: item["togglesDisc"]?.bool ?? false, drawsErrorDisc: item["drawsErrorDisc"]?.bool ?? false,
+                hiddenWords: item["hiddenWords"]?.string)
             entries.append(.init(style: style, base: item["base"]?.string))
         }
         return (ServerUIStateStyleLibrary(entries: entries), issues)
@@ -169,6 +188,8 @@ enum ServerUIStateStyles {
             issues.append(Issue(.invalidCombination, path + "/indicator"))
         }
         if rule["colour"] != nil, !acceptsColour(stateClass) { issues.append(Issue(.invalidCombination, path + "/colour")) }
+        // The ink belongs to a fill: a state with no fill has no ink to name (`sh.tile-ink@1`).
+        if rule["fillInk"] != nil, rule["fill"] == nil { issues.append(Issue(.invalidCombination, path + "/fillInk")) }
         if let action = rule["action"], action["otherwise"] != nil, action["requiresFeature"] == nil {
             issues.append(Issue(.invalidCombination, path + "/action/otherwise"))
         }
@@ -187,12 +208,30 @@ enum ServerUIStateStyles {
     }
 
     private static func decodeRule(_ rule: JSONValue) -> StateRule {
-        StateRule((rule["states"]?.array ?? []).compactMap(\.string),
+        let fill = rule["fill"].flatMap(decodeFill)
+        var decoded = StateRule((rule["states"]?.array ?? []).compactMap(\.string),
                   rule["class"]?.string.flatMap(StateClass.init(rawValue:)) ?? .unknown,
                   active: rule["active"]?.bool ?? false, glyph: rule["icon"]?.string, words: rule["text"]?.string,
                   indicator: rule["indicator"]?.string.flatMap(StateIndicator.init(rawValue:)),
                   action: rule["action"].map(decodeAction),
-                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)))
+                  colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: fill?.light)
+        decoded.fillDark = fill?.dark
+        decoded.fillInk = rule["fillInk"]?.string.flatMap(StateFillInk.init(rawValue:))
+        return decoded
+    }
+
+    /// A `solid-rgb` fill as `red << 16 | green << 8 | blue`, or a `solid-appearance` as its light and its dark member; the shape check has
+    /// already made it exact. `dark` is nil for a single colour.
+    private static func decodeFill(_ fill: JSONValue) -> (light: UInt32, dark: UInt32?)? {
+        func packed(_ value: JSONValue) -> UInt32? {
+            guard let red = value["red"]?.number, let green = value["green"]?.number, let blue = value["blue"]?.number else { return nil }
+            return UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+        }
+        if fill["type"]?.string == "solid-appearance" {
+            guard let light = fill["light"].flatMap(packed), let dark = fill["dark"].flatMap(packed) else { return nil }
+            return (light, dark)
+        }
+        return packed(fill).map { ($0, nil) }
     }
 
     private static func decodeAction(_ action: JSONValue) -> StateAction {

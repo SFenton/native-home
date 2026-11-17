@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "date-progress-equal-moments",
+  "note": "No span to measure (duration is not above 0): unavailable (WeatherPresentation.swift:259).",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-15T06:00:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T06:00:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

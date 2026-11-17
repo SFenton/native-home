@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "gauge-scale-percent-over-100-is-held",
+  "note": "And 120 is held at 100.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "scale": "percent",
+      "value": 120,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 100,
+        "left": 188
+      }
+    }
+  }
+}

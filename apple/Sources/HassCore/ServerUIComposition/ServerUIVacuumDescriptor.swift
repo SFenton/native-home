@@ -52,6 +52,8 @@ public struct ServerUIVacuumDescriptor: Codable, Equatable, Sendable {
     public let mapFocus: VacuumConfig.MapFocus?
     public let mapRoomSelection: Bool
     public let mapRotationDegrees: Double
+    /// Mirrors every drawing of this vacuum's map after the rotation (`sh.surface-orientation@1`); `nil` draws it as before.
+    public let orientation: MapOrientation?
     public let mapScale: Double
     public let modeEntityId: String?
     public let modeTextEntityId: String?
@@ -75,7 +77,7 @@ public struct ServerUIVacuumDescriptor: Codable, Equatable, Sendable {
             }, coordinatorSessionEntityId: coordinatorSessionEntityId, dockButtonEntityId: dockButtonEntityId,
             dockControls: dockControls, errorEntityId: errorEntityId, fanEntityId: fanEntityId,
             areaCleaning: areaCleaning, autoCleanDisabledRooms: autoCleanDisabledRooms, mapFocus: mapFocus,
-            mapRoomSelection: mapRoomSelection, mapRotationDegrees: mapRotationDegrees, mapScale: mapScale,
+            mapRoomSelection: mapRoomSelection, mapRotationDegrees: mapRotationDegrees, mapOrientation: orientation, mapScale: mapScale,
             modeEntityId: modeEntityId, modeTextEntityId: modeTextEntityId,
             outcomeRoomNames: Dictionary(outcomeRoomNames.map { ($0.roomId, $0.name) }, uniquingKeysWith: { first, _ in first }),
             passesEntityId: passesEntityId, statusEntityId: statusEntityId, statusFlagEntityId: statusFlagEntityId,
@@ -97,7 +99,7 @@ public extension ServerUICompositionDocument {
     enum VacuumPrimitive: Equatable, Sendable {
         case card(icon: Symbol, commands: [VacuumCardCommand], destination: Action)
         case map(overlay: VacuumMapOverlay, height: Double, runtimeHeight: Double,
-                 label: String, loading: String, unavailable: String, locate: Bool)
+                 label: String, loading: String, unavailable: String, locate: Bool, controls: [ServerUIMapControlGroup]?)
         case status(metric: VacuumMetric)
         case notices
         case autoClean

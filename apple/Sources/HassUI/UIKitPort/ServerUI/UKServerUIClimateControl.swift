@@ -7,7 +7,7 @@ import UIKit
 
 /// Binds values and typed intents to canonical native controls, never a feature controller.
 @MainActor
-final class UKServerUIClimateControl: UIView, UKGridMeasuring {
+final class UKServerUIClimateControl: UIView, UKGridWrapping {
     private let column = UIStackView()
     private let bag = UKObservationBag()
     private let failure = TransientFailure()

@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "tab-hidden-without-fallback-takes-first",
+  "note": "With no fallback tab, a hidden tab gives way to the first tab that shows.",
+  "subject": {
+    "tab": {
+      "tabs": [
+        {
+          "id": "controls"
+        },
+        {
+          "id": "rooms",
+          "visibleWhen": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "whenUnknown": "hide"
+        },
+        {
+          "id": "dock"
+        }
+      ],
+      "requested": "rooms"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "50"
+      }
+    }
+  },
+  "expected": {
+    "tab": "controls"
+  }
+}

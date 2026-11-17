@@ -415,7 +415,13 @@ it does not add another WebView or redirect by page ID.
 The debug-only `--server-ui-preview` launch path reads `Application Support/ServerUIPreview/bootstrap.json` (exactly one of
 synthetic `entities` or `live: {server, accountID}`) and `publication.json` beside it, the published envelope; assets come
 from `assets/<sha256>`. The envelope reaches the app's store as if the integration had sent a `published` event: there is
-no publisher HTTP endpoint. The `ha-credential` file (live only) is consumed once and its bearer stays in memory only.
+no publisher HTTP endpoint. A live preview takes its bearer from the launch environment variable
+`FENTON_PREVIEW_HA_TOKEN` (`simctl launch` sets it as `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`): taken and removed with `unsetenv` in `UKServerUIPreview.init`, before any step that can fail, so a failed bootstrap or fixtures
+mode cannot leave it in the environment; a launch without the flag removes it at start (`UKGalleryRouter.requested()`). It is
+kept in memory only, used on the live path alone, and never logged or written. There is no file source: a stray `ha-credential`
+file is never read. A live preview also needs
+`bootstrap.json` with `live: {server, accountID}` and a `publication.json` (plus `assets/<sha256>`) staged in the
+simulator container; the app does not fetch the publication from Home Assistant.
 Live design uses the existing `HassConnection`, `EntityStore` and `ConnectionLifecycle`. Normal account restoration, push
 registration, location and Live Activities stay disabled. Canonical controls remain visible, but their caller rejects
 commands without changing live entity state; action-success comparisons run with fixtures. The receipt distinguishes
@@ -427,6 +433,40 @@ same websocket's readiness; camera reads lease the renderer's canonical stream p
 a raw connection or session. Both ordinary and response-bearing service commands remain rejected, including commands from
 authored bedroom providers. Preview preparation constructs and retains the fully validated renderer before durable
 publication acceptance, so a missing scoped provider cannot advance the cache and fail only afterward.
+
+The live preview also builds the production provider set from its read-only connection and the followed `house_config`
+(`UKServerUIPreviewLiveProviders`): household, away, profile, preferences, performance and feedback settings providers;
+to-do, inventory, recipe and summary records; Data Flow collections; media remotes and bedrooms; the account and shell header.
+It calls the production static builders (`UKServerUIHouseholdProviders`, `UKServerUIRecordProviders`,
+`UKServerUIProductionProviders.bedroomProviders`, `.flowHost`, `.feedbackProvider`, `.presentations`), so the two cannot drift.
+Reads (to-do items, schedules, the current user, the entity feed) pass; every service call, upload, schedule update and flow
+call goes through `UKServerUIPreviewReadOnlyServices` and is refused and counted. Sign-out, Home Assistant web pages and feedback
+filing are refused at the action. Like production, the preview waits (bounded, 20 s) for the house document and the user, and a
+supply asked for earlier throws `inputs_pending`. The wait honours cancellation and holds no reference to the providers; `stop()`
+restores `HouseConfigSource.shared` to what it held before the preview started. The app-icon choice stays in memory and the
+preferences land in an isolated defaults suite. Known fixture difference: recipe and inventory collections stay empty in live
+preview (their reads are response-bearing service calls, which stay refused). Fixtures mode keeps `DemoHouse`.
+
+### Preview state flags (DEBUG)
+
+`UKServerUIPreviewFlags` stages an error or edge state with no live write. They mirror the reference's launch variables, so one
+state is staged on both sides. Read from `bootstrap.json` `flags` (keys below), then the launch environment, which wins. A
+variable counts only when it is `1` (the delay: a number); with no flag the preview and its receipt are unchanged, and a set flag
+is written to the receipt as `flags`. Each acts through an existing seam, never a view branch:
+
+| Flag | Reference variable | Seam |
+|---|---|---|
+| `connection` `offline` / `reconnecting` | `FENTON_GALLERY_OFFLINE` / `_RECONNECTING` | the shell header state production reads from `HassConnection.isOffline` and `ReconnectingIndicator`; weather `connected` |
+| `failCalls` | `FENTON_GALLERY_FAIL` or `_FAIL_COMPLETE` | the fixture caller and records answer every call with `UKServerUIPreviewFault.callFailed` (`UKServerUIPreviewFailingCaller` without a gallery) |
+| `empty` | `FENTON_GALLERY_EMPTY` | the fixture todo lists keep their ids and hold no item; no inventory row |
+| `gateDelayMs` | `FENTON_GALLERY_GATE_DELAY_MS` | the load waits before it applies the publication (at most 60 s); the status line stays up |
+| `animationsPaused` | `FENTON_GALLERY_PAUSE_CONTINUOUS_ANIMATIONS` (the reference's `pauseContinuousAnimations`) | `UKDesign.animationsPaused` |
+| `reduceMotion` | `FENTON_GALLERY_REDUCE_MOTION` | `UKMotion.reduceMotionOverride`; every UIKit read goes through `UKMotion.reduceMotion` |
+
+`connection`, `failCalls` and `empty` act on the gallery fixtures (`gallery` in the bootstrap; `failCalls` also on a plain
+`entities` bootstrap); a `live` preview ignores them, and faults on live runs belong to the guard proxy's fault layer. The two
+process-wide switches are put back when the preview leaves the screen. All of it is `#if os(iOS) && DEBUG`
+(`tools/tests/test_preview_flags_debug_only.py`).
 
 Normal-session provider preparation resolves authored device descriptors before checking their references; house-config
 providers fill only keys those descriptors do not own. Reconnect permission changes replace idle bedroom providers without a

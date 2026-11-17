@@ -53,6 +53,18 @@
    }
   },
   {
+   "name": "AppearanceFill",
+   "kind": "struct",
+   "file": "apple/Sources/HassDesign/AppearanceFill.swift",
+   "pattern": "design-tokens",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
    "name": "ArcProgressViewStyle",
    "kind": "struct",
    "file": "apple/Sources/HassDesign/ArcProgressViewStyle.swift",
@@ -72,6 +84,19 @@
    "tests": {
     "swift": [
      "ArcSpinner"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "AuthoredTileInk",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/AuthoredTileInk.swift",
+   "pattern": "design-tokens",
+   "tests": {
+    "swift": [
+     "AuthoredTileInkTests",
+     "TileAction"
     ],
     "journeys": []
    }
@@ -1685,6 +1710,18 @@
    "systemApi": "Keep. System alternative: 17: `Material` (`.ultraThinMaterial`) per tile. 18: same. 26: `glassEffect(_:in:)`, `GlassEffectContainer`. See .agents/design/apple/system-api-audit.md."
   },
   {
+   "name": "TileInkDefault",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/TileInkDefault.swift",
+   "pattern": "tile-swipe",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
    "name": "TileLayout",
    "kind": "enum",
    "file": "apple/Sources/HassDesign/TileLayout.swift",
@@ -1767,6 +1804,42 @@
     "swift": [
      "TileLayout",
      "ChipTint"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "TileSwipe",
+   "kind": "struct",
+   "file": "apple/Sources/HassDesign/TileSwipe.swift",
+   "pattern": "tile-swipe",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "TileSwipeBubble",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/TileSwipe.swift",
+   "pattern": "tile-swipe",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
+   "name": "TileSwipeStart",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/TileSwipe.swift",
+   "pattern": "tile-swipe",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
     ],
     "journeys": []
    }

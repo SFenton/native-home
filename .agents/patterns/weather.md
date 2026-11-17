@@ -86,3 +86,7 @@ Known debt (the gallery and debug fixtures; step 5b replaces them with the demo 
 `apple/Tests/HassCoreTests/Weather*Tests.swift` (store, presentation, briefing, chart maths, highlights, parsing), `apple/Tests/HassUITests/SharedWeatherAndRoomStyleTests.swift` (shared style) and the hosted renderer journeys (default and AX5, on the three families).
 
 - **Owned files** (also in `contracts/patterns.json`): `PagedRow.swift`, `PagedRowMetrics.swift`.
+
+## Generic chart and rail
+
+The weather chart (`UKWeatherBarChartView`) and temperature rail (`UKWeatherRailView`) have generic twins, `UKChartView` and `UKLinearGaugeView`, in [server-ui-chart-gauge](server-ui-chart-gauge.md).

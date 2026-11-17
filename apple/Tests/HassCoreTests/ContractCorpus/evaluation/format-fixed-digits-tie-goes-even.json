@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-tie-goes-even",
+  "note": "0.125 is exactly halfway: two fraction digits give the even \"0.12\", as printf does.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0.125
+        }
+      },
+      "formats": {
+        "n": {
+          "number": {
+            "maximumFractionDigits": 2,
+            "minimumFractionDigits": 2
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "0.12"
+  }
+}

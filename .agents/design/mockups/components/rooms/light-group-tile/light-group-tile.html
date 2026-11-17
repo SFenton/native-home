@@ -6,6 +6,7 @@
 <script src="../../../_kit/kit.js"></script>
 <script src="../../../modals/home/_room-overview-data.js"></script>
 <script src="../../../modals/home/_room-overview.js"></script>
+<script src="../../tiles/_tile-contract.js"></script>
 </head><body>
 <script>
 (function () {
@@ -18,6 +19,13 @@
   }
   function S(list) { return function (ctx) { return RO.swatches(ctx, list); }; }
   var FL = 'light.demo_living_room_light_4';
+
+  /* ---- the native tile contract (lanes NT6 and NT7; helpers in ../../tiles/_tile-contract.js) ---- */
+  var WORDS = { on: 'Lit', off: 'Dark', unavailable: 'Not Answering', level: '{value} percent' };
+  function C(label, build, o) { o = o || {}; return { label: label, note: o.note, w: o.w, build: function () { return h('div', { style: { width: '100%', position: 'relative', paddingTop: (o.pad || 0) + 'px' } }, build()); } }; }
+  function wt(p, words) { return TC.wordTile(Object.assign({ title: 'Front Left' }, p), words); }
+  function power(on, words, un) { return Mock.tile({ title: 'Entryway Light', subtitle: TC.lightWord(words, { percent: on ? 100 : 0, dims: false, unavailable: un }), family: 'lights', isActive: on, isUnavailable: un, behavior: 'perform', actions: [{ id: 'power', symbol: 'power', label: (on ? 'Turn Off' : 'Turn On') + ' Entryway Light', on: on, dim: un }] }); }
+  function SP(list, ink) { return function (ctx) { var n = RO.swatches(ctx, list, { surfaces: ['page', 'sheet'] }); return ink ? TC.ink(n) : n; }; }
 
   var states = {
     'dimmable': { title: 'Brightness tile (dimmable light)', note: 'an action tile with a power disc: tap flips power, a horizontal drag sets brightness; the status line is "Off", "30%" or "Unavailable"',
@@ -47,7 +55,16 @@
     hig: ['Gestures', 'Haptic feedback', 'Accessibility'], entities: ['light.demo_living_room_item_1', 'light.demo_living_room_light_4', 'switch.demo_entryway_light_1', 'light.demo_color_7'],
     kitComponents: ['BrightnessTile', 'GlassTile', 'TileGrid'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
-    states: states,
+    states: Object.assign(states, {
+      'state-words': { title: 'State words (sh.state-words@1)', note: 'this tile takes When On, When Off, When Unavailable and Level Text. A light that dims draws Level Text ("60 percent") while on; one that does not draws When On ("Lit"). The words are drawn, spoken and used in the swipe bubble; an absent key draws the app\'s word',
+        render: SP([C('level', function () { return wt({ percent: 60 }, WORDS); }), C('off', function () { return wt({ percent: 0 }, WORDS); }), C('unavailable', function () { return wt({ percent: 0, unavailable: true }, WORDS); }),
+          C('on, no dimming', function () { return power(true, WORDS); }), C('no words: the app\'s text', function () { return wt({ percent: 60 }, null); })], true) },
+      'swipe': { title: 'Swipe to adjust (sh.tile-swipe@1)', note: 'on a published light group tile swipe is off when absent: no pan, no adjustable trait, no hint; the band still shows the brightness at rest. With swipe authored the drag is the shared one: absolute tracking, the bubble over the band\'s edge, "Off" (or When Off) at 0 where release turns the light off, one call on release. See brightness-tile for the measured bubble and the detents',
+        render: SP([C('swipe absent: the band, no drag', function () { return wt({ percent: 60 }, null); }), C('swiped to 40%', function () { return TC.drag(wt({ percent: 40 }, null), .4, '40%'); }, { pad: 44 }),
+          C('swiped to 0: the off face', function () { return TC.drag(wt({ percent: 0 }, null), 0, 'Off'); }, { pad: 44 }), C('authored words in the bubble', function () { return TC.drag(wt({ percent: 0 }, WORDS), 0, 'Dark', { status: false }); }, { pad: 44 })]) },
+      'ink': { title: 'Tile ink (sh.tile-ink-default@1)', note: 'under a document that declares the id the off tile\'s state line is the primary ink (white on a page and a dark sheet, black on a light sheet); an unavailable tile stays grey; the lit tile keeps its ink',
+        render: SP([C('off', function () { return wt({ percent: 0 }, null); }), C('unavailable', function () { return wt({ percent: 0, unavailable: true }, null); }), C('on (unchanged)', function () { return wt({ percent: 60 }, null); }), C('power tile, off', function () { return power(false, null); })], true) },
+    }),
     motion: [
       { id: 'drag-brightness', what: 'Dragging sets brightness: the tile lifts, a bubble follows the band\'s edge, the band glides with the finger', token: 'quick 0.2 s easeOut for band, lift and bubble; selection haptic every 10%', state: 'dimmable',
         source: 'HassDesign/BrightnessTile.swift (BrightnessDrag, BrightnessBubble); motion.md section 6; motion-components.md BrightnessTile', reduce: 'no lift (a shadow only), the band and bubble still follow; the bubble fades',
@@ -85,12 +102,13 @@
       ],
     },
     notes: [
+      'Tile contract (lanes NT6 and NT7, head fba79957): drawn from the hosted stills (build/evidence/screens/native-tilecontract-fba79957) and hosted tests on the three families. Until the owner\'s Light Tile template carries swipe on, a published light group tile does not swipe. Helpers: components/tiles/_tile-contract.js (promote to kit).',
       'Docs versus code: the kit\'s BrightnessTile prints "On at 70%" and places its bubble 8 pt above the tile; the app prints "70%" and puts a 60 x 32 pt bubble centred 24 pt above (BrightnessBubble). This mockup rewrites the text and offset to the code; promote to kit.',
       'LightGroupTile chooses by LightControl.isDimmable: any light with a brightness attribute or a colour mode beyond onoff; switches and on/off-only lights get the power tile. Which fixture lights dim is invented.',
       'rgb_color tints the band (fillTint), never past dark-ink contrast; the fixture colours (pink, purple) are invented.',
       'Kit gaps (promote to kit): see the notes of room-group-detail (BrightnessTile text and bubble, equal rows in TileGrid).',
     ],
-    changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: brightness and power tiles, group slab, drag, unavailable, titles, AX5.' }],
+    changelog: [{ date: '2026-11-16', note: 'Native tile contract: state words, swipe to adjust (off when absent) and the tile ink.' }, { date: '2026-10-23', note: 'First pass built with the kit: brightness and power tiles, group slab, drag, unavailable, titles, AX5.' }],
   });
 })();
 </script></body></html>

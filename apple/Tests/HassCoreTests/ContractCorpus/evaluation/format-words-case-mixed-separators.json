@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-mixed-separators",
+  "note": "Spaces and underscores together: \"side_brush stuck\" is \"Side Brush Stuck\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": "side_brush stuck"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Side Brush Stuck"
+  }
+}

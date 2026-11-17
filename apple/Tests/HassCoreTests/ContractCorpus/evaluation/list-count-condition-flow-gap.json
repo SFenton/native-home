@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "list-count-condition-flow-gap",
+  "note": "In flow mode a gap is null, so a comparison is no.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "list-count",
+        "from": {
+          "type": "source",
+          "sourceId": "hvac",
+          "path": [
+            "attributes",
+            "hvac_modes"
+          ]
+        }
+      },
+      "right": {
+        "type": "literal",
+        "value": 1
+      }
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "tri": "no"
+  }
+}

@@ -19,6 +19,28 @@ public indirect enum ServerUIPredicate: Equatable, Sendable {
     case all([ServerUIPredicate])
     case any([ServerUIPredicate])
     case not(ServerUIPredicate)
+    /// Two operands compared (`sh.conditions@1`).
+    case compare(CompareOp, left: ServerUIOperand, right: ServerUIOperand)
+    /// The value is one of the options (`sh.conditions@1`).
+    case `in`(value: ServerUIOperand, options: [ServerUIOperand])
+    /// The operand has a value that is not `null` (`sh.conditions@1`).
+    case exists(ServerUIOperand)
+
+    /// How a ``compare(_:left:right:)`` relates its two operands.
+    public enum CompareOp: String, Sendable, CaseIterable {
+        /// Equal scalars (numbers and booleans by value, text by canonical equivalence, `1` and `"1"` alike).
+        case eq
+        /// Both scalars and not equal (a `null` or a structure is neither equal nor unequal: no).
+        case ne
+        /// Both numbers, left greater.
+        case above
+        /// Both numbers, left smaller.
+        case below
+        /// Both dates or dates and times, left earlier.
+        case before
+        /// Both dates or dates and times, left later.
+        case after
+    }
 
     /// The source ids this predicate reads.
     public var sourceIds: Set<String> {
@@ -29,6 +51,9 @@ public indirect enum ServerUIPredicate: Equatable, Sendable {
         case .viewer, .viewerPerson: []
         case .all(let items), .any(let items): items.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) }
         case .not(let item): item.sourceIds
+        case .compare(_, let left, let right): left.sourceIds.union(right.sourceIds)
+        case .in(let value, let options): options.reduce(value.sourceIds) { $0.union($1.sourceIds) }
+        case .exists(let value): value.sourceIds
         }
     }
 
@@ -40,11 +65,35 @@ public indirect enum ServerUIPredicate: Equatable, Sendable {
         case .numeric(_, _, let above, let below): above?.readsViewer == true || below?.readsViewer == true
         case .all(let items), .any(let items): items.contains { $0.readsViewer }
         case .not(let item): item.readsViewer
+        case .compare(_, let left, let right): left.readsViewer || right.readsViewer
+        case .in(let value, let options): value.readsViewer || options.contains { $0.readsViewer }
+        case .exists(let value): value.readsViewer
+        }
+    }
+
+    /// Whether the predicate reads the clock anywhere, so the app ticks it once a minute only while something does.
+    public var readsClock: Bool {
+        switch self {
+        case .state, .viewer, .viewerPerson: false
+        case .numeric(_, _, let above, let below): above?.readsClock == true || below?.readsClock == true
+        case .all(let items), .any(let items): items.contains { $0.readsClock }
+        case .not(let item): item.readsClock
+        case .compare(_, let left, let right): left.readsClock || right.readsClock
+        case .in(let value, let options): value.readsClock || options.contains { $0.readsClock }
+        case .exists(let value): value.readsClock
         }
     }
 
     /// Evaluates against `environment`. Total: missing data is ``ServerUITri/unknown``, never an error.
+    ///
+    /// In flow mode (``ServerUIReading/isFlow``) an answer that cannot be given is `no`.
     public func evaluate(_ environment: some ServerUIReading) -> ServerUITri {
+        environment.spend()
+        let answer = outcome(environment)
+        return environment.isFlow && answer == .unknown ? .no : answer
+    }
+
+    private func outcome(_ environment: some ServerUIReading) -> ServerUITri {
         switch self {
         case .state(let sourceId, let path, let values):
             guard let value = environment.read(sourceId: sourceId, path: path).json,
@@ -71,7 +120,49 @@ public indirect enum ServerUIPredicate: Equatable, Sendable {
         case .all(let items): return ServerUITri.all(items.map { $0.evaluate(environment) })
         case .any(let items): return ServerUITri.any(items.map { $0.evaluate(environment) })
         case .not(let item): return item.evaluate(environment).negated
+        case .exists(let value):
+            guard case .value(let found) = value.evaluate(environment) else { return .unknown }
+            return found == .null ? .no : .yes
+        case .in(let value, let options):
+            let subject = value.evaluate(environment)
+            let evaluated = options.map { $0.evaluate(environment) }
+            guard case .value(let found) = subject else { return .unknown }
+            guard Self.isScalar(found) else { return .no }
+            let matched = evaluated.contains { option in
+                guard case .value(let candidate) = option, Self.isScalar(candidate) else { return false }
+                return ServerUIOperand.matches(found, candidate)
+            }
+            if matched { return .yes }
+            return evaluated.contains { $0.json == nil } ? .unknown : .no
+        case .compare(let op, let leftOperand, let rightOperand):
+            let left = leftOperand.evaluate(environment), right = rightOperand.evaluate(environment)
+            guard case .value(let a) = left, case .value(let b) = right else { return .unknown }
+            switch op {
+            case .eq, .ne:
+                guard Self.isScalar(a), Self.isScalar(b) else { return .no }
+                return ServerUIOperand.matches(a, b) == (op == .eq) ? .yes : .no
+            case .above, .below:
+                guard case .number(let x) = a, case .number(let y) = b else { return .no }
+                return (op == .above ? x > y : x < y) ? .yes : .no
+            case .before, .after:
+                guard let x = Self.instant(a, environment), let y = Self.instant(b, environment) else { return .no }
+                return (op == .before ? x < y : x > y) ? .yes : .no
+            }
         }
+    }
+
+    /// A string, number or boolean: the only values that compare as equal or unequal.
+    private static func isScalar(_ value: JSONValue) -> Bool {
+        switch value {
+        case .string, .number, .bool: true
+        default: false
+        }
+    }
+
+    /// The ordering key of a date or date and time text on the environment's clock, or `nil`.
+    private static func instant(_ value: JSONValue, _ environment: some ServerUIReading) -> Int? {
+        guard case .string(let text) = value else { return nil }
+        return ServerUIDates.wallTime(text, utcOffsetMinutes: environment.clock?.utcOffsetMinutes ?? 0)?.instant
     }
 }
 

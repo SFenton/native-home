@@ -154,45 +154,76 @@ final class UKServerUISection: UIView, UKGridMeasuring {
 }
 
 /// A bounded collection uses the existing module rows, retaining each row instance by provider key.
+///
+/// With a `rowAction` (`sh.list-parts@1`) each row is a ``UKRowButton`` that reports its tap; without one the rows are the plain rows.
 @MainActor
 final class UKServerUIRowCollection: UKServerUIFittingView {
     private let stack = UIStackView()
     private let list = UKModuleListView(hasGlyphs: false)
     private let message = UILabel.uk(.body, ink: UKDesignInk.secondary)
+    private let detail = UILabel.uk(.footnote, ink: UKDesignInk.secondary)
     private(set) var rows: [String: UKRowView] = [:]
+    private var buttons: [String: UKRowButton] = [:]
     private var order: [String] = []
+    private var tappable = false
+    private weak var model: ServerUIRowCollection?
+    /// Whether pulling the page runs the provider again (`refreshable`).
+    private(set) var pullsToRefresh = false
 
     init() {
         super.init(frame: .zero)
         stack.axis = .vertical
         stack.spacing = HassTokens.Spacing.s
         stack.addArrangedSubview(message)
+        stack.addArrangedSubview(detail)
         stack.addArrangedSubview(list)
         addSubview(stack)
         stack.ukPin(to: self)
         message.accessibilityTraits = .staticText
+        detail.accessibilityTraits = .staticText
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func apply(_ value: ServerUICompositionDocument.RowCollection, model: ServerUIRowCollection, surface: TileSurface) {
+    /// Runs the provider again, for the page's pull to refresh.
+    func refresh() async { await model?.refresher?() }
+
+    /// Draws the rows of `model`.
+    /// - Parameters:
+    ///   - emptyDetail: The line under the empty title (`emptyMessage`), resolved by the caller.
+    ///   - onSelect: A tap on a row, when the collection has a `rowAction`.
+    func apply(_ value: ServerUICompositionDocument.RowCollection, model: ServerUIRowCollection, surface: TileSurface,
+               emptyDetail: String? = nil, onSelect: ((ServerUIRowItem) -> Void)? = nil) {
+        self.model = model
+        pullsToRefresh = value.refreshable && model.refresher != nil
         var retained: [String: UKRowView] = [:]
+        var retainedButtons: [String: UKRowButton] = [:]
+        if (onSelect != nil) != tappable { tappable = onSelect != nil; order = []; buttons = [:] }
         for item in model.rows {
             var content = UKRowContent(item.title, subtitle: item.subtitle, value: item.value)
             content.identifier = value.node.id + "." + item.id
+            content.showsChevron = onSelect != nil
             let row = rows[item.id] ?? UKRowView(content, surface: surface)
             row.update(content)
             row.surface = surface
             row.accessibilityIdentifier = value.node.id + "." + item.id
             retained[item.id] = row
+            if let onSelect {
+                let button = buttons[item.id] ?? UKRowButton(row)
+                button.onTap = { onSelect(item) }
+                button.surface = surface
+                button.accessibilityIdentifier = value.node.id + "." + item.id
+                retainedButtons[item.id] = button
+            }
         }
         let nextOrder = model.rows.map(\.id)
         if nextOrder != order {
-            list.setRows(nextOrder.compactMap { retained[$0] })
+            list.setRows(nextOrder.compactMap { onSelect == nil ? retained[$0] : retainedButtons[$0] })
             order = nextOrder
         }
         rows = retained
+        buttons = retainedButtons
         list.surface = surface
         switch model.phase {
         case .loading: message.text = value.loadingText
@@ -202,6 +233,8 @@ final class UKServerUIRowCollection: UKServerUIFittingView {
         case .unavailable: message.text = value.unavailableText
         }
         message.isHidden = message.text == nil
+        detail.text = model.phase == .ready && model.rows.isEmpty ? emptyDetail : nil
+        detail.isHidden = detail.text == nil
         list.isHidden = model.rows.isEmpty
         ukRemeasureContainers(includingSelf: true)
     }
@@ -223,6 +256,9 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     private var enable: (Bool) -> Void = { _ in }
     private var sliderWork: Task<Void, Never>?
     private var lastSent: D.LocalValue?
+    private var ruleDisabled = false
+    /// A bound toggle's own row or check row (`sh.bound-row-parts@1`, `sh.check-face@1`), when it has parts or an icon.
+    private var rowToggle: UKServerUIRowToggle?
 
     init() { super.init(frame: .zero) }
 
@@ -251,7 +287,7 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     }
 
     /// Draws `binding`'s control (rebuilt only when what it draws changes) and shows its value; `nil` is unavailable.
-    func apply(_ binding: some UKServerUIControlBinding, surface: TileSurface) {
+    func apply(_ binding: some UKServerUIControlBinding, surface: TileSurface, enabled: Bool = true) {
         let spec = binding.spec
         let send: (D.LocalValue) -> Void = { [weak self] value in
             guard let self else { return }
@@ -259,13 +295,42 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         }
         if self.spec != spec {
             content?.removeFromSuperview()
+            rowToggle = nil
             self.spec = spec
             build(spec, surface: surface, send: send)
         }
         (content as? UKSurfaceStyled)?.surface = surface
         let value = binding.value()
+        rowToggle?.update(binding.rowDetails())
         setAvailable(value != nil, spec: spec)
         if let value { show(value) }
+        setEnabledByRule(enabled, spec: spec)
+    }
+
+    /// `enabledWhen`: while it says no the control cannot be touched and reads as dimmed and not enabled; when it says yes again the
+    /// control goes back to whatever availability alone gave it.
+    private func setEnabledByRule(_ enabled: Bool, spec: UKServerUIControlSpec) {
+        if let rowToggle {
+            // The row dims its own glyph and says "not enabled"; the title keeps its contrast.
+            rowToggle.setRuleEnabled(enabled)
+            ruleDisabled = !enabled
+            return
+        }
+        if !enabled {
+            ruleDisabled = true
+            control?.isUserInteractionEnabled = false
+            control?.alpha = 0.5
+            enable(false)
+            control?.accessibilityTraits.insert(.notEnabled)
+        } else if ruleDisabled {
+            ruleDisabled = false
+            if spec.unavailableText == nil {
+                control?.isUserInteractionEnabled = true
+                control?.alpha = 1
+                enable(true)
+            }
+            control?.accessibilityTraits.remove(.notEnabled)
+        }
     }
 
     /// A slider reports every detent while it is dragged; the call goes out once the thumb has rested.
@@ -281,10 +346,15 @@ final class UKServerUILocalControl: UKServerUIFittingView {
 
     private func setAvailable(_ available: Bool, spec: UKServerUIControlSpec) {
         guard spec.unavailableText != nil else { return }
+        if let rowToggle {
+            rowToggle.setAvailable(available)
+            return
+        }
         control?.isUserInteractionEnabled = available
         control?.alpha = available ? 1 : 0.5
         if let row, !(row is UKPercentSliderRow) {
-            row.update(UKRowContent(spec.title, subtitle: available ? nil : spec.unavailableText))
+            // Keep the accessory (the switch or picker): `update` drops a row's accessory unless it is passed again.
+            row.update(UKRowContent(spec.title, subtitle: available ? nil : spec.unavailableText), accessory: row.accessory)
         }
         enable(available)
         control?.accessibilityValue = available ? control?.accessibilityValue : spec.unavailableText
@@ -296,6 +366,18 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         enable = { _ in }
         var host: UIView = row
         switch spec.face {
+        case .toggle where spec.row != nil:
+            // A toggle with its own parts or icon is the module row (or check row) the vacuum and climate atoms drew.
+            let toggle = UKServerUIRowToggle(spec: spec, row: spec.row ?? .init(), surface: surface) { send(.boolean($0)) }
+            rowToggle = toggle
+            control = toggle.control
+            show = { if case .boolean(let value) = $0 { toggle.show(value) } }
+            enable = { _ in }
+            self.row = nil
+            content = toggle.view
+            addSubview(toggle.view)
+            toggle.view.ukPin(to: self)
+            return
         case .toggle:
             let toggle = UKControllerToggle(isOn: false) { send(.boolean($0)) }
             toggle.accessibilityLabel = spec.title
@@ -333,8 +415,11 @@ final class UKServerUILocalControl: UKServerUIFittingView {
             show = { if case .string(let value) = $0 { picker.show(value) } }
         case .segmented(let options):
             let names = Dictionary(uniqueKeysWithValues: options.map { ($0.id, $0.label) })
+            let icons = Dictionary(options.compactMap { option in option.symbol.map { (option.id, $0.name) } }, uniquingKeysWith: { first, _ in first })
+            let hints = Dictionary(options.compactMap { option in option.hint.map { (option.id, $0) } }, uniquingKeysWith: { first, _ in first })
             let segmented = UKSegmentedChoice(label: spec.title, options: options.map(\.id), title: { names[$0] ?? $0 },
-                                              selection: nil, identifier: spec.identifier + ".value") { send(.string($0)) }
+                                              selection: nil, identifier: spec.identifier + ".value",
+                                              symbol: { icons[$0] }, hint: { hints[$0] }) { send(.string($0)) }
             row.setBody(segmented)
             control = segmented
             enable = { segmented.isEnabled = $0 }
@@ -374,6 +459,9 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
     private let column = UKColumnView(spacing: HassTokens.Spacing.m)
     private var panels: [String: UKColumnView] = [:]
     private var swap: UKSmoothContentSwapView<String>?
+    /// The areas of a container drawn from `blocks` (`sh.tab-blocks@1`); one stack for the container's life.
+    private let areaStack = UKServerUIAreaStack()
+    private var lastSelection: String?
     private var choice: UKSegmentedChoice<String>?
     private var definition: D.LocalTabs?
     private var tabBar: UKModalTabBar<TabID>?
@@ -395,15 +483,17 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func needsReparent(_ value: D.LocalTabs, children: [[UIView]]) -> Bool {
+    func needsReparent(_ value: D.LocalTabs, children: [[UIView]], areaChildren: [[UIView]] = []) -> Bool {
         zip(value.tabs, children).contains { panels[$0.0.id]?.views != $0.1 }
             || panels.keys.contains { id in !value.tabs.contains { $0.id == id } }
+            || areaStack.needsReparent(areas: value.areas, children: areaChildren)
     }
 
     func clear() {
         for panel in panels.values {
             panel.setViews([])
         }
+        areaStack.clear()
     }
 
     func prepareScope(_ scope: UKServerUITabScope, stateID: String, state: ServerUILocalState) throws {
@@ -432,8 +522,8 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
         if let scopedInitial { automatic.departed(initial: scopedInitial, retainsEngaged: definition?.retainsAutomaticSelection == true) }
     }
 
-    func apply(_ value: D.LocalTabs, children: [[UIView]], selection: String, page: UKServerUIPage,
-               badges: [String: Int] = [:], send: @escaping (String) -> Void) {
+    func apply(_ value: D.LocalTabs, children: [[UIView]], areaChildren: [[UIView]] = [], shownAreas: [String] = [],
+               selection: String, page: UKServerUIPage, badges: [String: Int] = [:], send: @escaping (String) -> Void) {
         self.page = page
         centerWhenFits = value.tabs.first(where: { $0.id == selection })?.centerWhenFits == true
         for (tab, views) in zip(value.tabs, children) {
@@ -444,32 +534,48 @@ final class UKServerUILocalTabs: UIView, UKGridMeasuring {
             panels[tab.id] = panel
         }
         panels = panels.filter { entry in value.tabs.contains { $0.id == entry.key } }
+        if !value.areas.isEmpty {
+            areaStack.apply(areas: value.areas, children: areaChildren, showing: shownAreas, animated: lastSelection != nil && lastSelection != selection)
+        }
+        lastSelection = selection
         if definition != value {
             detach()
             column.setViews([])
             let names = Dictionary(value.tabs.map { ($0.id, $0.label) }, uniquingKeysWith: { first, _ in first })
             let choice = UKSegmentedChoice(label: value.node.title, options: value.tabs.map(\.id), title: { names[$0] ?? $0 },
                                            selection: selection, identifier: value.node.id + ".tabs", select: send)
-            let swap = UKSmoothContentSwapView(initial: selection) { [weak self] key in
+            // A container drawn from areas keeps one stack for its life; the shipped shape swaps whole panels.
+            let swap = value.areas.isEmpty ? UKSmoothContentSwapView(initial: selection) { [weak self] key in
                 guard let panel = self?.panels[key] else { return UIView() }
                 return panel
-            }
-            swap.didSwap = { [weak self] _ in self?.ukRemeasureContainers(includingSelf: true) }
-            let displayed = UKServerUISwapMeasurement(swap) { [weak self, weak swap] width in
-                guard let self, let swap, let panel = self.panels[swap.displayed] else { return 0 }
-                return panel.gridHeight(forWidth: width)
+            } : nil
+            swap?.didSwap = { [weak self] _ in self?.ukRemeasureContainers(includingSelf: true) }
+            let displayed: UIView = swap.map { swap in
+                UKServerUISwapMeasurement(swap) { [weak self, weak swap] width in
+                    guard let self, let swap, let panel = self.panels[swap.displayed] else { return 0 }
+                    return panel.gridHeight(forWidth: width)
+                }
+            } ?? areaStack
+            let icons = Dictionary(value.tabs.compactMap { tab in tab.icon.map { (tab.id, $0.drawn) } }, uniquingKeysWith: { first, _ in first })
+            func makeBar() -> UKModalTabBar<TabID> {
+                UKModalTabBar(tabs: value.tabs.map { TabID(id: $0.id) }, label: value.node.title,
+                    title: { names[$0.id] ?? $0.id }, symbol: { icons[$0.id] ?? "circle" },
+                    badge: value.scopeProviderId == nil ? nil : { badges[$0.id] ?? 0 }, labels: value.tabBar?.labels ?? .bySize,
+                    selection: TabID(id: selection), identifier: value.node.id + ".tabs", onSelect: { send($0.id) })
             }
             if value.pinned {
-                let icons = Dictionary(value.tabs.compactMap { tab in tab.icon.map { (tab.id, $0.drawn) } }, uniquingKeysWith: { first, _ in first })
-                let bar = UKModalTabBar(tabs: value.tabs.map { TabID(id: $0.id) }, label: value.node.title,
-                    title: { names[$0.id] ?? $0.id }, symbol: { icons[$0.id] ?? "circle" },
-                    badge: value.scopeProviderId == nil ? nil : { badges[$0.id] ?? 0 }, selection: TabID(id: selection),
-                    identifier: value.node.id + ".tabs", onSelect: { send($0.id) })
+                let bar = makeBar()
                 let host = bar.inset()
                 let pinned = UKPagePinnedBar(bar: host, scrollView: page.body)
                 pinned.install(in: page)
                 tabBar = bar; pinnedBar = pinned; barHost = host
                 column.setViews([displayed])
+                self.choice = nil
+            } else if value.showsSelector, let setting = value.tabBar, setting.labels != .bySize {
+                // A top bar that asks for icons, titles or both draws the section bar's own forms at the head of the container.
+                let bar = makeBar()
+                tabBar = bar
+                column.setViews([UKServerUIFittingView.wrapping(bar), displayed])
                 self.choice = nil
             } else {
                 column.setViews(value.showsSelector ? [UKServerUIFittingView.wrapping(choice), displayed] : [displayed])

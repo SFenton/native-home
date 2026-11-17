@@ -54,7 +54,7 @@ private func read(_ id: String, _ path: [String] = ["state"], as kind: ServerUIC
         let text = ServerUIOperand.format(
             pattern: "{done} of {total} done, {raw}",
             args: ["done": read("done", as: .number), "total": read("total", as: .number), "raw": literal(.number(2.5))],
-            formats: ["done": .init(maximumFractionDigits: 0), "total": .init(maximumFractionDigits: 1)])
+            formats: ["done": .number(.init(maximumFractionDigits: 0)), "total": .number(.init(maximumFractionDigits: 1))])
         #expect(text.evaluate(reader) == .value(.string("3 of 7.5 done, 2.5")))
         #expect(ServerUINumberFormat(maximumFractionDigits: 2).text(2.5) == "2.5")
         #expect(ServerUINumberFormat(maximumFractionDigits: 0).text(-0.2) == "0")
@@ -213,11 +213,11 @@ private func read(_ id: String, _ path: [String] = ["state"], as kind: ServerUIC
         let ask = ServerUICompositionDocument.Confirmation.additional(
             style: .alert, title: "Sure?", message: nil, confirmLabel: "Yes", cancelLabel: "Cancel", destructive: true)
         let plain = call()
-        #expect(!plain.asksConfirmation(of: ServerUIViewer(userId: "u1")))
+        #expect(!plain.asksConfirmation(of: ServerUIViewer(userId: "u1"), in: Reader()))
         let guarded = call(confirmation: ask, exempt: ["owner"])
-        #expect(guarded.asksConfirmation(of: ServerUIViewer(userId: "u1")))
-        #expect(guarded.asksConfirmation(of: nil))
-        #expect(!guarded.asksConfirmation(of: ServerUIViewer(userId: "owner")))
+        #expect(guarded.asksConfirmation(of: ServerUIViewer(userId: "u1"), in: Reader()))
+        #expect(guarded.asksConfirmation(of: nil, in: Reader()))
+        #expect(!guarded.asksConfirmation(of: ServerUIViewer(userId: "owner"), in: Reader()))
     }
 
     @Test func listsEveryReadAndOptimisticSource() {

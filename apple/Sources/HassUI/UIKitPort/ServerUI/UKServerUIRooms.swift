@@ -31,7 +31,6 @@ extension UKServerUIBindings {
         case .roomOverviewTile(let tile): return tile.powerSourceId.flatMap { lights[$0]?.hasPendingIntent } == true
         case .homeLightTile(let tile): return lights[tile.sourceId]?.hasPendingIntent == true
         case .alarmPanel(let panel): return alarms[panel.sourceId]?.hasPendingIntent == true
-        case .doorTile(let tile): return doors[tile.sourceId]?.hasPendingIntent == true
         case .climate(let control): return climates[control.props.sourceId]?.hasPendingIntent == true
         case .roomCard(let card), .roomChip(let card): return card.power.map { powers[$0.sourceId]?.hasPendingIntent == true } ?? false
         case .navigationTile(let tile): return tile.alarm.map { alarms[$0.sourceId]?.hasPendingIntent == true } ?? false
@@ -54,7 +53,7 @@ enum UKServerUIRooms {
             let selected = ServerUIRooms.display(definition, read: bindings.roomEntity)
             let entity = bindings.roomEntity(selected.sourceId)
             let id = bindings.entityID(for: selected.sourceId).value ?? ""
-            var card = ServerUIRooms.card(definition, entityId: id)
+            var card = ServerUIRooms.card(definition, entityId: id, in: renderer.reader())
             if let p = definition.personalization, let viewer = renderer.roomResidentId(), !ScreenshotPrivacy.isRedacting {
                 card.title = viewer == p.residentId ? p.ownTitle : p.otherTitle
             }
@@ -68,8 +67,9 @@ enum UKServerUIRooms {
                !definition.stateLabels.contains(where: { $0.state == entity?.state }) {
                 subtitle = ClimateLogic.ventSubtitle(entity)
             }
-            if definition.kind == .contact, definition.action == nil, definition.power == nil {
-                subtitle = RoomFormat.contactTileSubtitle(entity)
+            if definition.kind == .contact {
+                subtitle = RoomFormat.contactCardSubtitle(authored: subtitle, entity: entity, hasAction: definition.action != nil,
+                    hasPower: definition.power != nil, hasSubtitleSources: !selected.subtitles.isEmpty, showState: selected.showState)
             }
             let display = RoomCardDisplay.resolve(card, entity: entity, subtitle: subtitle)
             let face = RoomTileFace.resolve(card, entity: entity, display: display)
@@ -148,15 +148,20 @@ enum UKServerUIRooms {
                 if let color = RoomFormat.background(card, entity, presence: nil) {
                     model.fillRGB = UInt32((color.red * 255).rounded()) << 16
                         | UInt32((color.green * 255).rounded()) << 8 | UInt32((color.blue * 255).rounded())
+                    // A state colour authored for light and dark draws its dark member while the interface is dark.
+                    model.fillDarkRGB = color.dark.map {
+                        UInt32(($0.red * 255).rounded()) << 16 | UInt32(($0.green * 255).rounded()) << 8 | UInt32(($0.blue * 255).rounded())
+                    }
                 }
                 if definition.kind == .occupancy, ScreenshotPrivacy.isRedacting {
                     model.subtitle = "Hidden"
                     model.isActive = false
                     model.fillRGB = nil
+                    model.fillDarkRGB = nil
                 }
                 if definition.kind == .contact, body == nil, definition.power == nil {
                     model.symbol = RoomOverviewStyle.contactSymbol(window: definition.icon.drawn.contains("window"), open: RoomFormat.isOpen(entity))
-                    model.spokenValue = RoomFormat.contact(entity)
+                    model.spokenValue = RoomFormat.contactCardSpokenValue(entity: entity, drawn: subtitle)
                 }
                 if body != nil { model.bodyHint = "Opens \(definition.node.title)" }
                 model.reapplyGeneration = page.context.store.reapplyGeneration

@@ -83,12 +83,15 @@ final class UKSprinklerToggleContent: UKRowView {
     private let toggle: UKControllerToggle
     private let sink: UKSprinklerSwitchSink
 
-    init(symbol: String?) {
+    /// - Parameters:
+    ///   - symbol: The row's glyph, or nil for none.
+    ///   - glyph: The glyph's ink: the action blue of a sprinkler row, or a colour family's ink for a toggle of that family.
+    init(symbol: String?, glyph: UIColor = UKInk.action) {
         let sink = UKSprinklerSwitchSink()
         let toggle = UKControllerToggle(isOn: false) { sink.send($0) }
         self.sink = sink
         self.toggle = toggle
-        super.init(UKRowContent("", symbol: symbol, glyph: UKInk.action, style: .form))
+        super.init(UKRowContent("", symbol: symbol, glyph: glyph, style: .form))
         toggle.onTintColor = UKInk.action
         toggle.setContentHuggingPriority(.required, for: .horizontal)
         toggle.setContentCompressionResistancePriority(.required, for: .horizontal)

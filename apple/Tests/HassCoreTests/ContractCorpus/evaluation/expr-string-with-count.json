@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "expr-string-with-count",
+  "note": "The text a slot shows: a count and a total.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n} of {m} on",
+      "args": {
+        "n": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "lights",
+            "path": [
+              "count"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "lights",
+            "path": [
+              "total"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "lights/count": {
+        "status": "value",
+        "value": 18
+      },
+      "lights/total": {
+        "status": "value",
+        "value": 24
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "18 of 24 on"
+  }
+}

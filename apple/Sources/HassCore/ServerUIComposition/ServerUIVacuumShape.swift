@@ -20,6 +20,7 @@ extension ServerUICompositionShape {
             "errorEntityId": sensor, "passesEntityId": entity, "statusEntityId": sensor, "statusFlagEntityId": sensor,
             "vacuumMapId": .text(120, blank: false), "mapRotationDegrees": .number(-360, 360, integer: false),
             "mapScale": .number(0.01, 10, integer: false), "mapRoomSelection": .bool,
+            "orientation": .optional(surfaceOrientation),
             "coordinatorSessionEntityId": .optional(sensor), "dockButtonEntityId": .optional(entity),
             "fanEntityId": .optional(entity), "modeEntityId": .optional(entity),
             "modeTextEntityId": .optional(entity), "waterEntityId": .optional(entity),
@@ -64,7 +65,8 @@ extension ServerUICompositionShape {
             "map": primitive("map", [
                 "overlay": .choice(["rooms", "autoClean"]), "height": .number(100, 800, integer: false),
                 "runtimeHeight": .number(100, 800, integer: false), "label": title,
-                "loadingText": title, "unavailableText": title, "locate": .bool
+                "loadingText": title, "unavailableText": title, "locate": .bool,
+                "controls": .optional(mapControls)
             ]),
             "status": primitive("status", ["metric": .choice(["status", "battery", "dock"])]),
             "notices": primitive("notices"),

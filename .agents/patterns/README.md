@@ -6,6 +6,8 @@
 
 | Pattern | Canonical component | Web source |
 |---|---|---|
+| [tile-swipe.md](tile-swipe.md) | `HassUI/UIKitPort/Design/UKTileSwipeController.swift`, `HassDesign/TileSwipe.swift` | none (native only) |
+| [map-controls.md](map-controls.md) | `HassUI/UIKitPort/Design/UKMapControlsView.swift`, `HassCore/Vacuums/MapControlFit.swift` | none (native only) |
 | [dynamic-grid.md](dynamic-grid.md) | `HassDesign/DynamicGridLayout.swift` | `src/components/core/DynamicGrid.tsx` |
 | [hinge-avoidance.md](hinge-avoidance.md) | `HassDesign/HingeAvoidance.swift`, `HassUI/UIKitPort/Design/UKFoldColumns.swift`, `HassUI/App/Layout/FoldColumns.swift` | none (iPhone Duo and iPad) |
 | [action-tiles.md](action-tiles.md) | `HassDesign/TileActions/TileActionStrip.swift`, `HassDesign/TileActions/TileActionButtonStyle.swift`, `HassCore/TileActions/TileActionSpec.swift` | none (native convention) |
@@ -27,6 +29,12 @@
 | [floating-actions.md](floating-actions.md) | `HassDesign/FloatingActionBar.swift`, `HassUI/UIKitPort/Design/UKForm.swift` | `src/components/core/FloatingActionButton.tsx`, `src/components/shell/DashboardFloatingAction.tsx` |
 | [image-card.md](image-card.md) | `HassDesign/ImageCard.swift` | `src/components/hass/recipes/RecipeCard.tsx` |
 | [vacuum-sheet.md](vacuum-sheet.md) | `HassUI/UIKitPort/ServerUI/UKServerUIVacuumView.swift` | `src/components/hass/VacuumCard.tsx` |
+| [overlay.md](overlay.md) | `HassUI/UIKitPort/ServerUI/UKServerUIOverlay.swift` | none (native only) |
+| [server-ui-tab-areas.md](server-ui-tab-areas.md) | `HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift` | none (native only) |
+| [server-ui-badges.md](server-ui-badges.md) | `HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift` | none (native only) |
+| [server-ui-data-flow.md](server-ui-data-flow.md) | `HassCore/ServerUIFlow/ServerUIFlowSession.swift` | none (native only) |
+| [server-ui-chart-gauge.md](server-ui-chart-gauge.md) | `HassUI/UIKitPort/Design/UKChartView.swift`, `UKLinearGaugeView.swift` | none (the Studio's `chart` and `gauge` nodes) |
+| [vacuum-lowering.md](vacuum-lowering.md) | `HassCore/ServerUIComposition/ServerUIVacuumLowering.swift` | `src/components/hass/VacuumCard.tsx` |
 | [valetudo-map.md](valetudo-map.md) | `HassUI/UIKitPort/Features/Vacuums/UKValetudoMapView.swift`, `HassCore/Vacuums/ValetudoMap.swift` | `src/components/hass/ValetudoMapCard.tsx` |
 | [thermostat-dial.md](thermostat-dial.md) | `HassDesign/ThermostatDial/ThermostatDial.swift` | `src/components/hass/CircularControlDial.tsx` |
 | [schedule-date-fields.md](schedule-date-fields.md) | `HassUI/UIKitPort/Design/UKScheduleDateFields.swift` | `NativePickerField` in `ScheduleConfirmationForm` |

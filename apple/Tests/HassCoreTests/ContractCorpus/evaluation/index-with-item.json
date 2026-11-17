@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "index-with-item",
+  "note": "index and item together: the position plus a field of the record.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "add",
+      "args": [
+        {
+          "type": "index"
+        },
+        {
+          "type": "item",
+          "path": [
+            "v"
+          ]
+        }
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "v": 2
+    },
+    "index": 3
+  },
+  "expected": {
+    "status": "value",
+    "value": 5
+  }
+}

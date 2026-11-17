@@ -92,24 +92,6 @@ struct ServerUIDeviceProvidersTests {
         #expect(caller.calls.isEmpty)
     }
 
-    @Test func explicitVacuumAutoCleanPauseInvertsStateAndOwnsUnfinishedTransport() async {
-        let store = EntityStore(), caller = DeviceHeldCaller(), scheduler = ManualScheduler()
-        let control = Vacuums.AutoCleanControl(title: "Demo", entityId: "switch.demo_pause", icon: "mdi:robot-vacuum", kind: .pause)
-        store.replaceAll([.init(entityId: control.entityId, state: "on")])
-        let model = VacuumAutoCleanController(store: store, caller: caller, controls: [control], scheduler: scheduler)
-        #expect(!model.display(control).isEnabled)
-        model.toggle(control)
-        #expect(model.display(control).isEnabled)
-        await caller.waitForStart()
-        #expect(caller.calls[0].target == control.entityId)
-        scheduler.fireAll()
-        #expect(model.hasPendingIntent)
-        caller.finish(failing: true)
-        await model.waitForCalls()
-        #expect(!model.hasPendingIntent)
-        #expect(model.display(control).isFailed)
-    }
-
     @Test func scheduleOwnsStableRowsRejectsMalformedTimeAndPreservesDraftDuringSave() async throws {
         let store = store(), caller = DeviceHeldCaller()
         let providers = try ServerUIDeviceProviders(sources: publication().document.dataSources, store: store, caller: caller)

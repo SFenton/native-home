@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "not-unknown",
+  "note": "not of unknown is unknown.",
+  "subject": {
+    "condition": {
+      "type": "not",
+      "of": {
+        "type": "compare",
+        "op": "eq",
+        "left": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        },
+        "right": {
+          "type": "literal",
+          "value": "a"
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

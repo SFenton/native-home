@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 10,
+  "version": 16,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -43,6 +43,7 @@
     "thermostat-dial": "Thermostat dial: the circular setpoint dial for `climate` entities. (components: ThermostatDial)",
     "ticker": "Ticker label: one line of text that scrolls through its column when it is too wide, instead of truncating. (components: TickerLabel)",
     "vacuum-sheet": "Vacuum sheet: the robot vacuum sheet (map, status, Controls/Rooms/Auto-Clean/Dock/Info tabs, area editor, cleaning report). (components: UKServerUIVacuumView)",
+    "vacuum-lowering": "Vacuum kinds built from generic parts: the vacuum-control kinds the compiler rewrites into generic parts, and the ones that stay native. (components: ServerUIVacuumLowering)",
     "valetudo-map": "Mapped map: decoding and drawing a Mapped map (rooms, walls, robot, dock, paths, areas). (components: UKValetudoMapView, ValetudoMap)",
     "weather": "Weather card and sheet: the Home weather card, its 24-hour carousel and the Weather sheet, plus the logic under them. (components: UKWeatherCarouselView)",
     "scroll-frame-rate": "Scroll frame rate: no app refresh-rate request while scrolling (iOS manages it); scroll surfaces report to ScrollActivity. (components: UKScrollRate)",
@@ -52,7 +53,14 @@
     "page-base": "Page base: the one way a page, a pane or a tab hosts its scrolling body, spaces it, pins a bar under it and gets its ground. (components: UKPageScrollView, UKPageViewController)",
     "rows": "Rows: the one list row: slots for a leading glyph, check or avatar, the text and a trailing accessory or chevron. (components: UKRowView)",
     "routes": "Routes: the one way the app opens an authored place: a plain path resolved by the accepted publication, for push links, Live Activity links, Spotlight and Siri or Shortcuts. (components: RouteRequest, RouteTarget, RouteCatalog)",
-    "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)"
+    "copy": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (components: WeatherCopy, PluralCopy)",
+    "map-controls": "Map controls: the buttons over a map card (corner groups, fit rule, More menu) and the map orientation. (components: UKMapControlsView, MapControlFit)",
+    "tile-swipe": "Tile swipe, words, ink and groups: swipe to adjust a tile, the state words, the default tile ink and grids grouped by state. (components: UKTileSwipeController, TileSwipe)",
+    "overlay": "Overlay: small nodes drawn over a base at five anchors. (components: UKServerUIOverlayView)",
+    "server-ui-tab-areas": "Tab areas: the areas of a tab container, each drawn once for the tabs that name it. (components: UKServerUIAreaStack)",
+    "server-ui-badges": "Badges: a count or short text on the top trailing corner of a tile or chip. (components: UKServerUIBadgeViews)",
+    "server-ui-data-flow": "Data flow session: a document data source that asks Home Assistant, runs a closed list of steps and gives rows. (components: ServerUIFlowSession)",
+    "server-ui-chart-gauge": "Chart and linear gauge: the document-driven chart and linear gauge, with the weather chart and rail as the second consumer to converge. (components: UKChartView, UKLinearGaugeView)"
   },
   "state": {
     "fields": [

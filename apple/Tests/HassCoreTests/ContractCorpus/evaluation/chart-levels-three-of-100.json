@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "chart-levels-three-of-100",
+  "note": "Three levels of an axis to 100 are 100, 50 and 0, top first (UKWeatherViews.swift:262-269: high, middle, low).",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 3,
+      "top": 100,
+      "pattern": "{value}%",
+      "digits": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        100,
+        50,
+        0
+      ],
+      "labels": [
+        "100%",
+        "50%",
+        "0%"
+      ]
+    }
+  }
+}

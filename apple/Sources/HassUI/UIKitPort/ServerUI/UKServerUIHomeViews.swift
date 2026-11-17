@@ -9,27 +9,41 @@ import UIKit
 enum UKServerUIHomeViews {
     typealias D = ServerUICompositionDocument
 
-    static func rgb(_ fill: D.TileFill) -> UInt32? {
-        if case .solidRGB(let red, let green, let blue) = fill { return UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue) }
-        return nil
+    /// An exact fill as light and dark `0xRRGGBB` (one colour is the same in both), or nil for the standard fill.
+    static func pair(_ fill: D.TileFill) -> AppearanceFill? {
+        guard let (light, dark) = fill.appearances else { return nil }
+        func packed(_ rgb: ServerUIRGB) -> UInt32 { UInt32(rgb.red) << 16 | UInt32(rgb.green) << 8 | UInt32(rgb.blue) }
+        return AppearanceFill(light: packed(light), dark: packed(dark))
     }
 
-    static func appearance(_ chip: D.StatusChip, value: ServerUIHomeStatus.Value) -> (D.StatusAppearance, String) {
+    /// An exact fill's light colour as `0xRRGGBB`, or nil for the standard fill. A caller that draws a pair also reads ``pair(_:)``.
+    static func rgb(_ fill: D.TileFill) -> UInt32? { pair(fill)?.light }
+
+    /// The look and text a status chip draws for `value`: the authored look of its state, after any rule or entity color in it has
+    /// answered (`sh.rules@1`). `previous` is what the chip showed, kept for a slot whose value is still loading.
+    static func appearance(_ chip: D.StatusChip, value: ServerUIHomeStatus.Value, in environment: some ServerUIReading,
+                           keeping previous: ServerUIResolvedAppearance? = nil) -> (ServerUIResolvedAppearance, String) {
         let state = chip.states.first { $0.state == value.state }
-        return (state?.appearance ?? chip.fallback, value.state == "hidden" ? value.text : state?.text ?? value.text)
+        let look = (state?.appearance ?? chip.fallback).resolve(in: environment, keeping: previous)
+        return (look, value.state == "hidden" ? value.text : state?.text ?? value.text)
     }
 
     static func configure(_ view: UKStatusChipView, chip: D.StatusChip, value: ServerUIHomeStatus.Value,
-                          action: (() -> Void)?) {
-        let (appearance, text) = appearance(chip, value: value)
+                          appearance: ServerUIResolvedAppearance, text: String, action: (() -> Void)?) {
         let computed = value.color.map { ChipTint.fromWeb($0.rgb, preferredGlyph: rgb(appearance.glyph ?? .standard)) }
         let fill = computed?.fill ?? rgb(appearance.fill)
         let glyph = computed?.glyph ?? appearance.glyph.flatMap { rgb($0) }
+        // An authored light and dark pair (`sh.solid-appearance@1`) draws its dark member while the chip is dark; a colour the entity gave
+        // is one colour, clamped, in both.
+        let fillPair = computed == nil ? pair(appearance.fill) : nil
+        let glyphPair = computed == nil ? appearance.glyph.flatMap { pair($0) } : nil
+        let darkTint = (fillPair.map { !$0.isFixed } ?? false) || (glyphPair.map { !$0.isFixed } ?? false)
+            ? fillPair.map { ChipTint(fill: $0.dark, glyph: glyphPair?.dark ?? 0xFFFFFF) } : nil
         let previous = view.accessibilityLabel
         let previousValue = view.accessibilityValue
         view.configure(title: chip.node.title, summary: text, symbol: appearance.icon.drawn, family: nil, isActive: fill != nil,
-                       tint: fill.map { ChipTint(fill: $0, glyph: glyph ?? 0xFFFFFF) },
-                       idleGlyph: glyph.map { UIColor.ukRGB($0) }, action: action)
+                       tint: fill.map { ChipTint(fill: $0, glyph: glyph ?? 0xFFFFFF) }, darkTint: darkTint,
+                       idleGlyph: glyphPair.map { UIColor($0.token) } ?? glyph.map { UIColor.ukRGB($0) }, action: action)
         view.accessibilityValue = value.spoken == value.text ? nil : value.spoken
         announce(view, policy: chip.announcement, previousLabel: previous, previousValue: previousValue)
     }

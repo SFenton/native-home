@@ -1,5 +1,4 @@
 #if os(iOS) && DEBUG
-import CryptoKit
 import HassCore
 import HassDesign
 import ImageIO
@@ -12,7 +11,15 @@ import UIKit
 /// Launch with `--server-ui-preview`. `Application Support/ServerUIPreview/bootstrap.json` supplies either synthetic entities or
 /// `live` connection metadata, and `publication.json` beside it is the published envelope. Assets are read from `assets/<sha256>`.
 /// The preview is fed by those local files through the same store the app uses, as if the integration had sent a `published`
-/// event: there is no publisher HTTP endpoint. The `ha-credential` file is consumed once; bearers stay in memory only.
+/// event: there is no publisher HTTP endpoint.
+///
+/// The live bearer comes from the launch environment: ``environmentCredentialName`` (`simctl launch` sets it as
+/// `SIMCTL_CHILD_FENTON_PREVIEW_HA_TOKEN`). It is taken and removed from the process environment with `unsetenv` in
+/// ``init(directory:environmentName:)``, before any step that can fail, so a failed bootstrap, fixtures mode or a late error
+/// cannot leave it in the environment. A launch without `--server-ui-preview` removes it at start through
+/// ``discardEnvironmentCredential(named:)`` (called from `UKGalleryRouter.requested()` first). The value is held in memory only
+/// until the live path takes it (or the load ends, which drops it); fixtures mode never uses it. It is never logged, written
+/// or put in a diagnostic string. There is no file source: a stray `ha-credential` file in the preview directory is never read.
 /// Compiled out of release builds.
 @MainActor
 final class UKServerUIPreview: UIViewController {
@@ -24,6 +31,8 @@ final class UKServerUIPreview: UIViewController {
         let entities: [String: State]?
         let live: UKServerUIPreviewLiveData.Configuration?
         let gallery: UKServerUIPreviewFixtures.Configuration?
+        /// DEBUG state flags (``UKServerUIPreviewFlags``); the launch environment is laid over them.
+        let flags: UKServerUIPreviewFlags?
 
         func validate() throws {
             guard (entities != nil) != (live != nil) else { throw Failure.bootstrap }
@@ -41,14 +50,17 @@ final class UKServerUIPreview: UIViewController {
         init(publication: ServerUICompositionPublication, context: UKContext,
              assets: ServerUIStagedAssets, backdrop: HouseBackdropStore, renderDirectory: URL,
              weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil,
-             fixtures: UKServerUIPreviewFixtures? = nil) throws {
+             fixtures: UKServerUIPreviewFixtures? = nil, live: UKServerUIPreviewLiveProviders.Supply? = nil) throws {
             try fixtures?.prepare(publication, backdrop: backdrop)
             renderer = try UKServerUIRenderer(publication: publication, context: context, backdrop: backdrop,
-                collections: fixtures?.collections() ?? [:], records: fixtures?.records ?? .init(),
-                deviceResponder: fixtures?.caller, canEditBedroom: fixtures?.configuration.administrator == true,
-                roomResidentId: { fixtures?.viewerKey },
-                weatherReader: weatherReader, cameraReader: cameraReader, accountProvider: fixtures,
-                settingsProviders: fixtures?.settings ?? [:], shellHeader: fixtures?.header)
+                collections: live?.collections ?? fixtures?.collections() ?? [:],
+                records: live?.records ?? fixtures?.records ?? .init(),
+                bedroomProviders: live?.bedrooms ?? [:], remoteProviders: live?.remotes ?? [:],
+                deviceResponder: live?.responder ?? fixtures?.caller, scheduleStorage: live?.schedules,
+                canEditBedroom: live?.canEditBedroom ?? (fixtures?.configuration.administrator == true),
+                roomResidentId: { live?.roomResidentId() ?? fixtures?.viewerKey },
+                weatherReader: weatherReader, cameraReader: cameraReader, accountProvider: live?.account ?? fixtures,
+                settingsProviders: live?.settings ?? fixtures?.settings ?? [:], shellHeader: live?.shellHeader ?? fixtures?.header)
             self.assets = assets
             self.backdrop = backdrop
             self.renderDirectory = renderDirectory
@@ -62,10 +74,23 @@ final class UKServerUIPreview: UIViewController {
     private(set) var renderer: UKServerUIRenderer?
     private let entities = EntityStore()
     private lazy var caller = PageGalleryRecorder(store: entities)
+    private lazy var failing = UKServerUIPreviewFailingCaller()
+    /// The caller of a preview with no gallery fixtures: the recorder, or under `failCalls` one that fails every call.
+    private var stateCaller: any HassServiceCalling { flags.failCalls ? failing : caller }
     private var live: UKServerUIPreviewLiveData?
+    private var liveProviders: UKServerUIPreviewLiveProviders?
     private var fixtures: UKServerUIPreviewFixtures?
     private let observations = UKObservationBag()
     private var loadTask: Task<Void, Never>?
+    private let directory: URL
+    /// The launch environment the flags are read from; tests inject one.
+    private let launchEnvironment: [String: String]
+    /// Puts the process-wide switches the flags set back when the preview leaves the screen.
+    private var restoreSwitches: (() -> Void)?
+    /// The flags in force, once the bootstrap is read; none before.
+    private(set) var flags = UKServerUIPreviewFlags()
+    /// The bearer taken from the environment at init; dropped by the live path or when the load ends.
+    private var credential: Result<String, UKServerUIPreviewLiveData.Failure>?
     nonisolated(unsafe) private var sceneObservers: [NSObjectProtocol] = []
 
     deinit {
@@ -73,6 +98,23 @@ final class UKServerUIPreview: UIViewController {
         sceneObservers.forEach(NotificationCenter.default.removeObserver)
     }
 
+    /// Takes the bearer from the environment first thing, so nothing that fails later can leave it there.
+    /// - Parameters:
+    ///   - directory: Where the bootstrap, publication, assets and receipt live; tests inject a temporary one.
+    ///   - environmentName: The variable that carries the bearer.
+    ///   - launchEnvironment: The variables the state flags are read from (``UKServerUIPreviewFlags/overlaying(environment:)``).
+    init(directory: URL = UKServerUIPreview.directory, environmentName: String = UKServerUIPreview.environmentCredentialName,
+         launchEnvironment: [String: String] = ProcessInfo.processInfo.environment) {
+        self.directory = directory
+        self.launchEnvironment = launchEnvironment
+        credential = Result { try Self.liveCredential(environmentName: environmentName) }
+            .mapError { $0 as? UKServerUIPreviewLiveData.Failure ?? .credential }
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    /// The preview's default folder, `Application Support/ServerUIPreview`.
     static var directory: URL {
         URL.applicationSupportDirectory.appendingPathComponent("ServerUIPreview", isDirectory: true)
     }
@@ -110,46 +152,77 @@ final class UKServerUIPreview: UIViewController {
             loadTask?.cancel()
             observations.removeAll()
             live?.lifecycle.stop()
+            liveProviders?.stop()
+            restoreSwitches?()
+            restoreSwitches = nil
         }
     }
 
-    /// Credentials are consumed before use, including invalid UTF-8/empty files, and never written into a receipt.
-    static func consumeCredential(at file: URL) throws -> String? {
-        guard FileManager.default.fileExists(atPath: file.path) else { return nil }
-        let bytes = try Data(contentsOf: file)
-        try FileManager.default.removeItem(at: file)
-        guard let value = String(data: bytes, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !value.isEmpty, !value.contains(where: \.isWhitespace) else {
+    /// Name of the launch-environment variable that carries the live preview's Home Assistant bearer.
+    static let environmentCredentialName = "FENTON_PREVIEW_HA_TOKEN"
+
+    /// Reads the bearer from the process environment once, then removes it with `unsetenv`.
+    ///
+    /// The variable is removed even when its value is malformed, so a bad value cannot linger. Returns `nil` when it is unset.
+    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` for an empty value or one containing whitespace.
+    static func consumeEnvironmentCredential(named name: String = environmentCredentialName) throws -> String? {
+        guard let raw = getenv(name) else { return nil }
+        let value = String(cString: raw)
+        unsetenv(name)
+        guard !value.isEmpty, !value.contains(where: \.isWhitespace) else {
             throw UKServerUIPreviewLiveData.Failure.credential
         }
         return value
     }
 
-    private func loadPublication() async {
+    /// The live bearer, from the launch environment only.
+    /// - Throws: ``UKServerUIPreviewLiveData/Failure/credential`` when the variable is unset, empty or malformed.
+    static func liveCredential(environmentName: String = environmentCredentialName) throws -> String {
+        guard let token = try consumeEnvironmentCredential(named: environmentName) else {
+            throw UKServerUIPreviewLiveData.Failure.credential
+        }
+        return token
+    }
+
+    /// Removes the bearer from the environment when the preview is not running, so no launch keeps it.
+    static func discardEnvironmentCredential(named name: String = environmentCredentialName) {
+        unsetenv(name)
+    }
+
+    /// Loads the bootstrap and publication, then mounts the renderer; failures show a diagnostic and write a receipt.
+    func loadPublication() async {
+        defer { credential = nil }
         do {
             try writeReceipt(status: "loading")
             let configuration = try JSONDecoder().decode(Configuration.self,
-                from: Data(contentsOf: Self.directory.appendingPathComponent("bootstrap.json")))
+                from: Data(contentsOf: directory.appendingPathComponent("bootstrap.json")))
             try configuration.validate()
+            flags = (configuration.flags ?? .init()).overlaying(environment: launchEnvironment)
+            if !flags.isDefault, restoreSwitches == nil { restoreSwitches = flags.applyProcessSwitches() }
             let account = configuration.live.map { "live-preview:\($0.server):\($0.accountID)" } ?? "isolated-preview"
             let partition = try ServerUIPublicationPartition(
                 server: HassServer(baseURL: URL(string: "https://preview.invalid")!))
-            let root = partition.storageDirectory(in: Self.directory.appendingPathComponent("publications", isDirectory: true))
+            let root = partition.storageDirectory(in: directory.appendingPathComponent("publications", isDirectory: true))
             let stager = try ServerUIAssetStager(partition: partition, partitionDirectory: root,
-                transport: UKServerUIPreviewAssetFiles(directory: Self.directory.appendingPathComponent("assets", isDirectory: true)))
+                transport: UKServerUIPreviewAssetFiles(directory: directory.appendingPathComponent("assets", isDirectory: true)))
             if let liveConfiguration = configuration.live {
-                guard let token = try Self.consumeCredential(at: Self.directory.appendingPathComponent("ha-credential")) else {
-                    throw UKServerUIPreviewLiveData.Failure.credential
-                }
+                guard let taken = credential else { throw UKServerUIPreviewLiveData.Failure.credential }
+                credential = nil
+                let token = try taken.get()
                 live = try UKServerUIPreviewLiveData(configuration: liveConfiguration, credential: token,
                                                     directory: root.appendingPathComponent("live"), store: entities)
+                if let live {
+                    liveProviders = try UKServerUIPreviewLiveProviders(live: live,
+                        houseConfigCache: HouseConfigCache(fileURL: root.appendingPathComponent("live/HouseConfig.json")),
+                        defaultsName: "ServerUIPreviewLive-" + liveConfiguration.accountID)
+                }
             } else if let fixtures = configuration.entities {
                 entities.replaceAll(fixtures.map { id, value in
                     EntityState(entityId: id, state: value.state, attributes: value.attributes)
                 })
                 if let gallery = configuration.gallery {
                     GalleryHouse.install()
-                    self.fixtures = try UKServerUIPreviewFixtures(configuration: gallery, store: entities)
+                    self.fixtures = try UKServerUIPreviewFixtures(configuration: gallery, store: entities, flags: flags)
                 }
             }
             let canvas = view.bounds.size, scale = Double(traitCollection.displayScale)
@@ -162,8 +235,16 @@ final class UKServerUIPreview: UIViewController {
                     try await Self.discard(candidate, retaining: protected, stager: stager)
                 })
             publicationStore = store
+            if let live, let liveProviders {
+                // Production waits for the same two inputs (the house document and the signed-in user) before it builds providers.
+                if view.window?.windowScene?.activationState == .foregroundActive { live.lifecycle.didBecomeActive() }
+                await liveProviders.awaitInputs(timeout: .seconds(20))
+                try Task.checkCancellation()
+            }
             await store.bind(userID: "preview")
-            await store.apply(try Self.publishedEvent(from: Self.directory.appendingPathComponent("publication.json")))
+            // The gate: the first layout waits and the status line stays up, as the reference's content gate does (`gateDelayMs`).
+            if let delay = flags.gateDelay { try await Task.sleep(for: delay) }
+            await store.apply(try Self.publishedEvent(from: directory.appendingPathComponent("publication.json")))
             try Task.checkCancellation()
             guard let publication = store.current, let prepared = store.prepared else {
                 status.text = "Configuration unavailable: \(store.status)"
@@ -196,6 +277,7 @@ final class UKServerUIPreview: UIViewController {
             }
         } catch {
             live?.lifecycle.stop()
+            liveProviders?.stop()
             let diagnostic: String
             switch error {
             case let value as ServerUIStoreError: diagnostic = "\(value)"
@@ -219,14 +301,8 @@ final class UKServerUIPreview: UIViewController {
 
     /// The `published` event for an envelope's bytes.
     static func publishedEvent(envelope bytes: Data) throws -> ServerUIPublicationEvent {
-        guard bytes.count <= 2_162_688,
-              let envelope = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
-              let revision = envelope["revision"] as? Int else { throw Failure.publication }
-        let hash = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
-        let reply = try JSONSerialization.data(withJSONObject: [
-            "state": "published", "epoch": "preview", "revision": revision, "envelopeSha256": hash, "envelope": envelope,
-        ] as [String: Any])
-        return ServerUIPublicationEvent.judge(.success(reply))
+        do { return try ServerUIAcceptance.publishedEvent(envelope: bytes) }
+        catch is ServerUIAcceptance.EnvelopeError { throw Failure.publication }
     }
 
     private func report(_ diagnostic: String) {
@@ -284,10 +360,13 @@ final class UKServerUIPreview: UIViewController {
             try Task.checkCancellation()
             guard backdrop.image != nil else { throw Failure.render }
             return try Prepared(publication: publication,
-                context: live?.context ?? fixtures?.context ?? UKContext(store: entities, caller: caller),
+                context: live?.context ?? fixtures?.context ?? UKContext(store: entities, caller: stateCaller),
                 assets: assets, backdrop: backdrop, renderDirectory: directory,
-                weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document),
-                cameraReader: live?.cameraReader(for: publication.document), fixtures: fixtures)
+                weatherReader: live?.weatherReader(for: publication.document) ?? fixtures?.weatherReader(for: publication.document)
+                    ?? UKServerUIPreviewPlaceholders.weatherReader(for: publication.document),
+                cameraReader: live?.cameraReader(for: publication.document)
+                    ?? UKServerUIPreviewPlaceholders.cameraReader(for: publication.document), fixtures: fixtures,
+                live: liveProviders?.supply(for: publication, blur: backdrop.blur))
         } catch {
             try await stager.discard(assets, retaining: context.protected.map(\.assets))
             try Self.removeRender(directory, retaining: context.protected)
@@ -313,6 +392,7 @@ final class UKServerUIPreview: UIViewController {
                                   "dataMode": live == nil ? "fixtures" : "live-read-only",
                                   "liveActionsEnabled": false, "updatedAt": Date().ISO8601Format()]
         value["live"] = live?.receipt
+        if !flags.isDefault { value["flags"] = flags.receipt }
         value["diagnostic"] = diagnostic
         if let publication {
             value["revision"] = publication.revision
@@ -321,7 +401,7 @@ final class UKServerUIPreview: UIViewController {
         }
         value["assets"] = assets?.assets.map(\.sha256) ?? []
         try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys, .prettyPrinted])
-            .write(to: Self.directory.appendingPathComponent("receipt.json"), options: .atomic)
+            .write(to: directory.appendingPathComponent("receipt.json"), options: .atomic)
     }
 }
 #endif

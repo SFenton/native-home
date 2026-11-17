@@ -5,10 +5,10 @@ import FentonActivityModel
 // MARK: - Pure compilation
 
 struct ServerUICompositionCompiler {
-    private typealias D = ServerUICompositionDocument
-    private typealias Issue = ServerUICompositionError
-    private var issues: [Issue] = []
-    private var requirements: Set<String> = ["sh.composition@1"]
+    typealias D = ServerUICompositionDocument
+    typealias Issue = ServerUICompositionError
+    var issues: [Issue] = []
+    var requirements: Set<String> = ["sh.composition@1"]
     private var catalogs: [String: [String: String]] = [:]
     private var pageRefs: [(String, String)] = []
     private var modalRefs: [(String, String)] = []
@@ -32,17 +32,37 @@ struct ServerUICompositionCompiler {
     private var settingsRefs: [(ServerUISettingsControl, String)] = []
     private var cameraRefs: [(String, String, Bool)] = []
     private var cameraPresentations: [(String, String, String)] = []
-    private var dependencies: [(String, String, String)] = []
+    var dependencies: [(String, String, String)] = []
+    /// The Data Flows compiled so far, and the nodes that name a flow (or any source) as the provider of their rows (`sh.pipeline@1`).
+    var flowCount = 0
+    var providerRefs: [ServerUIFlowProviderRef] = []
     private var nodeCount = 0
     private var localFields: [D.LocalField] = []
     /// The document's decoded style library, which `state-tile` nodes check their bindings against.
     private var stateLibrary: ServerUIStateStyleLibrary?
+    /// The `security-door@1` sources by id, read from the raw document before any component compiles (`door-tile` lowers to a state tile).
+    private var doorSources: [String: ServerUIDoorLowering.Source] = [:]
+    /// The saved styles `door-tile` nodes lowered to; they join the document's library.
+    private var loweredStyles: [ServerUIStateStyleLibrary.Entry] = []
     private var localActions: [(String, D.LocalValue, String)] = []
     /// Expressions' source references, checked once every source is known.
-    private var expressionRefs: [ServerUIExpressionParser.Reference] = []
+    var expressionRefs: [ServerUIExpressionParser.Reference] = []
     private var optimisticRefs: [(sourceId: String, pointer: String)] = []
     /// Whether `control` operands are valid where the action being compiled sits (a bound control's own calls).
-    private var controlContext = false
+    var controlContext = false
+    /// Swipe, words and group checks that wait for the sources (`sh.state-words@1`).
+    var tileContract = ServerUITileContractRefs()
+    /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
+    private var components = ServerUIComponentExpansion(.null)
+    /// The record shape the walk is inside while it decodes the template of a `repeat` (`sh.repeat@1`); `item` and `index` mean something only there.
+    var repeatScope: ServerUIExpressionParser.Scope?
+    /// The document's data sources as written (after the components expanded), by id: a `repeat` reads the shape of its flow's records from here, since
+    /// the pages are compiled before the sources are.
+    var rawSources: [String: JSONValue] = [:]
+    /// What the repeats of this compile found out about each flow they name, so a flow is decoded once.
+    var repeatFlows: [String: ServerUIFlow?] = [:]
+    /// What a stack with an action holds that takes a tap, found in the document as written (``ServerUIStackTapCheck``).
+    private var stackTapIssues: [Issue] = []
 
     static func decode(_ bytes: Data) throws -> ServerUICompositionPublication {
         var parser = try ServerUICompositionJSON(bytes)
@@ -62,11 +82,16 @@ struct ServerUICompositionCompiler {
             guard overhead <= ServerUICompositionJSON.maximumOverheadBytes else { throw Issue(.limitExceeded, "") }
             documentCanonical = canonical
         }
+        // A declared capability the app does not ship refuses the whole document before its shape is read.
+        if let declared = json["capabilities"]?.array {
+            try Self.refuseUnshippedCapabilities(declared.compactMap(\.string))
+        }
         var unsupported = try ServerUICompositionShape.validate(json)
         if let tabs = json["document"]?["navigation"]?["tabs"]?.array, tabs.count > 5 {
             unsupported.append(Issue(.unsupportedCapability, "/document/navigation/tabs", capability: "sh.extended-tabs@1"))
         }
-        let root = Cursor(json, "")
+        let expansion = ServerUIComponentExpansion(json)
+        let root = Cursor(expansion.expanded, "")
         let capabilities = try root.field("capabilities").array().map { try $0.string() }
         // A declared unknown requirement wins over equality or unsupported-profile diagnostics.
         // Unsupported variants cannot produce a typed first-slice plan.
@@ -75,20 +100,34 @@ struct ServerUICompositionCompiler {
             throw first
         }
         var compiler = Self()
+        compiler.components = expansion
+        compiler.stackTapIssues = ServerUIStackTapCheck.issues(in: json) + ServerUIRepeatCheck.issues(in: json)
         return try compiler.compile(root, capabilities: capabilities, documentCanonical: documentCanonical)
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
-        let document = try document(root.field("document"))
+        doorSources = ServerUIDoorLowering.sources(in: root.value["document"]?["dataSources"])
+        for source in root.value["document"]?["dataSources"]?.array ?? [] {
+            if let id = source["id"]?.string, rawSources[id] == nil { rawSources[id] = source }
+        }
+        if components.ownsFlows { require("repeat") }
+        var document = try document(root.field("document"))
+        if let held = root.value["document"], ServerUIAppearanceScan.holdsPair(held) { require(ServerUIAppearanceScan.capability) }
+        if let held = root.value["document"], ServerUIInkScan.holdsRGBA(held) { require("text-style") }
+        compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
         let published = timestamp(publishedAt, at: "/publishedAt")
         if let updated, let published, updated > published { add(.invalidValue, "/updatedAt") }
         validateReferences(document)
         validateChromeContexts(document)
-        if let first = ServerUICompositionShape.first(issues) { throw first }
+        // The tap check reads the document as written, so it joins after the expansion's issues are moved back.
+        if let first = ServerUICompositionShape.first(components.remapped(issues) + stackTapIssues) { throw first }
+        document.dataSources = components.published(document.dataSources)
+        // The vacuum kinds the generic parts can draw become those parts here, after the document was checked as written.
+        document = ServerUIVacuumLowering.lower(document)
         try Self.checkKnownCapabilities(capabilities)
-        guard capabilities == requirements.sorted() else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
+        guard ServerUITileInkDefault.matches(capabilities, requirements: requirements) else { throw Issue(.capabilityManifestMismatch, "/capabilities") }
         let manifest = try root.field("document").field("assets")
         let digest = SHA256.hash(data: Data(ServerUICompositionJSON.canonical(manifest.value).utf8))
             .map { String(format: "%02x", $0) }.joined()
@@ -101,6 +140,30 @@ struct ServerUICompositionCompiler {
             capabilities: capabilities, assetManifestSha256: digest, document: document,
             documentSha256: documentDigest
         )
+    }
+
+    /// Saved components (`sh.component-ref@1`): each library body is compiled once at its own pointer (its nodes stay out of the total), and an
+    /// argument that names a page, a sheet or a source must find it.
+    private mutating func compileComponents() {
+        if components.usesComponents { require("component-ref") }
+        issues += components.issues
+        for body in components.bodies {
+            let outside = nodeCount
+            nodeCount = 0
+            do { _ = try component(Cursor(body.value, body.pointer), depth: 1, gridChild: false) } catch let issue as Issue { issues.append(issue) } catch {}
+            nodeCount = outside
+        }
+        for argument in components.argumentReferences where catalogs[argument.catalog]?[argument.id] == nil { add(.invalidReference, argument.pointer) }
+    }
+
+    /// Throws the first `unsupported_capability` issue, in declaration order, among the declared capabilities, ignoring malformed ones.
+    private static func refuseUnshippedCapabilities(_ capabilities: [String]) throws {
+        let known = Set(ServerUICompositionPublication.supportedCapabilities)
+        for (index, capability) in capabilities.enumerated() where !known.contains(capability) {
+            guard ServerUICompositionShape.matches(capability, "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*)+@[1-9][0-9]*$") else { continue }
+            // Declaration order, so the lowest index is first (the Studio's order; a string sort would put 10 before 6).
+            throw Issue(.unsupportedCapability, "/capabilities/\(index)", capability: capability)
+        }
     }
 
     private static func checkKnownCapabilities(_ capabilities: [String]) throws {
@@ -126,6 +189,8 @@ struct ServerUICompositionCompiler {
             }
             issues.append(contentsOf: decoded.issues)
             stateLibrary = decoded.library
+            if decoded.library.usesFills { require("state-style-fills") }
+            if decoded.library.usesFillInk { require("tile-ink") }
         }
         if c.value["localState"] != nil {
             require("local-state")
@@ -198,7 +263,8 @@ struct ServerUICompositionCompiler {
             pages: pages, modals: modals, dataSources: sources, variables: .init(),
             assets: assets, liveActivities: activities, localState: localFields,
             bootstrap: c.value["bootstrap"].map { try bootstrap(Cursor($0, c.path("bootstrap"))) },
-            extensions: extensions, stateStyles: stateLibrary
+            extensions: extensions,
+            stateStyles: loweredStyles.isEmpty ? stateLibrary : ServerUIStateStyleLibrary(entries: (stateLibrary?.entries ?? []) + loweredStyles)
         )
     }
 
@@ -257,11 +323,11 @@ struct ServerUICompositionCompiler {
         return try .downloaded(assetId: c.s("assetId"), recipe: c.e("recipe"), blur: blurPolicy,
                                scrim: scrimPolicy, motion: c.e("motion"), reducedTransparency: c.e("reducedTransparency"))
     }
-    private mutating func symbol(_ c: Cursor) throws -> D.Symbol {
+    mutating func symbol(_ c: Cursor) throws -> D.Symbol {
         require("symbols")
         return try .init(name: c.s("name"), rendering: c.e("rendering"), unavailable: c.e("unavailable"))
     }
-    private func space(_ c: Cursor) throws -> D.Space {
+    func space(_ c: Cursor) throws -> D.Space {
         if try c.s("type") == "points" { return try .points(c.n("value")) }
         return try .token(c.e("name"))
     }
@@ -287,8 +353,10 @@ struct ServerUICompositionCompiler {
             let id = try t.s("id"), pageId = try t.s("pageId")
             register(id, catalog: "tab", at: t.path("id"))
             pageRefs.append((pageId, t.path("pageId")))
-            return try D.Tab(id: id, label: t.s("label"), icon: symbol(t.field("icon")), pageId: pageId, arguments: .init(),
-                             visibleWhen: visibility(t))
+            var tab = try D.Tab(id: id, label: t.s("label"), icon: symbol(t.field("icon")), pageId: pageId, arguments: .init(),
+                                visibleWhen: visibility(t))
+            tab.badgeValue = try badgeValue(in: t)
+            return tab
         }
         let pageId = try c.s("initialPageId")
         pageRefs.append((pageId, c.path("initialPageId")))
@@ -339,11 +407,13 @@ struct ServerUICompositionCompiler {
         if try c.s("type") == "shell-menu" {
             return try .shellMenu(.init(id: id, label: c.s("label"), icon: icon, visibility: c.e("visibility")))
         }
-        return try .button(.init(
+        var button = try D.ChromeButton(
             id: id, label: c.s("label"), menuLabel: c.s("menuLabel"), icon: icon,
             visibility: c.e("visibility"), priority: c.e("priority"), rail: c.e("rail"),
             badge: c.field("badge").e("type"), action: action(c.field("action"))
-        ))
+        )
+        button.badgeValue = try badgeValue(in: c, noneNeedsCapability: false)
+        return .button(button)
     }
     private mutating func toolbar(_ c: Cursor) throws -> D.Toolbar {
         require("chrome")
@@ -412,7 +482,7 @@ struct ServerUICompositionCompiler {
             field = try .init(id: id, initial: .number(c.n("initial")),
                               rule: .number(minimum: minimum, maximum: maximum, step: step))
         case "choice":
-            let options = try c.field("options").array().map { try D.LocalField.Option(id: $0.s("id"), label: $0.s("label")) }
+            let options = try choiceOptions(c.field("options"))
             if Set(options.map(\.id)).count != options.count { add(.duplicateID, c.path("options")) }
             field = try .init(id: id, initial: .string(c.s("initial")), rule: .choice(options: options))
         default: throw Issue(.unknownVariant, c.path("type"))
@@ -545,6 +615,7 @@ struct ServerUICompositionCompiler {
         if model == "vacuum@1" {
             require("vacuum")
             let inputs = try c.field("inputs")
+            if inputs.value["orientation"] != nil { require("surface-orientation") }
             let descriptor: ServerUIVacuumDescriptor
             do {
                 descriptor = try JSONDecoder().decode(ServerUIVacuumDescriptor.self,
@@ -562,6 +633,10 @@ struct ServerUICompositionCompiler {
             let inputs = try c.field("inputs")
             return try .settingsProvider(id: id, configuration: .init(providerId: inputs.s("providerId"),
                                                                       domain: inputs.e("domain")))
+        }
+        if model == "app-state@1" {
+            require("app-state")
+            return try .appState(id: id, topic: c.field("inputs").e("topic"))
         }
         if model == "camera-stream@1" {
             require("camera-stream")
@@ -653,6 +728,7 @@ struct ServerUICompositionCompiler {
             require("inventory-list")
             return try .inventoryList(id: id, space: c.field("inputs").e("space"))
         }
+        if model == "pipeline@1" { return try flowSource(id: id, c) }
         if model == "todo-collection@1" {
             require("todo-collection")
             return try .todoCollection(id: id, configuration: todoCollection(c.field("inputs")))
@@ -828,9 +904,64 @@ struct ServerUICompositionCompiler {
         }
         return .literal(value)
     }
-    private mutating func stringValue(_ c: Cursor) throws -> D.StringValue {
-        if try c.s("type") == "literal" { return try .literal(c.s("value")) }
-        return try .read(read(c, expected: .string))
+    mutating func stringValue(_ c: Cursor) throws -> D.StringValue {
+        switch try c.s("type") {
+        case "literal": return try .literal(c.s("value"))
+        case "expr":
+            var rules = ServerUIRuleDecoder(scope: repeatScope)
+            let value = rules.expression(c.value, at: c.pointer)
+            try absorb(rules)
+            guard let value else { throw Issue(.invalidValue, c.pointer) }
+            return value
+        default:
+            let fallback = try c.optionalString("fallback")
+            if fallback != nil { require("rules") }
+            return try .read(read(c, expected: .string), fallback: fallback)
+        }
+    }
+
+    /// Folds a rule decoder's diagnostics, source references and capability needs into this compile.
+    mutating func absorb(_ rules: ServerUIRuleDecoder) throws {
+        issues += rules.issues
+        for need in rules.needs { require(need) }
+        try absorb(rules.parserFacts)
+    }
+
+    /// A node's `enabledWhen` (`sh.enabled-when@1`).
+    mutating func enabled(_ c: Cursor) throws -> ServerUIEnabledRule? {
+        guard c.value["enabledWhen"] != nil else { return nil }
+        require("enabled-when")
+        let rule = try c.field("enabledWhen")
+        return try ServerUIEnabledRule(condition: predicate(rule.field("condition")), whenUnknown: rule.e("whenUnknown"))
+    }
+
+    /// The `when` of a power action's authored question (`sh.confirm-when@1`).
+    private mutating func confirmWhen(_ c: Cursor) throws -> ServerUIPredicate? {
+        guard c.value["when"] != nil else { return nil }
+        require("confirm-when")
+        return try predicate(c.field("when"))
+    }
+
+    /// An action chosen by rule (`sh.action-rules@1`): one level, each case a plain action checked like any other, else an action or none.
+    private mutating func conditionalAction(_ c: Cursor) throws -> D.Action {
+        require("action-rules")
+        let cases = try c.field("cases").array().map { item in
+            try ServerUIActionRule.Case(when: predicate(item.field("when")), then: action(item.field("then")))
+        }
+        let otherwise = try c.field("otherwise")
+        return try .conditional(ServerUIActionRule(cases: cases, otherwise: otherwise.s("type") == "none" ? nil : action(otherwise)))
+    }
+
+    /// Checks each plain action a slot can run against `allowed`, blaming the `type` of the case that fails.
+    mutating func check(_ intent: D.Action, at pointer: String, allowed: (D.Action) -> Bool) {
+        if case .conditional(let rule) = intent {
+            for (index, item) in rule.cases.enumerated() where !allowed(item.then) {
+                add(.invalidCombination, pointer + "/cases/\(index)/then/type")
+            }
+            if let other = rule.otherwise, !allowed(other) { add(.invalidCombination, pointer + "/otherwise/type") }
+        } else if !allowed(intent) {
+            add(.invalidCombination, pointer + "/type")
+        }
     }
     private mutating func read(_ c: Cursor, expected: D.ScalarKind) throws -> D.Read {
         require("bindings")
@@ -880,7 +1011,9 @@ struct ServerUICompositionCompiler {
                     homePowerRefs.append((source, power, props.path("powerSourceId")))
                     if intent == nil { add(.invalidCombination, props.path("powerSourceId")) }
                 }
-                return try .roomOverviewTile(.init(chip: chip, hidesContactSubtitle: props.b("hidesContactSubtitle"), powerSourceId: power))
+                let words = try stateWords(props, allowed: nil)
+                if let words { tileContract.overviewWords.append((source, words, props.path("words"))) }
+                return try .roomOverviewTile(.init(chip: chip, hidesContactSubtitle: props.b("hidesContactSubtitle"), powerSourceId: power, words: words))
             }
             return .statusChip(chip)
         case "status-rail":
@@ -898,7 +1031,8 @@ struct ServerUICompositionCompiler {
             require("light-group-tile"); require("home-light"); require("bindings")
             let source = try props.s("sourceId")
             homeRefs.append((source, "home-light@1", props.path("sourceId")))
-            return .homeLightTile(.init(node: node, sourceId: source))
+            return try .homeLightTile(.init(node: node, sourceId: source, swipe: tileSwipe(props, tile: .lightGroup),
+                                            words: stateWords(props, allowed: ServerUIStateWords.lightGroupKeys)))
         case "weather-panel":
             require("weather-panel"); require("home-weather"); require("bindings")
             let source = try props.s("sourceId")
@@ -922,7 +1056,7 @@ struct ServerUICompositionCompiler {
         default: return nil
         }
     }
-    private mutating func action(_ c: Cursor) throws -> D.Action {
+    mutating func action(_ c: Cursor) throws -> D.Action {
         switch try c.s("type") {
         case "set-local":
             require("local-state")
@@ -934,7 +1068,9 @@ struct ServerUICompositionCompiler {
             let sourceId = try c.s("sourceId")
             powerRefs.append((sourceId, c.path("sourceId"), .invalidCombination))
             return try .domain(.init(sourceId: sourceId, intent: c.e("intent"), feedback: c.e("feedback"),
-                                      confirmation: confirmation(c.field("confirmation"))))
+                                      confirmation: confirmation(c.field("confirmation")),
+                                      confirmWhen: confirmWhen(c.field("confirmation"))))
+        case "conditional": return try conditionalAction(c)
         case "call-service": return try .callService(callService(c))
         case "push": require("actions.navigation"); return try .push(push(c))
         case "select-tab":
@@ -963,6 +1099,7 @@ struct ServerUICompositionCompiler {
         expressionRefs += parser.references
         optimisticRefs += parser.optimisticReferences
         if parser.usedOperands { require("operands") }
+        for need in parser.needs { require(need) }
         if !parser.references.isEmpty || !parser.optimisticReferences.isEmpty { require("bindings") }
         if let first = parser.issues.first {
             issues += parser.issues
@@ -970,25 +1107,25 @@ struct ServerUICompositionCompiler {
         }
     }
 
-    private mutating func predicate(_ c: Cursor) throws -> ServerUIPredicate {
-        var parser = ServerUIExpressionParser()
+    mutating func predicate(_ c: Cursor) throws -> ServerUIPredicate {
+        var parser = ServerUIExpressionParser(scope: repeatScope)
         let value = parser.predicate(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
         return value
     }
 
-    private mutating func operand(_ c: Cursor) throws -> ServerUIOperand {
-        var parser = ServerUIExpressionParser()
+    mutating func operand(_ c: Cursor) throws -> ServerUIOperand {
+        var parser = ServerUIExpressionParser(scope: repeatScope)
         let value = parser.operand(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
         return value
     }
 
-    private mutating func callService(_ c: Cursor) throws -> ServerUICallService {
+    mutating func callService(_ c: Cursor) throws -> ServerUICallService {
         require("call-service")
-        var parser = ServerUIExpressionParser(allowControl: controlContext)
+        var parser = ServerUIExpressionParser(allowControl: controlContext, scope: repeatScope)
         let value = parser.callService(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
@@ -1009,7 +1146,7 @@ struct ServerUICompositionCompiler {
     }
 
     /// A node's or tab's `visibleWhen` with its `whenUnknown` policy.
-    private mutating func visibility(_ c: Cursor) throws -> ServerUIVisibility? {
+    mutating func visibility(_ c: Cursor) throws -> ServerUIVisibility? {
         guard c.value["visibleWhen"] != nil else {
             if c.value["whenUnknown"] != nil { add(.invalidCombination, c.path("whenUnknown")) }
             return nil
@@ -1074,10 +1211,15 @@ struct ServerUICompositionCompiler {
             }
             if Set(options.map(\.id)).count != options.count { add(.duplicateID, props.path("options")) }
         }
-        return try D.BoundControl(
+        let optionsFrom = try optionsFrom(props, kind: kind)
+        let rowParts = try rowParts(c, props: props, kind: kind, surface: surface)
+        var control = try D.BoundControl(
             node: node, icon: c.value["icon"] == nil ? nil : symbol(c.field("icon")), kind: kind, surface: surface,
             isOn: isOn, value: value, range: range, valueFormat: format, options: options,
             onAction: onAction, offAction: offAction, action: action, unavailableText: props.s("unavailableText"))
+        control.optionsFrom = optionsFrom
+        control.row = rowParts
+        return control
     }
 
 
@@ -1107,13 +1249,18 @@ struct ServerUICompositionCompiler {
                                confirmLabel: c.s("confirmLabel"), cancelLabel: c.s("cancelLabel"), destructive: c.b("destructive"))
     }
 
-    private mutating func navigationAction(_ c: Cursor) throws -> D.Action {
+    mutating func navigationAction(_ c: Cursor) throws -> D.Action {
         let intent = try action(c)
-        switch intent {
-        case .push, .present, .dismissThenPush, .selectTab: break
-        default: add(.invalidCombination, c.path("type"))
-        }
+        check(intent, at: c.pointer) { Self.navigates($0) }
         return intent
+    }
+
+    /// Whether an action navigates: a push, a presentation, a tab switch or a dismiss-then-push.
+    private static func navigates(_ intent: D.Action) -> Bool {
+        switch intent {
+        case .push, .present, .dismissThenPush, .selectTab: true
+        default: false
+        }
     }
 
     private mutating func roomVisibility(_ c: Cursor, key: String) throws -> D.RoomVisibility? {
@@ -1177,7 +1324,11 @@ struct ServerUICompositionCompiler {
             try props.field("stateColors").array().map { item -> D.RoomStateColor in
                 let state = try item.s("state")
                 if !colorStates.insert(state).inserted { add(.invalidCombination, item.path("state")) }
-                return try .init(state: state, fill: solidFill(item.field("fill")))
+                var rules = ServerUIRuleDecoder(scope: repeatScope)
+                let slot = try rules.fill(item.field("fill").value, at: item.path("fill"))
+                try absorb(rules)
+                guard let slot else { throw Issue(.invalidValue, item.path("fill")) }
+                return .init(state: state, fill: slot.0, fillRule: slot.1)
             }
         } ?? []
         return try .init(node: node, icon: symbol(c.field("icon")), sourceId: sourceId, kind: props.e("kind"),
@@ -1191,7 +1342,7 @@ struct ServerUICompositionCompiler {
 
     // MARK: - Component forest
 
-    private mutating func components(_ c: Cursor, depth: Int, gridChild: Bool) throws -> [D.Component] {
+    mutating func components(_ c: Cursor, depth: Int, gridChild: Bool) throws -> [D.Component] {
         var result: [D.Component] = []
         for child in try c.array() {
             do { result.append(try component(child, depth: depth, gridChild: gridChild)) }
@@ -1216,13 +1367,14 @@ struct ServerUICompositionCompiler {
         return result
     }
 
-    private mutating func component(_ c: Cursor, depth: Int, gridChild: Bool) throws -> D.Component {
+    mutating func component(_ c: Cursor, depth: Int, gridChild: Bool) throws -> D.Component {
         nodeCount += 1
         guard nodeCount <= 4_096, depth <= 12 else { throw Issue(.limitExceeded, c.pointer) }
-        let id = try c.s("id"), span = try c.field("layout").i("span")
+        let id = try c.s("id"), span = try layoutSpan(c)
         register(id, catalog: "node", at: c.path("id"))
         if !gridChild, span != 1 { add(.invalidCombination, c.path("layout") + "/span") }
-        let node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c))
+        var node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c), enabledWhen: enabled(c))
+        try badge(of: c, into: &node)
         let props = try c.field("props")
         if depth > 1, ["form", "pinned-actions"].contains(try c.s("type")) {
             add(.invalidCombination, c.path("type"))
@@ -1291,9 +1443,9 @@ struct ServerUICompositionCompiler {
                 try D.LocalTabs.TabContent(id: tab.s("id"), label: tab.s("label"),
                     children: components(tab.field("children"), depth: depth + 1, gridChild: false),
                     icon: tab.value["icon"] == nil ? nil : symbol(tab.field("icon")),
-                    centerWhenFits: tab.value["centerWhenFits"]?.bool ?? false)
+                    centerWhenFits: tab.value["centerWhenFits"]?.bool ?? false, visibility: tabRule(tab))
             }
-            if pinned && tabs.contains(where: { $0.icon == nil }) { add(.invalidCombination, c.path("tabs")) }
+            if pinned && props.value["tabBar"] == nil && tabs.contains(where: { $0.icon == nil }) { add(.invalidCombination, c.path("tabs")) }
             if Set(tabs.map(\.id)).count != tabs.count { add(.duplicateID, c.path("tabs")) }
             if let field = localFields.first(where: { $0.id == stateId }) {
                 if case .choice(let options) = field.rule {
@@ -1313,10 +1465,20 @@ struct ServerUICompositionCompiler {
                 }
                 if scope != nil { add(.invalidCombination, props.path("automatic")) }
             }
-            return .localTabs(.init(node: node, stateId: stateId, tabs: tabs,
+            var container = D.LocalTabs(node: node, stateId: stateId, tabs: tabs,
                 resetOnPresentation: props.value["resetOnPresentation"]?.bool ?? false, pinned: pinned,
                 scopeProviderId: scope, showsSelector: showsSelector, retainsAutomaticSelection: retainsAutomatic,
-                automatic: automatic))
+                automatic: automatic)
+            try tabLayout(c, props: props, depth: depth, into: &container)
+            return .localTabs(container)
+        case "overlay":
+            return try overlay(c, node: node, props: props, depth: depth)
+        case "stack": return try stackComponent(c, node: node, props: props, depth: depth)
+        case "repeat": return try repeatComponent(c, node: node, props: props, depth: depth)
+        case "chart": return try chartComponent(c, node: node, props: props)
+        case "linear-gauge": return try linearGaugeComponent(c, node: node, props: props)
+        case "shape": return try shapeComponent(node, props: props)
+        case "symbol": return try symbolComponent(c, node: node, props: props)
         case "room-section":
             require("room-section"); require("grid")
             defer { if case .array(let items)? = c.value["children"] { forbidRules(in: items, at: c.path("children")) } }
@@ -1336,7 +1498,8 @@ struct ServerUICompositionCompiler {
                 node: node, minimum: props.e("minimum"), maxColumns: props.i("maxColumns"),
                 spacing: space(props.field("spacing")), equalRowHeights: props.b("equalRowHeights"),
                 shortRow: props.e("shortRow"), fold: props.e("fold"),
-                children: components(c.field("children"), depth: depth + 1, gridChild: true)
+                children: components(c.field("children"), depth: depth + 1, gridChild: true),
+                minimumColumns: minimumColumns(props), groups: gridGroups(props)
             ))
         default: return nil
         }
@@ -1356,6 +1519,8 @@ struct ServerUICompositionCompiler {
                 add(.invalidCombination, props.path("bedroomLinks"))
             }
             let refreshes = try props.value["pullToRefresh"] == nil ? false : props.b("pullToRefresh")
+            providerRefs.append(.init(id: try props.s("providerId"), isCollection: true, template: props.value["template"]?.string, refreshable: false,
+                                      pointer: props.pointer))
             return try .collection(.init(node: node, providerId: props.s("providerId"), template: props.e("template"),
                 loadingText: props.s("loadingText"), emptyText: props.s("emptyText"),
                 selection: c.value["selection"].map { _ in try navigationAction(c.field("selection")) }, bedroomLinks: links,
@@ -1424,12 +1589,18 @@ struct ServerUICompositionCompiler {
                                       unavailableText: props.s("unavailableText")))
         case "status-pill":
             require("status-pill")
+            var rules = ServerUIRuleDecoder(scope: repeatScope)
+            let tone = try rules.tone(props.field("tone").value, at: props.path("tone"))
+            try absorb(rules)
+            guard let tone else { throw Issue(.invalidValue, props.path("tone")) }
             return try .statusPill(.init(node: node, icon: symbol(c.field("icon")), value: stringValue(props.field("value")),
-                detail: stringValue(props.field("detail")), tone: props.e("tone"), unavailableText: props.s("unavailableText")))
+                detail: stringValue(props.field("detail")), tone: tone.0, unavailableText: props.s("unavailableText"),
+                toneCases: tone.1))
         case "row":
             require("rows")
             let intent = try c.value["action"] == nil ? nil : action(c.field("action"))
-            if let intent, case .domain = intent { add(.invalidCombination, c.path("action") + "/type") }
+            if let intent { check(intent, at: c.path("action")) { if case .domain = $0 { false } else { true } } }
+            if node.enabledWhen != nil, intent == nil { add(.invalidCombination, c.path("enabledWhen")) }
             let accessory: D.Row.Accessory = try props.e("accessory")
             if accessory == .disclosure, intent == nil { add(.invalidCombination, props.path("accessory")) }
             return try .row(.init(node: node, primary: stringValue(props.field("primary")),
@@ -1441,7 +1612,9 @@ struct ServerUICompositionCompiler {
             let stateId = try props.s("stateId"), kind: D.LocalControl.Kind = try props.e("kind")
             if let field = localFields.first(where: { $0.id == stateId }) {
                 switch (kind, field.rule) {
-                case (.toggle, .boolean), (.choice, .choice), (.textField, .string): break
+                case (.choice, .choice(let options)):
+                    if options.contains(where: \.isDecorated) { add(.invalidCombination, props.path("stateId")) }
+                case (.toggle, .boolean), (.textField, .string): break
                 case (.segmentedChoice, .choice(let options)):
                     if options.count > 4 { add(.invalidCombination, props.path("stateId")) }
                 case (.stepper, .number(let minimum, let maximum, let step)):
@@ -1456,15 +1629,17 @@ struct ServerUICompositionCompiler {
         case "primary-button":
             require("primary-button")
             let intent = try action(c.field("action"))
-            if case .domain = intent { add(.invalidCombination, c.path("action") + "/type") }
+            check(intent, at: c.path("action")) { if case .domain = $0 { false } else { true } }
             return try .button(.init(node: node, icon: c.value["icon"] == nil ? nil : symbol(c.field("icon")),
                                       action: intent))
         case "row-collection":
             require("row-collection")
+            let parts = try listParts(props)
             return try .rowCollection(.init(node: node, providerId: props.s("providerId"),
                                              loadingText: props.s("loadingText"), emptyText: props.s("emptyText"),
                                              unavailableText: props.s("unavailableText"), errorText: props.s("errorText"),
-                                             staleText: props.s("staleText")))
+                                             staleText: props.s("staleText"), rowAction: parts.rowAction,
+                                             refreshable: parts.refreshable, emptyMessage: parts.emptyMessage))
         case "alarm-panel":
             require("alarm-panel"); require("alarm-mode"); require("bindings")
             let source = try props.s("sourceId")
@@ -1497,15 +1672,17 @@ struct ServerUICompositionCompiler {
                 ? Set(["locked", "unlocked", "locking", "unlocking", "open", "jammed"])
                 : Set(["closed", "open", "opening", "closing"])
             for state in states where try !allowed.contains(state.s("state")) { add(.invalidCombination, state.path("state")) }
-            return try .doorTile(.init(
+            let lowered = try ServerUIDoorLowering.lower(.init(
                 node: node, sourceId: source, kind: kind,
                 states: states.map { try .init(state: $0.s("state"), appearance: alarmAppearance($0.field("appearance")),
                                               active: $0.b("active"), error: $0.b("error")) },
                 fallback: alarmAppearance(props.field("fallback")), loadingText: props.s("loadingText"),
-                unavailableText: props.s("unavailableText"), hiddenText: props.s("hiddenText"), errorText: props.s("errorText"),
+                hiddenText: props.s("hiddenText"), unavailableText: props.s("unavailableText"), errorText: props.s("errorText"),
                 sendingOpenText: props.s("sendingOpenText"), sendingCloseText: props.s("sendingCloseText"),
                 openLabel: props.s("openLabel"), closeLabel: props.s("closeLabel"), reverseLabel: props.s("reverseLabel")
-            ))
+            ), entityId: doorSources[source]?.entityId ?? "")
+            if !loweredStyles.contains(where: { $0.style.id == lowered.style.style.id }) { loweredStyles.append(lowered.style) }
+            return .stateTile(lowered.tile)
         case "climate-control":
             require("bindings"); require("climate-source")
             let configuration = try JSONDecoder().decode(ServerUIClimateControl.Properties.self, from: JSONEncoder().encode(props.value))
@@ -1541,9 +1718,11 @@ struct ServerUICompositionCompiler {
                 default: add(.invalidCombination, props.path("action"))
                 }
             }
-            let control = try ServerUIDeviceControl(node: node, domain: domain, sourceId: props.s("sourceId"),
+            let lightWords = try props.value["words"] == nil ? nil : stateWords(props, allowed: ServerUIStateWords.brightnessKeys)
+            var control = try ServerUIDeviceControl(node: node, domain: domain, sourceId: props.s("sourceId"),
                 kind: props.e("kind"), entityId: props.optionalString("entityId"), copySourceId: props.optionalString("copySourceId"),
                 zone: props.value["zone"].map { _ in try props.i("zone") }, action: intent, confirmation: question)
+            control.words = lightWords
             providerControlRefs.append((control, props.pointer))
             return .deviceControl(control)
         case "remote-control":
@@ -1582,7 +1761,8 @@ struct ServerUICompositionCompiler {
             case "map":
                 require("vacuum-map")
                 primitive = try .map(overlay: p.e("overlay"), height: p.n("height"), runtimeHeight: p.n("runtimeHeight"),
-                                     label: p.s("label"), loading: p.s("loadingText"), unavailable: p.s("unavailableText"), locate: p.b("locate"))
+                                     label: p.s("label"), loading: p.s("loadingText"), unavailable: p.s("unavailableText"), locate: p.b("locate"),
+                                     controls: mapControls(p, locate: p.b("locate")))
             case "status":
                 require("vacuum-controls")
                 primitive = try .status(metric: p.e("metric"))
@@ -1708,7 +1888,7 @@ struct ServerUICompositionCompiler {
             if [.subheadline, .footnote].contains(style) { require("supporting-text-styles") }
             if style == .sectionTitle { require("section-title") }
             return try .text(.init(node: node, value: stringValue(props.field("value")),
-                                   style: style, unavailableText: props.s("unavailableText")))
+                                   style: style, unavailableText: props.s("unavailableText"), look: textLook(props, style: style)))
         case "settings-link":
             require("settings-link")
             if gridChild { add(.invalidCombination, c.pointer) }
@@ -1732,25 +1912,21 @@ struct ServerUICompositionCompiler {
                 require("collection-navigation")
             }
             let intent = try action(c.field("action"))
-            switch intent {
-            case .push, .present, .dismissThenPush, .selectTab: break
-            default: add(.invalidCombination, c.path("action") + "/type")
-            }
+            check(intent, at: c.path("action")) { Self.navigates($0) }
             let selected: D.Policy = try props.e("selected")
             if selected == .none { require("tile-presentation") }
             let presentation: D.TilePresentation?
             if props.value["presentation"] != nil {
                 require("tile-presentation")
                 let p = try props.field("presentation"), fill = try p.field("fill")
-                let tileFill: D.TileFill
-                if try fill.s("type") == "standard" {
-                    tileFill = .standard
-                } else {
-                    tileFill = try .solidRGB(red: fill.i("red"), green: fill.i("green"), blue: fill.i("blue"))
-                    if try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
-                }
+                var rules = ServerUIRuleDecoder(scope: repeatScope)
+                let slot = rules.fill(fill.value, at: fill.pointer)
+                try absorb(rules)
+                guard let slot else { throw Issue(.invalidValue, fill.pointer) }
+                // A custom fill (exact, by rule or from an entity) belongs to a neutral tile.
+                if slot.0 != .standard || slot.1 != nil, try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
                 presentation = try .init(layout: p.e("layout"), titleLines: p.i("titleLines"),
-                                         fill: tileFill, bodyHint: p.optionalString("bodyHint"))
+                                         fill: slot.0, bodyHint: p.optionalString("bodyHint"), fillRule: slot.1)
             } else {
                 presentation = nil
             }
@@ -1761,7 +1937,7 @@ struct ServerUICompositionCompiler {
                 alarmRefs.append((sourceId, a.path("sourceId")))
                 if try props.s("family") != "neutral" { add(.invalidCombination, props.path("family")) }
                 if selected != .none { add(.invalidCombination, props.path("selected")) }
-                if let presentation, presentation.fill != .standard {
+                if let presentation, presentation.fill != .standard || presentation.fillRule != nil {
                     add(.invalidCombination, props.path("presentation") + "/fill")
                 }
                 let subtitle = try props.field("subtitle")
@@ -1787,7 +1963,12 @@ struct ServerUICompositionCompiler {
             require("tiles"); require("state-style")
             let decoded = ServerUIStateStyles.decodeBinding(try c.field("binding").value, at: c.path("binding"), library: stateLibrary)
             issues.append(contentsOf: decoded.issues)
-            return try .stateTile(.init(node: node, icon: symbol(c.field("icon")), binding: decoded.binding))
+            var tile = try D.StateTile(node: node, icon: symbol(c.field("icon")), binding: decoded.binding)
+            try tileParts(c, props: props, into: &tile)
+            tile.ink = tileInk(c)
+            if tile.ink.isDeclared { require("tile-ink") }
+            tile.swipe = try tileSwipe(props, tile: .state)
+            return .stateTile(tile)
         case "action-tile":
             require("tiles"); require("bindings"); require("power-toggle")
             let labels = try props.value["powerLabels"].map { _ in
@@ -1892,23 +2073,18 @@ struct ServerUICompositionCompiler {
         }
     }
     private mutating func statusAppearance(_ c: Cursor) throws -> D.StatusAppearance {
-        let fill = try c.field("fill")
-        let color: D.TileFill = try fill.s("type") == "standard" ? .standard
-            : .solidRGB(red: fill.i("red"), green: fill.i("green"), blue: fill.i("blue"))
-        let glyph: D.TileFill?
-        if c.value["glyph"] != nil {
-            let value = try c.field("glyph")
-            glyph = try .solidRGB(red: value.i("red"), green: value.i("green"), blue: value.i("blue"))
-        } else { glyph = nil }
-        return try .init(icon: symbol(c.field("icon")), fill: color, glyph: glyph)
+        var rules = ServerUIRuleDecoder(scope: repeatScope)
+        let icon = try rules.symbol(c.field("icon").value, at: c.path("icon"))
+        let fill = try rules.fill(c.field("fill").value, at: c.path("fill"))
+        let glyph = c.value["glyph"].flatMap { rules.fill($0, at: c.path("glyph")) }
+        try absorb(rules)
+        guard let icon, let fill, glyph != nil || c.value["glyph"] == nil else { throw Issue(.invalidValue, c.pointer) }
+        return .init(icon: icon.0, fill: fill.0, glyph: glyph?.0, iconRule: icon.1, fillRule: fill.1, glyphRule: glyph?.1)
     }
     private mutating func optionalHomeAction(_ c: Cursor) throws -> D.Action? {
         guard c.value["action"] != nil else { return nil }
         let intent = try action(c.field("action"))
-        switch intent {
-        case .push, .present, .selectTab, .dismissThenPush: break
-        default: add(.invalidCombination, c.path("action") + "/type")
-        }
+        check(intent, at: c.path("action")) { Self.navigates($0) }
         return intent
     }
 
@@ -2047,6 +2223,7 @@ struct ServerUICompositionCompiler {
             }
             if !matches { add(.bindingType, pointer) }
         }
+        checkOverviewWords(document)
         for (statusID, powerID, pointer) in homePowerRefs {
             guard case .homeStatus(_, let status) = sources[statusID],
                   case .homeLight(_, let target, let members) = sources[powerID] else { continue }
@@ -2132,6 +2309,9 @@ struct ServerUICompositionCompiler {
             default: valid = true
             }
             if !valid { add(.invalidCombination, pointer + "/primitive") }
+            if case .map(_, _, _, _, _, _, _, let groups?) = control.primitive {
+                issues += Self.mapControlIssues(groups, descriptor: descriptor, at: pointer + "/primitive")
+            }
         }
         for (id, pointer) in profileRefs {
             guard let source = sources[id] else { add(.invalidReference, pointer); continue }
@@ -2174,9 +2354,25 @@ struct ServerUICompositionCompiler {
                !videoSources(modal.surface.components).contains(source) { add(.invalidCombination, pointer) }
         }
         for ref in expressionRefs {
-            let sourcePointer = ref.pointer + (ref.kind == nil ? "/sourceId" : "/from/sourceId")
+            let nested = ref.access == .list || (ref.access == .value && ref.kind != nil)
+            let sourcePointer = ref.pointer + (nested ? "/from" : "") + "/sourceId"
             guard let source = sources[ref.sourceId] else { add(.invalidReference, sourcePointer); continue }
-            guard case .haEntity = source else { add(.bindingType, sourcePointer); continue }
+            if ref.access != .value {
+                // `raw-state` and the list reads stand on an `ha-entity` only; a list read names one attribute (`attributes`, name).
+                guard case .haEntity = source else { add(.bindingType, sourcePointer); continue }
+                if ref.access == .list, ref.path.count != 2 || ref.path.first != "attributes" { add(.invalidReference, ref.pointer + "/from/path") }
+                continue
+            }
+            guard case .haEntity = source else {
+                // Any model that has read fields can be read by an operand or a condition, through the slot-read vocabulary.
+                switch ServerUIModelReads.check(source, path: ref.path, kind: ref.kind) {
+                case .notReadable?: add(.bindingType, sourcePointer)
+                case .issue(let code, let suffix)?: add(code, ref.pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                case nil: break
+                }
+                continue
+            }
             if ref.path == ["state"] {
                 if ref.kind == .boolean { add(.bindingType, ref.pointer + "/as") }
             } else if ref.path.count < 2 || ref.path.first != "attributes" {
@@ -2250,10 +2446,12 @@ struct ServerUICompositionCompiler {
                 } else if read.kind != .string {
                     add(.bindingType, pointer + "/as")
                 }
-            case .homeStatus:
-                let fields: [String: D.ScalarKind] = ["stateText": .string, "phase": .string, "state": .string, "isActive": .boolean]
-                if read.path.count != 1 || fields[read.path[0]] == nil { add(.invalidReference, pointer + "/from/path") }
-                else if fields[read.path[0]] != read.kind { add(.bindingType, pointer + "/as") }
+            case .homeStatus, .appState, .pipeline:
+                switch ServerUIModelReads.check(source, path: read.path, kind: read.kind) {
+                case .issue(let code, let suffix)?: add(code, pointer + suffix)
+                case .needs(let capability)?: require(capability)
+                default: break
+                }
             case .homeWeather, .homeLight:
                 add(.invalidReference, pointer + "/from/path")
             case .mediaRemote:
@@ -2263,6 +2461,7 @@ struct ServerUICompositionCompiler {
                 add(.invalidReference, pointer + "/from/path")
             }
         }
+        checkFlowProviders(sources)
         validateSourceCycles()
         var referencedAssets: Set<String> = []
         if case .downloaded(let id, _, _, _, _, _) = document.theme.background {
@@ -2315,7 +2514,7 @@ struct ServerUICompositionCompiler {
         func chromeActions(_ groups: [D.ChromeGroup], root: Bool) -> [D.Action] {
             groups.flatMap(\.items).flatMap { item -> [D.Action] in
                 switch item {
-                case .button(let button) where root || button.visibility == .always: [button.action]
+                case .button(let button) where root || button.visibility == .always: button.action.plainActions
                 case .shellHeader(let header) where root || header.visibility == .always: [header.quickLinksAction, header.profileAction]
                 default: []
                 }
@@ -2387,9 +2586,9 @@ struct ServerUICompositionCompiler {
 
     // MARK: - Diagnostics and publication metadata
 
-    private mutating func require(_ name: String) { requirements.insert("sh.\(name)@1") }
-    private mutating func add(_ code: Issue.Code, _ pointer: String) { issues.append(Issue(code, pointer)) }
-    private mutating func register(_ id: String, catalog: String, at pointer: String) {
+    mutating func require(_ name: String) { requirements.insert("sh.\(name)@1") }
+    mutating func add(_ code: Issue.Code, _ pointer: String) { issues.append(Issue(code, pointer)) }
+    mutating func register(_ id: String, catalog: String, at pointer: String) {
         if let previous = catalogs[catalog]?[id] {
             add(.duplicateID, min(previous, pointer))
         } else { catalogs[catalog, default: [:]][id] = pointer }
@@ -2411,7 +2610,7 @@ struct ServerUICompositionCompiler {
 
 // MARK: - Checked access after exhaustive shape validation
 
-private struct Cursor {
+struct Cursor {
     let value: JSONValue
     let pointer: String
     init(_ value: JSONValue, _ pointer: String) { self.value = value; self.pointer = pointer }

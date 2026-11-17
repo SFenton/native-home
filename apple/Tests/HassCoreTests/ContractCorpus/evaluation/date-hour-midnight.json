@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-hour-midnight",
+  "note": "Hour 0 is 12 AM (WeatherDates.swift:68, hour % 12 == 0 gives 12).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T00:00:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "hour"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "12 AM"
+  }
+}

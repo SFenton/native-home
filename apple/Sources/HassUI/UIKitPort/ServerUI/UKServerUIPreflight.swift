@@ -77,11 +77,9 @@ enum UKServerUIPreflight {
     private static func check(_ publication: ServerUICompositionPublication,
                               collections: [String: ServerUIRowCollection]) throws {
         let document = publication.document
-        // The canonical shell is dark; system appearance is supported by modal hosts, not the wallpaper shell.
-        if document.theme.appearance != .dark { try reject("/document/theme/appearance") }
-        if case .downloaded(_, _, _, let scrim, _, _) = document.theme.background, scrim != .canonical {
-            try reject("/document/theme/background/scrim")
-        }
+        // The rules that depend only on the document (a dark shell, the canonical scrim, one horizontal policy per chrome side, at most
+        // five tabs with an initial one, readable chip colours) are `ServerUIAcceptance`'s, which the draft tool also runs.
+        if let refusal = ServerUIAcceptance.refusal(in: document) { try reject(refusal.pointer) }
         for (index, route) in (document.extensions?.routes ?? []).enumerated() {
             if let degrade = facts.degradation(symbol: route.icon, at: "/document/extensions/routes/\(index)/icon") { found.append(degrade) }
         }
@@ -95,10 +93,6 @@ enum UKServerUIPreflight {
         }
         for (index, tab) in document.navigation.tabs.enumerated() {
             try symbol(tab.icon, at: "/document/navigation/tabs/\(index)/icon")
-        }
-        if document.navigation.tabs.count > 5 { try reject("/document/navigation/tabs") }
-        if document.navigation.initialTabId == nil, !document.navigation.tabs.isEmpty {
-            try reject("/document/navigation/initialTabId")
         }
         for (index, page) in document.pages.enumerated() {
             try surface(page.surface, at: "/document/pages/\(index)", collections: collections)
@@ -124,10 +118,6 @@ enum UKServerUIPreflight {
     }
 
     private static func groups(_ groups: [D.ChromeGroup], at pointer: String) throws {
-        for placement in [D.Placement.leading, .trailing] {
-            let policies = Set(groups.filter { $0.placement == placement }.map(\.horizontal))
-            if policies.count > 1 { try reject(pointer) }
-        }
         found += facts.degradations(groups: groups, at: pointer)
         for (index, group) in groups.enumerated() {
             let path = pointer + "/\(index)"
@@ -158,11 +148,6 @@ enum UKServerUIPreflight {
                     try symbol(mode.icon, at: path + "/props/modes/\(index)/icon")
                 }
                 for (index, state) in panel.states.enumerated() {
-                    try symbol(state.appearance.icon, at: path + "/props/states/\(index)/appearance/icon")
-                }
-            case .doorTile(let tile):
-                try symbol(tile.fallback.icon, at: path + "/props/fallback/icon")
-                for (index, state) in tile.states.enumerated() {
                     try symbol(state.appearance.icon, at: path + "/props/states/\(index)/appearance/icon")
                 }
             case .climate(let control):
@@ -210,6 +195,17 @@ enum UKServerUIPreflight {
                     if let icon = tab.icon { try symbol(icon, at: path + "/tabs/\(index)/icon") }
                     try self.components(tab.children, at: path + "/tabs/\(index)/children", collections: collections)
                 }
+                for (index, area) in tabs.areas.enumerated() {
+                    try self.components(area.children, at: path + "/blocks/\(index)/children", collections: collections)
+                }
+            case .overlay(let overlay):
+                try self.components(overlay.children, at: path + "/children", collections: collections)
+            case .stack(let stack): try self.components(stack.children, at: path + "/children", collections: collections)
+            case .repeatNode(let value):
+                if collections[value.providerId] == nil { throw UKServerUIRendererError(code: .unavailableSource, pointer: path + "/props/providerId") }
+                try self.components(value.children, at: path + "/children", collections: collections)
+            case .shape, .chart, .linearGauge: break
+            case .symbol(let part): try symbol(part.symbol, at: path + "/props/name")
             case .row(let row):
                 if let icon = row.icon { try symbol(icon, at: path + "/props/icon") }
             case .statusPill(let pill): try symbol(pill.icon, at: path + "/icon")
@@ -233,7 +229,9 @@ enum UKServerUIPreflight {
                     }
                 }
             case .actionTile(let tile): try symbol(tile.icon, at: path + "/icon")
-            case .stateTile(let tile): try symbol(tile.icon, at: path + "/icon")
+            case .stateTile(let tile):
+                try symbol(tile.icon, at: path + "/icon")
+                for (index, disc) in tile.parts.discs.enumerated() { try symbol(disc.icon, at: path + "/props/discs/\(index)/icon") }
             case .settingsLink(let link): try symbol(link.icon, at: path + "/icon")
             case .remote(let remote):
                 switch remote.control {
@@ -256,14 +254,6 @@ enum UKServerUIPreflight {
     private static func status(_ chip: D.StatusChip, at pointer: String) throws {
         func appearance(_ value: D.StatusAppearance, _ path: String) throws {
             try symbol(value.icon, at: path + "/icon")
-            if let rgb = UKServerUIHomeViews.rgb(value.fill) {
-                let glyph = value.glyph.flatMap { UKServerUIHomeViews.rgb($0) } ?? 0xFFFFFF
-                let tint = ChipTint(fill: rgb, glyph: glyph)
-                if ChipTint.contrast(0xFFFFFF, tint.liftedFill) < ChipTint.textContrast { try reject(path + "/fill") }
-                if min(ChipTint.contrast(glyph, rgb), ChipTint.contrast(glyph, tint.liftedFill)) < ChipTint.glyphContrast {
-                    try reject(path + "/glyph")
-                }
-            }
         }
         try appearance(chip.fallback, pointer + "/fallback")
         for (index, state) in chip.states.enumerated() {
@@ -279,7 +269,7 @@ enum UKServerUIPreflight {
             : DynamicGridMetrics.tileMinWidth
         return UKGridConfiguration(minCellWidth: minimum, maxColumns: value.maxColumns,
                                    spacing: value.spacing.points, equalRowHeights: value.equalRowHeights,
-                                   fill: value.shortRow == .share ? .share : .none)
+                                   fill: value.shortRow == .share ? .share : .none, minimumColumns: value.minimumColumns)
     }
 
     static func padding(_ value: D.Insets, rightToLeft: Bool) -> UIEdgeInsets {
@@ -308,6 +298,12 @@ enum UKServerUIPreflight {
         case .subheadline: .subheadline
         case .footnote: .footnote
         case .sectionTitle: .title3
+        case .largeTitle: .largeTitle
+        case .title1: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .callout: .callout
+        case .caption2: .caption2
         }
     }
 }

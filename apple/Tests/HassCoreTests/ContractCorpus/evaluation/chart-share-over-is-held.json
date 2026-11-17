@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-over-is-held",
+  "note": "A value above the axis is held at 100: 120 of 100. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 120,
+      "top": 100
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 100
+    }
+  }
+}

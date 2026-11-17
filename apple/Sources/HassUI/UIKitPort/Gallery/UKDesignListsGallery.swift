@@ -92,7 +92,7 @@ private final class UKSystemAccessibilityGalleryPage: UIViewController {
 /// as `FENTON_GALLERY_MODAL_OPEN`, which a reused journey app can change between tests (a launch argument always launches fresh); the variable wins.
 private final class UKModalSizingGalleryPage: UIViewController {
     private enum Kind: String, CaseIterable {
-        case short, tall, tabs, edit, sort, filter
+        case short, tall, tabs, edit, sort, filter, fullForm
         var title: String {
             switch self {
             case .short: "Short Sheet"
@@ -101,6 +101,7 @@ private final class UKModalSizingGalleryPage: UIViewController {
             case .edit: "Edit Sheet"
             case .sort: "Sort Sheet"
             case .filter: "Filter Sheet"
+            case .fullForm: "Full-height Form Sheet"
             }
         }
     }
@@ -155,6 +156,7 @@ private final class UKModalSizingGalleryPage: UIViewController {
         case .edit: present(editSheet())
         case .sort: present(sortSheet())
         case .filter: present(filterDemoSheet())
+        case .fullForm: present(fullFormSheet())
         }
     }
 
@@ -163,14 +165,21 @@ private final class UKModalSizingGalleryPage: UIViewController {
     // MARK: Sheets
 
     /// Rows in a scroll view with 16 pt of padding, on the sheet's cell.
-    private func listSheet(title: String, scroll identifier: String, rows: [(String, String)]) -> UKHassModalController {
+    private func listSheet(title: String, scroll identifier: String, rows: [(String, String)], height: HassSheetHeight = .fitted) -> UKHassModalController {
         let page = UKScrollPage()
         page.scrollView.accessibilityIdentifier = identifier
         let list = UKModuleListView(surface: .sheet, rows: rows.map { UKRowView(.init($0.0, symbol: $0.1), surface: .sheet) })
         page.setContent(list, insets: UIEdgeInsets(top: 16, left: 16, bottom: 16, right: 16))
         var options = UKHassModalOptions(title: title, fitKey: "ModalSizing.\(title)")
         options.closeIdentifier = "sizing.close"
+        options.height = height
         return UKHassModalController(root: page, options: options)
+    }
+
+    /// A form-width sheet of full height, the shape a server-UI modal with `height: full` takes: one large detent and no grabber. On the iPad
+    /// in portrait it stands centred and shorter than the window (`sheet-portrait`).
+    private func fullFormSheet() -> UKHassModalController {
+        listSheet(title: "Palette", scroll: "sizing.fullForm.scroll", rows: [("Warm", "sun.max"), ("Cool", "snowflake")], height: .full)
     }
 
     private func tabSheet() -> UKHassModalController {

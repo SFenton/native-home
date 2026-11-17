@@ -13,7 +13,7 @@ extension ServerUICompositionShape {
                               "maximum": .number(-1_000_000, 1_000_000, integer: false),
                               "step": .number(0.000_001, 1_000_000, integer: false)]),
             "choice": object(["id": id, "type": fixed("choice"), "initial": id,
-                              "options": array(object(["id": id, "label": label]), 12, minimum: 2)])
+                              "options": array(choiceOption, 12, minimum: 2)])
         ])
     }()
 
@@ -37,20 +37,23 @@ extension ServerUICompositionShape {
                 "children": array(.component, 100)
             ]),
             "row": node("row", [
-                "props": object(["primary": value(literal: .text(2_000, blank: false)),
-                                 "secondary": value(literal: .text(2_000, blank: true)),
-                                 "value": value(literal: .text(2_000, blank: true)),
+                "props": object(["primary": textValue(.text(2_000, blank: false)),
+                                 "secondary": textValue(.text(2_000, blank: true)),
+                                 "value": textValue(.text(2_000, blank: true)),
                                  "icon": .optional(symbol), "accessory": .choice(["none", "disclosure"]),
                                  "loadingText": title, "unavailableText": title]),
-                "action": .optional(action)
+                "action": .optional(ruledAction), "enabledWhen": .optional(enabledWhen)
             ]),
             "local-tabs": node("local-tabs", [
                 "props": object(["stateId": id, "transition": fixed("canonical-swap@1"), "resetOnPresentation": .optional(.bool), "pinned": .optional(.bool),
                                  "scopeProviderId": .optional(id), "showsSelector": .optional(.bool), "retainsAutomaticSelection": .optional(.bool),
-                                 "automatic": .optional(array(object(["tabId": id, "selectedWhen": predicate]), 5))]),
+                                 "automatic": .optional(array(object(["tabId": id, "selectedWhen": predicate]), 5)),
+                                 "fallbackTabId": .optional(id), "tabBar": .optional(tabBar)]),
                 "tabs": array(object(["id": id, "label": label, "children": array(.component, 100),
-                                     "icon": .optional(symbol), "centerWhenFits": .optional(.bool)]), 5, minimum: 2)
+                                     "icon": .optional(symbol), "centerWhenFits": .optional(.bool)].merging(tabRule) { _, rhs in rhs }), 5, minimum: 2),
+                "blocks": .optional(array(tabBlock, 40))
             ]),
+            "overlay": node("overlay", overlayFields),
             "local-control": node("local-control", [
                 "props": object(["stateId": id, "kind": .choice(["toggle", "stepper", "choice", "text-field", "segmented-choice"]),
                                  "placeholder": .text(240, blank: true)])
@@ -67,14 +70,20 @@ extension ServerUICompositionShape {
                     "format": .optional(.text(240, blank: false)),
                     "options": .optional(array(object(["id": id, "label": label, "selectedWhen": predicate,
                                                         "action": callService]), 12)),
+                    "optionsFrom": .optional(optionsFrom),
                     "unavailableText": title
-                ]),
-                "onAction": .optional(callService), "offAction": .optional(callService), "action": .optional(callService)
+                ].merging(boundRowParts) { lhs, _ in lhs }),
+                "onAction": .optional(callService), "offAction": .optional(callService), "action": .optional(callService),
+                "enabledWhen": .optional(enabledWhen)
             ]),
-            "primary-button": node("primary-button", ["props": object([:]), "icon": .optional(symbol), "action": action]),
+            "primary-button": node("primary-button", ["props": object([:]), "icon": .optional(symbol), "action": ruledAction,
+                                                       "enabledWhen": .optional(enabledWhen)]),
             "row-collection": node("row-collection", [
                 "props": object(["providerId": id, "loadingText": title, "emptyText": title,
-                                 "unavailableText": title, "errorText": title, "staleText": title])
+                                 "unavailableText": title, "errorText": title, "staleText": title,
+                                 // The list's own parts (`sh.list-parts@1`), each optional.
+                                 "rowAction": .optional(ruledAction), "refreshable": .optional(.bool),
+                                 "emptyMessage": .optional(textValue(.text(2_000, blank: true)))])
             ]),
             "collection": node("collection", [
                 "props": object(["providerId": id, "template": .choice(["rows", "todo", "inventory", "recipes", "carousel"]),

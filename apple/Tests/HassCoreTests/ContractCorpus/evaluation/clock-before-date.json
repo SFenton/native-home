@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "clock-before-date",
+  "note": "The clock gives today as a date.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "before",
+      "left": {
+        "type": "clock",
+        "part": "today"
+      },
+      "right": {
+        "type": "literal",
+        "value": "2026-12-01"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

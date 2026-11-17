@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-hex-alpha-zero",
+  "note": "Alpha 0 means no color: the fallback.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "#00968800"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 60,
+      "green": 60,
+      "blue": 67
+    },
+    "status": "value"
+  }
+}

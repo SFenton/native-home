@@ -56,9 +56,24 @@ struct UKServerUIReader: ServerUIReading {
         self.controlValue = controlValue
     }
 
+    /// The record of the repeat cell being drawn (`item` operands, `sh.repeat@1`); `nil` outside a cell. Reading it inside an observation
+    /// follows the cell's own record, so one record changing re-runs only the expressions of its cell.
+    var item: JSONValue? { MainActor.assumeIsolated { bindings.cell?.record } }
+
+    /// The position of the repeat cell being drawn (`index` operands).
+    var index: Int? { MainActor.assumeIsolated { bindings.cell?.index } }
+
     var viewer: ServerUIViewer? {
         MainActor.assumeIsolated { viewerSource.viewer(in: bindings.context.store) }
     }
+
+    /// The wall clock. Reading it starts the minute tick, and the tick stops once nothing reads it (``UKServerUIAppStateSource``).
+    var clock: ServerUIClock? { MainActor.assumeIsolated { bindings.appState.clockForReading() } }
+
+    /// Dates are drawn in the phone's language and region.
+    var locale: Locale? { .autoupdatingCurrent }
+
+    func drawsSymbol(_ name: String) -> Bool { UIImage(systemName: name) != nil }
 
     func viewerPersonState() -> ServerUIReadResult {
         MainActor.assumeIsolated {
@@ -70,9 +85,31 @@ struct UKServerUIReader: ServerUIReading {
         }
     }
 
+    /// The state text of the source's entity box, `unknown` and `unavailable` included (`raw-state`, `sh.raw-state@1`). It reads the
+    /// store, not the optimistic overlay: the point is what Home Assistant says. A source that is not an `ha-entity` has no raw state.
+    func readRaw(sourceId: String) -> ServerUIReadResult {
+        MainActor.assumeIsolated {
+            guard case .haEntity? = bindings.definitions[sourceId] else { return .unavailable }
+            switch bindings.entityID(for: sourceId) {
+            case .loading: return .loading
+            case .unavailable: return .unavailable
+            case .ready(let id):
+                return .rawState(of: bindings.context.store.entity(id).state, statesLoaded: !bindings.context.valuesPending)
+            }
+        }
+    }
+
     func read(sourceId: String, path: [String]) -> ServerUIReadResult {
         MainActor.assumeIsolated {
-            guard case .haEntity = bindings.definitions[sourceId] else { return .unavailable }
+            guard let source = bindings.definitions[sourceId] else { return .unavailable }
+            guard case .haEntity = source else {
+                // Any model that has read fields reads through the one vocabulary a slot read uses (`ServerUIModelReads`).
+                switch bindings.read(.init(sourceId: sourceId, path: path, kind: .string)) {
+                case .ready(let value): return .value(value)
+                case .loading: return .loading
+                case .unavailable: return .unavailable
+                }
+            }
             let entity = bindings.entityID(for: sourceId)
             guard case .ready(let id) = entity else {
                 if case .loading = entity { return .loading }

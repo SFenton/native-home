@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "object-gap-unavailable",
+  "note": "In a document an object with a gap is unavailable as a whole.",
+  "subject": {
+    "operand": {
+      "type": "object",
+      "fields": {
+        "a": {
+          "type": "literal",
+          "value": 1
+        },
+        "b": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "x",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

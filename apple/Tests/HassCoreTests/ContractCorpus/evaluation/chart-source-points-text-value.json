@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "chart-source-points-text-value",
+  "note": "A value written as text that is a number is that number; other text is unknown.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 3,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "level": "12.5"
+        },
+        {
+          "label": "b",
+          "level": "high"
+        },
+        {
+          "label": "c",
+          "level": " "
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 12.5
+        },
+        {
+          "label": "b",
+          "value": null
+        },
+        {
+          "label": "c",
+          "value": null
+        }
+      ]
+    }
+  }
+}

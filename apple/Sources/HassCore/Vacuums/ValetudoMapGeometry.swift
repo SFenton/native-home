@@ -129,20 +129,27 @@ public enum MapGeometry {
     }
 
     /// Local stage units → frame points (`mapViewportMatrix`).
-    public static func matrix(_ g: MapStageGeometry, frame: CGSize, viewport: MapViewport, rotation: Double) -> Affine {
+    ///
+    /// The flip (`sh.surface-orientation@1`) comes after the rotation, in screen space: "flip horizontally" always mirrors what is seen left to
+    /// right, whatever the rotation. The order is translation(centre + pan) · flip · rotation · scale(fit · zoom) · translation(-stage / 2), so pan
+    /// stays in screen points and a flip changes neither the fit nor the aspect ratio. With no flip the matrix is what it was.
+    public static func matrix(_ g: MapStageGeometry, frame: CGSize, viewport: MapViewport, rotation: Double,
+                              flip: MapOrientation = .none) -> Affine {
         let fw = Double(frame.width), fh = Double(frame.height)
         guard fw > 0, fh > 0 else { return .identity }
         let rotated = rotatedSize(g, rotation)
         let fit = min(fw / max(rotated.width, 1), fh / max(rotated.height, 1))
         return Affine.translation(fw / 2 + viewport.panX, fh / 2 + viewport.panY)
+            .then(flip.affine)
             .then(.rotation(degrees: rotation))
             .then(.scale(fit * viewport.zoom))
             .then(.translation(-g.width / 2, -g.height / 2))
     }
 
     /// Keeps at least a quarter of the map on screen (`clampMapViewport`).
-    public static func clamp(_ g: MapStageGeometry, frame: CGSize, viewport: MapViewport, rotation: Double, minimumVisible: Double = 0.25) -> MapViewport {
-        let m = matrix(g, frame: frame, viewport: viewport, rotation: rotation)
+    public static func clamp(_ g: MapStageGeometry, frame: CGSize, viewport: MapViewport, rotation: Double, flip: MapOrientation = .none,
+                             minimumVisible: Double = 0.25) -> MapViewport {
+        let m = matrix(g, frame: frame, viewport: viewport, rotation: rotation, flip: flip)
         let corners = [MapPoint(x: 0, y: 0), .init(x: g.width, y: 0), .init(x: g.width, y: g.height), .init(x: 0, y: g.height)].map(m.apply)
         let left = corners.map(\.x).min() ?? 0, right = corners.map(\.x).max() ?? 0
         let top = corners.map(\.y).min() ?? 0, bottom = corners.map(\.y).max() ?? 0
@@ -158,10 +165,22 @@ public enum MapGeometry {
     }
 
     /// Zooms keeping `anchor` (local units) under `point` (frame points) (`viewportForAnchor`).
-    public static func viewport(_ g: MapStageGeometry, frame: CGSize, anchor: MapPoint, at point: MapPoint, zoom: Double, rotation: Double) -> MapViewport {
+    public static func viewport(_ g: MapStageGeometry, frame: CGSize, anchor: MapPoint, at point: MapPoint, zoom: Double, rotation: Double,
+                                flip: MapOrientation = .none) -> MapViewport {
         let zoom = min(MapViewport.zoomRange.upperBound, max(MapViewport.zoomRange.lowerBound, zoom))
-        let rendered = matrix(g, frame: frame, viewport: .init(zoom: zoom), rotation: rotation).apply(anchor)
-        return clamp(g, frame: frame, viewport: .init(panX: point.x - rendered.x, panY: point.y - rendered.y, zoom: zoom), rotation: rotation)
+        let rendered = matrix(g, frame: frame, viewport: .init(zoom: zoom), rotation: rotation, flip: flip).apply(anchor)
+        return clamp(g, frame: frame, viewport: .init(panX: point.x - rendered.x, panY: point.y - rendered.y, zoom: zoom), rotation: rotation, flip: flip)
+    }
+
+    /// A VoiceOver move of `step` cells, in the grid directions it has on an unflipped map, carried over a flipped one.
+    ///
+    /// "Move area right" does what it does without a flip (its step is the same length at every fit and zoom, and the same direction); a flip only
+    /// mirrors it, in the screen's own axes (the flip follows the rotation), so on a mirrored map the area still moves the way it always has
+    /// on screen. With no flip the step is returned unchanged.
+    public static func gridStep(_ step: MapPoint, rotation: Double, flip: MapOrientation) -> MapPoint {
+        guard flip.flips else { return step }
+        let g = Affine.rotation(degrees: rotation).inverted.then(flip.affine).then(.rotation(degrees: rotation))
+        return .init(x: g.a * step.x + g.c * step.y, y: g.b * step.x + g.d * step.y)
     }
 
     /// Frame point → global grid.

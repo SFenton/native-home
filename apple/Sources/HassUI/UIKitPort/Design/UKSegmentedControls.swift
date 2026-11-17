@@ -1,4 +1,5 @@
 #if os(iOS)
+import HassCore
 import HassDesign
 import UIKit
 
@@ -20,6 +21,7 @@ public final class UKSegmentedChoice<Option: Hashable>: UIView {
     /// Off while the choice does not apply (the expiry horizon waits for its toggle): dimmed and not enabled for assistive technologies.
     public var isEnabled = true {
         didSet {
+            segmentElements = nil
             segmented.isEnabled = isEnabled
             menu.isEnabled = isEnabled
             for control in [segmented, menu] {
@@ -30,16 +32,22 @@ public final class UKSegmentedChoice<Option: Hashable>: UIView {
     public let label: String
     public let identifier: String
     private let title: (Option) -> String
+    /// The symbol a segment draws for an option instead of its words, and what VoiceOver adds after the label (`sh.choice-icons@1`).
+    private let symbol: (Option) -> String?
+    private let hint: (Option) -> String?
     private let select: (Option) -> Void
     private let segmented = UISegmentedControl()
     private let menu = UIButton(type: .system)
     private var builtAccessibility: Bool?
 
     public init(label: String, options: [Option], title: @escaping (Option) -> String, selection: Option?, identifier: String,
+                symbol: @escaping (Option) -> String? = { _ in nil }, hint: @escaping (Option) -> String? = { _ in nil },
                 select: @escaping (Option) -> Void) {
         self.label = label
         self.options = options
         self.title = title
+        self.symbol = symbol
+        self.hint = hint
         self.selection = selection
         self.identifier = identifier
         self.select = select
@@ -61,18 +69,87 @@ public final class UKSegmentedChoice<Option: Hashable>: UIView {
     private var isAccessibilityLayout: Bool { traitCollection.preferredContentSizeCategory.isAccessibilityCategory }
 
     private func rebuild() {
+        segmentElements = nil
         builtAccessibility = isAccessibilityLayout
         segmented.isHidden = isAccessibilityLayout
         menu.isHidden = !isAccessibilityLayout
         segmented.removeAllSegments()
-        for (index, option) in options.enumerated() { segmented.insertSegment(withTitle: title(option), at: index, animated: false) }
-        menu.menu = UIMenu(children: options.map { option in
-            UIAction(title: title(option), state: option == selection ? .on : .off) { [weak self] _ in self?.choose(option) }
-        })
+        for (index, option) in options.enumerated() {
+            if let image = segmentImage(option) { segmented.insertSegment(with: image, at: index, animated: false) }
+            else { segmented.insertSegment(withTitle: title(option), at: index, animated: false) }
+        }
+        menu.menu = menuOf(options)
         showSelection()
     }
 
+    /// The menu of options, each with its symbol and hint when it has them.
+    private func menuOf(_ options: [Option]) -> UIMenu {
+        UIMenu(children: options.map { option in
+            UIAction(title: title(option), subtitle: hint(option), image: symbol(option).flatMap { UIImage(systemName: ServerUISymbolFallback.resolve($0)) },
+                     state: option == selection ? .on : .off) { [weak self] _ in self?.choose(option) }
+        })
+    }
+
+    /// The image of a segment: the symbol, named for VoiceOver by the option's words.
+    private func segmentImage(_ option: Option) -> UIImage? {
+        guard let name = symbol(option) else { return nil }
+        let image = UIImage(systemName: ServerUISymbolFallback.resolve(name))
+        image?.accessibilityLabel = title(option)
+        return image
+    }
+
+    /// A segment of an icon choice as VoiceOver finds it: named by the option's words, with its hint after, selected when it is.
+    private final class SegmentElement: UIAccessibilityElement {
+        var onActivate: (() -> Void)?
+        override func accessibilityActivate() -> Bool { onActivate?(); return true }
+    }
+
+    /// The elements of the segments, kept so VoiceOver's focus stays on one while the choice redraws; built again when the options, the
+    /// selection or the enabled state change.
+    private var segmentElements: [SegmentElement]?
+
+    /// Places each element in this view's own space, mirrored in a right-to-left language where the segments run the other way.
+    private func placeSegmentElements() {
+        guard let elements = segmentElements, !elements.isEmpty else { return }
+        let width = bounds.width / CGFloat(elements.count)
+        let mirrored = effectiveUserInterfaceLayoutDirection == .rightToLeft
+        for (index, element) in elements.enumerated() {
+            let slot = mirrored ? elements.count - 1 - index : index
+            element.accessibilityFrameInContainerSpace = CGRect(x: width * CGFloat(slot), y: 0, width: width, height: bounds.height)
+        }
+    }
+
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+        placeSegmentElements()
+    }
+
+    /// With symbols or hints a segment is its own element, so each can carry its hint; without them the control describes itself.
+    override public var accessibilityElements: [Any]? {
+        get {
+            guard !isAccessibilityLayout, options.contains(where: { symbol($0) != nil || hint($0) != nil }), !options.isEmpty else { return nil }
+            if let segmentElements { return segmentElements }
+            let built = options.map { option -> SegmentElement in
+                let element = SegmentElement(accessibilityContainer: self)
+                element.accessibilityLabel = title(option)
+                element.accessibilityHint = hint(option)
+                element.accessibilityIdentifier = identifier + "." + String(describing: option)
+                var traits: UIAccessibilityTraits = .button
+                if option == selection { traits.insert(.selected) }
+                if !isEnabled { traits.insert(.notEnabled) }
+                element.accessibilityTraits = traits
+                element.onActivate = { [weak self] in if self?.isEnabled == true { self?.choose(option) } }
+                return element
+            }
+            segmentElements = built
+            placeSegmentElements()
+            return built
+        }
+        set {}
+    }
+
     private func showSelection() {
+        segmentElements = nil
         let index = selection.flatMap { options.firstIndex(of: $0) }
         segmented.selectedSegmentIndex = index ?? UISegmentedControl.noSegment
         var configuration = UIButton.Configuration.plain()
@@ -85,9 +162,7 @@ public final class UKSegmentedChoice<Option: Hashable>: UIView {
         menu.configuration = configuration
         menu.accessibilityLabel = label
         menu.accessibilityValue = selection.map(title)
-        menu.menu = UIMenu(children: options.map { option in
-            UIAction(title: title(option), state: option == selection ? .on : .off) { [weak self] _ in self?.choose(option) }
-        })
+        menu.menu = menuOf(options)
     }
 
     private func segmentChosen() {
@@ -312,6 +387,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
     public let identifier: String
     private let hasSymbols: Bool
     private let hasBadges: Bool
+    private let labels: ServerUITabBar.Labels
     private let onSelect: (Item) -> Void
     private var badged: UKBadgedTabSegments<Item>?
     private var segmented: UISegmentedControl?
@@ -324,8 +400,10 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         }
     }
 
+    /// - Parameter labels: What each segment shows when the document asks (`sh.tab-bar@1`); by default the size decides.
     public init(tabs: [Item], label: String, title: (Item) -> String, symbol: ((Item) -> String)? = nil, badge: ((Item) -> Int)? = nil,
-                selection: Item, identifier: String, onSelect: @escaping (Item) -> Void) {
+                labels: ServerUITabBar.Labels = .bySize, selection: Item, identifier: String, onSelect: @escaping (Item) -> Void) {
+        self.labels = labels
         segments = tabs.map { ModalTabSegment(item: $0, title: title($0), symbol: symbol?($0), badge: badge?($0) ?? 0) }
         self.label = label
         hasSymbols = symbol != nil
@@ -361,7 +439,7 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
         segmented = nil
         menuButton = nil
         let form = ModalTabBarStyle.form(hasSymbols: hasSymbols, hasBadges: hasBadges, compactWidth: traitCollection.horizontalSizeClass == .compact,
-                                         accessibilitySize: traitCollection.preferredContentSizeCategory.isAccessibilityCategory)
+                                         accessibilitySize: traitCollection.preferredContentSizeCategory.isAccessibilityCategory, labels: labels)
         let glass = UKNavigationGlassView(shape: .capsule)
         addSubview(glass)
         glass.ukPin(to: self)
@@ -391,7 +469,9 @@ public final class UKModalTabBar<Item: Hashable & Identifiable>: UIView {
             syncNative()
         case .badged, .badgedWithTitles:
             // A system segmented control draws a title or an image, never a badge: draw our own segments on the same capsule.
-            let segmentsView = UKBadgedTabSegments(segments: segments, showsTitles: form == .badgedWithTitles, selection: selection, identifier: identifier, label: label)
+            // Titles alone: the segments drop their icons, and keep their counts in the spoken name.
+            let drawn = labels == .titles ? segments.map { ModalTabSegment(item: $0.item, title: $0.title, symbol: nil, badge: $0.badge) } : segments
+            let segmentsView = UKBadgedTabSegments(segments: drawn, showsTitles: form == .badgedWithTitles, selection: selection, identifier: identifier, label: label)
             segmentsView.onSelect = { [weak self] item in self?.choose(item) }
             badged = segmentsView
             inner.addSubview(segmentsView)

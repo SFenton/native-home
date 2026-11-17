@@ -16,7 +16,7 @@ Decision: [action-navigation-tiles](../design/action-navigation-tiles.md) (owner
 
 Configured security uses these primitives: `UKAlarmPanelControl` and `UKAlarmModeButton.Value` are value and closure presentation.
 `UKServerUIAlarmSource` owns the confirmation tickets and network lifetime.
-`UKServerUIDoorSource` resolves through `StateStyle` ([state-styles](../design/state-styles.md)) and `GarageDoorController`, never generic power.
+A door is a lowered `state-tile` ([state-styles](../design/state-styles.md#doors-lowered-to-the-state-tile)), never generic power.
 The source and its authored control stay pinned during a pending command.
 Mode order, copy and appearance are authored; service selection and the Disarm confirmation are native policy.
 

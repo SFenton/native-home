@@ -1,0 +1,96 @@
+{
+  "format": 1,
+  "name": "min-of-a-computed-value",
+  "note": "The value is any operand of the item: the smallest of high minus low.",
+  "response": [
+    {
+      "lo": 10,
+      "hi": 14
+    },
+    {
+      "lo": 5,
+      "hi": 6
+    }
+  ],
+  "compiles": true,
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "hi": {
+              "shape": {
+                "kind": "number",
+                "integer": true
+              }
+            },
+            "lo": {
+              "shape": {
+                "kind": "number",
+                "integer": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "span",
+        "op": "min",
+        "value": {
+          "type": "math",
+          "op": "subtract",
+          "args": [
+            {
+              "type": "item",
+              "path": [
+                "hi"
+              ]
+            },
+            {
+              "type": "item",
+              "path": [
+                "lo"
+              ]
+            }
+          ]
+        }
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number"
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 1
+  }
+}

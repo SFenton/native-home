@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "format-null-arg-unavailable",
+  "note": "A null argument has no text: the format is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{a}",
+      "args": {
+        "a": {
+          "type": "literal",
+          "value": null
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

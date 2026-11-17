@@ -1,0 +1,89 @@
+{
+  "format": 1,
+  "name": "action-otherwise-none",
+  "note": "No case holding runs otherwise: here, nothing.",
+  "subject": {
+    "action": {
+      "type": "conditional",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 75
+            }
+          },
+          "then": {
+            "type": "push",
+            "pageId": "page-lattice",
+            "arguments": {},
+            "origin": "sender",
+            "duplicate": "reuse-nearest"
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 60
+            }
+          },
+          "then": {
+            "type": "call-service",
+            "domain": "light",
+            "service": "turn_on",
+            "target": {
+              "entity_id": {
+                "type": "literal",
+                "value": "light.demo_lamp"
+              }
+            }
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "none"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "65"
+      }
+    }
+  },
+  "expected": {
+    "pick": "otherwise",
+    "runs": "none"
+  }
+}

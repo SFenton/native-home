@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "exists-flow-gap",
+  "note": "In flow mode an unavailable operand is null, so exists is no.",
+  "subject": {
+    "condition": {
+      "type": "exists",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {
+    "flow": true
+  },
+  "expected": {
+    "tri": "no"
+  }
+}

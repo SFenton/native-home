@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "chart-ceiling-step-five",
+  "note": "Another step: a ceiling of step 5 from 5 to 50 with a peak of 11 tops out at 15.",
+  "subject": {
+    "chart": {
+      "op": "domain",
+      "domain": {
+        "type": "ceiling",
+        "step": 5,
+        "min": 5,
+        "max": 50
+      },
+      "peak": 11
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 15
+    }
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "name": "none-rule-first-case",
+  "note": "The first case that holds wins.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [
+      {
+        "name": "n",
+        "type": "number",
+        "value": {
+          "type": "literal",
+          "value": 1
+        }
+      }
+    ],
+    "request": {
+      "type": "none",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "param",
+                "name": "n"
+              },
+              "right": {
+                "type": "literal",
+                "value": 1
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "1 chore"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{n} chores",
+          "args": {
+            "n": {
+              "type": "param",
+              "name": "n"
+            }
+          }
+        }
+      }
+    },
+    "steps": [],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "string"
+    }
+  },
+  "response": null,
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": "1 chore"
+  },
+  "compiles": true
+}

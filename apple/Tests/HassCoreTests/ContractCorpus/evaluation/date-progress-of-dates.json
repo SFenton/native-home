@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "date-progress-of-dates",
+  "note": "Two dates with no time are each the start of their day: noon is half way through the day.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-15"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-16"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T12:00:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0.5
+  }
+}

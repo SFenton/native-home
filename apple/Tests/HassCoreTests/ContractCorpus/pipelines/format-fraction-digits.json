@@ -1,0 +1,159 @@
+{
+  "format": 1,
+  "name": "format-fraction-digits",
+  "note": "formats rounds like C printf: exact ties go to the even digit, everything else to the nearest.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "object",
+        "fields": {
+          "a": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "b": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "c": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "d": {
+            "shape": {
+              "kind": "number"
+            }
+          },
+          "e": {
+            "shape": {
+              "kind": "number"
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "text": {
+            "type": "format",
+            "pattern": "{a} {b} {c} {d} {e}",
+            "args": {
+              "a": {
+                "type": "item",
+                "path": [
+                  "a"
+                ]
+              },
+              "b": {
+                "type": "item",
+                "path": [
+                  "b"
+                ]
+              },
+              "c": {
+                "type": "item",
+                "path": [
+                  "c"
+                ]
+              },
+              "d": {
+                "type": "item",
+                "path": [
+                  "d"
+                ]
+              },
+              "e": {
+                "type": "item",
+                "path": [
+                  "e"
+                ]
+              }
+            },
+            "formats": {
+              "a": {
+                "number": {
+                  "maximumFractionDigits": 0
+                }
+              },
+              "b": {
+                "number": {
+                  "maximumFractionDigits": 0
+                }
+              },
+              "c": {
+                "number": {
+                  "maximumFractionDigits": 2
+                }
+              },
+              "d": {
+                "number": {
+                  "maximumFractionDigits": 2
+                }
+              },
+              "e": {
+                "number": {
+                  "maximumFractionDigits": 2
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "record"
+    },
+    "schema": {
+      "kind": "object",
+      "fields": {
+        "text": {
+          "shape": {
+            "kind": "string"
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": {
+    "a": 2.5,
+    "b": 3.5,
+    "c": 0.125,
+    "d": 2.675,
+    "e": -1.005
+  },
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": {
+      "text": "2 4 0.12 2.67 -1"
+    }
+  },
+  "compiles": true
+}

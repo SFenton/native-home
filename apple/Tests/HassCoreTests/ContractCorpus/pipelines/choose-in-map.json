@@ -1,0 +1,154 @@
+{
+  "format": 1,
+  "name": "choose-in-map",
+  "note": "A rule inside a map step: a null never passes above, so the second row takes otherwise.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "k": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "a",
+                  "b"
+                ]
+              }
+            },
+            "n": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "number",
+                    "integer": true
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "m",
+        "op": "map",
+        "fields": {
+          "label": {
+            "type": "choose",
+            "cases": [
+              {
+                "when": {
+                  "type": "compare",
+                  "op": "above",
+                  "left": {
+                    "type": "item",
+                    "path": [
+                      "n"
+                    ]
+                  },
+                  "right": {
+                    "type": "literal",
+                    "value": 0
+                  }
+                },
+                "then": {
+                  "type": "literal",
+                  "value": "some"
+                }
+              }
+            ],
+            "otherwise": {
+              "type": "literal",
+              "value": "none"
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "rows",
+      "max": 10,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": [
+            "label"
+          ]
+        },
+        "title": {
+          "type": "item",
+          "path": [
+            "label"
+          ]
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "label": {
+            "shape": {
+              "kind": "string"
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "k": "a",
+      "n": 1
+    },
+    {
+      "k": "b",
+      "n": null
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "some",
+        "title": "some"
+      },
+      {
+        "id": "none",
+        "title": "none"
+      }
+    ]
+  },
+  "compiles": true
+}

@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "text-expr-no-fallback-unavailable",
+  "note": "With no fallback an unavailable value stays unavailable: the node's own text shows.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

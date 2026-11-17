@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "not-no",
+  "note": "not of no is yes.",
+  "subject": {
+    "condition": {
+      "type": "not",
+      "of": {
+        "type": "compare",
+        "op": "eq",
+        "left": {
+          "type": "literal",
+          "value": 1
+        },
+        "right": {
+          "type": "literal",
+          "value": 2
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

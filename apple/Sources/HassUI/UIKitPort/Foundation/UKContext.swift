@@ -20,6 +20,9 @@ struct UKContext {
     /// The people's photos (`PersonAvatars` in the environment); nil draws every monogram. A gallery passes its fixture's.
     var avatars: PersonAvatars?
     var push: PushCoordinator?
+    /// The window's `app-state@1` source, when something outside the page already holds it (the Data Flows of the window read its ticking
+    /// clock); the page makes its own when this is nil.
+    var appState: UKServerUIAppStateSource?
     var location: LocationCoordinator?
     var backdrop: HouseBackdropStore?
     var motion: MotionPolicy?
@@ -34,6 +37,8 @@ struct UKContext {
     var isPane = false
     /// A page on the wallpaper, or the inside of a sheet (``TileSurface``).
     var surface: TileSurface = .page
+    /// The ink a dark tile face draws by default, from the published document's manifest (`sh.tile-ink-default@1`).
+    var inkDefault: TileInkDefault = .muted
     /// No state has arrived yet (first sign-in): tiles and pills show a soft bar for their value.
     ///
     /// Set once by the shell at launch (`true` while nothing has arrived), it then follows the store: the getter is false as soon as

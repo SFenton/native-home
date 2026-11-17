@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "date-progress-before-the-start",
+  "note": "Before the first moment it is 0, never negative (clampPercent).",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-15T09:00:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T16:00:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

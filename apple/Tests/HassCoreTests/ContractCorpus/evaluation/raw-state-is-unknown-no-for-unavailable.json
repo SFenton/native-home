@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "raw-state-is-unknown-no-for-unavailable",
+  "note": "Unavailable is not unknown: no.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "raw-state",
+        "sourceId": "sensor"
+      },
+      "right": {
+        "type": "literal",
+        "value": "unknown"
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "sensor": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "tri": "no"
+  }
+}

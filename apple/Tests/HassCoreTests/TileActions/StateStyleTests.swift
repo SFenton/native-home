@@ -136,11 +136,22 @@ private func entity(_ id: String, _ state: String, _ attributes: [String: JSONVa
 
     @Test func garageDoorRequestSettingsAreTheWebs() throws {
         let request = try #require(StateStyle.garageDoor.request)
-        let timing = GarageDoorController.Timing.standard
-        #expect(request.lockout == timing.lockout && request.ackTimeout == timing.serviceTimeout)
-        #expect(request.settleTimeout == timing.confirmTimeout && request.errorHold == timing.failureHold)
+        // The web's `constants/garageDoors.ts` values, kept here since `GarageDoorController.Timing` was retired.
+        #expect(request.lockout == .seconds(2) && request.ackTimeout == .seconds(10))
+        #expect(request.settleTimeout == .seconds(45) && request.errorHold == .seconds(8))
         #expect(request.pendingWords["open_cover"] == "Sending Open…" && request.pendingWords["close_cover"] == "Sending Close…")
         #expect(request.errorWords == "Error" && request.onTimeout == .error)
+    }
+
+    @Test func garageDoorTapSendsTheCommandForTheLiveState() {
+        // The web's `garageDoorCommandForState`, as `GarageDoorController.command(for:)` held it: closed or closing opens, open or opening closes.
+        let expected: [String: String] = ["closed": "open_cover", "closing": "open_cover", "open": "close_cover", "opening": "close_cover"]
+        for (state, service) in expected {
+            #expect(StateStyle.garageDoor.spec(for: entity(id, state), entityId: id)?.call?.service == service, Comment(rawValue: state))
+        }
+        for state in ["unavailable", "unknown"] {
+            #expect(StateStyle.garageDoor.spec(for: entity(id, state), entityId: id)?.call == nil, Comment(rawValue: state))
+        }
     }
 
     @Test func lockStyleRequestSettings() throws {

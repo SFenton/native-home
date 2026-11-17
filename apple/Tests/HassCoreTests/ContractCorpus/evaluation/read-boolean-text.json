@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "read-boolean-text",
+  "note": "A read as a boolean turns \"true\" into true.",
+  "subject": {
+    "operand": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "x",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "boolean",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "x/state": {
+        "status": "value",
+        "value": "true"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": true
+  }
+}

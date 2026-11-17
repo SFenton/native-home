@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "chart-spoken-amounts",
+  "note": "Amounts with two places and a unit.",
+  "subject": {
+    "chart": {
+      "op": "spoken",
+      "points": [
+        {
+          "label": "Now",
+          "value": 0
+        },
+        {
+          "label": "7 PM",
+          "value": 0.07
+        },
+        {
+          "label": "8 PM",
+          "value": 0.09
+        }
+      ],
+      "pattern": "{value} in",
+      "digits": 2,
+      "unknownText": "Unavailable"
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "spoken": "Now 0 in, 7 PM 0.07 in, 8 PM 0.09 in"
+    }
+  }
+}

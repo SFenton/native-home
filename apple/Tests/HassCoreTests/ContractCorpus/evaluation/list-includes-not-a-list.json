@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "list-includes-not-a-list",
+  "note": "An attribute that is not a list is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "literal",
+        "value": "cool"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": "cool"
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

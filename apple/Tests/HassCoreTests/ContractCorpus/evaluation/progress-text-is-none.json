@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-text-is-none",
+  "note": "A value that is not a number draws no progress.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "string",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "cleaning"
+      }
+    }
+  },
+  "expected": {
+    "progress": null
+  }
+}

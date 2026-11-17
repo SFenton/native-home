@@ -730,7 +730,8 @@ import Testing
         try mutation("/document/dataSources/1/inputs/entityId/value", .string("light.demo_unit"), .invalidCombination)
         try mutation("/document/dataSources/1/inputs/entityId/value", .string("switch.demo_bad/path"), .invalidValue)
         try mutation(grid + "/children/1/action", value(#"{"type":"back"}"#), .invalidCombination, at: grid + "/children/1/action/type")
-        try mutation(power + "/action", value(#"{"type":"service","service":"toggle"}"#), .unknownVariant, at: power + "/action/type")
+        // A power tile takes the power action only (an object, as in the Studio), so a foreign action reports the field it lacks first.
+        try mutation(power + "/action", value(#"{"type":"service","service":"toggle"}"#), .missingRequired, at: power + "/action/confirmation")
         try mutation("/document/navigation/initialPageId", .string("page-echo"), .invalidCombination, at: "/document/navigation/initialTabId")
         try mutation("/document/modals/0/toolbar", value(#"{"type":"inherit"}"#), .invalidCombination)
         try mutation("/document/pages/0/components/0/layout/span", .number(2), .invalidCombination)

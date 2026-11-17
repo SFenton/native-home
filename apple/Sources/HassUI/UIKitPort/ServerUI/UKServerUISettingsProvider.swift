@@ -66,6 +66,10 @@ enum UKServerUISettingsProviders {
 // MARK: - Width-driven native atom
 
 /// Keeps the canonical child and observation lifetime across compatible publications.
+///
+/// The child is pinned to the atom's edges with constraints, so the atom has the child's height under Auto Layout as well as through
+/// ``gridHeight(forWidth:)``. A settings row in a module list (a `UIStackView` of rows, sized by system fitting) would otherwise have
+/// no size of its own and collapse to a hairline: the 350x1 rows of the preview's Settings page.
 @MainActor
 final class UKServerUISettingsAtom: UIView, UKGridMeasuring {
     let bag = UKObservationBag()
@@ -81,10 +85,18 @@ final class UKServerUISettingsAtom: UIView, UKGridMeasuring {
         content?.removeFromSuperview()
         definition = control
         self.provider = provider
-        let view = try provider.make(control, host: self, page: page)
+        install(try provider.make(control, host: self, page: page), identifier: control.node.id)
+    }
+
+    /// Shows `view` as the atom's child, pinned to its edges.
+    /// - Parameters:
+    ///   - view: The control the provider made.
+    ///   - identifier: The accessibility identifier it carries.
+    func install(_ view: UIView, identifier: String) {
         content = view
         addSubview(view)
-        view.accessibilityIdentifier = control.node.id
+        view.ukPin(to: self)
+        view.accessibilityIdentifier = identifier
         ukRemeasureContainers(includingSelf: true)
     }
 
@@ -100,11 +112,6 @@ final class UKServerUISettingsAtom: UIView, UKGridMeasuring {
         return ceil(content.systemLayoutSizeFitting(
             CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height)
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        content?.frame = bounds
     }
 
     /// A rejected session/target never looks like a successful tap.

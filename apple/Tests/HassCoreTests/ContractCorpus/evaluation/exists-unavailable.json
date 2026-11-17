@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "exists-unavailable",
+  "note": "exists is unknown for an unavailable operand.",
+  "subject": {
+    "condition": {
+      "type": "exists",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

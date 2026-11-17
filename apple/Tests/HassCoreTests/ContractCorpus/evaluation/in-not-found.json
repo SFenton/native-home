@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "in-not-found",
+  "note": "in is no when none matches.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "literal",
+        "value": "x"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "off"
+        },
+        {
+          "type": "literal",
+          "value": "on"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "no"
+  }
+}

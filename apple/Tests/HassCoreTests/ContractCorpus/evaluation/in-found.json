@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "in-found",
+  "note": "in is yes when any option matches.",
+  "subject": {
+    "condition": {
+      "type": "in",
+      "value": {
+        "type": "literal",
+        "value": "on"
+      },
+      "in": [
+        {
+          "type": "literal",
+          "value": "off"
+        },
+        {
+          "type": "literal",
+          "value": "on"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "yes"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "format": 1,
+  "name": "text-literal",
+  "note": "A literal is itself.",
+  "subject": {
+    "text": {
+      "type": "literal",
+      "value": "Hello"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Hello"
+  }
+}

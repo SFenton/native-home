@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-levels-grouping",
+  "note": "Thousands are grouped, en-US: 1250 is 1,250.",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 2,
+      "top": 1250,
+      "pattern": "{value} W",
+      "digits": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        1250,
+        0
+      ],
+      "labels": [
+        "1,250 W",
+        "0 W"
+      ]
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "list-includes-nfc",
+  "note": "Text is equal under NFC: e and U+0301 matches U+00E9.",
+  "subject": {
+    "operand": {
+      "type": "list-includes",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      },
+      "value": {
+        "type": "literal",
+        "value": "é"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": [
+          "é"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": true
+  }
+}

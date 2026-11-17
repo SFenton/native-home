@@ -153,6 +153,41 @@ struct RoomsTests {
         #expect(RoomsConfig.Groceries.subtitle(count: nil) == "No groceries listed")
     }
 
+    // MARK: Contact card subtitle
+
+    @Test func contactCardSubtitleYieldsToAuthoredSubtitleOrShowState() {
+        let open = EntityState(entityId: "binary_sensor.contact_test_front", state: "on")
+        let closed = EntityState(entityId: "binary_sensor.contact_test_front", state: "off")
+        let unknown = EntityState(entityId: "binary_sensor.contact_test_front", state: "unknown")
+        let gone = EntityState(entityId: "binary_sensor.contact_test_front", state: "unavailable")
+        func line(_ e: EntityState, sources: Bool = false, show: Bool = false, action: Bool = false, power: Bool = false,
+                  authored: String? = "Authored") -> String? {
+            RoomFormat.contactCardSubtitle(authored: authored, entity: e, hasAction: action, hasPower: power,
+                                           hasSubtitleSources: sources, showState: show)
+        }
+        // Nothing authored: native's rule applies (blank for Open and Closed, words for Unavailable and Unknown).
+        #expect(line(open) == "")
+        #expect(line(closed) == "")
+        #expect(line(unknown) == "Unknown")
+        #expect(line(gone) == "Unavailable")
+        // A subtitle source, showState, an action or a power keeps the authored line.
+        #expect(line(open, sources: true) == "Authored")
+        #expect(line(open, show: true) == "Authored")
+        #expect(line(open, action: true) == "Authored")
+        #expect(line(open, power: true) == "Authored")
+        #expect(line(open, authored: nil) == "")
+    }
+
+    @Test func contactCardSpokenValueFollowsWhatIsDrawn() {
+        let open = EntityState(entityId: "binary_sensor.contact_test_front", state: "on")
+        let gone = EntityState(entityId: "binary_sensor.contact_test_front", state: "unavailable")
+        #expect(RoomFormat.contactCardSpokenValue(entity: open, drawn: "") == "Open")
+        #expect(RoomFormat.contactCardSpokenValue(entity: open, drawn: nil) == "Open")
+        #expect(RoomFormat.contactCardSpokenValue(entity: open, drawn: "Open") == "Open")
+        #expect(RoomFormat.contactCardSpokenValue(entity: open, drawn: "80 %") == "Open, 80 %")
+        #expect(RoomFormat.contactCardSpokenValue(entity: gone, drawn: "Unavailable") == "Unavailable")
+    }
+
     // MARK: Formatting
 
     @Test func compactStatesMatchTheWeb() {

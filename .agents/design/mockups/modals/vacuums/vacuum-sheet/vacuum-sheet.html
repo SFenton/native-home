@@ -6,6 +6,7 @@
 <script src="../../../_kit/kit.js"></script>
 <script src="../../room-devices/_devices-vacuums.js"></script>
 <script src="../_devices-vacuums.js"></script>
+<script src="../_map-controls.js"></script>
 <script src="../../../proposals/action-navigation-tiles/_action-tiles.js"></script>
 <script src="../../../proposals/selection-tiles/_selection.js"></script>
 </head><body>
@@ -16,7 +17,12 @@
   /* VacuumSheet, decided design (owner 2026-10-28, vacuum-sheet-redesign): NavigationStack { map + status tiles column, then the section's panel } inside hassSheet(.page, height: .full); the section bar is the bottom
      ModalTabBar (icons at compact width, five sections); the Close circle trails; subtitle "State · battery". Two columns (map and status | tabs) where a split is allowed and the sheet is 640 pt or wider.
      The panels come from the shared vacuum helpers (vac.controlsD, roomsD, autoD, dockD), which use the action and selection tiles of the tile patterns. */
-  function S(o) { return function (c) { return vac.sheet(c, o); }; }
+  /* S(o, m): the sheet in state o; m is the map's authored orientation and corner groups (modals/vacuums/_map-controls.js), absent for today's map. */
+  function S(o, m) { return function (c) { return m ? MC.with(m, function () { return vac.sheet(c, o); }) : vac.sheet(c, o); }; }
+  var MC = vac.mapControls, B = MC.B;
+  var ROW = MC.DEFAULT.concat([{ corner: 'top-trailing', axis: 'row', buttons: [B.clean, B.lights, B.fan] }]);
+  var COLUMN = MC.DEFAULT.concat([{ corner: 'bottom-leading', axis: 'column', buttons: [B.lights, B.fan] }]);
+  var EIGHT = MC.DEFAULT.concat([{ corner: 'top-trailing', axis: 'column', buttons: [B.clean, B.lights, B.fan, B.outlet, B.night, B.day, B.purifier, B.humidifier] }]);
   var V = vac.V;
   var AREA = { x: 24, y: 24, w: 150, h: 120 };   // a drawn area (viewBox units)
   function tabCol(stage) { return stage.querySelector('.ui-sheet .vc-tabcol'); }
@@ -30,12 +36,12 @@
   }
 
   Mock.mount({
-    kind: 'modal', id: 'vacuum-sheet', title: 'Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)', area: 'vacuums', status: 'shipped',
-    summary: 'Opened from a robot tile on the Vacuums page and from a room page. The map (no room names) and three equal status tiles lead; the section\'s panel follows; the five sections sit in the bottom glass bar. Settings are pop-up rows, every command is an action tile, Rooms and Auto-Clean are selection tiles. While a clean runs the map grows and the setup collapses to Pause and Stop tiles. Full-height page sheet, light and dark.',
+    kind: 'modal', id: 'vacuum-sheet', title: 'Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)', area: 'vacuums', status: 'in-flight:t3/native-ingest',
+    summary: 'Opened from a robot tile on the Vacuums page and from a room page. The map (no room names) and three equal status tiles lead; the section\'s panel follows; the five sections sit in the bottom glass bar. Settings are pop-up rows, every command is an action tile, Rooms and Auto-Clean are selection tiles. While a clean runs the map grows and the setup collapses to Pause and Stop tiles. The map can carry authored corner button groups and a flip; with nothing authored it shows Locate alone. Full-height page sheet, light and dark.',
     source: ['apple/Sources/HassUI/Features/Vacuums/VacuumSheet.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumTabs.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumMapPanel.swift', 'apple/Sources/HassUI/Features/Vacuums/VacuumComponents.swift', 'apple/Sources/HassUI/UIKitPort/Features/Vacuums/UKVacuumComponents.swift', 'apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift', 'apple/Sources/HassUI/Common/ModalTabBar.swift', 'apple/Sources/HassUI/UIKitPort/Common/UKSmoothContentSwap.swift', 'apple/Sources/HassCore/Vacuums/VacuumController.swift', 'apple/Sources/HassCore/Vacuums/VacuumStatus.swift', 'apple/Sources/HassCore/Vacuums/VacuumOutcomes.swift', 'apple/Sources/HassCore/Config/VacuumConfig.swift'],
     spec: ['.agents/patterns/vacuum-sheet.md', '.agents/pages/vacuums/ios.md', '.agents/pages/vacuums/spec.md', '.agents/patterns/valetudo-map.md'],
     patterns: ['vacuum-sheet', 'valetudo-map', 'modal-sheet', 'module-list', 'status-pill'],
-    hig: ['Sheets', 'Pop-up buttons', 'Buttons', 'Lists', 'Color', 'Dynamic Type', 'Layout'],
+    hig: ['Sheets', 'Pop-up buttons', 'Buttons', 'Menus', 'Materials', 'Lists', 'Color', 'Dynamic Type', 'Layout'],
     entities: ['vacuum.demo_vacuum_1', 'sensor.demo_main_floor_status_1', 'sensor.demo_level_1', 'sensor.demo_status_2', 'camera.demo_lower_deck_camera_item_1',
       'select.demo_mode_5', 'select.demo_fan_3', 'select.demo_select_2', 'input_select.demo_main_floor_1', 'script.demo_main_floor_3', 'script.demo_main_floor_zone_1', 'sensor.demo_main_floor_state_1'],
     kitComponents: ['HassModal', 'SheetCloseItem', 'ModalTabBar', 'ModuleList', 'PrimaryButton', 'InlineAlert', 'InfoBox', 'ArcSpinner', 'GlassTile', 'TileGrid'],
@@ -68,6 +74,17 @@
       'offline': { title: 'Over an offline Vacuums page', note: 'no offline UI of its own: the last values stay; the page behind carries the offline chip', render: S({ connection: 'offline' }) },
       'clean-error': { title: 'Clean failed to start', note: 'red text under the Clean button: "The vacuum did not begin cleaning within 30 seconds."', render: S({ cleanError: 'The vacuum did not begin cleaning within 30 seconds.' }) },
       'report-notice': { title: 'Report still being prepared', note: 'the cleaning report row becomes a warning (incomplete, malformed or incompatible report)', render: S({ v: V({ report: 'incomplete' }) }) },
+      'map-buttons': { title: 'Map buttons: Locate and a row of three at top trailing', note: 'An authored map. Each corner group is one glass capsule of 44 pt buttons, 8 pt from the card\'s edges, in the authored order: here Clean (a vacuum command), Kitchen Lights and Hallway Fan (service calls). Locate keeps its circle at top leading. Taps beside a group reach the map.', render: S({}, { groups: ROW }) },
+      'map-buttons-column': { title: 'Map buttons: a column of two at bottom leading', note: 'A column reads top to bottom: one capsule, 44 by 88 pt, 8 pt from the bottom and leading edges.', render: S({}, { groups: COLUMN }) },
+      'map-flip-h': { title: 'Map flipped horizontally', note: 'The vacuum source\'s flip mirrors the picture left to right after its rotation: rooms, dock, robot and taps move together. Order badges stay upright on their rooms; the buttons do not move.', render: S({}, { flipH: true }) },
+      'map-flip-v': { title: 'Map flipped vertically', note: 'Mirrored top to bottom; badges and buttons as before.', render: S({}, { flipV: true }) },
+      'map-flip-both': { title: 'Map flipped both ways, with buttons', note: 'Both flips together read as the map turned upside down. The groups keep their corners.', render: S({}, { flipH: true, flipV: true, groups: ROW }) },
+      'map-more': { title: 'More: a column that does not fit (Studio)', note: 'Eight buttons are authored at top trailing. The card fits k of them (k is its height less 16 pt, over 44 pt, rounded down), so it draws k - 1 and then More (the ellipsis). The count follows the card, so it differs by window.', render: S({ v: V({ robot: 'music' }) }, { groups: EIGHT }) },
+      'map-more-open': { title: 'More, open: a system menu of the rest', note: 'More opens a system menu on touch down. It lists the buttons that did not fit, in order, each with its label and symbol; a blocked one is disabled with its reason as the subtitle. Drawn here as a stand-in: the evidence stills do not capture the system menu.', render: S({ v: V({ robot: 'music' }) }, { groups: EIGHT, menu: 'top-trailing' }) },
+      'map-command-blocked': { title: 'Map buttons: a command the vacuum offers but cannot run', note: 'Clean is offered but its script is missing in Home Assistant, so it is dimmed in place (symbol at 40%) and does nothing; VoiceOver reads the reason as its value: "This service is not available in Home Assistant."', render: S({}, { groups: ROW, blocked: { clean: 'This service is not available in Home Assistant.' } }) },
+      'map-buttons-unavailable': { title: 'Map buttons while the robot is unavailable', note: 'Locate is hidden, as on today\'s map. Clean is hidden, not dimmed: the vacuum offers no Clean while it cannot be reached. Kitchen Lights and Hallway Fan follow their own rules and stay.', render: S({ v: V({ scenario: 'unavailable' }) }, { groups: ROW, unoffered: ['clean'] }) },
+      'map-buttons-nomap': { title: 'Map buttons over Map Unavailable', note: 'With a top corner authored, the fallback\'s words start 60 pt down so the buttons do not cover them.', render: S({ v: V({ scenario: 'unavailable', map: 'none' }) }, { groups: ROW, unoffered: ['clean'] }) },
+      'map-increase-contrast': { title: 'Map buttons under Increase Contrast', note: 'An opaque plate (#3A3A3C in dark, white in light) with a 1 pt outline in the symbol colour. Reduce Transparency (the control above) gives the opaque plate without the outline.', render: S({}, { groups: ROW, contrast: true }) },
       'large': { title: 'Large detent (shipped, full height)', render: S({ detent: 'large' }) },
       'closed': { title: 'Before presenting / after dismissing', note: 'the Vacuums page', render: function (c) { return vac.pagePresenter(c, { scenarios: ['docked', 'docked', 'docked'] }); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the section bar is a menu button; the status tiles stack in one column; action tiles take full rows; pop-up rows put the value under the title; the sheet scrolls', render: S({}) },
@@ -129,6 +146,7 @@
     ],
 
     a11y: [
+      { rule: 'Map buttons', note: 'Each button is its own element: the authored label, an optional hint, the button trait; a dimmed one adds Not Enabled and its reason as the value. VoiceOver reads the groups in place order, leading to trailing and top to bottom. More is "More Map Controls", hint "Shows the rest of the buttons in this corner." Every button is 44 by 44 pt at every text size and shows its symbol and label in the large content viewer. A flip never mirrors a badge, a marker or a button.' },
       { rule: 'Reading order', note: 'Title "Main Floor Robot Vacuum" with the subtitle "Docked · 87%"; the map (one decorative element with the selected rooms as its value); Locate; the three status tiles (Status, Battery, Dock); notices; the Cleaning Report row; then the section\'s panel; the section bar ("Main Floor sections") and Close last.' },
       { rule: 'Map', note: 'The map is one element named "Main Floor Valetudo map" with the selected rooms as its value. Room names are not drawn (owner 2026-10-28), so the Rooms section and the Selected Rooms summary are where rooms are named; order badges are drawn but hidden from VoiceOver.' },
       { rule: 'Rooms and Auto-Clean tiles', note: 'Each Rooms tile is a toggle ("Kitchen, cleaning order 1", value On/Off) at least 76 pt tall; each Auto-Clean tile is a toggle ("Guest Room, Skipped", Included / Skipped) with a check disc; an unavailable tile is dimmed and not actionable. The Selected Rooms summary reads each chip as "1. Kitchen" and its hint says it opens the Rooms section.' },
@@ -142,7 +160,7 @@
     reviews: {
       date: '2026-10-23',   /* the entries above the redesign line predate it; the redesign is reviewed on its diff (swiftui-pro, apple-hig) in the build PR */
       hig: [
-        { rule: 'Sheets: grabber and size', verdict: 'pass', note: 'hassSheet shows the grabber and an opaque ground; a full-height page sheet suits a map plus five sections (VacuumsScreen.swift:66; owner 2026-10-16: tabbed modals stay full so the height never changes with a tab).', by: 'apple-hig skill' },
+        { rule: 'Sheets: grabber and size', verdict: 'pass', note: 'hassSheet shows the grabber and an opaque ground; a full-height page sheet suits a map plus five sections (UKHassModal; owner 2026-10-16: tabbed modals stay full so the height never changes with a tab).', by: 'apple-hig skill' },
         { rule: 'Sheets: Cancel or Done in the toolbar', verdict: 'departure', note: 'The root carries a trailing circle-X Close instead of Cancel and Done (SheetCloseItem, HassModal.swift:20-29); owner 2026-10-13: "circle X close button like FestivalNativeApps".', by: 'apple-hig skill' },
         { rule: 'Pop-up buttons: one grammar for choices (redesign 2026-10-28)', verdict: 'departure', note: 'Every select in Cleaning Settings is a pop-up row, including the three-option Mode and Passes where a segmented control would be one tap: one grammar beats one saved tap (owner, option B; direction-g "Choosing one option" allows pop-ups). Departure from Segmented controls: use for few, same-kind options.', by: 'apple-hig skill' },
         { rule: 'Segmented controls and tab bars: section switcher', verdict: 'departure', note: 'Five sections sit in a glass segmented control of icons (ModalTabBar.swift) rather than a tab bar or text; owner 2026-10-16 "show icons like the web app instead of text titles", direction G Sheets; segments keep titles for VoiceOver and become a menu at AX sizes.', by: 'apple-hig skill' },
@@ -150,6 +168,9 @@
         { rule: 'Materials: Liquid Glass on the navigation layer only', verdict: 'pass', note: 'The section bar is a navigation-layer glass capsule over scrolling content; cards and map stay on opaque sheet cells (ModalTabBar.swift navigationGlass).', by: 'apple-hig skill' },
         { rule: 'Buttons: say why a command is disabled', verdict: 'pass', note: 'Fixed: VacuumActionButton now sets the reason as accessibilityValue while disabled (VacuumComponents.swift). ', by: 'apple-hig skill' },
         { rule: 'Feedback: confirm a started command', verdict: 'pass', note: 'Fixed in VacuumComponents.swift (VacuumActionButton) and VacuumMapPanel.swift (Locate): TapFeedback.tap on every action.', by: 'apple-hig skill' },
+        { rule: 'Buttons: "As a general rule, the hit region is at least 44x44 pt"', verdict: 'pass', note: 'Reviewed 2026-11-16 from the native stills (build/evidence/screens/native-mapctl-cd641867): every map button is 44 by 44 pt on iPhone, Duo and iPad; a group is one glass shape, 8 pt in, 12 pt from a neighbour.', by: 'apple-hig skill' },
+        { rule: 'Pull-down buttons: "Consider a More pull-down button for items that don\'t need prominent positions."', verdict: 'pass', note: 'Reviewed 2026-11-16: only the buttons that do not fit move behind More, in the authored order, so the first ones stay on the map; the HIG notes the ellipsis "can hinder discoverability", which is why More appears only on overflow.', by: 'apple-hig skill' },
+        { rule: 'Menus: "Show when an item is unavailable, often dimmed and unresponsive."; "Treat items in the same group uniformly: icons for all or none."', verdict: 'pass', note: 'Reviewed 2026-11-16 from the hosted tests (the open menu is not in the stills): a blocked button is a disabled menu item with its reason as the subtitle, and every item carries its symbol.', by: 'apple-hig skill' },
         { rule: 'Dynamic Type: reflow', verdict: 'pass', note: 'Sections become a menu of text titles, settings become menus, Pause and Stop stack (VacuumTabs.swift:151-152, VacuumSettingRow).', by: 'apple-hig skill' },
       ],
       swiftui: [
@@ -161,6 +182,11 @@
     },
 
     notes: [
+      'In flight on t3/native-ingest (4b066cd6): map orientation and corner button groups. Was: the map carried Locate alone at top leading and had no flip. With nothing authored the map is unchanged (the vacuum pair gate holds it within 0.4% of pixels).',
+      'Map buttons are drawn by modals/vacuums/_map-controls.js (promote to kit), a stand-in for UKMapControlsView, MapControlFit and MapOrientation on t3/native-ingest; the rules are in .agents/patterns/map-controls.md and the decision in .agents/decisions/2026-11-16-map-controls.md there. Those files are not in this checkout yet, so source and spec do not list them.',
+      'Map button fixtures: Clean is a source command; Kitchen Lights, Hallway Fan and the rest are service calls with authored symbols and labels. The evidence stills use lightbulb, fan and bolt labelled Button 1 to 8.',
+      'Open, from the stills: over the dark card in the light appearance the glass plate is a lighter grey and the symbols are white on iPhone but dark on Duo and iPad; the mockup draws the kit\'s glass ink. More open is not in the stills (a hosted render leaves the system menu out); the tests assert its items.',
+      'Not drawn: a right-to-left language, where leading and trailing corners swap sides and the picture follows only the authored flip.',
       'medium and fitted: this sheet has neither; it is hassSheet(.page, height: .full) so it opens large only (the large state is the shipped one). The pattern doc calls it "large detent".',
       'Docs versus catalog: the catalog\'s motionHint says "tab switch is a cut", but the vacuum sheet fades its panel through SmoothContentSwap (statesHint is right). The humidifier sheet\'s tab switch is a cut.',
       'Docs versus code: ModalTabBar\'s comment and vacuum-sheet.md say fewer than five sections "read as text"; the code shows icons at compact width whatever the count (ModalTabBarStyle.form). Drawn as code.',
@@ -175,7 +201,8 @@
       'Promote to kit: vac.statusTiles, vac.actionTile, vac.settingsGroup, vac.toggleRow, vac.targetSection, vac.roomsD, vac.autoD, vac.dockD (modals/vacuums/_devices-vacuums.js); the tile helpers still load from proposals/action-navigation-tiles and proposals/selection-tiles.',
     ],
     changelog: [{ date: '2026-10-23', note: 'First pass built with the kit: five sections, runtime modes, scenarios (docked, cleaning, paused, error, resumable, low battery, unavailable), map states, two columns, AX5; light and dark.' },
-      { date: '2026-10-28', note: 'Redrawn to the owner-decided redesign: no room names, status tiles, pop-up settings with the animated Water and Fan rows, Use Area / Use Rooms tiles, selection tiles for Rooms and Auto-Clean, action tiles with footers for Dock and the run section.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' }],
+      { date: '2026-10-28', note: 'Redrawn to the owner-decided redesign: no room names, status tiles, pop-up settings with the animated Water and Fan rows, Use Area / Use Rooms tiles, selection tiles for Rooms and Auto-Clean, action tiles with footers for Dock and the run section.' }, { date: '2026-10-29', note: 'Shipped in PR #210.' },
+      { date: '2026-11-16', note: 'Map orientation and corner button groups as built on t3/native-ingest (4b066cd6), from proposals/vacuum-map-controls: rows and columns in corners, the three flips, More closed and open, a blocked command, the unavailable robot (Locate and Clean hidden), Map Unavailable, Increase Contrast.' }],
   });
 })();
 </script></body></html>

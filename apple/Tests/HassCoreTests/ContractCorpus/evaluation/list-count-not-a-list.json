@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "list-count-not-a-list",
+  "note": "An attribute that is not a list is unavailable: text is not a list of one.",
+  "subject": {
+    "operand": {
+      "type": "list-count",
+      "from": {
+        "type": "source",
+        "sourceId": "hvac",
+        "path": [
+          "attributes",
+          "hvac_modes"
+        ]
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "hvac/attributes/hvac_modes": {
+        "status": "value",
+        "value": "heat"
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

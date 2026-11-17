@@ -1,0 +1,131 @@
+{
+  "format": 1,
+  "name": "annotate-keeps-the-item-fields",
+  "note": "Without a map the item keeps its own fields and gains the annotated ones.",
+  "response": [
+    {
+      "lo": 1,
+      "hi": 5
+    },
+    {
+      "lo": 3,
+      "hi": 9
+    }
+  ],
+  "compiles": true,
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "hi": {
+              "shape": {
+                "kind": "number",
+                "integer": true
+              }
+            },
+            "lo": {
+              "shape": {
+                "kind": "number",
+                "integer": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "range",
+        "op": "annotate",
+        "fields": {
+          "top": {
+            "aggregate": "max",
+            "value": {
+              "type": "item",
+              "path": [
+                "hi"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "records",
+      "max": 24
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "hi": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "lo": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "top": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "number"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "lo": 1,
+        "hi": 5,
+        "top": 9
+      },
+      {
+        "lo": 3,
+        "hi": 9,
+        "top": 9
+      }
+    ]
+  }
+}

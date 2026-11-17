@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "progress-clamped-below",
+  "note": "A value below 0 is clamped to 0.",
+  "subject": {
+    "progress": {
+      "type": "read",
+      "from": {
+        "type": "source",
+        "sourceId": "temp",
+        "path": [
+          "state"
+        ]
+      },
+      "as": "number",
+      "missing": "unavailable"
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "-0.5"
+      }
+    }
+  },
+  "expected": {
+    "progress": 0
+  }
+}

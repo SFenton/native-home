@@ -31,6 +31,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The push-notification state the bootstrap notice nodes read.
     let notificationSource: UKServerUINotificationSource
     /// Sends authored `call-service` actions and holds the optimistic values they show.
+    let enabledMemory = UKEnabledMemory()
     let callRunner: UKServerUICallRunner
     /// Whether this device negotiated `sh.state-style@1`. False makes every `state-tile` use its built-in style alone; the app
     /// negotiates it, so only a test or an older host turns it off.
@@ -71,6 +72,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     private let bag = UKObservationBag()
     private let tabBag = UKObservationBag()
     private var tabShown: [String: Bool] = [:]
+    /// The text each tab's authored badge (`sh.badges@1`) last resolved to; a tab with none, or a count of 0, has no entry.
+    private var tabBadges: [String: String] = [:]
     private var accessibilityObservers: UKObserverTokens?
     private var edgePan: UIScreenEdgePanGestureRecognizer?
     private var standaloneSignals: UKDeviceSignals?
@@ -104,6 +107,16 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// - Parameter value: The component to test.
     func componentVisible(_ value: D.Component) -> Bool {
         records.isVisible(value) && bindings.roomVisible(value)
+    }
+
+    /// The scope of the repeat cell `view` sits in, or `nil` outside a repeat.
+    static func cellScope(of view: UIView?) -> UKServerUICellScope? {
+        var current = view
+        while let candidate = current {
+            if let host = candidate as? UKServerUICellHost { return host.scope }
+            current = candidate.superview
+        }
+        return nil
     }
 
     /// The environment authored expressions are evaluated against: entity boxes, the optimistic overlay and the signed-in person.
@@ -236,6 +249,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         notificationSource = UKServerUINotificationSource(push: context.push)
         callRunner = UKServerUICallRunner(context: pageContext)
         super.init(nibName: nil, bundle: nil)
+        bindings.readerProvider = { [unowned self] in self.reader() }
         nativeExitGate = .init(blocksExit: { [weak self] page in
             guard let self else { return true }
             return self.attachedSettingsProviders(from: page).contains(where: \.blocksExit)
@@ -343,7 +357,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
 
         try bindings.validateReplacement(candidate.document.dataSources)
         if candidate.document.navigation != publication.document.navigation,
-           bindings.alarms.values.contains(where: \.hasPendingIntent) || bindings.doors.values.contains(where: \.hasPendingIntent) {
+           bindings.alarms.values.contains(where: \.hasPendingIntent) {
             throw blocked()
         }
         if candidate.document != publication.document,
@@ -462,10 +476,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             let source: String
             switch attachment.component {
             case .alarmPanel(let panel): source = panel.sourceId
-            case .doorTile(let tile): source = tile.sourceId
             default: continue
             }
-            if bindings.alarms[source]?.hasPendingIntent == true || bindings.doors[source]?.hasPendingIntent == true {
+            if bindings.alarms[source]?.hasPendingIntent == true {
                 throw blocked("/document/dataSources")
             }
         }
@@ -491,7 +504,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         func visit(_ components: [D.Component], surfaceID: String) {
             for component in components {
                 switch component {
-                case .alarmPanel, .doorTile:
+                case .alarmPanel:
                     result[component.node.id] = .init(surfaceID: surfaceID, component: component)
                 default: break
                 }
@@ -744,7 +757,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             _ = self.environment.inVerticalBar
             self.updateStyle()
         }
-        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (host: UKServerUIRenderer, _) in host.updateStyle() }
+        registerForTraitChanges([UITraitHorizontalSizeClass.self, UITraitVerticalSizeClass.self]) { (host: UKServerUIRenderer, _) in
+            host.updateStyle()
+            host.bindings.appState.updateWindow(size: host.view.bounds.size, traits: host.traitCollection)
+        }
         if let connection = pageContext.connection {
             Task { [weak self] in
                 guard let self else { return }
@@ -760,6 +776,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         super.viewDidLayoutSubviews()
         standaloneSignals?.refresh()
         let canvas = view.bounds.size
+        bindings.appState.updateWindow(size: canvas, traits: traitCollection)
         if environment.canvas != canvas {
             environment.canvas = canvas
             backdropStore.setWindow(canvas, scale: Double(traitCollection.displayScale))
@@ -819,10 +836,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             stacks[root] = nav
             sync(nav, path: path, root: root, presentation: nil, animated: animated, updateBodies: updateBodies)
             if case .tab(let id) = root, let tab = publication.document.navigation.tabs.first(where: { $0.id == id }) {
-                nav.tabBarItem.title = tab.label
-                nav.tabBarItem.image = UIImage(systemName: tab.icon.drawn)
-                nav.tabBarItem.accessibilityLabel = tab.label
-                nav.tabBarItem.accessibilityIdentifier = tab.id
+                applyTabItem(tab, to: nav.tabBarItem)
             }
         }
         let controllers = roots.filter(isRootShown).compactMap { stacks[$0] }
@@ -1066,6 +1080,13 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - confirmed: The sender already asked the question (a tile presents the action's confirmation itself).
     func activate(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                   control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) {
+        // A tap inside a repeat cell reads that cell's `item` and `index`: the scope of the cell the sending view sits in is current while it runs.
+        let outerCell = bindings.cell
+        let cell = Self.cellScope(of: source) ?? outerCell
+        bindings.cell = cell
+        defer { bindings.cell = outerCell }
+        // An action chosen by rule is resolved here, once, from the house as it is now; no case holding runs nothing.
+        guard let action = action.resolved(reader(control: control)) else { return }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) {
             requestSettingsExit(from: page) { [weak self, weak page, weak source] in
                 guard let self, let page else { return }
@@ -1100,6 +1121,11 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The same intent boundary is available to hosted tests and the parent's integration adapter.
     func perform(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                  control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) throws {
+        // A replay (a discard guard, a pending intent) comes back here with the sending view: its cell is current again.
+        let outerCell = bindings.cell
+        bindings.cell = Self.cellScope(of: source) ?? outerCell
+        defer { bindings.cell = outerCell }
+        guard let action = action.resolved(reader(control: control)) else { return }
         guard let nav = senderStack(page), activeAlert == nil else { throw blocked() }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) { throw blocked() }
         if action.leavesForm, nativeExitGate?.blocksExit(page) == true { throw blocked("/document/form") }
@@ -1169,6 +1195,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             case .domain(let action): try power(action, from: page, source: source, symbol: symbol)
             case .callService(let call):
                 try runCall(call, from: page, source: source, control: control, site: site, confirmed: confirmed)
+            case .conditional: break  // resolved to a plain action before this switch
             }
             if settingsExit(action) { attachedSettingsProviders(from: page).forEach { $0.didExit() } }
         } catch is ServerUINavigationState.Failure { throw blocked() }
@@ -1189,7 +1216,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         case .present(let id, _, let policy):
             pages = policy == .replace ? modal?.viewControllers.compactMap { $0 as? UKServerUIPage } ?? adaptive?.pages ?? []
                 : publication.document.modals.first(where: { $0.id == id })?.presentation.adaptive == true ? adaptive?.pages ?? [] : []
-        case .domain, .setLocal, .callService: pages = []
+        case .domain, .setLocal, .callService, .conditional: pages = []
         }
         return pages.compactMap(\.formView)
     }
@@ -1231,6 +1258,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         case .callService: return pageContext.caller != nil
         case .setLocal(let id, let value):
             return publication.document.localState.first(where: { $0.id == id })?.accepts(value) == true
+        case .conditional(let rule):
+            // Resolved at the tap; the control is enabled while any action it could run can run.
+            return rule.actions.contains { isEnabled($0, from: page) }
         }
     }
 
@@ -1316,7 +1346,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
 
     private func updateFlyout() {
         let destinations = publication.document.navigation.tabs.filter { isTabShown($0.id) }.map {
-            UKFlyoutDestination(id: $0.id, title: $0.label, symbol: $0.icon.drawn, identifier: $0.id)
+            UKFlyoutDestination(id: $0.id, title: $0.label, symbol: $0.icon.drawn, identifier: $0.id,
+                                badge: tabBadges[$0.id], spokenLabel: Self.spokenTabLabel($0.label, badge: tabBadges[$0.id]))
         }
         let selected: String?
         if case .tab(let id) = navigation.snapshot.selection { selected = id } else { selected = nil }
@@ -1633,6 +1664,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         switch action {
         case .back, .dismiss, .dismissThenPush, .selectTab: true
         case .present(_, _, .replace): true
+        case .conditional(let rule): rule.actions.contains(where: settingsExit)
         default: false
         }
     }
@@ -1685,22 +1717,6 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if let page = modal?.viewControllers.last as? UKServerUIPage {
             modal?.isModalInPresentation = nativeExitGate?.blocksExit(page) == true
         }
-    }
-
-    /// Runs a door tile's reserved action after re-checking the tile against the published document.
-    /// - Parameters:
-    ///   - tile: The authored tile.
-    ///   - expected: The action the tile showed.
-    ///   - page: The page that owns it.
-    ///   - source: The view that was tapped.
-    func activateDoor(_ tile: D.DoorTile, expected: TileActionSpec, from page: UKServerUIPage, source: UIView) {
-        do {
-            guard senderStack(page) != nil, !isBusy, activeAlert == nil,
-                  securityControls(publication.document)[tile.node.id] == SecurityAttachment(surfaceID: page.surfaceID, component: .doorTile(tile)),
-                  let model = bindings.doors[tile.sourceId] else { throw blocked() }
-            try model.execute(model.reserve(expected: expected))
-        } catch let error as UKServerUIRendererError { onError(error) }
-        catch { onError(blocked()) }
     }
 
     /// Runs an alarm panel mode change and reports any failure through ``onError``.
@@ -1785,20 +1801,27 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// Operands are evaluated here, from the boxes as they are now, never observed; a call that cannot be resolved sends nothing and
     /// reports an unavailable source. The call goes through the one connection (`HassServiceCalling`) and its declared optimistic
     /// values are feedback only.
+    /// A state tile's own optimistic value names its entity directly, with no declared source: `domain.object` is the entity.
+    private static func entityId(_ id: String) -> String? {
+        id.range(of: "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$", options: .regularExpression) == id.startIndex..<id.endIndex ? id : nil
+    }
+
     private func runCall(_ call: ServerUICallService, from page: UKServerUIPage, source: UIView?, control: JSONValue?,
                          site: String?, confirmed: Bool) throws {
         guard pageContext.caller != nil, let resolved = call.resolve(reader(control: control)) else {
             throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
         }
         let identifier = site ?? source?.accessibilityIdentifier ?? "call-service"
+        // The confirmation runs later, outside this call: it brings the repeat cell's scope back so `item` and `index` still read.
+        let cell = bindings.cell
         let send: (ServerUICallService.Resolved) -> Void = { [weak self] resolved in
             guard let self else { return }
             let entities = call.optimistic.compactMap { entry in
-                self.bindings.entityID(for: entry.sourceId).value.map { (entityID: $0, value: entry) }
+                (self.bindings.entityID(for: entry.sourceId).value ?? Self.entityId(entry.sourceId)).map { (entityID: $0, value: entry) }
             }
             self.callRunner.run(site: identifier, call: call, resolved: resolved, entities: entities)
         }
-        guard !confirmed, call.asksConfirmation(of: reader().viewer),
+        guard !confirmed, call.asksConfirmation(of: reader().viewer, in: reader()),
               case .additional(let style, let title, let message, let confirmLabel, let cancelLabel, let destructive) = call.confirmation else {
             send(resolved)
             return
@@ -1807,6 +1830,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let alert = UIAlertController(title: title, message: message, preferredStyle: style == .dialog ? .actionSheet : .alert)
         let confirm = UIAlertAction(title: confirmLabel, style: destructive ? .destructive : .default) { [weak self, weak page] _ in
             guard let self else { return }
+            let outerCell = self.bindings.cell
+            self.bindings.cell = cell
+            defer { self.bindings.cell = outerCell }
             do {
                 // What is confirmed is what the house says now: operands are resolved again.
                 guard let page, self.senderStack(page) != nil, self.publication.revision == revision,
@@ -1837,9 +1863,47 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// Whether a tab's rule currently lets it be reached.
     func isTabShown(_ id: String) -> Bool { tabShown[id] ?? true }
 
+    /// What VoiceOver reads for a flyout row, which is one element and has no separate value: its label, then its badge ("Chores, 11").
+    static func spokenTabLabel(_ label: String, badge: String?) -> String {
+        badge.map { "\(label), \($0)" } ?? label
+    }
+
+    /// Puts a tab's label, symbol, identifier and badge on its bar item. The rail and the tab bar draw the same item.
+    private func applyTabItem(_ tab: D.Tab, to item: UITabBarItem) {
+        item.title = tab.label
+        item.image = UIImage(systemName: tab.icon.drawn)
+        item.badgeValue = tabBadges[tab.id]
+        // The count is the item's value, not part of its label: a tab bar button speaks its badge as a value of its own, and a value
+        // set here replaces that one, so VoiceOver says the count once ("Chores", "11") and never "Chores, 11, 11".
+        item.accessibilityLabel = tab.label
+        item.accessibilityValue = tabBadges[tab.id]
+        item.accessibilityIdentifier = tab.id
+    }
+
+    /// One observation per tab with an authored badge, each reading only the entities its operand names. A loading value keeps the
+    /// badge it had, so a reconnect never blanks it.
+    private func observeTabBadges() {
+        let tabs = publication.document.navigation.tabs
+        let kept = tabBadges.filter { id, _ in tabs.contains { $0.id == id && $0.badgeValue != nil } }
+        let pruned = kept.count != tabBadges.count
+        tabBadges = kept
+        if pruned, isViewLoaded { updateFlyout() }
+        for tab in tabs {
+            guard let value = tab.badgeValue else { continue }
+            tabBag.observe { [weak self] in
+                guard let self else { return }
+                guard case .text(let text) = ServerUILayoutRules.badge(value, in: self.reader()), self.tabBadges[tab.id] != text else { return }
+                self.tabBadges[tab.id] = text
+                if let nav = self.stacks[.tab(tab.id)] { self.applyTabItem(tab, to: nav.tabBarItem) }
+                if self.isViewLoaded { self.updateFlyout() }
+            }
+        }
+    }
+
     /// One observation per tab with a rule, each reading only the entities its rule names.
     private func observeTabVisibility() {
         tabBag.removeAll()
+        defer { observeTabBadges() }
         let rules = publication.document.navigation.tabs.compactMap { tab in tab.visibleWhen.map { (tab.id, $0) } }
         tabShown = tabShown.filter { id, _ in rules.contains { $0.0 == id } }
         for (id, rule) in rules {
@@ -1871,6 +1935,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         guard spec.phase == .ready else { throw blocked("/document/dataSources") }
         switch action.confirmation {
         case .policy: try model.perform(entityID: id, spec: spec)
+        case .additional where !ServerUIControlRules.asksFirst(action.confirmWhen, in: reader()):
+            try model.perform(entityID: id, spec: spec)
         case .additional(let style, let title, let message, let confirmLabel, let cancelLabel, let destructive):
             let revision = publication.revision
             let alert = UIAlertController(title: title, message: message, preferredStyle: style == .dialog ? .actionSheet : .alert)

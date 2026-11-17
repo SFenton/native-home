@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "text-expr-fallback-unavailable",
+  "note": "An unavailable value uses the slot's fallback text.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": "No reading"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "No reading"
+  }
+}

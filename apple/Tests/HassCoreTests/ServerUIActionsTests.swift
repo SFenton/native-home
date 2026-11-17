@@ -143,7 +143,7 @@ import Testing
         let c = Self.callCapabilities
         let at = "/document/pages/2/components/0/action/data/fields/x"
         try reject("[\(data(read("ghost", "[\"state\"]")))]", extra: c, .invalidReference, at + "/from/sourceId")
-        try reject("[\(data(read("source-power", "[\"isOn\"]", as: "boolean")))]", extra: c, .bindingType, at + "/from/sourceId")
+        _ = try accept("[\(data(read("source-power", "[\"isOn\"]", as: "boolean")))]", extra: c)
         try reject("[\(data(read("guest-fan", "[\"brightness\"]")))]", extra: c, .invalidReference, at + "/from/path")
         try reject("[\(data(read("guest-fan", "[\"__proto__\"]")))]", extra: c, .invalidReference, at + "/from/path/0")
         try reject("[\(data(read("guest-fan", "[\"state\"]", as: "boolean")))]", extra: c, .bindingType, at + "/as")
@@ -225,7 +225,7 @@ import Testing
         let c = ["sh.visible-when@1", "sh.operands@1"]
         let at = "/document/pages/2/components/0/visibleWhen"
         try reject(node("{\"type\":\"state\",\"sourceId\":\"nope\",\"path\":[\"state\"],\"in\":[\"on\"]}"), extra: c, .invalidReference, at + "/sourceId")
-        try reject(node("{\"type\":\"state\",\"sourceId\":\"source-power\",\"path\":[\"state\"],\"in\":[\"on\"]}"), extra: c, .bindingType, at + "/sourceId")
+        try reject(node("{\"type\":\"state\",\"sourceId\":\"source-power\",\"path\":[\"state\"],\"in\":[\"on\"]}"), extra: c, .invalidReference, at + "/path")
         try reject(node("{\"type\":\"state\",\"sourceId\":\"guest-fan\",\"path\":[\"state\"],\"in\":[]}"), extra: c, .limitExceeded, at + "/in")
         try reject(node("{\"type\":\"numeric\",\"sourceId\":\"temp\",\"path\":[\"state\"]}"), extra: c, .invalidCombination, at)
         try reject(node("{\"type\":\"viewer\"}"), extra: c, .invalidCombination, at)

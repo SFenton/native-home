@@ -7,7 +7,7 @@ import UIKit
 
 /// A measured value/closure adapter, not a feature screen or a generic form renderer.
 @MainActor
-final class UKServerUIDeviceAtom: UIView, UKGridMeasuring {
+final class UKServerUIDeviceAtom: UIView, UKGridWrapping {
     private let column = UKColumnView(spacing: HassTokens.Spacing.s)
     private let notice = UILabel.uk(.subheadline, ink: UKInk.secondary)
     private let bag = UKObservationBag()
@@ -17,6 +17,11 @@ final class UKServerUIDeviceAtom: UIView, UKGridMeasuring {
     private var refresh: () -> Void = {}
     private var localError: String?
     private var timeRows: [String: UKSprinklerTimeContent] = [:]
+
+    /// The glyph of the custom-light manual toggle: the light pair.
+    static let manualGlyph = "lightbulb.2"
+    /// The ink of ``manualGlyph``: the lights family's.
+    static var manualInk: UIColor { UIColor(ColorFamily.lights.glyphToken) }
 
     var hasActiveInteraction: Bool {
         func active(_ view: UIView) -> Bool {
@@ -94,7 +99,8 @@ final class UKServerUIDeviceAtom: UIView, UKGridMeasuring {
         let id = value.entityId ?? ""
         switch value.kind {
         case .manual:
-            let row = UKSprinklerToggleContent(symbol: "hand.raised")
+            // The light pair in the lights family's ink (the reference's `lightbulb.2`), not the hand.
+            let row = UKSprinklerToggleContent(symbol: Self.manualGlyph, glyph: Self.manualInk)
             refresh = { [weak row, weak self] in
                 row?.show(title: value.node.title, isOn: source.manual?.state == "on",
                           isEnabled: source.manual?.isUnavailable == false, identifier: value.node.id) { enabled in
@@ -116,6 +122,7 @@ final class UKServerUIDeviceAtom: UIView, UKGridMeasuring {
             let tile = UKBrightnessTileView(title: value.node.title, tint: UIColor(HassTokens.RGB.Tint.light), percent: 0)
             tile.environment = UKTileEnvironment(context: context)
             tile.identifier = value.node.id
+            tile.words = UKLightWords(value.words)
             if value.action != nil { tile.onOpen = open }
             let send: (LightControl.Command) -> Void = { [weak self] command in
                 do {

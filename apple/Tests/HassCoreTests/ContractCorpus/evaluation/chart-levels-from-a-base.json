@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "chart-levels-from-a-base",
+  "note": "Levels of an axis from -20 to 40: 40, 10 and -20.",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 3,
+      "top": 40,
+      "base": -20,
+      "pattern": "{value}°",
+      "digits": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        40,
+        10,
+        -20
+      ],
+      "labels": [
+        "40°",
+        "10°",
+        "-20°"
+      ]
+    }
+  }
+}

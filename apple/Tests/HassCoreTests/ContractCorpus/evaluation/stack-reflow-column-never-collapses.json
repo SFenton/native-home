@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "stack-reflow-column-never-collapses",
+  "note": "A column has no collapse to apply: it stays as it is, at any text size.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "vertical",
+        "spacing": {
+          "type": "token",
+          "name": "s"
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 400
+        },
+        {
+          "id": "b",
+          "width": 10
+        }
+      ],
+      "width": 100,
+      "accessibilitySize": true
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": false,
+      "reason": null,
+      "axis": "vertical",
+      "spacing": 8,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

@@ -126,7 +126,7 @@ final class UKNavigationFlyoutView: UIView {
     private func setOpen(_ open: Bool) {
         guard open != isOpen else { return }
         isOpen = open
-        let reduce = shell?.reduceMotion ?? UIAccessibility.isReduceMotionEnabled
+        let reduce = shell?.reduceMotion ?? UKMotion.reduceMotion
         settleToken += 1
         let token = settleToken
         if open {

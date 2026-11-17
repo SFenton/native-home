@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "chart-share-from-a-base",
+  "note": "An axis from -20 to 40 puts 10 at half: (10 - -20) / 60. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 10,
+      "top": 40,
+      "base": -20
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 50
+    }
+  }
+}

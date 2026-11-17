@@ -14,13 +14,14 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 | Lock | locked: resting, unlit, `lock.fill`. `unlocked`: resting, lit, `lock.open`. open: warning, `lock.open`, a tap locks. locking: in-progress, unlit. unlocking, opening: in-progress, lit. jammed: error, `lock.trianglebadge.exclamationmark`, a tap locks | taps ignored while moving; revert after 2 s; a rejected call shows "Didn't Respond" for 4 s |
 | Blind | closed: resting, unlit, `blinds.horizontal.closed`. open: resting, lit, `blinds.horizontal.open`. opening, closing: in-progress, lit, `stop.fill` with Stop | ack 10 s, settle 45 s, "Didn't Respond" for 4 s |
 | Alarm | disarmed: resting, unlit, `shield.lefthalf.filled`. armed modes: resting, lit, `shield.slash`. arming: in-progress, Disarm stays tappable. pending: warning, Disarm tappable. disarming: in-progress, taps ignored. triggered: error, Disarm tappable | Disarm asks first |
-| Robot | docked, idle: resting, unlit. paused: warning. cleaning, mowing: resting, lit, breathe. returning: in-progress. error: error | none |
+| Robot | docked: resting, unlit, `house`. idle: resting, unlit. paused: warning. cleaning, mowing: resting, lit, breathe. returning: in-progress. error: error. All others draw `robotic.vacuum` | none |
 | Detector | off: resting, unlit. on: error | none |
 | Notice | off: resting, unlit. on: warning; connectivity is reversed | none |
 | Switch | off: resting, unlit. on: resting, lit | the [optimistic-actions](../patterns/optimistic-actions.md) defaults |
 
 - The Studio suggests a style by domain and device class: Detector for smoke, gas, carbon monoxide, moisture, problem, tamper, safety; Notice for battery, heat, cold, update, connectivity.
 - A style's colours are palette tokens; the colour-family fill comes from the tile's family.
+- Robot glyph: the style's; a tile's authored symbol is the fallback.
 
 ## Request phase
 
@@ -33,11 +34,11 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 
 | Shipped tile | Style | Kept |
 |---|---|---|
-| Garage door (`CoverActions`, `GarageDoorController`) | Garage door | Glyphs, words, the family fill, lockout, acknowledgement, settle and error-hold times, the error haptic, Stop or Reverse while moving |
+| Garage door (`CoverActions`) | Garage door | Glyphs, words, the family fill, lockout, acknowledgement, settle and error-hold times, the error haptic, Stop or Reverse while moving |
 | Lock (`LockActions`) | Lock | Glyphs, words, the lit face while unlocked or unlocking, taps ignored while locking and unlocking, the jammed face |
 | Security System (`AlarmModeActions`) | Alarm | Arm Home and Disarm glyphs, the confirmation before Disarm, taps ignored only while disarming, Disarm tappable through arming and pending |
 
-- The garage tile's 1 s "Sending" feedback is the tile's flap guard, not an authored time. `GarageDoorController` times none of it: the phase leaves `sending` when the call is acknowledged, and `UKStateTileTransition` holds the look.
+- The garage tile's 1 s "Sending" feedback is the tile's flap guard, not an authored time. No controller times it: the phase leaves `sending` when the call is acknowledged, and `UKStateTileTransition` holds the look.
 - `StateStyleActions` is the provider over a style. `StateStyleParityTests` hold the fixed shapes' tables as golden rows and compare each built-in style with them state for state.
 - The Studio authors styles and the app renders them. Capability `sh.state-style@1` carries a document `stateStyles` library and the `state-tile` node's binding, decoded in `ServerUIStateStyles.swift` onto `StateStyle`.
 - A device without the capability, or a style id the library lacks, shows the tile's built-in style. Only validation errors reject.
@@ -62,3 +63,25 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 - New maps class alarm `pending`, lock `open` and vacuum `paused` as warning.
 - The preview shows the tile at iPhone, iPhone Duo and iPad widths; picking a state plays the app's transition and prints the VoiceOver value.
 - For a Home Assistant lifecycle the Studio asks for the script and the error timer, checks that both exist and warns when one is missing. It installs nothing.
+
+## Doors lowered to the state tile
+
+`door-tile` (`sh.security-door@1`) is a decodable alias: the compiler rewrites each node into a `state-tile` over the built-in `garage-door` or `lock` style, plus a saved style named `<node id>.door` in the document's library (`ServerUIDoorLowering`, `docs` pattern: [action-tiles](../patterns/action-tiles.md)). Nothing else draws a door.
+
+- **Per state:** the authored icon, words and `active` and `error` flags become that state's rule, and the colour is the face fill when `active` and the disc glyph's ink when not (`discGlyph`, never authored); a state the door did not author reads as its fallback appearance and is not lit.
+- **Words and verbs:** the open, close and reverse labels are the disc's verbs; the sending texts are `pendingWords`; `errorText` is `errorWords`; `hiddenText` is the style's `hiddenWords` (`sh.state-style-fills@1`).
+- **Loading:** `loadingText` is an `expr` subtitle that reads the door source's `phase` and speaks only while it says `loading`. The source needs no Swift of its own: its `phase` is `loading`, `ready` or `unavailable` from the entity.
+- **Request:** a tap shows the state it asked for (`opening`, `closing`, `locking`, `unlocking`) from the style's `pendingStates`, which are the app's own feedback and never authored.
+- **Kept:** a dimmed disc while the entity cannot be read (`keepsDiscWhenUnknown`) and a disc on-state that differs from the tile's lit face (`StateRule.discOn`), neither authorable.
+- **Proof:** `ServerUIDoorEquivalenceHostedTests` compares every state and request phase with the golden the bespoke atom drew, `fill` revised to none for states that are not active (`apple/Apps/iOSTests/Fixtures/ServerUIDoorGolden.json`); `ServerUIDoorLoweringTests` holds the tables.
+
+## Tile ink and cell fit
+
+`sh.tile-ink@1` adds four optional state tile fields; a pair resolves with the trait collection, with no clamp.
+
+- **`glyphTint`:** the icon on a face that is neither filled (`filledWhen` or a style `fill`) nor an error. Not applied while unavailable, which keeps the muted grey at 50%.
+- **`discGlyphTint`:** the button icons of an off disc on a dark face, an error face included. A filled face keeps its black 18% disc and white glyph.
+- **`fillInk`** (rule or fallback, beside a `fill`): `soft` is the state line in white at 92%; the title stays white.
+- **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell.
+
+`AuthoredTileInk` decides where each applies.

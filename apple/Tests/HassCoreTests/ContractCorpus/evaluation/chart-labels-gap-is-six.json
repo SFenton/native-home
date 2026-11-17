@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "chart-labels-gap-is-six",
+  "note": "The gap counts: 3 labels of 44 need 3 x 50 = 150 and fit 150 exactly, so all show; at 149 only 2 fit and every 2nd shows. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 3,
+      "plotWidth": 150,
+      "widestLabelWidth": 44
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 1,
+      "indices": [
+        0,
+        1,
+        2
+      ]
+    }
+  }
+}

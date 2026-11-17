@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "chart-spoken-unknown-value",
+  "note": "A value that is unknown says the chart's own words.",
+  "subject": {
+    "chart": {
+      "op": "spoken",
+      "points": [
+        {
+          "label": "Now",
+          "value": 94
+        },
+        {
+          "label": "7 PM",
+          "value": null
+        }
+      ],
+      "pattern": "{value}%",
+      "digits": 0,
+      "unknownText": "Unavailable"
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "spoken": "Now 94%, 7 PM Unavailable"
+    }
+  }
+}

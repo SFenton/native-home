@@ -33,4 +33,12 @@ public struct StateResolution: Equatable, Sendable {
     public var hasGlyph: Bool = false
     /// The colour layer's palette token when the rule names one; nil is the face the class and ``isActive`` pick.
     public var colour: StateColour? = nil
+    /// The face fill of the state's rule (`red << 16 | green << 8 | blue`); nil is the face the class picks.
+    public var fill: UInt32? = nil
+    /// The face fill while the screen is dark, when the rule's fill is a light and dark pair; nil is ``fill`` in both.
+    public var fillDark: UInt32? = nil
+    /// The ink of the state line on ``fill`` (`sh.tile-ink@1`).
+    public var fillInk: StateFillInk = .white
+    /// The colour of the disc's glyph while the face is unlit (`red << 16 | green << 8 | blue`); nil leaves the disc's own ink.
+    public var discGlyph: UInt32? = nil
 }

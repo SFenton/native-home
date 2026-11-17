@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "math-round-half-away",
+  "note": "round sends a tie away from zero: -2.5 gives -3.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "round",
+      "args": [
+        {
+          "type": "literal",
+          "value": -2.5
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": -3
+  }
+}

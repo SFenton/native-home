@@ -65,7 +65,10 @@ final class UKVacuumMapFrame: UIView {
         var label: String?
         var loadingText: String?
         var unavailableText: String?
-        var showsLocate = true
+        /// The buttons over the map by corner (`sh.surface-controls@1`); Locate at top leading when nothing is authored.
+        var groups = ServerUIMapControls.defaultGroups(locate: true)
+        /// Whether the document authored the groups, which is when a corner can hold more than Locate and the card makes room for them.
+        var authored = false
         var autoCleanOverlay: Bool?
     }
     /// The map's height limit: it grows while a run is going, when the controls below collapse to one card.
@@ -76,22 +79,29 @@ final class UKVacuumMapFrame: UIView {
     private let state: UKVacuumSheetState
     private let map = UKValetudoMapView()
     private let fallback = UIStackView()
-    private let locate = UIControl()
+    private let controls = UKMapControlsView()
     private let bag = UKObservationBag()
+    private let controlsBag = UKObservationBag()
+    /// How many times the buttons were redrawn and how many times the map was rebuilt, for tests (an entity only a button reads must not move the second).
+    private(set) var controlRenderCount = 0
+    private(set) var mapRenderCount = 0
     private var capConstraint: NSLayoutConstraint!
     private var aspectConstraint: NSLayoutConstraint?
     private var aspectRatio: Double = 0
     private let presentation: Presentation
-    private let onLocate: (() -> Void)?
+    private let controlItem: ((ServerUIMapControlButton) -> UKMapControlItem?)?
+    private let onControl: ((ServerUIMapControlButton) -> Void)?
     private let onRoomTap: ((String, UIViewController) -> Void)?
 
     init(controller: VacuumController, mapState: VacuumMapState, state: UKVacuumSheetState, presentation: Presentation = .init(),
-         onLocate: (() -> Void)? = nil, onRoomTap: ((String, UIViewController) -> Void)? = nil) {
+         controlItem: ((ServerUIMapControlButton) -> UKMapControlItem?)? = nil, onControl: ((ServerUIMapControlButton) -> Void)? = nil,
+         onRoomTap: ((String, UIViewController) -> Void)? = nil) {
         self.controller = controller
         self.mapState = mapState
         self.state = state
         self.presentation = presentation
-        self.onLocate = onLocate
+        self.controlItem = controlItem
+        self.onControl = onControl
         self.onRoomTap = onRoomTap
         super.init(frame: .zero)
         backgroundColor = UKValetudoMapView.color(ValetudoMapScene.Palette.ground)
@@ -100,8 +110,10 @@ final class UKVacuumMapFrame: UIView {
         layer.masksToBounds = true
         buildMap()
         buildFallback()
-        buildLocate()
+        buildControls()
         bag.observe { [weak self] in self?.render() }
+        // The buttons observe on their own: what a button reads (a rule's entity, a command's state) re-runs only this, never the map's layers.
+        controlsBag.observe { [weak self] in self?.renderControls() }
     }
 
     @available(*, unavailable)
@@ -148,35 +160,31 @@ final class UKVacuumMapFrame: UIView {
         fallback.heightAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
     }
 
-    private func buildLocate() {
-        let glass = UKNavigationGlassView(shape: .circle)
-        glass.isUserInteractionEnabled = false
-        locate.addSubview(glass)
-        glass.ukPin(to: locate)
-        let icon = UIImageView(image: UIImage(systemName: "scope", withConfiguration: UIImage.SymbolConfiguration(font: .ukFont(.body, weight: .semibold))))
-        icon.tintColor = UKDesignInk.primary
-        icon.contentMode = .center
-        icon.isUserInteractionEnabled = false
-        glass.contentView.addSubview(icon)
-        icon.ukPin(to: glass.contentView)
-        locate.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(locate)
-        NSLayoutConstraint.activate([
-            locate.leadingAnchor.constraint(equalTo: leadingAnchor, constant: HassTokens.Spacing.s),
-            locate.topAnchor.constraint(equalTo: topAnchor, constant: HassTokens.Spacing.s),
-            locate.widthAnchor.constraint(equalToConstant: HassTokens.minTarget),
-            locate.heightAnchor.constraint(equalToConstant: HassTokens.minTarget),
-        ])
-        locate.isAccessibilityElement = true
-        locate.accessibilityLabel = "Locate"
-        locate.accessibilityHint = "Asks the robot to play a sound."
-        locate.accessibilityTraits = .button
-        locate.accessibilityIdentifier = "vacuum.locate"
-        locate.addAction(UIAction { [weak self] _ in
-            UKTapFeedback.tap()
-            guard let self else { return }
-            if let onLocate = self.onLocate { onLocate() } else { self.controller.locate() }
-        }, for: .touchUpInside)
+    private func buildControls() {
+        controls.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(controls)
+        controls.ukPin(to: self)
+        controls.onPress = { [weak self] id in
+            guard let self, let button = self.buttons[id] else { return }
+            // The buttons give the tap feedback themselves.
+            if let onControl = self.onControl { onControl(button) } else if button.action == .locate { self.controller.locate() }
+        }
+    }
+
+    private var buttons: [String: ServerUIMapControlButton] {
+        Dictionary(presentation.groups.flatMap(\.buttons).map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// The buttons that show now, per group, each from the resolver (or Locate while the robot is available).
+    private func controlGroups() -> [UKMapControlGroup] {
+        presentation.groups.map { group in
+            UKMapControlGroup(corner: group.corner, axis: group.axis, items: group.buttons.compactMap { button in
+                if let controlItem { return controlItem(button) }
+                guard button.action == .locate, controller.status.primaryAvailable else { return nil }
+                return UKMapControlItem(id: button.id, symbol: "scope", label: button.look.label, hint: button.hint,
+                                        value: nil, identifier: button.identifier, isEnabled: true)
+            })
+        }
     }
 
     // MARK: Render
@@ -191,10 +199,16 @@ final class UKVacuumMapFrame: UIView {
         return Set(controller.vacuum.zones.filter { titles.contains($0.title) }.map(\.entityId))
     }
 
+    private func renderControls() {
+        controlRenderCount += 1
+        let groups = controlGroups()
+        controls.apply(groups)
+        if presentation.authored { reserveControlRows(groups) }
+    }
+
     private func render() {
+        mapRenderCount += 1
         let scene = mapState.scene
-        let primary = controller.status.primaryAvailable
-        locate.isHidden = !primary || !presentation.showsLocate
         if let scene {
             let onAutoClean = presentation.autoCleanOverlay ?? (state.displayed.tab == .autoClean)
             let rooms = onAutoClean ? [:] : roomOrders
@@ -219,6 +233,16 @@ final class UKVacuumMapFrame: UIView {
             fallback.isHidden = false
             renderFallback()
         }
+    }
+
+    /// Keeps the fallback's words clear of a top or bottom row of buttons the document authored.
+    private func reserveControlRows(_ groups: [UKMapControlGroup]) {
+        let top = groups.contains { $0.corner.isTop && !$0.items.isEmpty }
+        let bottom = groups.contains { !$0.corner.isTop && !$0.items.isEmpty }
+        let clearance = HassTokens.minTarget + 2 * HassTokens.Spacing.s
+        let margins = UIEdgeInsets(top: top ? clearance : HassTokens.Spacing.l, left: HassTokens.Spacing.l,
+                                   bottom: bottom ? clearance : HassTokens.Spacing.l, right: HassTokens.Spacing.l)
+        if fallback.layoutMargins != margins { fallback.layoutMargins = margins }
     }
 
     private func renderFallback() {

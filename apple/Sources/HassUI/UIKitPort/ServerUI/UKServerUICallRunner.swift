@@ -40,6 +40,11 @@ final class UKServerUICallRunner {
         return calls.contains { ($0.key == node || $0.key.hasPrefix(node + "#")) && $0.value > 0 }
     }
 
+    /// Whether a call from `node` is on the wire now, as opposed to showing an optimistic value after Home Assistant took it.
+    func isSending(node: String) -> Bool {
+        calls.contains { ($0.key == node || $0.key.hasPrefix(node + "#")) && $0.value > 0 }
+    }
+
     /// Whether the last call from `node` failed and the failed face is still showing.
     func isFailed(node: String) -> Bool {
         models.contains { site, model in

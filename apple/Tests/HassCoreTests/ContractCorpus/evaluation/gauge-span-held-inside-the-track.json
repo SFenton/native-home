@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-span-held-inside-the-track",
+  "note": "A span that would run past the end is cut to fit: start 0.8, size 0.5 gives 20 percent (min(size, 100 - start), UKWeatherViews.swift:192).",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0.8,
+        "size": 0.5
+      },
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 80,
+        "sizePercent": 20,
+        "left": 160,
+        "width": 40
+      },
+      "marker": null
+    }
+  }
+}

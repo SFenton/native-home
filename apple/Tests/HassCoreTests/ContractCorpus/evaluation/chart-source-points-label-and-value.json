@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "chart-source-points-label-and-value",
+  "note": "Each record gives a label and a value, in order.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 3,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "Now",
+          "level": 70
+        },
+        {
+          "label": "7 PM",
+          "level": 68.5
+        },
+        {
+          "label": "8 PM",
+          "level": 66
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "Now",
+          "value": 70
+        },
+        {
+          "label": "7 PM",
+          "value": 68.5
+        },
+        {
+          "label": "8 PM",
+          "value": 66
+        }
+      ]
+    }
+  }
+}

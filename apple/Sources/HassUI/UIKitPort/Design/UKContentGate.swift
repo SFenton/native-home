@@ -77,7 +77,7 @@ final class UKContentGateView: UIView {
         let model = model
         let isReady = isReady
         advanceTask = Task { @MainActor in
-            await model.advance(isReady: isReady, reduceMotion: UIAccessibility.isReduceMotionEnabled)
+            await model.advance(isReady: isReady, reduceMotion: UKMotion.reduceMotion)
         }
     }
 
@@ -88,7 +88,7 @@ final class UKContentGateView: UIView {
     private func applyPhase(animated: Bool) {
         let phase = model.phase
         let spinnerShown = model.spinnerShown
-        let reduceMotion = UIAccessibility.isReduceMotionEnabled
+        let reduceMotion = UKMotion.reduceMotion
         let contentAlpha: CGFloat = phase == .entering || phase == .idle ? 1 : 0
         let rise: CGFloat = phase != .idle && phase != .entering ? UKContentReveal.rise(reduceMotion: reduceMotion) : 0
         let spinnerAlpha: CGFloat = phase == .loading && spinnerShown ? 1 : 0

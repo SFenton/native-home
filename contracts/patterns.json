@@ -331,7 +331,9 @@
         "apple/Sources/HassDesign/HassRGB.swift",
         "apple/Sources/HassDesign/HassRGB+Color.swift",
         "apple/Sources/HassDesign/HassRGB+UIKit.swift",
-        "apple/Sources/HassDesign/HassTokensRGB.swift"
+        "apple/Sources/HassDesign/HassTokensRGB.swift",
+        "apple/Sources/HassDesign/AppearanceFill.swift",
+        "apple/Sources/HassDesign/AuthoredTileInk.swift"
       ],
       "guards": [],
       "related": {
@@ -1618,6 +1620,40 @@
       "supersededBy": null
     },
     {
+      "id": "vacuum-lowering",
+      "title": "Vacuum kinds built from generic parts",
+      "status": "current",
+      "doc": ".agents/patterns/vacuum-lowering.md",
+      "summary": "the vacuum-control kinds the compiler rewrites into generic parts, and the ones that stay native.",
+      "keywords": [
+        "vacuum",
+        "lowering",
+        "vacuum-control",
+        "state-tile",
+        "bound-control"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering.swift",
+            "symbol": "ServerUIVacuumLowering"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering*.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "vacuum-sheet"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
       "id": "valetudo-map",
       "title": "Mapped map",
       "status": "current",
@@ -2311,6 +2347,271 @@
         "patterns": [
           "alerts",
           "state-message"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "map-controls",
+      "title": "Map controls",
+      "status": "current",
+      "doc": ".agents/patterns/map-controls.md",
+      "summary": "the buttons over a map card (corner groups, fit rule, More menu) and the map orientation.",
+      "keywords": [
+        "map controls",
+        "locate",
+        "corner",
+        "flip",
+        "orientation",
+        "more menu",
+        "surface-controls"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKMapControlsView.swift",
+            "symbol": "UKMapControlsView"
+          },
+          {
+            "path": "apple/Sources/HassCore/Vacuums/MapControlFit.swift",
+            "symbol": "MapControlFit"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Vacuums/MapControlFit.swift",
+        "apple/Sources/HassCore/Vacuums/MapOrientation.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIMapControls*.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKMapControlsView.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIMapControls.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "valetudo-map",
+          "overlay"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "tile-swipe",
+      "title": "Tile swipe, words, ink and groups",
+      "status": "current",
+      "doc": ".agents/patterns/tile-swipe.md",
+      "summary": "swipe to adjust a tile, the state words, the default tile ink and grids grouped by state.",
+      "keywords": [
+        "swipe",
+        "adjust",
+        "bubble",
+        "state words",
+        "tile ink",
+        "groups",
+        "regroup"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift",
+            "symbol": "UKTileSwipeController"
+          },
+          {
+            "path": "apple/Sources/HassDesign/TileSwipe.swift",
+            "symbol": "TileSwipe"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassDesign/TileSwipe.swift",
+        "apple/Sources/HassDesign/TileInkDefault.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLightWords.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGridFace.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileSwipe.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIInkDefault.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIGridGrouping.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile",
+          "dynamic-grid"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "overlay",
+      "title": "Overlay",
+      "status": "current",
+      "doc": ".agents/patterns/overlay.md",
+      "summary": "small nodes drawn over a base at five anchors.",
+      "keywords": [
+        "overlay",
+        "anchors",
+        "sh.overlay"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIOverlay.swift",
+            "symbol": "UKServerUIOverlayView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIOverlay.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "map-controls"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-tab-areas",
+      "title": "Tab areas",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-tab-areas.md",
+      "summary": "the areas of a tab container, each drawn once for the tabs that name it.",
+      "keywords": [
+        "tab areas",
+        "tab-blocks",
+        "tab container",
+        "tab bar"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift",
+            "symbol": "UKServerUIAreaStack"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-badges",
+      "title": "Badges",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-badges.md",
+      "summary": "a count or short text on the top trailing corner of a tile or chip.",
+      "keywords": [
+        "badge",
+        "sh.badges"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift",
+            "symbol": "UKServerUIBadgeViews"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-data-flow",
+      "title": "Data flow session",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-data-flow.md",
+      "summary": "a document data source that asks Home Assistant, runs a closed list of steps and gives rows.",
+      "keywords": [
+        "data flow",
+        "pipeline",
+        "ServerUIFlow",
+        "sh.pipeline"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/ServerUIFlow/ServerUIFlowSession.swift",
+            "symbol": "ServerUIFlowSession"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIFlow/ServerUIFlow*.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-chart-gauge",
+      "title": "Chart and linear gauge",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-chart-gauge.md",
+      "summary": "the document-driven chart and linear gauge, with the weather chart and rail as the second consumer to converge.",
+      "keywords": [
+        "chart",
+        "gauge",
+        "linear gauge",
+        "audio graph",
+        "sh.chart",
+        "sh.linear-gauge",
+        "rail"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKChartView.swift",
+            "symbol": "UKChartView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKLinearGaugeView.swift",
+            "symbol": "UKLinearGaugeView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIChart*.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUILinearGauge.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKChartContent.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKChartView.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGaugeContent.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLinearGaugeView.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDataParts.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "weather",
+          "server-ui-data-flow"
         ]
       },
       "supersedes": [],

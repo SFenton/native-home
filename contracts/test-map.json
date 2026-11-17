@@ -1180,12 +1180,6 @@
    "journeys": []
   },
   {
-   "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumsScreen",
-   "swift": [],
-   "journeys": [],
-   "layout_journeys": []
-  },
-  {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumSheet",
    "swift": [
     "Vacuum"
@@ -1395,13 +1389,6 @@
    "swift": [
     "Rooms",
     "RoomOverview"
-   ],
-   "journeys": []
-  },
-  {
-   "prefix": "apple/Sources/HassCore/Security",
-   "swift": [
-    "SecurityConfig"
    ],
    "journeys": []
   },
@@ -1745,7 +1732,6 @@
   {
    "prefix": "apple/Sources/HassUI/UIKitPort/Features/Vacuums/",
    "swift": [
-    "VacuumAutoClean",
     "Vacuum"
    ],
    "journeys": []
@@ -2534,13 +2520,23 @@
    ]
   },
   {
-   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDoorSource",
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUIDoorLowering",
    "swift": [
-    "ServerUISecurity",
-    "StateStyle"
+    "ServerUIDoorLoweringTests"
    ],
    "hosted": [
-    "ServerUISecurityHostedTests"
+    "ServerUIDoorEquivalenceHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUIVacuumLowering",
+   "swift": [
+    "ServerUIVacuum",
+    "VacuumLoweringSymbolTests"
+   ],
+   "hosted": [
+    "ServerUIConfiguredVacuumTests"
    ],
    "journeys": []
   },
@@ -2563,6 +2559,70 @@
    ],
    "hosted": [
     "ServerUISecurityHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/ServerUIFlow/",
+   "swift": [
+    "ServerUIFlowSessionTests",
+    "ServerUIPipelineCorpusTests",
+    "ServerUIContractCorpusTests"
+   ],
+   "hosted": [
+    "ServerUIFlowListHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIFlowWindows",
+   "swift": [
+    "ServerUIFlowSessionTests"
+   ],
+   "hosted": [
+    "ServerUIFlowListHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/ServerUIComposition/ServerUITileInk",
+   "swift": [
+    "ServerUITileInkTests",
+    "ServerUIContractCorpusTests"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassCore/TileActions/StateFillInk",
+   "swift": [
+    "ServerUITileInkTests",
+    "StateStyle"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassDesign/AuthoredTileInk",
+   "swift": [
+    "AuthoredTileInkTests",
+    "TileAction"
+   ],
+   "hosted": [
+    "ServerUITileInkHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileInk",
+   "swift": [],
+   "hosted": [
+    "ServerUITileInkHostedTests",
+    "ServerUIStateStyleHostedTests"
    ],
    "journeys": []
   }

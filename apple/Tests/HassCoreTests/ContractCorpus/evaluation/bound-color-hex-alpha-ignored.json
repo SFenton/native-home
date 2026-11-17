@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "bound-color-hex-alpha-ignored",
+  "note": "An eight digit hex ignores alpha unless it is 0.",
+  "subject": {
+    "fill": {
+      "type": "bound-color",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "c",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "solid-rgb",
+        "red": 60,
+        "green": 60,
+        "blue": 67
+      }
+    },
+    "role": "fill"
+  },
+  "env": {
+    "reads": {
+      "c/state": {
+        "status": "value",
+        "value": "#009688CC"
+      }
+    }
+  },
+  "expected": {
+    "look": {
+      "type": "solid-rgb",
+      "red": 0,
+      "green": 110,
+      "blue": 99
+    },
+    "status": "value"
+  }
+}

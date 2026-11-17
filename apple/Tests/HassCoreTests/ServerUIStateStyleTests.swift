@@ -38,8 +38,38 @@ struct ServerUIStateStyleTests {
         #expect(decoded.issues.isEmpty, "the built-in data raises no issue")
         #expect(decoded.library.entries.map(\.style.id) == StateStyle.builtIn.map(\.id))
         for (entry, builtIn) in zip(decoded.library.entries, StateStyle.builtIn) {
-            #expect(entry.style == builtIn, "\(builtIn.id) differs from the fixture")
+            // `pendingStates` is the app's own optimistic feedback; the shared fixture and the library shape carry none.
+            var withoutFeedback = builtIn
+            withoutFeedback.request?.pendingStates = [:]
+            #expect(entry.style == withoutFeedback, "\(builtIn.id) differs from the fixture")
         }
+    }
+
+    /// The Robot glyph follows the state, as the reference derives it: the house while docked, the robot otherwise and when unavailable.
+    /// The fixture and the app's style are compared glyph for glyph, so neither can drift from the other.
+    @Test func theRobotGlyphFollowsTheStateInTheStyleAndTheFixtureAlike() throws {
+        let fixture = try Self.json("state-styles/built-in.json")
+        let robot = try #require(fixture["styles"]?.array?.first { $0["id"]?.string == "robot" })
+        var fixtureGlyphs: [String: String] = [:]
+        for rule in robot["rules"]?.array ?? [] {
+            for state in rule["states"]?.array?.compactMap(\.string) ?? [] { fixtureGlyphs[state] = rule["icon"]?.string }
+        }
+        fixtureGlyphs["(fallback)"] = robot["fallback"]?["icon"]?.string
+        let expected: [String: String] = [
+            "docked": "house", "idle": "robotic.vacuum", "cleaning": "robotic.vacuum", "mowing": "robotic.vacuum",
+            "paused": "robotic.vacuum", "returning": "robotic.vacuum", "error": "robotic.vacuum",
+            "unavailable": "robotic.vacuum", "unknown": "robotic.vacuum", "(fallback)": "robotic.vacuum",
+        ]
+        #expect(fixtureGlyphs == expected, "built-in.json carries the glyphs")
+        let entity = "vacuum.demo_robot"
+        for (state, glyph) in expected where state != "(fallback)" {
+            let resolution = StateStyle.robot.resolve(EntityState(entityId: entity, state: state), entityId: entity)
+            #expect(resolution.glyph == glyph && resolution.hasGlyph, "\(state): the style draws \(glyph)")
+        }
+        let unlisted = StateStyle.robot.resolve(EntityState(entityId: entity, state: "demo_new_state"), entityId: entity)
+        #expect(unlisted.glyph == StateStyle.robotGlyph && unlisted.hasGlyph, "a state no rule names reads like unknown: the robot")
+        let nothing = StateStyle.robot.resolve(nil, entityId: entity)
+        #expect(nothing.glyph == StateStyle.robotGlyph, "a robot that cannot be read is the robot, not the house")
     }
 
     @Test func everyBuiltInStyleEndsWithAFallbackThatCopiesItsUnknownRule() {

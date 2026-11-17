@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "gauge-span-today-in-the-week",
+  "note": "Today (low 60, high 80) in a week of 50 to 90: the span starts at 25 percent and is 50 percent long (WeatherHighlightsTests.swift:151-153), the marker at 50 (:154): span left 50, width 100, marker 94.",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0.25,
+        "size": 0.5
+      },
+      "value": 0.5,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 25,
+        "sizePercent": 50,
+        "left": 50,
+        "width": 100
+      },
+      "marker": {
+        "percent": 50,
+        "left": 94
+      }
+    }
+  }
+}

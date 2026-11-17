@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "app-window-compact",
+  "note": "A window width class compares as text.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "eq",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "app-window",
+          "path": [
+            "widthClass"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": "compact"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "app-window/widthClass": {
+        "status": "value",
+        "value": "compact"
+      }
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

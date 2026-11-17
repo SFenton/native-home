@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "text-choose-fallback-unavailable",
+  "note": "A rule over an unavailable value cannot tell, so it is loading; the fallback does not stand in for it.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "above",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 75
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "Hot"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "literal",
+          "value": "Fine"
+        }
+      },
+      "fallback": "No reading"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

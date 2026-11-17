@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "name": "faces-unknown-is-style",
+  "note": "A condition that cannot be answered leaves the face to the style.",
+  "subject": {
+    "faces": {
+      "activeWhen": {
+        "type": "compare",
+        "op": "above",
+        "left": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        "right": {
+          "type": "literal",
+          "value": 75
+        }
+      },
+      "errorWhen": {
+        "type": "compare",
+        "op": "above",
+        "left": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        },
+        "right": {
+          "type": "literal",
+          "value": 75
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "faces": {
+      "active": null,
+      "filled": null,
+      "error": null
+    }
+  }
+}

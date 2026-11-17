@@ -1,0 +1,264 @@
+import HassCore
+import UIKit
+import XCTest
+@testable import HassUI
+
+// MARK: - Layout capabilities
+
+/// Hosted UX and accessibility checks for the layout capabilities (`sh.tab-blocks@1`, `sh.tab-bar@1`, `sh.tab-fallback@1`, `sh.overlay@1`,
+/// `sh.tile-parts@1`, `sh.tile-look@1`, `sh.badges@1`). Each test runs at the iPhone, iPhone Duo and iPad widths, so a layout that only
+/// fits one family fails here. The documents are the Studio's own corpus cases, not hand-written ones.
+@MainActor
+final class ServerUILayoutHostedTests: XCTestCase {
+    /// The widths of the three families: iPhone, folded Duo and iPad.
+    private static let widths: [CGFloat] = [390, 744, 1024]
+
+    override func tearDown() async throws {
+        HostedPage.hideTracked()
+        HostedPage.resetGlobals()
+        try await super.tearDown()
+    }
+
+    /// The corpus case `file`, with the components of its third page moved onto the page the renderer opens first.
+    private func publication(_ file: String, tileProps: JSONValue? = nil) throws -> ServerUICompositionPublication {
+        let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/accept/\(file).json")
+        var json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        let pages = try XCTUnwrap(json["document"]?["pages"]?.array)
+        let moved = try XCTUnwrap(pages[2]["components"])
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: moved)
+        let kept = try XCTUnwrap(pages[0]["components"])
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: kept)
+        if let tileProps {
+            var caps = try XCTUnwrap(json["capabilities"]?.array)
+            caps = Array(Set(caps + [.string("sh.call-service@1"), .string("sh.operands@1")]))
+            json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(caps.sorted { $0.string ?? "" < $1.string ?? "" }))
+        }
+        if let tileProps { json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components/0/props", to: tileProps) }
+        return try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
+    }
+
+    private func page(_ file: String, width: CGFloat, tileProps: JSONValue? = nil) throws -> (UKServerUIRenderer, UKServerUIPage) {
+        let store = EntityStore()
+        store.replaceAll([EntityState(entityId: "lock.demo_door", state: "locked")])
+        let host = try UKServerUIRenderer(publication: publication(file, tileProps: tileProps), context: UKContext(store: store, caller: HostedCaller()),
+                                          backdrop: ServerUIRendererFixture.backdrop())
+        _ = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180)))
+        HostedPage.wait(0.1)
+        let root = try ServerUIRendererFixture.root(host)
+        root.view.layoutIfNeeded()
+        return (host, root)
+    }
+
+    private func find<T: UIView>(_ type: T.Type, in view: UIView) -> T? {
+        if let match = view as? T { return match }
+        return view.subviews.lazy.compactMap { self.find(type, in: $0) }.first
+    }
+
+    /// Every accessibility label the view and its accessibility elements expose, including elements a container hands out itself.
+    private func spoken(_ view: UIView) -> [String] {
+        var labels = [view.accessibilityLabel].compactMap { $0 }
+        for element in view.accessibilityElements ?? [] {
+            if let child = element as? UIView { labels += spoken(child) } else if let label = (element as? NSObject)?.accessibilityLabel { labels.append(label) }
+        }
+        for child in view.subviews { labels += spoken(child) }
+        return labels
+    }
+
+    private func all<T: UIView>(_ type: T.Type, in view: UIView) -> [T] {
+        ((view as? T).map { [$0] } ?? []) + view.subviews.flatMap { all(type, in: $0) }
+    }
+
+    // MARK: Shared areas
+
+    func testSharedAreaIsOneInstanceAcrossTabsAtEveryFamilyWidth() throws {
+        for width in Self.widths {
+            let (host, root) = try page("tab-blocks-two-tabs", width: width)
+            let shared = try XCTUnwrap(root.nodes["first-two-text"]?.view, "width \(width)")
+            XCTAssertNotNil(shared.window)
+            let last = try XCTUnwrap(root.nodes["last-text"]?.view)
+            XCTAssertNil(last.window, "an area of another tab stays off screen")
+            try host.perform(.setLocal(stateId: "panel", value: .string("rooms")), from: root)
+            HostedPage.wait(0.4)
+            XCTAssertTrue(root.nodes["first-two-text"]?.view === shared, "the shared area is not rebuilt")
+            XCTAssertNotNil(shared.window)
+            try host.perform(.setLocal(stateId: "panel", value: .string("dock")), from: root)
+            HostedPage.wait(0.4)
+            XCTAssertNil(shared.window)
+            XCTAssertNotNil(last.window)
+            HostedPage.hideTracked()
+        }
+    }
+
+    // MARK: Tab bar
+
+    func testTopTabBarKeepsAnAccessibleTargetForEveryLabelMode() throws {
+        for file in ["tab-bar-top-titles", "tab-bar-top-icons", "tab-bar-top-icons-and-titles", "tab-bar-top-by-size"] {
+            for width in Self.widths {
+                let (_, root) = try page(file, width: width)
+                root.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+                root.view.layoutIfNeeded()
+                let tabs = try XCTUnwrap(root.nodes["tabs"]?.view, "\(file) \(width)")
+                let bar = try XCTUnwrap(tabs.subviews.first, "\(file) \(width)")
+                XCTAssertGreaterThanOrEqual(bar.bounds.height, 44, "\(file) \(width)")
+                for control in all(UIControl.self, in: tabs) where control.isAccessibilityElement && control.bounds.width > 0 {
+                    XCTAssertGreaterThanOrEqual(control.bounds.height, 44, "\(file) \(width)")
+                }
+                HostedPage.hideTracked()
+            }
+        }
+    }
+
+    func testIconsLabelModeNamesEveryTabForVoiceOver() throws {
+        for file in ["tab-bar-top-icons-and-titles"] {
+            for width in Self.widths {
+                let (_, root) = try page(file, width: width)
+                let tabs = try XCTUnwrap(root.nodes["tabs"]?.view)
+                let labels = spoken(tabs)
+                for name in ["Controls", "Rooms", "Dock"] { XCTAssertTrue(labels.contains { $0.hasPrefix(name) }, "\(name) in \(file) at \(width): \(labels)") }
+                HostedPage.hideTracked()
+            }
+        }
+    }
+
+    // MARK: Overlay
+
+    func testOverlayControlsAreAtLeast44PointsAndReadInAnchorOrder() throws {
+        for width in Self.widths {
+            let (_, root) = try page("overlay-five-anchors", width: width)
+            let overlay = try XCTUnwrap(root.nodes["lay"]?.view as? UKServerUIOverlayView, "width \(width)")
+            let controls = ["a", "b", "c", "d"].compactMap { root.nodes[$0]?.view }
+            XCTAssertEqual(controls.count, 4)
+            for control in controls {
+                XCTAssertTrue(control.isDescendant(of: overlay))
+                XCTAssertGreaterThanOrEqual(control.frame.width, 44, "width \(width)")
+                XCTAssertGreaterThanOrEqual(control.frame.height, 44, "width \(width)")
+                XCTAssertTrue(overlay.bounds.insetBy(dx: -1, dy: -1).contains(control.frame), "inside the overlay at \(width)")
+            }
+            let a = controls[0].frame, b = controls[1].frame, c = controls[2].frame, d = controls[3].frame
+            XCTAssertLessThan(a.midX, b.midX)
+            XCTAssertLessThan(a.midY, c.midY)
+            XCTAssertLessThan(c.midX, d.midX)
+            let order = (overlay.accessibilityElements ?? []).compactMap { $0 as? UIView }
+            XCTAssertTrue(order.dropFirst().first === controls[0], "reading starts at the top-leading control")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// An overlay over a map carries a status pill at the centre while the map keeps its own Locate group: they do not meet, Locate still takes
+    /// its tap, and VoiceOver reads the map (with Locate inside it), then the pill. Pins the supported use of `sh.overlay@1` with
+    /// `sh.surface-controls@1`; a button over a map is a map control, never an overlay child.
+    func testOverlayPillOverAMapLeavesLocateItsTapAndReadingOrder() async throws {
+        for width in Self.widths {
+            let descriptor = try ConfiguredVacuumFixture.descriptor()
+            let store = ConfiguredVacuumFixture.store(descriptor)
+            let caller = ConfiguredVacuumCaller()
+            let loader = ConfiguredVacuumFixture.loader(leftOnly: false)
+            let map = #"{"kind":"map","overlay":"rooms","height":300,"runtimeHeight":460,"label":"Demo Map","loadingText":"Reading Map","unavailableText":"No Map","locate":true}"#
+            let publication = try ConfiguredVacuumFixture.publication(map, overlayPill: true)
+            let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: store, caller: caller),
+                backdrop: ServerUIRendererFixture.backdrop(),
+                vacuums: .init(loader: { _ in loader }, services: ConfiguredVacuumFixture.services.union(["vacuum.locate"])))
+            let window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 900)))
+            defer { window.isHidden = true }
+            let root = try ServerUIRendererFixture.root(host)
+            await HostedPage.settle {
+                guard let view = root.nodes["robot-control"]?.view else { return false }
+                return HostedPage.descendants(of: view).contains { ($0 as? UKMapControlsView)?.drawnGroups.isEmpty == false }
+            }
+            HostedPage.layoutTracked()
+            let overlay = try XCTUnwrap(root.nodes["over-map"]?.view as? UKServerUIOverlayView, "width \(width)")
+            let base = try XCTUnwrap(root.nodes["robot-control"]?.view, "width \(width)")
+            let pill = try XCTUnwrap(root.nodes["centre-pill"]?.view, "width \(width)")
+            let controls = try XCTUnwrap(find(UKMapControlsView.self, in: base), "width \(width)")
+            let locate = try XCTUnwrap(controls.button(identifier: "vacuum.locate"), "width \(width)")
+            let pillFrame = pill.convert(pill.bounds, to: nil), locateFrame = locate.convert(locate.bounds, to: nil)
+            XCTAssertFalse(pillFrame.intersects(locateFrame), "the pill and Locate do not meet at \(width)")
+            let point = locate.convert(CGPoint(x: locate.bounds.midX, y: locate.bounds.midY), to: overlay)
+            XCTAssertTrue(overlay.hitTest(point, with: nil)?.isDescendant(of: controls) == true, "Locate takes its tap at \(width)")
+            locate.sendActions(for: .touchUpInside)
+            let located = await HostedPage.settle { caller.calls.contains { $0.hasPrefix("vacuum.locate") } }
+            XCTAssertTrue(located, "Locate keeps its service call: \(caller.calls)")
+            let order = (overlay.accessibilityElements ?? []).compactMap { $0 as? UIView }
+            XCTAssertTrue(order.first === base && order.last === pill, "the map, then the pill, at \(width)")
+            XCTAssertTrue(locate.isDescendant(of: base), "Locate reads inside the map")
+        }
+    }
+
+    func testOverlayMirrorsItsLeadingAnchorsInRightToLeft() throws {
+        let (_, root) = try page("overlay-five-anchors", width: 390)
+        let overlay = try XCTUnwrap(root.nodes["lay"]?.view)
+        overlay.semanticContentAttribute = .forceRightToLeft
+        overlay.setNeedsLayout()
+        root.view.layoutIfNeeded()
+        let a = try XCTUnwrap(root.nodes["a"]?.view), b = try XCTUnwrap(root.nodes["b"]?.view)
+        XCTAssertGreaterThan(a.frame.midX, b.frame.midX, "top-leading is on the right in right-to-left")
+    }
+
+    // MARK: Tile parts
+
+    func testTilePartsDrawDiscsWithNamesAtEveryFamilyWidth() throws {
+        for width in Self.widths {
+            let call: JSONValue = .object(["type": .string("call-service"), "domain": .string("vacuum"), "service": .string("locate"),
+                                           "target": .object(["entity_id": .object(["type": .string("literal"), "value": .string("vacuum.example_robot")])])])
+            let disc: JSONValue = .object(["id": .string("lock"), "icon": .object(["type": .string("sf-symbol"), "name": .string("lock"),
+                "rendering": .string("canonical"), "unavailable": .string("fallback")]), "label": .string("Lock"), "action": call])
+            let (_, root) = try page("tile-parts-destination", width: width, tileProps: .object(["discs": .array([disc])]))
+            let tile = try XCTUnwrap(root.nodes["door"]?.view as? UKGlassTileView, "width \(width)")
+            XCTAssertFalse(tile.model.actions.isEmpty, "width \(width)")
+            XCTAssertTrue(tile.model.actions.contains { $0.id == "disc:lock" && $0.verb == "Lock" }, "the authored disc is named for VoiceOver")
+            HostedPage.hideTracked()
+        }
+    }
+
+    func testTileProgressIsClampedAndTheDestinationShowsAChevron() throws {
+        for file in ["tile-parts-progress-read", "tile-parts-destination"] {
+            let (_, root) = try page(file, width: 390)
+            let tile = try XCTUnwrap(root.nodes.values.compactMap { $0.view as? UKGlassTileView }.first, file)
+            if let progress = tile.model.progress { XCTAssertTrue((0...1).contains(progress), file) }
+            if file.hasSuffix("destination") { XCTAssertEqual(tile.model.behavior, .navigate) }
+            HostedPage.hideTracked()
+        }
+    }
+
+    // MARK: Badges
+
+    func testBadgeDrawsItsValueAndNoneDrawsNothing() throws {
+        for width in Self.widths {
+            let (_, root) = try page("badge-tiles", width: width)
+            let withValue = try XCTUnwrap(root.nodes["n"]?.view, "width \(width)")
+            let without = try XCTUnwrap(root.nodes["t"]?.view)
+            XCTAssertNotNil(find(UKSegmentBadge.self, in: withValue))
+            XCTAssertNil(find(UKSegmentBadge.self, in: without))
+            let spoken = all(UIView.self, in: withValue).compactMap(\.accessibilityLabel)
+            XCTAssertTrue(spoken.contains { $0.contains("New") }, "the badge is spoken: \(spoken)")
+            HostedPage.hideTracked()
+        }
+    }
+
+    // MARK: Screenshots
+
+    /// Saves the layout parts as PNGs when `FENTON_LAYOUT_SHOTS` names a directory (the owner's screenshot set); skipped otherwise. The
+    /// documents are corpus placeholders, never house data.
+    func testSavesLayoutScreenshotsWhenAsked() throws {
+        guard let directory = ProcessInfo.processInfo.environment["FENTON_LAYOUT_SHOTS"], !directory.isEmpty else { throw XCTSkip("no screenshot directory") }
+        try FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+        let shots: [(String, String, CGFloat, JSONValue?)] = [
+            ("01-tab-bar-top-icons-and-titles", "tab-bar-top-icons-and-titles", 744, nil),
+            ("02-tab-areas-shared", "tab-blocks-two-tabs", 744, nil),
+            ("03-overlay-five-anchors", "overlay-five-anchors", 744, nil),
+            ("04-tile-destination-chevron", "tile-parts-destination", 744, nil),
+            ("05-badges-on-tiles", "badge-tiles", 744, nil),
+        ]
+        for (name, file, width, props) in shots {
+            let (_, root) = try page(file, width: width, tileProps: props)
+            HostedPage.wait(0.3)
+            let view = try XCTUnwrap(root.view.window ?? root.view)
+            let image = UIGraphicsImageRenderer(bounds: CGRect(x: 0, y: 0, width: width, height: 420)).image { _ in
+                view.drawHierarchy(in: view.bounds, afterScreenUpdates: true)
+            }
+            try XCTUnwrap(image.pngData()).write(to: URL(fileURLWithPath: directory).appendingPathComponent("\(name).png"))
+            HostedPage.hideTracked()
+        }
+    }
+}

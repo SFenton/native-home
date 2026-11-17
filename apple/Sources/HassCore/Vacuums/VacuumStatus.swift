@@ -403,14 +403,6 @@ public enum VacuumFormat {
         return StateText.titleCase(value)
     }
 
-    /// The tile subtitle: `Docked • 87%` (`vacuumTilePresentation`).
-    public static func tileSubtitle(state: String?, battery: String?) -> String {
-        let normalized = state?.trimmed.lowercased() ?? ""
-        let label = StateText.titleCase(normalized.isEmpty ? "unavailable" : normalized)
-        guard !VacuumStatusResolver.isUnavailable(normalized), let battery = battery?.trimmed, let value = Double(battery) else { return label }
-        return "\(label) • \(number(value))%"
-    }
-
     /// Passes as `2x` (`formatPassCount`).
     public static func passes(_ value: String?) -> String {
         guard let value, !value.isEmpty else { return "1x" }

@@ -68,17 +68,25 @@ public final class UKObservation {
 @MainActor
 public final class UKObservationBag {
     private var observations: [UKObservation] = []
+    /// Wraps every run of an observation made after it is set, the first and each re-run: a repeat's cell sets the item and index its
+    /// expressions read here, so the same closure reads the same cell each time it runs. `nil` runs the closure as it is.
+    public var around: (@MainActor (@MainActor () -> Void) -> Void)?
 
     public init() {}
 
     /// Observes `apply` (``UKObservation``) for the bag's lifetime.
     public func observe(_ apply: @escaping @MainActor () -> Void) {
-        observations.append(UKObservation(apply))
+        observations.append(UKObservation(wrapped(apply)))
     }
 
     /// Observes what `track` reads and runs `apply` after it, outside the tracking scope (``UKObservation/init(track:apply:)``).
     public func observe(track: @escaping @MainActor () -> Void, apply: @escaping @MainActor () -> Void) {
-        observations.append(UKObservation(track: track, apply: apply))
+        observations.append(UKObservation(track: wrapped(track), apply: wrapped(apply)))
+    }
+
+    private func wrapped(_ run: @escaping @MainActor () -> Void) -> @MainActor () -> Void {
+        guard let around else { return run }
+        return { around(run) }
     }
 
     /// Ends every observation, for a reused cell before it binds to another model.

@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Swipe to adjust a tile · proposal mockup</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<style>
+  /* The drag's bubble for any tile (local helper; promote to kit as TileSwipeBubble when built). Today's 60 x 32 pt capsule, 8 pt clear of the tile;
+     44 pt tall and 84 pt wide at accessibility text sizes (build/design/tile-swipe.md, section 2). */
+  .sw-bub { position: absolute; z-index: 6; display: grid; place-items: center; box-sizing: border-box; padding: 0 12px; border-radius: 99px; background: #2C2C2E; color: #fff;
+    font: 600 15px/1 var(--font); font-variant-numeric: tabular-nums; box-shadow: 0 2px 6px rgba(0, 0, 0, .3); pointer-events: none; white-space: nowrap; }
+  .sw-bub.ax { font-size: 28px; }
+  .sw-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 44px 14px; padding-top: 44px; } .sw-row figure { margin: 0; } .sw-row figcaption { font: 12px/1.4 var(--font); color: var(--k-fg2); margin-top: 8px; }
+  /* Studio inspector (a web surface; stand-in tokens, not the app's and not the Studio's). */
+  .si { --b: #fff; --b2: #f3f4f6; --f: #16181d; --f2: #5b6270; --ln: #d9dde4; --ac: #0066cc; --acs: #e3effc; --warn: #8a5a00; --ok: #1e7b34;
+    display: grid; grid-template-columns: 300px 340px minmax(300px, 1fr); border: 1px solid var(--ln); border-radius: 12px; overflow: hidden; background: var(--b); color: var(--f); font: 13px/1.4 var(--font); min-width: 980px; margin-bottom: 18px; }
+  .si.dk { --b: #1a1d23; --b2: #23272f; --f: #eef0f4; --f2: #a6adba; --ln: #2e333c; --ac: #409cff; --acs: #152a44; --warn: #ffd60a; --ok: #30d158; }
+  .si > div { padding: 14px; min-width: 0; } .si > div + div { border-left: 1px solid var(--ln); }
+  .si .crumb { color: var(--f2); font-size: 12px; margin-bottom: 4px; } .si .ttl { font: 600 16px var(--font); margin-bottom: 12px; }
+  .si .grp { font: 600 11px var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--f2); margin: 16px 0 6px; } .si .grp:first-of-type { margin-top: 0; }
+  .si .row { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 2px 0; } .si .row > .sp { flex: 1; min-width: 0; }
+  .si .row.nav { border-radius: 8px; padding: 2px 6px; margin: 0 -6px; } .si .row.nav.sel { background: var(--acs); } .si .row .val { color: var(--f2); } .si .row .chev { color: var(--f2); }
+  .si .foot { color: var(--f2); font-size: 12px; margin: 2px 0 6px; } .si .warn { color: var(--warn); font-size: 12px; margin: 2px 0 6px; }
+  .si .switch-ctl { width: 34px; height: 20px; border-radius: 99px; background: var(--ln); position: relative; flex: none; border: 0; padding: 0; } .si .switch-ctl.on { background: var(--ok); }
+  .si .switch-ctl::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; } .si .switch-ctl.on::after { left: 16px; }
+  .si .fld { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 8px; background: var(--b2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .si .fld.n { width: 64px; flex: none; text-align: right; } .si .fld.w { flex: 1; }
+  .si .lbl { width: 96px; flex: none; color: var(--f2); }
+  .si .menu { border: 1px solid var(--ln); border-radius: 9px; background: var(--b); box-shadow: 0 8px 24px rgba(0, 0, 0, .22); padding: 4px; width: 190px; margin: 2px 0 6px auto; } .si .menu div { padding: 5px 9px; border-radius: 6px; }
+  .si .menu div.hi { background: var(--acs); } .si .menu div.dis { color: var(--f2); opacity: .6; } .si .menu hr { border: 0; border-top: 1px solid var(--ln); margin: 4px 0; }
+  .si .pv { background: var(--b2); } .si .cap { font: 600 11px var(--font); color: var(--f2); margin-bottom: 8px; letter-spacing: .06em; text-transform: uppercase; }
+  .si .dev { border-radius: 22px; background: #111; padding: 56px 14px 16px; } .si .simline { margin-top: 10px; border: 1px solid var(--ln); border-radius: 8px; padding: 6px 10px; font-size: 12px; color: var(--f2); } .si .simline b { color: var(--f); }
+  .si .btn { border: 1px solid var(--ln); border-radius: 7px; padding: 4px 10px; background: transparent; color: var(--f); font: 13px var(--font); }
+  .si .chk { width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--ac); background: var(--ac); color: #fff; display: inline-grid; place-items: center; font-size: 11px; flex: none; }
+  .si .link { color: var(--ac); }
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components, A = Mock.anim;
+
+  /* ---- the mid-drag look on any kit tile -------------------------------------------------------------------------------------------------------------- */
+  /** Bubble metrics of the spec: regular 60 x 32, accessibility sizes 84 x 44; 8 pt clear of the tile's top edge. */
+  function metrics() { var ax = !!(Mock.current && Mock.current.axSize); return { ax: ax, w: ax ? 84 : 60, h: ax ? 44 : 32 }; }
+  /**
+   * Draws a tile mid-drag: lift, band at `frac`, bubble with `text` over the band's edge, kept inside the tile.
+   * @param {HTMLElement} tile a kit tile
+   * @param {number} frac 0...1 across the range
+   * @param {string} text the bubble's text (the value through `format`)
+   * @param {{rtl?: boolean, top?: number, noBand?: boolean}} [o] rtl mirrors the band and mapping; top overrides the bubble's offset (the top-of-scroller rule)
+   */
+  function drag(tile, frac, text, o) {
+    o = o || {};
+    var m = metrics(), pos = (o.rtl ? 1 - frac : frac) * 100;
+    if (!Mock.settings.reduceMotion) tile.style.transform = 'scale(1.03)';
+    tile.style.boxShadow = '0 6px 12px rgba(0,0,0,.35)'; tile.style.zIndex = 5; tile.style.overflow = 'visible';
+    setBand(tile, frac, o);
+    status(tile, text);
+    var b = h('span.sw-bub' + (m.ax ? '.ax' : ''), { 'aria-hidden': 'true' }, text);
+    b.style.minWidth = m.w + 'px'; b.style.height = m.h + 'px'; b.style.top = (o.top != null ? o.top : -(m.h + 8)) + 'px';
+    b.style.left = 'clamp(0px, calc(' + pos + '% - ' + (m.w / 2) + 'px), calc(100% - ' + m.w + 'px))';
+    tile.appendChild(b);
+    return tile;
+  }
+  /** A light group tile's status line is the percentage, so it follows the drag; an authored subtitle on a state tile is left alone. */
+  function status(tile, text) { if (tile.dataset.anim !== 'brightness') return; var st = tile.querySelector('.st'); if (st) st.textContent = text; }
+  /** Sets a tile's band to `frac`, whichever face drew it (lit and off bands grow from the leading edge; a filled face shades what is left). */
+  function setBand(tile, frac, o) {
+    o = o || {};
+    var band = tile.querySelector('.band'); if (!band) return;
+    if (o.noBand) { band.remove(); return; }
+    var shade = band.classList.contains('shade'), pct = Math.round((shade ? 1 - frac : frac) * 100), lead = shade ? !!o.rtl : !o.rtl;
+    band.style.transition = 'none'; band.style.overflow = 'hidden'; band.style.width = pct + '%';
+    band.style.left = lead ? '0' : 'auto'; band.style.right = lead ? 'auto' : '0';
+    band.style.borderRadius = pct >= 97 ? '22px' : (lead ? '22px 0 0 22px' : '0 22px 22px 0');
+  }
+
+  /* ---- the tiles (fixture names) ---------------------------------------------------------------------------------------------------------------------- */
+  function light(title, pct, o) { var t = K.BrightnessTile(Object.assign({ title: title, percent: pct }, o)); t.dataset.sw = title; return t; }
+  function cover(pct, sub) { var t = Mock.tile({ title: 'Living Room Shade', subtitle: sub || 'Open', symbol: 'blinds.horizontal.open', family: 'contact', isActive: true, progress: pct / 100 }); t.dataset.sw = 'cover'; return t; }
+  function speaker(pct) { var t = Mock.tile({ title: 'Kitchen Speaker', subtitle: 'Playing', symbol: 'hifispeaker', family: 'media', isActive: true, progress: pct / 100 }); t.dataset.sw = 'speaker'; return t; }
+  function stat() { var t = Mock.tile({ title: 'Office', subtitle: 'Heating to 70°', symbol: 'thermometer.medium', family: 'heating', isActive: true }); t.dataset.sw = 'stat'; return t; }
+  function plain() { return Mock.tile({ title: 'Floor Fan', subtitle: 'Off', symbol: 'fan', family: 'air', isActive: false }); }
+
+  /**
+   * The room's tiles. `d` picks the tile that is mid-drag: {which, frac, text, ...drag options}.
+   * At rest every swiped tile already draws its value as its band.
+   */
+  function tiles(d) {
+    d = d || {};
+    var t = { table: light('Table Light', 70), lamp: light('Floor Lamp', 30), strip: light('Accent Strip', 60, { tint: '#FF5E8A' }), deck: light('Back Deck Light', 0, { unavailable: true }),
+      cover: cover(40), speaker: speaker(35), stat: stat(), fan: plain() };
+    if (d.which === 'table-off') { t.table = light('Table Light', 0); drag(t.table, 0, 'Off', d); }
+    else if (d.which) drag(t[d.which], d.frac, d.text, d);
+    return t;
+  }
+  function body(ctx, d) {
+    var t = tiles(d);
+    return [K.PageSectionHeader({ title: 'Lights' }), K.TileGrid({ items: [t.table, t.lamp, t.strip, t.deck], min: 150, max: 4 }),
+      K.PageSectionHeader({ title: 'Shades, Sound and Climate' }), K.TileGrid({ items: [t.cover, t.speaker, t.stat, t.fan], min: 150, max: 4 })];
+  }
+  function page(d) { return function (ctx) { return Mock.page(ctx, { title: 'Living Room', section: 'home', back: 'Rooms', badge: 3, choresBadge: 2, body: body(ctx, d) }); }; }
+  function sheet(d) {
+    return function (ctx) {
+      var t = tiles(d);
+      return Mock.sheet(ctx, { title: 'Living Room Lights', detent: 'large', size: 'page', leading: 'back', trailing: 'close',
+        content: [h('div', { style: { height: '44px' } }), K.TileGrid({ items: [t.table, t.lamp, t.strip, t.deck, t.cover], min: 150, max: 4 })],
+        presenter: Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [] }) });
+    };
+  }
+
+  var states = {
+    'default': { title: 'At rest: swipe on', note: 'Every swiped tile draws its value as its band before it is touched: the lit tile\'s cream band, the shade on a filled tile. A tile with swipe off (Floor Fan) and an unavailable one (Back Deck Light) take no swipe and are not adjustable. Nothing else marks a swiped tile.', render: page() },
+    'light-drag': { title: 'Light tile mid-drag, 40%', note: 'Absolute tracking: the band\'s edge is under the finger. The tile lifts (1.03 and a shadow), the bubble reads the value 8 pt above the tile over the band\'s edge, a selection tick plays at each 10%. Nothing is sent until release.', render: page({ which: 'table', frac: .4, text: '40%' }) },
+    'light-drag-max': { title: 'Narrow tile at the maximum', note: 'The bubble is kept inside its tile: at 100% it sits flush with the trailing edge, so on the folded Duo it never runs under the rail and on the unfolded Duo it never crosses the fold.', render: page({ which: 'lamp', frac: 1, text: '100%' }) },
+    'light-drag-off': { title: 'Light tile dragged to 0', note: 'A light group tile shows the off face and the bubble says "Off": release turns the light off. The bubble sits flush with the leading edge.', render: page({ which: 'table-off' }) },
+    'cover-drag': { title: 'Cover tile mid-drag, 65%', note: 'A state tile keeps its authored face and subtitle through the drag; only the band and the bubble move. The band is the filled face\'s own: the part still to go is shaded.', render: page({ which: 'cover', frac: .65, text: '65%' }) },
+    'volume-drag': { title: 'Speaker tile mid-drag, 50%', note: 'A Home Assistant speaker\'s volume. A recorded departure from HIG Sliders (the spec, section 3); never used for this device\'s own audio.', render: page({ which: 'speaker', frac: .5, text: '50%' }) },
+    'setpoint-drag': { title: 'Thermostat tile mid-drag, band off', note: 'Level Band off: no band at rest or in a drag. The bubble still shows the value through the tile\'s Value Text, here 71° in a 60 to 85 range.', render: page({ which: 'stat', frac: .44, text: '71°', noBand: true }) },
+    'top-row': { title: 'Top row under the header', note: 'With less than 44 pt above the tile inside the visible scroll area, the bubble moves down only as far as it must, over the tile\'s top edge, never below the tile. Design rule; not measured on a device.', render: function (ctx) { var p = page({ which: 'table', frac: .55, text: '55%', top: -14 })(ctx); return p; } },
+    'sheet-drag': { title: 'In a sheet, dark', note: 'The same band, bubble and lift in a sheet. The bubble is dark with white text in both appearances.', override: { appearance: 'dark' }, render: sheet({ which: 'table', frac: .4, text: '40%' }) },
+    'sheet-drag-light': { title: 'In a sheet, light', note: 'The lit tile and the bubble are fixed in both appearances.', override: { appearance: 'light' }, render: sheet({ which: 'table', frac: .4, text: '40%' }) },
+    'sheet-cover': { title: 'Cover in a sheet, dark', note: 'A filled family tile mid-drag on the sheet cell.', override: { appearance: 'dark' }, render: sheet({ which: 'cover', frac: .65, text: '65%' }) },
+    'sheet-cover-light': { title: 'Cover in a sheet, light', note: 'The same in the light appearance.', override: { appearance: 'light' }, render: sheet({ which: 'cover', frac: .65, text: '65%' }) },
+    'rtl': { title: 'Right to left', note: 'The band and the mapping mirror: the minimum stays on the leading edge, now the right. Digits are never reversed. (The kit does not mirror the rest of the page; only the dragged tile\'s band and bubble are drawn mirrored here.)', render: page({ which: 'table', frac: .3, text: '30%', rtl: true }) },
+    'reduce-motion': { title: 'Reduce Motion', note: 'No scale: the shadow only. The band still follows the finger directly and the bubble fades in 0.2 s.', override: { reduceMotion: true }, render: page({ which: 'table', frac: .4, text: '40%' }) },
+    'ax5': { title: 'Accessibility 5 text size', note: 'One column of stacked tiles. The bubble grows to 44 pt tall and 84 pt wide with larger text: it is the only place the dragged value is drawn.', override: { ts: 'ax5' }, render: page({ which: 'table', frac: .4, text: '40%' }) },
+  };
+
+  /* ---- motion: a played drag -------------------------------------------------------------------------------------------------------------------------- */
+  /** Plays a drag on the tile tagged `key` from `from` to `to` (0...1), formatting the bubble with `fmt`. */
+  function playDrag(stage, key, from, to, fmt) {
+    var tile = stage.querySelector('[data-sw="' + key + '"]'); if (!tile) return Promise.resolve();
+    var rm = Mock.settings.reduceMotion, m = metrics(), bub = h('span.sw-bub', { 'aria-hidden': 'true' });
+    bub.style.minWidth = m.w + 'px'; bub.style.height = m.h + 'px'; bub.style.top = -(m.h + 8) + 'px';
+    function place(f) { setBand(tile, f); status(tile, fmt(f)); bub.textContent = fmt(f); bub.style.left = 'clamp(0px, calc(' + (f * 100) + '% - ' + (m.w / 2) + 'px), calc(100% - ' + m.w + 'px))'; }
+    var lifted = { transform: rm ? 'none' : 'scale(1.03)', boxShadow: '0 6px 12px rgba(0,0,0,.35)' }, flat = { transform: 'none', boxShadow: '0 0 0 rgba(0,0,0,0)' };
+    tile.style.overflow = 'visible'; tile.style.zIndex = 5; tile.appendChild(bub); place(from);
+    tile.animate([flat, lifted], { duration: A.ms.quick(), fill: 'forwards', easing: A.easing.quick });
+    bub.animate([{ opacity: 0 }, { opacity: 1 }], { duration: A.ms.quick(), fill: 'both' });
+    return Mock.sleep(300).then(function () {
+      return new Promise(function (res) {
+        var t0 = performance.now(), dur = 1400;   // a timer, not requestAnimationFrame: a background tab never fires rAF and Play would hang
+        var iv = setInterval(function () { var k = Math.min(1, (performance.now() - t0) / dur), e = k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; place(from + (to - from) * e); if (k >= 1) { clearInterval(iv); res(); } }, 16);
+      });
+    }).then(function () { return Mock.sleep(250); }).then(function () {
+      return Promise.all([bub.animate([{ opacity: 1 }, { opacity: 0 }], { duration: A.ms.quick(), fill: 'forwards' }).finished, tile.animate([lifted, flat], { duration: A.ms.quick(), fill: 'forwards', easing: A.easing.quick }).finished]);
+    }).then(function () { bub.remove(); return Mock.sleep(300); });
+  }
+  function pctText(f) { return Math.round(f * 100) + '%'; }
+
+  /* ---- sections: details, and the Studio inspector ---------------------------------------------------------------------------------------------------- */
+  function details() {
+    function one(label, node) { return h('figure', h('div.k-swatch', { style: { padding: '48px 14px 14px', overflow: 'visible' } }, node), h('figcaption', label)); }
+    return [h('p', 'One tile at the grid\'s minimum width, 150 pt, in the cases the device states do not isolate.'),
+      h('div.sw-row',
+        one('Minimum: the bubble is flush with the leading edge', h('div', { style: { width: '150px' } }, drag(cover(0, 'Closed'), 0, '0%'))),
+        one('Mid range on 150 pt: the 60 pt bubble has 90 pt of travel', h('div', { style: { width: '150px' } }, drag(cover(50), .5, '50%'))),
+        one('Maximum: flush with the trailing edge', h('div', { style: { width: '150px' } }, drag(cover(100), 1, '100%'))),
+        one('A coloured bulb tints the band; the bubble does not change', h('div', { style: { width: '150px' } }, drag(light('Accent Strip', 60, { tint: '#FF5E8A' }), .6, '60%'))),
+        one('Right to left: the band grows from the right', h('div', { style: { width: '150px' } }, drag(light('Table Light', 30), .3, '30%', { rtl: true }))),
+        one('Swipe off, or unavailable: today\'s tile, no band rule, no trait', h('div', { style: { width: '150px' } }, plain())))];
+  }
+
+  function inspector(dark) {
+    function sw(on, label) { return h('span.switch-ctl' + (on ? '.on' : ''), { tabindex: '0', role: 'switch', 'aria-checked': on ? 'true' : 'false', 'aria-label': label }); }
+    function row(label, ctl) { return h('div.row', h('span.sp', label), ctl); }
+    function num(label, v) { return h('div.row', h('span.lbl', label), h('span.sp'), h('span.fld.n', v)); }
+    function nav(label, val, sel) { return h('div.row.nav' + (sel ? '.sel' : ''), { role: 'button', tabindex: '0' }, h('span.sp', label), h('span.val', val), h('span.chev', { 'aria-hidden': 'true' }, '›')); }
+    var pvTile = drag(cover(40), .65, '65%');
+    return h('div.si' + (dark ? '.dk' : ''), { role: 'group', 'aria-label': 'Studio inspector, ' + (dark ? 'dark' : 'light') },
+      /* column 1: the tile's panel, and the light group tile's page */
+      h('div',
+        h('div.crumb', 'Living Room › Tiles'), h('div.ttl', 'Living Room Shade'),
+        h('div.grp', 'Behavior'),
+        nav('Tap', 'Open Details'),
+        nav('Swipe to Adjust', 'Cover Position', true),
+        h('p.foot', 'A new tile reads "Off" here and its document holds no swipe.'),
+        h('div.grp', 'Parts'),
+        nav('Progress', 'Follows Swipe'),
+        h('p.foot', 'The band shows the swipe value.'),
+        h('div.grp', { style: { marginTop: '22px' } }, 'A light group tile\'s page'),
+        row('Swipe to Adjust', sw(true, 'Swipe to Adjust')),
+        h('div.row', h('span.lbl', 'Adjusts'), h('span.sp', 'Brightness')),
+        h('div.row', h('span.lbl', 'Range'), h('span.sp', '0 to 100%')),
+        num('Tick Every', '10'),
+        row('Haptic Ticks', sw(true, 'Haptic Ticks')),
+        row('Level Band', sw(true, 'Level Band')),
+        h('p.foot', 'The light source sends the call.')),
+      /* column 2: the Swipe to Adjust page of a state tile */
+      h('div',
+        h('div.crumb', '‹ Living Room Shade'), h('div.ttl', 'Swipe to Adjust'),
+        row('Swipe to Adjust', sw(true, 'Swipe to Adjust')),
+        h('div.row', h('span.lbl', 'Adjusts'), h('span.sp'), h('span.fld', 'Cover Position ▾')),
+        h('div.menu', { role: 'menu', 'aria-label': 'Adjusts' }, h('div.dis', 'Brightness'), h('div.hi', 'Cover Position'), h('div.dis', 'Fan Speed'), h('div.dis', 'Temperature'), h('div.dis', 'Volume'), h('hr'), h('div', 'Custom')),
+        h('p.foot', 'Only what this tile\'s entity can do is offered. A choice fills the rows below; each stays editable.'),
+        h('div.grp', 'Range'),
+        num('Minimum', '0'), num('Maximum', '100'), num('Step', '1'),
+        h('div.grp', 'Feedback'),
+        num('Tick Every', '10'),
+        h('p.foot', 'A haptic tick, and one VoiceOver step.'),
+        row('Haptic Ticks', sw(true, 'Haptic Ticks')),
+        row('Level Band', sw(true, 'Level Band')),
+        h('div.row', h('span.lbl', 'Value Text'), h('span.fld.w', '{value}%')),
+        h('p.foot', 'Shows 0% to 100%.'),
+        h('div.row', h('span.lbl', 'Name'), h('span.fld.w', 'position')),
+        h('p.foot', 'VoiceOver says "Swipe up or down to adjust position."'),
+        h('div.grp', 'When You Let Go'),
+        h('p', { style: { margin: '0 0 6px' } }, 'Calls cover.set_cover_position with position set to the value.'),
+        h('div.row', h('button.btn', { type: 'button' }, 'Edit Call…')),
+        h('p.foot', { style: { marginTop: '10px' } }, 'A drag sends one call when you let go. Haptics are felt on a device only. Switch to Use to try the drag.')),
+      /* column 3: the sim's preview, the checks, and the template */
+      h('div.pv',
+        h('div.cap', 'Preview · Use'),
+        h('div.dev', h('div', { style: { width: '179px' } }, pvTile)),
+        h('div.simline', h('b', 'Simulated. '), 'cover.set_cover_position · position 65'),
+        h('p.foot', { style: { marginTop: '8px' } }, 'A sideways drag in Use draws the band and bubble as the app will; Escape cancels; arrow keys step by Tick Every. The simulator cannot show haptics, VoiceOver, or how the app settles a swipe against paging, scrolling and the back swipe.'),
+        h('div.grp', 'Checks, where they apply'),
+        h('p.warn', 'This tile is in a row that scrolls sideways. The row scrolls and the swipe is off there. VoiceOver can still adjust it.'),
+        h('p.warn', 'A swipe can open this door.'),
+        h('p.foot', 'A swipe can set any volume in the range. Lower Maximum to cap it.'),
+        h('p.warn', 'Swipe is the only way to set this here. Add a button or a details sheet.'),
+        h('div.grp', 'In a template'),
+        h('div.row', h('span.chk', { 'aria-hidden': 'true' }, '✓'), h('span.sp', 'Swipe to Adjust'), h('span.val', 'Brightness')),
+        h('p.foot', 'Set per place as Swipe to Adjust. ', h('span.link', 'Same Everywhere')),
+        h('div.row.nav', h('span.sp', 'Swipe to Adjust'), h('span.val', 'Off'), h('span.chev', { 'aria-hidden': 'true' }, '›')),
+        h('p.foot', 'In one place. Differs from the template. ', h('span.link', 'Reset'))));
+  }
+
+  Mock.mount({
+    kind: 'proposal', id: 'tile-swipe', title: 'Swipe to adjust a tile', status: 'proposed',
+    summary: 'Owner request 2026-11-16: bring back the sideways drag that set a light tile\'s brightness, as a capability of any tile that the Studio configures and that is off by default. A horizontal drag sets the value from where the finger is, a band and a bubble follow it, a selection tick plays at each step and one call goes out on release. Shown on a room page and in a sheet for iPhone, iPhone Duo and iPad, with the Studio inspector that authors it. Not built: the spec is build/design/tile-swipe.md.',
+    source: ['apple/Sources/HassDesign/BrightnessTile.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKBrightnessTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift'],
+    spec: ['.agents/patterns/entity-tile.md', '.agents/patterns/tap-feedback.md', '.agents/patterns/action-tiles.md'],
+    patterns: ['entity-tile', 'tap-feedback', 'action-tiles', 'optimistic-actions', 'dynamic-grid'],
+    hig: ['Gestures', 'Sliders', 'Playing haptics', 'Accessibility', 'Scroll views', 'Right to left', 'Designing for iPhone Duo', 'Playing audio'],
+    kitComponents: ['BrightnessTile', 'GlassTile', 'TileGrid', 'PageSectionHeader', 'HassModal'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: states,
+    motion: [
+      { id: 'light', what: 'A light tile dragged from 70% to 25%', token: 'lift and bubble on quick (0.2 s); the band follows the finger with no animation', source: 'HassUI/UIKitPort/Design/UKBrightnessTileView.swift (setDragging, handlePan)',
+        reduce: 'no scale: the shadow and the bubble fade only; the band still follows the finger', state: 'default', play: function (stage) { return playDrag(stage, 'Table Light', .7, .25, pctText); } },
+      { id: 'cover', what: 'A cover tile dragged from 40% to 90%', token: 'the same lift, bubble and band on a filled family face', source: 'build/design/tile-swipe.md, section 2 (not built)',
+        reduce: 'no scale: the shadow and the bubble fade only; the band still follows the finger', state: 'default', play: function (stage) { return playDrag(stage, 'cover', .4, .9, pctText); } },
+    ],
+    sections: [
+      { id: 'details', title: 'The bubble on a narrow tile', build: details },
+      { id: 'inspector', title: 'Studio inspector (light and dark)', build: function () { return [h('p', 'The Studio is a web surface. Left: the tile\'s Behavior group with the one Swipe to Adjust row, and the page a light group tile gets. Middle: the page of a state tile, the Adjusts menu open. Right: the simulator mid-drag, the checks, and the row inside a template and in one place.'), h('div', { style: { overflowX: 'auto' } }, inspector(false), inspector(true))]; } },
+    ],
+    a11y: [
+      { rule: 'Adjustable, only when swipe is on', note: 'The tile stays one element and adds the adjustable trait. A swipe up or down steps by Tick Every and sends one call. Off, unavailable or disabled: no trait, no hint, no actions.' },
+      { rule: 'Value and hint', note: 'Value: the swipe value through Value Text, then the state text when it differs ("65%, Open"). Hint: the tap\'s hint, then "Swipe up or down to adjust position."' },
+      { rule: 'Named actions', note: '"Increase Position" and "Decrease Position" do what the adjust steps do, for Switch Control and Voice Control.' },
+      { rule: 'Never the only way', note: 'The tap, the power disc and the details sheet stay. HIG Gestures: a custom gesture is "not the only way to perform an important action".' },
+      { rule: 'The bubble', note: 'Hidden from VoiceOver. White on #2C2C2E, about 13.9:1. It grows at accessibility text sizes.' },
+      { rule: 'Not colour alone', note: 'The value is the band\'s width and the bubble\'s number; the haptic never carries it alone.' },
+      { rule: 'Reduce Motion', note: 'No scale. The band tracks the finger directly (HIG Accessibility: "tracking gestures directly").' },
+      { rule: 'The inspector', note: 'Every control is a labelled switch, field, menu or row button. The simulator\'s tile takes the slider role with arrow keys in Use.' },
+    ],
+    reviews: {
+      date: '2026-11-16',
+      hig: [
+        { rule: 'Gestures: immediate feedback that predicts the result', verdict: 'pass', note: 'The band is the result under the finger and the bubble names the value before anything is sent.', by: 'apple-hig skill' },
+        { rule: 'Gestures: a custom gesture is not the only way to perform an important action', verdict: 'pass', note: 'Tap, disc, details and the adjustable trait stay; the Studio warns when swipe would be the only route.', by: 'apple-hig skill' },
+        { rule: 'Sliders: minimum leading, maximum trailing; the track fills up to the thumb', verdict: 'pass', note: 'Absolute tracking; the band is drawn at rest; mirrored right to left.', by: 'apple-hig skill' },
+        { rule: 'Sliders (iOS, iPadOS): don\'t use a slider to adjust audio volume', verdict: 'departure', note: 'A tile may set a Home Assistant speaker\'s volume. The system volume view sets this device\'s output and cannot set another device\'s. To be recorded in patterns/entity-tile.md with the lane (the spec, section 3); owner request 2026-11-16 for a generic swipe.', by: 'apple-hig skill' },
+        { rule: 'Playing haptics: Selection means a UI element\'s values are changing; avoid frequent haptics', verdict: 'pass', note: 'One selection tick per detent line, at most one per touch sample, at most 25 across a range.', by: 'apple-hig skill' },
+        { rule: 'Scroll views: avoid nesting scroll views with the same orientation', verdict: 'pass', note: 'A swiped tile inside a sideways scroller attaches no pan; a vertical start is always the page\'s.', by: 'apple-hig skill' },
+        { rule: 'Gestures: avoid conflicting with gestures for system UI', verdict: 'fix', note: 'The rule is written (edge pans win) but nothing has run: the leading-edge start, the flyout and the Duo rail are for the Verifier.', by: 'apple-hig skill' },
+        { rule: 'Designing for iPhone Duo: keep important elements clear of the center', verdict: 'pass', note: 'The bubble never leaves its tile\'s width and tiles never straddle the fold.', by: 'apple-hig skill' },
+        { rule: 'Accessibility: text enlargement', verdict: 'pass', note: 'The bubble grows at accessibility sizes instead of staying at today\'s fixed 32 pt.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'No per-frame state', verdict: 'pass', note: 'A drag moves the band layer and the bubble only; no store write, no call and no model rebuild until release.', by: 'swiftui-pro skill' },
+        { rule: 'Touch targets and traits on a custom control', verdict: 'pass', note: 'The tile is 72 pt tall; the adjustable trait, value, hint and two named actions sit on its one element.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Not built. The at-rest and light-drag states draw what the production light tile does today; every other state is the target of build/design/tile-swipe.md.',
+      'Local helper in this page (promote to kit when built): the bubble for any tile and the band setter. The kit\'s BrightnessTile draws its own fixed bubble; this page draws the generic one on it.',
+      'Pages are always dark, so light and dark are shown in the sheet states; the lit tile and the bubble are fixed in both.',
+      'Page states this proposal omits because the drag adds nothing to them: loading, refreshing, empty, error, offline, reconnecting, long-text. An unavailable tile is in every state (Back Deck Light).',
+      'The top-row, accessibility-size and right-to-left drawings are design rules with no device capture. The kit does not mirror a whole page, so the rtl state mirrors the dragged tile only.',
+      'The inspector is drawn with stand-in web tokens, not the Studio\'s; the Studio lane draws it with workspace2\'s own rows.',
+      'Fixture names only; no house data.',
+    ],
+    changelog: [{ date: '2026-11-16', note: 'First pass: at rest, light mid-drag, maximum, off, cover, speaker, thermostat with the band off, top row, sheets dark and light, right to left, Reduce Motion, AX5; the narrow-tile details; the Studio inspector in light and dark.' }],
+  });
+})();
+</script></body></html>

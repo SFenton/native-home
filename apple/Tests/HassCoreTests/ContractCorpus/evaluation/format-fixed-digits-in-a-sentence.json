@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "format-fixed-digits-in-a-sentence",
+  "note": "A read as a number from a state text, in a sentence: \"68\" is \"68.0°F\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{t}°F",
+      "args": {
+        "t": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "temp",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "t": {
+          "number": {
+            "maximumFractionDigits": 1,
+            "minimumFractionDigits": 1
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "68"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "68.0°F"
+  }
+}

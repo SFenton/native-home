@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "date-progress-number-argument",
+  "note": "A number is not a moment: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": 1
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T16:00:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

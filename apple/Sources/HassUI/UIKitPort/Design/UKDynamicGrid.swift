@@ -17,6 +17,18 @@ struct UKGridConfiguration: Equatable {
     var hingeBand: ClosedRange<CGFloat>?
     /// How a row that leaves tracks unused is filled (duo-widths rule 1, `.agents/design/duo-widths.md`).
     var fill = UKGridFill.share
+    /// The grid keeps at least this many columns (`sh.grid-min-columns@1`). It sets the track count only: a column floor never caps a
+    /// tile's span, so a tile wider than a track still takes the tracks its content needs. `nil` leaves the columns to the width. Its
+    /// owner turns it off at accessibility text sizes, where one column reads best.
+    var minimumColumns: Int?
+}
+
+extension UKGridConfiguration {
+    /// The cell minimum the grid uses at `width`: the authored one, or the width each cell has when `minimumColumns` of them share
+    /// `width`, whichever is smaller. With no floor or no measured width the authored minimum stands (the Studio's `floorMinimum`).
+    func effectiveMinCellWidth(at width: CGFloat) -> CGFloat {
+        DynamicGridMetrics.floorMinimum(width: width, minCellWidth: minCellWidth, minimumColumns: minimumColumns, spacing: spacing)
+    }
 }
 
 /// How a grid fills a row whose items leave tracks unused (a lone tile, a short last row).
@@ -55,11 +67,14 @@ enum UKGridSolver {
         // Unbounded: the ideal width, as `sizeThatFits` does for an unspecified proposal.
         let width = width.isFinite ? width
             : configuration.minCellWidth * CGFloat(DynamicGridMetrics.effectiveMaxColumns(configuration.maxColumns, minCellWidth: configuration.minCellWidth))
-        let metrics = DynamicGridMetrics(width: width, minCellWidth: configuration.minCellWidth, maxColumns: configuration.maxColumns,
-                                         spacing: configuration.spacing, evenColumns: configuration.evenColumns, band: configuration.hingeBand)
+        let metrics = DynamicGridMetrics(width: width, minCellWidth: configuration.effectiveMinCellWidth(at: width),
+                                         maxColumns: configuration.maxColumns, spacing: configuration.spacing,
+                                         evenColumns: configuration.evenColumns, band: configuration.hingeBand)
         // Owner, 2026-11-01: a tile that declared a minimum takes the tracks its content needs (Quick Links' Security System, the Air
         // Purifier); every other tile keeps its explicit span. A tile is full row when its span is the cap.
         let content = metrics.spans(minimums: minimums.count == spans.count ? minimums : spans.map { _ in 0 }, spacing: configuration.spacing)
+        // A column floor (`sh.grid-min-columns@1`) sets the track count only; it never caps a tile's span (owner: a tile "is never
+        // squeezed to keep a column count"), so a tile wider than a track takes `ceil(minimum / track)` tracks up to the row.
         let wanted = spans.indices.map { index -> Int in
             let minimum = index < minimums.count ? minimums[index] : 0
             return minimum > 0 && !headers[index] ? max(spans[index], content[index].span) : spans[index]
@@ -130,6 +145,26 @@ extension UKGridMeasuring {
     var gridMinimumWidth: CGFloat { 0 }
 }
 
+/// A view that only hosts other views (a column, a control atom that holds a tile): it has no content width of its own, so it reports the
+/// widest minimum among the views it hosts, and a tile inside it takes the tracks its content needs as a tile placed in the grid directly
+/// does (owner, 2026-11-01, content-aware span; `.agents/patterns/dynamic-grid.md`). A wrapper that sizes its own content declares its
+/// own ``UKGridMeasuring/gridMinimumWidth`` instead of adopting this.
+@MainActor
+protocol UKGridWrapping: UKGridMeasuring {}
+
+extension UKGridWrapping where Self: UIView {
+    var gridMinimumWidth: CGFloat { subviews.map(ukWrappedMinimum).max() ?? 0 }
+}
+
+/// The least width `view` needs: its own opinion when it is a ``UKGridMeasuring`` view, else the widest of its visible subviews, so a
+/// plain container (a stack view) between a wrapper and its tile does not hide the tile's minimum. A hidden view takes no room.
+@MainActor
+func ukWrappedMinimum(_ view: UIView) -> CGFloat {
+    if view.isHidden { return 0 }
+    if let measuring = view as? UKGridMeasuring { return measuring.gridMinimumWidth }
+    return view.subviews.map(ukWrappedMinimum).max() ?? 0
+}
+
 @MainActor
 private func ukMinimum(_ view: UIView) -> CGFloat { (view as? UKGridMeasuring)?.gridMinimumWidth ?? 0 }
 
@@ -140,6 +175,16 @@ private func ukMeasure(_ view: UIView, width: CGFloat) -> CGFloat {
     if fitted > 0 { return fitted }
     return view.systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
                                         withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
+}
+
+extension UIView {
+    /// Places the view in `rect` of its superview by `bounds` and `center`, never `frame`: a view with a transform (a tile lifted by the swipe's
+    /// 1.03 scale) has no defined `frame`, and setting one gives it smaller `bounds` that stay after the transform is gone. Under the identity
+    /// transform the result equals setting `frame`.
+    func ukPlace(in rect: CGRect) {
+        bounds = CGRect(origin: bounds.origin, size: rect.size)
+        center = CGPoint(x: rect.midX + (layer.anchorPoint.x - 0.5) * rect.width, y: rect.midY + (layer.anchorPoint.y - 0.5) * rect.height)
+    }
 }
 
 // MARK: - View grid
@@ -237,6 +282,16 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         invalidate()
     }
 
+    /// Replaces the children but keeps the views that stay where they are in the hierarchy, so moving a tile between groups is a keyed move of the
+    /// same element and can animate (`sh.grid-state-groups@1`).
+    func regroupItems(_ items: [UKGridItem]) {
+        let kept = Set(items.map { ObjectIdentifier($0.view) })
+        self.items.filter { !kept.contains(ObjectIdentifier($0.view)) }.forEach { $0.view.removeFromSuperview() }
+        self.items = items
+        for item in items where item.view.superview !== self { addSubview(item.view) }
+        invalidate()
+    }
+
     /// Measures again: a child's content changed, so its height may have.
     func invalidateLayout() { invalidate() }
 
@@ -257,6 +312,8 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         var configuration = configuration
         let crossing = (hinge != nil || foldIsPresent) && UKHinge.crossesFold(convert(bounds, to: nil), in: window)
         configuration.evenColumns = configuration.evenColumns || crossing
+        // At accessibility text sizes the floor yields: one column reads best, as every other grid does there.
+        if traitCollection.ukIsAccessibilitySize { configuration.minimumColumns = nil }
         if let hinge, window != nil {
             let frame = convert(bounds, to: nil)
             // Position and width only: the height follows the tracks and must not feed back.
@@ -264,7 +321,7 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         }
         let visible = items.indices.filter { !items[$0].view.isHidden }
         let minimums = visible.map { ukMinimum(items[$0].view) }
-        let key = [width, configuration.evenColumns ? 1 : 0, configuration.hingeBand?.lowerBound ?? -1, configuration.hingeBand?.upperBound ?? -1, minimumsKey(minimums),
+        let key = [width, CGFloat(configuration.minimumColumns ?? 0), configuration.evenColumns ? 1 : 0, configuration.hingeBand?.lowerBound ?? -1, configuration.hingeBand?.upperBound ?? -1, minimumsKey(minimums),
                    configuration.fill == .share ? 0 : 1] + visible.map { CGFloat($0) }
         if let cache, cache.key == key { return (cache.visible, cache.solution) }
         let solution = UKGridSolver.solve(width: width, configuration: configuration, spans: visible.map { items[$0].span },
@@ -290,8 +347,12 @@ class UKDynamicGridView: UIView, UKGridMeasuring {
         let mirror = effectiveUserInterfaceLayoutDirection == .rightToLeft
         for (position, index) in visible.enumerated() {
             let view = items[index].view
-            let frame = solution.frames[position]
-            view.frame = mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame
+            var frame = solution.frames[position]
+            if let tile = view as? UKGlassTileView, tile.keepsNaturalHeight {
+                // `cellFit: natural` (`sh.tile-ink@1`): the tile keeps its own height at the top of a taller cell; the row stays as tall as its tallest cell.
+                frame.size.height = min(frame.height, ukMeasure(tile, width: frame.width))
+            }
+            view.ukPlace(in: mirror ? CGRect(x: bounds.width - frame.maxX, y: frame.minY, width: frame.width, height: frame.height) : frame)
             if let tile = view as? UKGlassTileView { tile.gridFullRow = solution.fullRow[position] }
         }
     }

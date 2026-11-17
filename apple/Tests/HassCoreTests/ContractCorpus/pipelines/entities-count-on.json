@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "name": "entities-count-on",
+  "note": "An entities flow starts from one row per listed entity: filter the ones that are on and count them.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entities",
+      "entityIds": [
+        {
+          "type": "literal",
+          "value": "light.demo_study"
+        },
+        {
+          "type": "literal",
+          "value": "light.demo_den"
+        },
+        {
+          "type": "literal",
+          "value": "light.demo_hall"
+        }
+      ],
+      "attributes": [
+        "brightness"
+      ]
+    },
+    "steps": [
+      {
+        "id": "on",
+        "op": "filter",
+        "where": {
+          "type": "compare",
+          "op": "eq",
+          "left": {
+            "type": "item",
+            "path": [
+              "state"
+            ]
+          },
+          "right": {
+            "type": "literal",
+            "value": "on"
+          }
+        }
+      },
+      {
+        "id": "n",
+        "op": "count"
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number",
+      "integer": true
+    }
+  },
+  "response": [
+    {
+      "entityId": "light.demo_study",
+      "state": "on",
+      "brightness": 200
+    },
+    {
+      "entityId": "light.demo_den",
+      "state": "off",
+      "brightness": null
+    },
+    {
+      "entityId": "light.demo_hall",
+      "state": "on",
+      "brightness": 40
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 2
+  },
+  "compiles": true
+}

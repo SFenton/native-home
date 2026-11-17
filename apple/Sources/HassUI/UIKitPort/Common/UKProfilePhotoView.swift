@@ -55,7 +55,7 @@ final class UKProfilePhotoView: UIView {
             self.ring.alpha = image == nil ? 0 : 1
         }
         guard animated else { return apply() }
-        let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : MotionTokens.stateDuration
+        let duration = UKMotion.reduceMotion ? 0.2 : MotionTokens.stateDuration
         UIView.transition(with: self, duration: duration, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply)
     }
 

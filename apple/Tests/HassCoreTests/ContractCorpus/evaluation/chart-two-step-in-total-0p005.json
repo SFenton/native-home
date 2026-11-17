@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "chart-two-step-in-total-0p005",
+  "note": "A two-step axis for a total of 0.005 in (smallest step 0.01, at most 3 places) tops out at 0.02 with a middle label of 0.01 (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:78-92, `amountAxis`).",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": 0.005,
+      "minimumStep": 0.01,
+      "maximumFractionDigits": 3
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 0.02,
+      "step": 0.01,
+      "digits": 2
+    }
+  }
+}

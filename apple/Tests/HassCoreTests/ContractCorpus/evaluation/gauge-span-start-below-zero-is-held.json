@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-span-start-below-zero-is-held",
+  "note": "A span that starts below 0 starts at 0.",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": -0.5,
+        "size": 0.4
+      },
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 40,
+        "left": 0,
+        "width": 80
+      },
+      "marker": null
+    }
+  }
+}

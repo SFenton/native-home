@@ -1,6 +1,6 @@
 {
   "id": "research.release_impact",
-  "version": 6,
+  "version": 7,
   "type": "noul-set",
   "mode": "shadow",
   "description": "Which parts of our surface (HA domains and services, HAKit APIs, imported frameworks) does a release note or changelog entry affect? One noul per generated entry.",
@@ -97,6 +97,7 @@
     "hakit:HATypedSubscription": "the HAKit API `HATypedSubscription` (the Swift client library for the Home Assistant websocket)",
     "hakit:HAZone": "the HAKit API `HAZone` (the Swift client library for the Home Assistant websocket)",
     "framework:AVFoundation": "Apple's `AVFoundation` framework (its API, behavior or availability on iOS)",
+    "framework:Accessibility": "Apple's `Accessibility` framework (its API, behavior or availability on iOS)",
     "framework:ActivityKit": "Apple's `ActivityKit` framework (its API, behavior or availability on iOS)",
     "framework:AppIntents": "Apple's `AppIntents` framework (its API, behavior or availability on iOS)",
     "framework:BackgroundTasks": "Apple's `BackgroundTasks` framework (its API, behavior or availability on iOS)",
@@ -108,6 +109,7 @@
     "framework:HassDemoHouse": "Apple's `HassDemoHouse` framework (its API, behavior or availability on iOS)",
     "framework:ImageIO": "Apple's `ImageIO` framework (its API, behavior or availability on iOS)",
     "framework:Intents": "Apple's `Intents` framework (its API, behavior or availability on iOS)",
+    "framework:MessageUI": "Apple's `MessageUI` framework (its API, behavior or availability on iOS)",
     "framework:MetricKit": "Apple's `MetricKit` framework (its API, behavior or availability on iOS)",
     "framework:Network": "Apple's `Network` framework (its API, behavior or availability on iOS)",
     "framework:NetworkExtension": "Apple's `NetworkExtension` framework (its API, behavior or availability on iOS)",

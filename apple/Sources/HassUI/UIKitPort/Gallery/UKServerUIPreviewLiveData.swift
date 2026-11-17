@@ -28,7 +28,7 @@ final class UKServerUIPreviewLiveData {
         var errorDescription: String? {
             switch self {
             case .configuration: "Live preview requires an HTTPS Home Assistant origin and an isolated account identity."
-            case .credential: "A one-time preview credential is missing or invalid."
+            case .credential: "A one-time preview credential (FENTON_PREVIEW_HA_TOKEN) is missing or invalid."
             case .commandsDisabled: "Live commands are disabled in this read-only design preview."
             }
         }
@@ -47,7 +47,8 @@ final class UKServerUIPreviewLiveData {
             try reject()
         }
 
-        private func reject() throws -> Never {
+        /// Counts, announces and throws; every write path of the preview ends here.
+        func reject() throws -> Never {
             blockedCommands += 1
             NSLog("ServerUI preview: live device command blocked by read-only policy.")
             UIAccessibility.post(notification: .announcement, argument: Failure.commandsDisabled.errorDescription)
@@ -67,6 +68,12 @@ final class UKServerUIPreviewLiveData {
         connection = HassConnection(server: server, tokens: tokens, store: store,
                                     snapshotCache: EntitySnapshotCache(fileURL: directory.appendingPathComponent("EntitySnapshot.json")),
                                     reachability: SystemNetworkReachability())
+        lifecycle = ConnectionLifecycle(connection: connection)
+    }
+
+    /// Wraps a connection built elsewhere; a test passes one over a mock HAKit connection that records every request it is sent.
+    init(connection: HassConnection) {
+        self.connection = connection
         lifecycle = ConnectionLifecycle(connection: connection)
     }
 

@@ -268,7 +268,7 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         }
     }
 
-    private var reduceMotion: Bool { UIAccessibility.isReduceMotionEnabled }
+    private var reduceMotion: Bool { UKMotion.reduceMotion }
 
     // MARK: Fields
 

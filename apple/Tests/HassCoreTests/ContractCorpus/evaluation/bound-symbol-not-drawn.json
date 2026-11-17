@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "bound-symbol-not-drawn",
+  "note": "A name the app cannot draw uses the fallback symbol.",
+  "subject": {
+    "symbol": {
+      "type": "bound-symbol",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "s",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "fallback": {
+        "type": "sf-symbol",
+        "name": "lightbulb",
+        "rendering": "canonical",
+        "unavailable": "fallback"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "s/state": {
+        "status": "value",
+        "value": "no.such.symbol"
+      }
+    },
+    "undrawnSymbols": [
+      "no.such.symbol"
+    ]
+  },
+  "expected": {
+    "look": {
+      "type": "sf-symbol",
+      "name": "lightbulb",
+      "rendering": "canonical",
+      "unavailable": "fallback"
+    },
+    "status": "value"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "format": 1,
+  "name": "shape-after-group-and-count",
+  "note": "group gives {key, count, items}; count gives an integer.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "k": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "x",
+                  "y"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "g",
+        "op": "group",
+        "by": {
+          "type": "item",
+          "path": [
+            "k"
+          ]
+        }
+      },
+      {
+        "id": "c",
+        "op": "count"
+      }
+    ],
+    "output": {
+      "kind": "scalar"
+    },
+    "schema": {
+      "kind": "number",
+      "integer": true
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "k": "x"
+    },
+    {
+      "k": "y"
+    },
+    {
+      "k": "x"
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": 2
+  },
+  "compiles": true,
+  "expectedShape": {
+    "kind": "number",
+    "integer": true
+  }
+}

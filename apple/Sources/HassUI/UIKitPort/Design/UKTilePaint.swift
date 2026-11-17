@@ -131,6 +131,10 @@ extension UKTilePaint {
             paint.band = litBand()
         case let .colored(rgb):
             paint.ground = .flat(glass ? tinted(rgb) : .ukRGB(rgb))
+            // A state style's fill with a progress part: black over the part not yet reached, as a family fill draws it.
+            if let level = input.level, level > 0 {
+                paint.shade = (UIColor.black.withAlphaComponent(TileFaceStyle.progressShade), 1 - min(1, level))
+            }
         case let .filled(family):
             let fill = family.spec.fill ?? 0xFFD60A
             if family.spec.darkInk {

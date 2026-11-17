@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "legacy-viewer-admin",
+  "note": "The viewer leaf asks the signed-in person.",
+  "subject": {
+    "condition": {
+      "type": "viewer",
+      "isAdmin": true
+    }
+  },
+  "env": {
+    "viewer": {
+      "isAdmin": true
+    }
+  },
+  "expected": {
+    "tri": "yes"
+  }
+}

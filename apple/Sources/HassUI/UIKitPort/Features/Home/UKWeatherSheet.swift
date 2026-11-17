@@ -308,7 +308,7 @@ final class UKWeatherHourlyPanel: UIView {
                 carousel?.setCells(cells)
                 carouselHost?.contentChanged()
             }
-            if previousMode != mode, let host = carouselHost, window != nil, !UIAccessibility.isReduceMotionEnabled {
+            if previousMode != mode, let host = carouselHost, window != nil, !UKMotion.reduceMotion {
                 UIView.transition(with: host, duration: MotionTokens.quickDuration, options: [.transitionCrossDissolve, .allowUserInteraction], animations: replace)
             } else {
                 replace()

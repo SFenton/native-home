@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "format-words-case-number-text",
+  "note": "A number has no letters: the text of the number.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{m}",
+      "args": {
+        "m": {
+          "type": "literal",
+          "value": 72
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "72"
+  }
+}

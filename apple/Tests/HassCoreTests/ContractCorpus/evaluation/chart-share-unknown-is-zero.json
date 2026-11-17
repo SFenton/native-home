@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-unknown-is-zero",
+  "note": "An unknown value is 0. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": null,
+      "top": 100
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 0
+    }
+  }
+}

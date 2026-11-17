@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "chart-source-points-no-records",
+  "note": "A flow with no records gives no points: the chart draws its empty text.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 5,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": []
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": []
+    }
+  }
+}

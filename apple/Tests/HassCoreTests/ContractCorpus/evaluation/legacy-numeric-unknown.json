@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "legacy-numeric-unknown",
+  "note": "The numeric leaf is unknown while its source is loading.",
+  "subject": {
+    "condition": {
+      "type": "numeric",
+      "sourceId": "temp",
+      "path": [
+        "state"
+      ],
+      "above": {
+        "type": "literal",
+        "value": 1
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "tri": "unknown"
+  }
+}

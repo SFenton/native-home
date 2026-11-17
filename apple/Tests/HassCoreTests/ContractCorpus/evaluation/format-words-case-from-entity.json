@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "format-words-case-from-entity",
+  "note": "Text from an entity attribute.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Issue: {m}",
+      "args": {
+        "m": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "robot",
+            "path": [
+              "attributes",
+              "issue"
+            ]
+          },
+          "as": "string",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "m": {
+          "text": {
+            "case": "words"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "robot/attributes/issue": {
+        "status": "value",
+        "value": "Wheel stuck"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Issue: Wheel Stuck"
+  }
+}

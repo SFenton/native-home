@@ -13,9 +13,9 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public let name: String
     public let theme: Theme
     public let navigation: Navigation
-    public let pages: [Page]
-    public let modals: [Modal]
-    public let dataSources: [Source]
+    public internal(set) var pages: [Page]
+    public internal(set) var modals: [Modal]
+    public internal(set) var dataSources: [Source]
     public let variables: EmptyObject
     public let assets: [Asset]
     public let liveActivities: [ActivityPresentation]
@@ -194,6 +194,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let arguments: EmptyObject
         /// Shows or hides the tab by a rule; `nil` for a tab that is always there.
         public let visibleWhen: ServerUIVisibility?
+        /// A count or text drawn on the tab (`sh.badges@1`); `nil` for none.
+        public var badgeValue: ServerUIOperand? = nil
     }
     /// The shell chrome: its bar button groups.
     public struct Chrome: Equatable, Sendable { public let groups: [ChromeGroup] }
@@ -213,7 +215,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case horizontalOnly = "horizontal-only"
     }
     /// A chrome item's badge; none is defined.
-    public enum Badge: String, Sendable { case none }
+    public enum Badge: String, Sendable { case none, value }
     /// A group of chrome items with one placement and a horizontal and a vertical grouping policy.
     public struct ChromeGroup: Equatable, Sendable {
         public let id: String
@@ -239,6 +241,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let priority: Priority
         public let rail: Rail
         public let badge: Badge
+        /// The badge's value (`sh.badges@1`), when `badge` says `value` in the document; `nil` for none.
+        public var badgeValue: ServerUIOperand? = nil
         public let action: Action
     }
     /// The canonical Quick Links, Profile and connection-state group, with authored destinations.
@@ -272,12 +276,12 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let parameters: EmptyObject
         public let layout: BodyLayout
         public let toolbar: Toolbar
-        public let components: [Component]
+        public internal(set) var components: [Component]
         public var titleSourceId: String? = nil
     }
     /// A page: a surface the shell navigates to, with its navigation style.
     public struct Page: Equatable, Sendable {
-        public let surface: Surface
+        public internal(set) var surface: Surface
         public let navigation: RouteLayout
         public var columnPlaceholder: String? = nil
         public var standaloneColumns = false
@@ -286,7 +290,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     }
     /// A modal: a surface presented as a sheet.
     public struct Modal: Equatable, Sendable {
-        public let surface: Surface
+        public internal(set) var surface: Surface
         public let presentation: Sheet
         public var id: String { surface.id }
     }
@@ -343,9 +347,23 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let sourceId: String
         public let path: [String]
         public let kind: ScalarKind
+
+        /// Creates a read.
+        public init(sourceId: String, path: [String], kind: ScalarKind) {
+            self.sourceId = sourceId
+            self.path = path
+            self.kind = kind
+        }
     }
-    /// A string given literally or read from a source.
-    public enum StringValue: Equatable, Sendable { case literal(String), read(Read) }
+    /// A string given literally, read from a source, or made by an operand (`sh.rules@1`).
+    ///
+    /// A `read` and an `expression` may carry the text to draw while the value is unavailable (never while it is loading: the slot keeps
+    /// what it showed). ``ServerUIStringResolver`` is the one place that turns one into text.
+    public enum StringValue: Equatable, Sendable {
+        case literal(String)
+        case read(Read, fallback: String? = nil)
+        case expression(ServerUIOperand, fallback: String?)
+    }
     /// An entity id given literally or read from a source.
     public enum EntityValue: Equatable, Sendable { case literal(String), read(Read) }
     /// Reads supply typed descriptors, not ready runtime data. The power adapter must validate
@@ -375,6 +393,10 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case profileAccount(id: String)
         case settingsProvider(id: String, configuration: ServerUISettingsSource)
         case camera(id: String, configuration: ServerUICameraDescriptor)
+        /// Facts about the app and its window that no entity holds (`sh.app-state@1`), one source per topic.
+        case appState(id: String, topic: ServerUIAppState.Topic)
+        /// A Data Flow: a request, a closed list of steps and what it gives (`sh.pipeline@1`).
+        case pipeline(id: String, flow: ServerUIFlow)
         public var id: String {
             switch self {
             case .haEntity(let id, _), .powerToggle(let id, _),
@@ -384,7 +406,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
                  .roomNavigation(let id, _), .roomDevice(let id, _), .deviceProvider(let id, _), .bedroom(let id, _, _),
                  .mediaRemote(let id, _), .sprinklerState(let id, _), .vacuum(let id, _),
                  .inventoryList(let id, _), .todoCollection(let id, _), .householdAwayStatus(let id, _),
-                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _): id
+                 .profileAccount(let id), .camera(let id, _), .settingsProvider(let id, _), .appState(let id, _), .pipeline(let id, _): id
             }
         }
         public var entityId: EntityValue? {
@@ -393,7 +415,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .alarmMode(_, let value), .securityDoor(_, let value, _),
                  .householdAwayStatus(_, let value): .literal(value)
             case .inventorySummary, .todoCounts, .roomNavigation, .roomDevice, .deviceProvider, .bedroom,
-                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider: nil
+                 .mediaRemote, .sprinklerState, .vacuum, .inventoryList, .todoCollection, .profileAccount, .settingsProvider, .appState, .pipeline: nil
             case .homeStatus, .homeWeather: nil
             case .homeLight(_, let value, _): .literal(value)
             case .climate(_, let configuration): .literal(configuration.entityId)
@@ -447,6 +469,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let intent: PowerIntent
         public let feedback: Policy
         public let confirmation: Confirmation
+        /// Ask only while this holds (`sh.confirm-when@1`); `nil` always asks. A condition that cannot be answered asks.
+        public var confirmWhen: ServerUIPredicate? = nil
     }
     /// What a power action does; toggle is the one intent.
     public enum PowerIntent: String, Sendable { case toggle = "power.toggle" }
@@ -470,6 +494,9 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case setLocal(stateId: String, value: LocalValue)
         /// Calls any Home Assistant service on a user gesture (`sh.call-service@1`).
         case callService(ServerUICallService)
+        /// An action chosen by rule: the first case whose condition holds, else `otherwise` or nothing (`sh.action-rules@1`).
+        /// ``ServerUIActionRule/resolve(_:)`` gives the plain action to run, at gesture time.
+        indirect case conditional(ServerUIActionRule)
     }
 
     // MARK: - Closed component variants
@@ -481,18 +508,28 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let span: Int
         /// Shows or hides the node in place by a rule (`sh.visible-when@1`); `nil` for a node that is always there.
         public let visibleWhen: ServerUIVisibility?
+        /// Enables the node's action only while a rule holds (`sh.enabled-when@1`); `nil` for a node that is always enabled.
+        public let enabledWhen: ServerUIEnabledRule?
+        /// A count or text drawn on the node's corner (`sh.badges@1`); `nil` for none. A value of 0 or empty draws nothing.
+        public var badgeValue: ServerUIOperand? = nil
 
-        init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil) {
+        init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil, enabledWhen: ServerUIEnabledRule? = nil) {
             self.id = id
             self.title = title
             self.span = span
             self.visibleWhen = visibleWhen
+            self.enabledWhen = enabledWhen
         }
     }
     /// The text styles a document may name.
     public enum TextStyle: String, CaseIterable, Sendable {
         case body, headline, caption1, subheadline, footnote
         case sectionTitle = "section-title"
+        /// The styles `sh.text-style@1` adds to the older six.
+        case largeTitle = "large-title", title1, title2, title3, callout, caption2
+
+        /// Whether the style needs `sh.text-style@1`.
+        public var needsTextStyle: Bool { [.largeTitle, .title1, .title2, .title3, .callout, .caption2].contains(self) }
     }
     /// A text node: a string value drawn in a text style, with copy for when it is unavailable.
     public struct Text: Equatable, Sendable {
@@ -500,6 +537,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let value: StringValue
         public let style: TextStyle
         public let unavailableText: String
+        /// Weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
+        public var look = ServerUITextLook()
     }
     /// An account header resolves its identity and avatar exclusively from a native provider.
     public struct AccountHeader: Equatable, Sendable {
@@ -527,7 +566,12 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let equalRowHeights: Bool
         public let shortRow: ShortRow
         public let fold: Fold
-        public let children: [Component]
+        public internal(set) var children: [Component]
+        /// The grid keeps at least this many columns (`sh.grid-min-columns@1`). It sets the track count only: a column floor never caps
+        /// a tile's span, so a tile wider than a track takes the tracks its content needs. `nil` leaves the columns to the width.
+        public var minimumColumns: Int? = nil
+        /// Tiles sit under a heading for the state they draw (`sh.grid-state-groups@1`); `nil` is today's grid.
+        public var groups: ServerUIGridGroups? = nil
     }
     /// How a short last row fills: shared across the width or leading.
     public enum ShortRow: String, Sendable { case share, leading }
@@ -545,15 +589,33 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let titleLines: Int
         public let fill: TileFill
         public let bodyHint: String?
+        /// How the fill follows a rule or an entity's color (`sh.rules@1`); ``fill`` is then its `otherwise` or fallback.
+        public var fillRule: ServerUIDynamicLook<TileFill>? = nil
     }
     /// How a tile lays its text out.
     public enum TileLayout: String, Sendable {
         case standard, anchoredBottom = "anchored-bottom"
     }
-    /// A tile's fill: the standard one or an authored solid colour.
+    /// A tile's fill: the standard one, an authored solid colour, or one solid colour for each appearance (`sh.solid-appearance@1`).
     public enum TileFill: Equatable, Sendable {
         case standard
         case solidRGB(red: Int, green: Int, blue: Int)
+        case solidAppearance(light: ServerUIRGB, dark: ServerUIRGB)
+
+        /// The exact colour for one appearance, or `nil` for the standard fill. A fixed colour is the same in both; a pair gives its member.
+        public func rgb(isDark: Bool) -> ServerUIRGB? {
+            switch self {
+            case .standard: nil
+            case .solidRGB(let red, let green, let blue): ServerUIRGB(red: red, green: green, blue: blue)
+            case .solidAppearance(let light, let dark): isDark ? dark : light
+            }
+        }
+
+        /// The exact colour in light and in dark, or `nil` for the standard fill.
+        public var appearances: (light: ServerUIRGB, dark: ServerUIRGB)? {
+            guard let light = rgb(isDark: false), let dark = rgb(isDark: true) else { return nil }
+            return (light, dark)
+        }
     }
     /// A tile that navigates: its symbol, family, subtitle, optional alarm disc and the action it runs.
     public struct NavigationTile: Equatable, Sendable {
@@ -643,7 +705,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case collection(Collection), form(Form), recipePart(RecipePart), pinnedActions(PinnedActions)
         case statusChip(StatusChip), statusRail(StatusRail), roomOverviewTile(RoomOverviewTile)
         case homeLightTile(HomeLightTile), weatherPanel(WeatherPanel)
-        case alarmPanel(AlarmPanel), doorTile(DoorTile)
+        case alarmPanel(AlarmPanel)
         case climate(ServerUIClimateControl)
         case roomCard(RoomCard), roomChip(RoomCard), roomSection(RoomSection), roomNavigationGrid(RoomNavigationGrid)
         case roomDeviceControl(ServerUIRoomDeviceControl)
@@ -653,6 +715,12 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case cameraTile(CameraTile), cameraVideo(CameraVideo), cameraControls(CameraControls), cameraViewer(CameraControls)
         case bootstrapMessage(BootstrapMessage)
         case notificationBanner(NotificationBanner)
+        case overlay(ServerUIOverlay)
+        case stack(ServerUIStack), shape(ServerUIShapePart), symbol(ServerUISymbolPart)
+        /// A list drawn from a records flow (`sh.repeat@1`).
+        case repeatNode(ServerUIRepeat)
+        /// A chart of one series (`sh.chart@1`) and a rail with a span and a marker (`sh.linear-gauge@1`).
+        case chart(ServerUIChart), linearGauge(ServerUILinearGauge)
         public var node: Node {
             switch self {
             case .text(let value): value.node
@@ -680,7 +748,6 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .homeLightTile(let value): value.node
             case .weatherPanel(let value): value.node
             case .alarmPanel(let value): value.node
-            case .doorTile(let value): value.node
             case .climate(let value): value.node
             case .settingsLink(let value): value.node
             case .settingsControl(let value): value.node
@@ -699,6 +766,13 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .cameraViewer(let value): value.node
             case .bootstrapMessage(let value): value.node
             case .notificationBanner(let value): value.node
+            case .overlay(let value): value.node
+            case .stack(let value): value.node
+            case .shape(let value): value.node
+            case .symbol(let value): value.node
+            case .repeatNode(let value): value.node
+            case .chart(let value): value.node
+            case .linearGauge(let value): value.node
             }
         }
     }

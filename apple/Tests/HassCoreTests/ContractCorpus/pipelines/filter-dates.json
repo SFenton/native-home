@@ -1,0 +1,175 @@
+{
+  "format": 1,
+  "name": "filter-dates",
+  "note": "before and after compare to the second on the viewer's clock: a time with an offset is moved to it, a date is midnight.",
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "due": {
+              "shape": {
+                "kind": "union",
+                "of": [
+                  {
+                    "kind": "null"
+                  },
+                  {
+                    "kind": "string"
+                  }
+                ]
+              }
+            },
+            "id": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c",
+                  "d",
+                  "e"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "f",
+        "op": "filter",
+        "where": {
+          "type": "compare",
+          "op": "before",
+          "left": {
+            "type": "item",
+            "path": [
+              "due"
+            ]
+          },
+          "right": {
+            "type": "clock",
+            "part": "now"
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "rows",
+      "max": 100,
+      "row": {
+        "id": {
+          "type": "item",
+          "path": [
+            "id"
+          ]
+        },
+        "title": {
+          "type": "item",
+          "path": [
+            "id"
+          ]
+        }
+      }
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "due": {
+            "shape": {
+              "kind": "union",
+              "of": [
+                {
+                  "kind": "null"
+                },
+                {
+                  "kind": "string"
+                }
+              ]
+            }
+          },
+          "id": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "response": [
+    {
+      "id": "a",
+      "due": "2026-11-15"
+    },
+    {
+      "id": "b",
+      "due": "2026-11-15T17:00:00Z"
+    },
+    {
+      "id": "c",
+      "due": "2026-11-15T09:29:59"
+    },
+    {
+      "id": "d",
+      "due": "soon"
+    },
+    {
+      "id": "e",
+      "due": null
+    }
+  ],
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "id": "a",
+        "title": "a"
+      },
+      {
+        "id": "b",
+        "title": "b"
+      },
+      {
+        "id": "c",
+        "title": "c"
+      }
+    ]
+  },
+  "compiles": true
+}

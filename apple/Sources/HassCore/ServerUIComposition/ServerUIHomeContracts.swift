@@ -47,6 +47,10 @@ public extension ServerUICompositionDocument {
         public let icon: Symbol
         public let fill: TileFill
         public let glyph: TileFill?
+        /// How each slot follows a rule or an entity (`sh.rules@1`); the slot's own value is then its `otherwise` or fallback.
+        public var iconRule: ServerUIDynamicLook<Symbol>? = nil
+        public var fillRule: ServerUIDynamicLook<TileFill>? = nil
+        public var glyphRule: ServerUIDynamicLook<TileFill>? = nil
     }
     struct StatusState: Equatable, Sendable {
         public let state: String
@@ -64,16 +68,22 @@ public extension ServerUICompositionDocument {
     enum Announcement: String, Sendable { case none, valueChange = "value-change" }
     struct StatusRail: Equatable, Sendable {
         public let node: Node
-        public let children: [Component]
+        public internal(set) var children: [Component]
     }
     struct RoomOverviewTile: Equatable, Sendable {
         public let chip: StatusChip
         public let hidesContactSubtitle: Bool
         public var powerSourceId: String? = nil
+        /// The words for its states (`sh.state-words@1`).
+        public var words: ServerUIStateWords? = nil
     }
     struct HomeLightTile: Equatable, Sendable {
         public let node: Node
         public let sourceId: String
+        /// Swipe to adjust brightness (`sh.tile-swipe@1`); `nil` is off.
+        public var swipe: ServerUITileSwipe? = nil
+        /// The words for its states (`sh.state-words@1`).
+        public var words: ServerUIStateWords? = nil
     }
     /// One shared forecast model can feed any number of independently authored panels.
     struct HomeWeather: Equatable, Sendable {

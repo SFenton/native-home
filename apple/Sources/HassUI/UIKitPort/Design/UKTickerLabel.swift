@@ -42,6 +42,12 @@ final class UKTickerScrollGate: NSObject {
         objc_setAssociatedObject(scrollView, &gateKey, UKTickerScrollGate(scrollView: scrollView), .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
 
+    /// Starts the idle check now when the scroll view is already moving, so a watcher that arrives mid-scroll hears it end even if no further offset change comes.
+    func watch() {
+        guard let scrollView, scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking else { return }
+        moved()
+    }
+
     private func moved() {
         isScrolling = true
         idleTimer?.invalidate()
@@ -73,6 +79,10 @@ final class UKTickerLabel: UIView {
     /// The label's font (`.headline` by default); rebuilt when Dynamic Type changes.
     var textStyle: UIFont.TextStyle { didSet { updateFont() } }
     var weight: UIFont.Weight? { didSet { updateFont() } }
+    /// A font that replaces the text style's (a document's scaled numeral), asked again when Dynamic Type changes.
+    var fontProvider: ((UITraitCollection) -> UIFont)? { didSet { updateFont() } }
+    /// Where the resting text sits in the column.
+    var textAlignment: NSTextAlignment = .natural { didSet { staticLabel.textAlignment = textAlignment } }
     /// Monospaced digits (`.monospacedDigit()`), for a tile's state line.
     var monospacedDigit = false { didSet { updateFont() } }
     var textColor: UIColor = .label { didSet { for label in [staticLabel, movingLabel] { label.textColor = textColor } } }
@@ -157,7 +167,7 @@ final class UKTickerLabel: UIView {
     private var isTicking: Bool { !(wraps || reduceMotion) }
 
     private func updateFont() {
-        let font = UKFont.preferred(textStyle, weight: weight, monospacedDigit: monospacedDigit, traits: traitCollection)
+        let font = fontProvider?(traitCollection) ?? UKFont.preferred(textStyle, weight: weight, monospacedDigit: monospacedDigit, traits: traitCollection)
         staticLabel.font = font
         movingLabel.font = font
         setNeedsLayout()

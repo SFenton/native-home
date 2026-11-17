@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "compare-loading-is-unknown",
+  "note": "An operand that is loading makes a comparison unknown.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "number",
+        "missing": "unavailable"
+      },
+      "right": {
+        "type": "literal",
+        "value": 60
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "tri": "unknown"
+  }
+}

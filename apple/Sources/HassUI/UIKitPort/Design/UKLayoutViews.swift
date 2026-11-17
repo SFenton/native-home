@@ -104,6 +104,20 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     private var chips: [UIView] = []
     /// The window's hinge in window coordinates, if any.
     var hinge: CGRect? { didSet { if hinge != oldValue { setNeedsLayout() } } }
+    /// The space before the first chip and after the last one. The default is the page gutter, for a rail laid edge to edge; a rail
+    /// inside a page that already pads its sides (a composed page's `layout.padding`) takes the part of the gutter the page lacks
+    /// (``edgeInset(pagePadding:)``), so the chips start where the page's other rows do and not one gutter further in.
+    var edgeInset: CGFloat = HassTokens.Spacing.l {
+        didSet {
+            guard edgeInset != oldValue else { return }
+            setNeedsLayout()
+            invalidateIntrinsicContentSize()
+        }
+    }
+
+    /// The rail's ``edgeInset`` inside a page whose sides are padded by `pagePadding`: the gutter minus what the page already gives.
+    /// - Parameter pagePadding: The page's side padding (the smaller of leading and trailing).
+    static func edgeInset(pagePadding: CGFloat) -> CGFloat { max(0, HassTokens.Spacing.l - pagePadding) }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -150,7 +164,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
         switch mode {
         case .scroll: rowSizes.map(\.height).max() ?? 0
-        case .wrap: flow.gridHeight(forWidth: max(0, width - 2 * HassTokens.Spacing.l))
+        case .wrap: flow.gridHeight(forWidth: max(0, width - 2 * edgeInset))
         }
     }
 
@@ -159,7 +173,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let margin = HassTokens.Spacing.l
+        let margin = edgeInset
         switch mode {
         case .scroll:
             // Measured on the full-width frame, so the inset never feeds back into the frame it is computed from.
@@ -307,7 +321,7 @@ final class UKPageSectionHeaderView: UIView, UKGridMeasuring, UKSurfaceStyled {
 /// A vertical stack of views at their natural heights, laid out by hand: the page column of a gallery, and the SwiftUI
 /// `VStack(alignment: .leading, spacing:)` inside a `ScrollView`. Children report their height from ``UKGridMeasuring`` or `sizeThatFits`.
 @MainActor
-final class UKColumnView: UIView, UKGridMeasuring {
+final class UKColumnView: UIView, UKGridWrapping {
     var spacing: CGFloat { didSet { setNeedsLayout() } }
     var insets: UIEdgeInsets { didSet { setNeedsLayout() } }
     private(set) var views: [UIView] = []
@@ -348,7 +362,7 @@ final class UKColumnView: UIView, UKGridMeasuring {
         let inner = max(0, bounds.width - insets.left - insets.right)
         var y = insets.top
         for (view, height) in zip(views, heights(width: inner)) where !view.isHidden {
-            view.frame = CGRect(x: insets.left, y: y, width: inner, height: height)
+            view.ukPlace(in: CGRect(x: insets.left, y: y, width: inner, height: height))
             y += height + spacing
         }
     }

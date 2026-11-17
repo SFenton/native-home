@@ -29,6 +29,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// The id of the collection hosted as the page's scroller, or nil while the column is.
     private var scrollerCollectionID: String?
     private(set) var nodes: [String: UKServerUINode] = [:]
+    /// The scope of each repeat cell, kept across publications so a cell keeps its record and its views.
+    private var cellScopes: [String: UKServerUICellScope] = [:]
     private var inheritedGroups: [D.ChromeGroup]
     private var closePolicy: D.Close?
     private lazy var chrome = UKServerUIChrome(page: self)
@@ -118,7 +120,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         closePolicy = close
         self.renderer = renderer
         self.columnPlaceholder = columnPlaceholder
-        super.init(context: context, title: surface.title)
+        super.init(context: context.with { $0.inkDefault = TileInkDefault(renderer.publication.inkDefault) }, title: surface.title)
     }
 
     @available(*, unavailable)
@@ -177,6 +179,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         self.inheritedGroups = inheritedGroups
         closePolicy = close
         title = surface.title
+        context.inkDefault = renderer.map { TileInkDefault($0.publication.inkDefault) } ?? .muted
         if isViewLoaded { render(); refreshTitle() }
     }
 
@@ -315,9 +318,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         func hasFocus(_ view: UIView) -> Bool { view.isFirstResponder || view.subviews.contains(where: hasFocus) }
         return isViewLoaded && (hasFocus(view) || presentedViewController != nil || nodes.values.contains {
             ($0.view as? UKServerUILocalTabs)?.isTransitioning == true ||
-            ($0.view as? UKServerUIPagedRow)?.blocksPublication == true ||
+            ($0.view as? UKServerUIPagedRow)?.blocksPublication == true || ($0.view as? UKRepeatView)?.blocksPublication == true ||
             ($0.view as? UKServerUIFormView)?.blocksPublication == true
                 || ($0.view as? UKServerUIDeviceAtom)?.hasActiveInteraction == true
+                || ($0.view as? UKGlassTileView)?.swipe?.isDragging == true
         })
     }
 
@@ -337,15 +341,30 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         case .points(let value): body.maxWidth = value
         }
         var retained: [String: UKServerUINode] = [:]
+        var retainedScopes: [String: UKServerUICellScope] = [:]
+        defer { cellScopes = retainedScopes }
         var containerChanges: [(clear: () -> Void, install: () -> Void)] = []
         var railChanges: [(UKChipRailView, [UIView])] = []
         var sectionChanges: [UKRoomSectionContent] = []
         var layoutBindings: [() -> Void] = []
+        // The repeat cell being built, if any: its nodes are keyed by cell and read the cell's record.
+        var currentCell: UKServerUICellScope?
+        var cellKey = ""
         func node(_ component: D.Component) -> UIView {
-            let id = component.node.id
+            let id = cellKey.isEmpty ? component.node.id : component.node.id + "#" + cellKey
             let entry = nodes[id].flatMap { $0.matches(component) ? $0 : nil } ?? UKServerUINode(component, surface: context.surface)
             retained[id] = entry
             entry.bag.removeAll()
+            if let scope = currentCell {
+                entry.bag.around = { @MainActor [weak renderer] (run: @MainActor () -> Void) in
+                    guard let bindings = renderer?.bindings else { return run() }
+                    let outer = bindings.cell
+                    bindings.cell = scope
+                    run()
+                    bindings.cell = outer
+                }
+            } else { entry.bag.around = nil }
+            if !cellKey.isEmpty { entry.view.accessibilityIdentifier = component.node.id + "." + cellKey.replacingOccurrences(of: "#", with: ".") }
             switch component {
             case .settingsControl(let control):
                 if let view = entry.view as? UKServerUISettingsAtom, let provider = renderer.settingsProvider(for: control.sourceId) {
@@ -355,6 +374,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             case .statusRail(let rail):
                 if let view = entry.view as? UKChipRailView {
                     view.hinge = context.shell?.windowHinge
+                    view.edgeInset = UKChipRailView.edgeInset(pagePadding: min(body.padding.left, body.padding.right))
                     let children = rail.children.map(node)
                     if entry.childViews != children {
                         entry.childViews = children
@@ -363,6 +383,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .statusChip(let chip):
                 if let view = entry.view as? UKStatusChipView {
+                    var shown: ServerUIResolvedAppearance?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer, let value = renderer.bindings.status(chip.sourceId) else { return }
                         let action: (() -> Void)? = chip.action.map { intent in
@@ -371,14 +392,18 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                 self.renderer?.activate(intent, from: self, source: view)
                             }
                         }
-                        UKServerUIHomeViews.configure(view, chip: chip, value: value, action: action)
+                        let (look, text) = UKServerUIHomeViews.appearance(chip, value: value, in: renderer.reader(), keeping: shown)
+                        shown = look
+                        UKServerUIHomeViews.configure(view, chip: chip, value: value, appearance: look, text: text, action: action)
                     }
                 }
             case .roomOverviewTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
+                    var shown: ServerUIResolvedAppearance?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
-                        guard let self, let view, let renderer, let value = renderer.bindings.status(tile.chip.sourceId) else { return }
-                        let (appearance, text) = UKServerUIHomeViews.appearance(tile.chip, value: value)
+                        guard let self, let view, let renderer, let value = renderer.bindings.status(tile.chip.sourceId, words: tile.words) else { return }
+                        let (appearance, text) = UKServerUIHomeViews.appearance(tile.chip, value: value, in: renderer.reader(), keeping: shown)
+                        shown = appearance
                         let hiddenSubtitle: Bool
                         let family: ColorFamily
                         if case .homeStatus(_, let config) = renderer.bindings.definitions[tile.chip.sourceId] {
@@ -393,7 +418,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                             case .entity: .neutral
                             }
                         } else { hiddenSubtitle = false; family = .neutral }
-                        let fill = UKServerUIHomeViews.rgb(appearance.fill)
+                        let fillPair = UKServerUIHomeViews.pair(appearance.fill)
+                        let fill = fillPair?.light
                         let tint = family == .air ? value.color.map { UIColor.ukRGB($0.rgb) } : nil
                         let previousLabel = view.accessibilityLabel
                         let previousValue = view.accessibilityValue
@@ -402,6 +428,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                                      isActive: value.active || fill != nil || tint != nil,
                                                      isUnavailable: value.unavailable, kind: tile.chip.action == nil ? .state : .navigate,
                                                      identifier: tile.chip.node.id, spokenValue: value.spoken)
+                        model.fillDarkRGB = fillPair.flatMap { $0.isFixed ? nil : $0.dark }
                         model.stateCandidates = [text]
                         let power = tile.powerSourceId.flatMap { renderer.bindings.lights[$0] }
                         let powerSpec = power?.roomPower(title: tile.chip.node.title)
@@ -442,13 +469,9 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let view = entry.view as? UKAlarmPanelControl {
                     UKServerUISecurityViews.bind(panel, view: view, bag: entry.bag, page: self, renderer: renderer)
                 }
-            case .doorTile(let tile):
-                if let view = entry.view as? UKGlassTileView {
-                    UKServerUISecurityViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer)
-                }
             case .stateTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
-                    UKServerUIStateTileViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer)
+                    UKServerUIStateTileViews.bind(tile, view: view, bag: entry.bag, page: self, renderer: renderer, node: entry)
                 }
             case .climate(let control):
                 if let view = entry.view as? UKServerUIClimateControl,
@@ -562,7 +585,9 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 (entry.view as? UKServerUIBootstrapMessage)?.apply(message)
             case .text(let text):
                 if let view = entry.view as? UKServerUIText {
+                    view.isSectionTitle = text.style == .sectionTitle
                     view.style = UKServerUIPreflight.textStyle(text.style)
+                    view.look = text.look
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer else { return }
                         view?.apply(renderer.bindings.string(text.value), unavailable: text.unavailableText)
@@ -573,14 +598,26 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                     view.configuration = UKServerUIPreflight.grid(grid, traits: traitCollection)
                     view.followsFold = grid.fold == .page && !isSheet && !context.isPane
                     let children = grid.children.map { ($0, node($0)) }
-                    let items = children.filter { renderer.componentVisible($0.0) }.map { UKGridItem($0.1, span: $0.0.node.span) }
+                    // A grid grouped by state arranges its tiles under headings and moves one when its state changes (`sh.grid-state-groups@1`).
+                    if grid.groups != entry.grouping?.groups {
+                        entry.grouping?.detach()
+                        entry.grouping = grid.groups.map { UKServerUIGridGrouping($0, gridID: grid.node.id, grid: view, surface: context.surface) }
+                    }
+                    entry.grouping?.reapplyGeneration = { [weak self] in self?.context.store.reapplyGeneration ?? 0 }
+                    entry.grouping?.relayout = { [weak self] animated in self?.body?.contentChanged(animated: animated) }
+                    let grouping = entry.grouping
+                    func arranged() -> [UKGridItem] {
+                        let shown = children.filter { renderer.componentVisible($0.0) }.map { (view: $0.1, span: $0.0.node.span) }
+                        return grouping?.items(shown) ?? shown.map { UKGridItem($0.view, span: $0.span) }
+                    }
+                    let items = arranged()
                     if view.items.map(\.view) != items.map(\.view) || view.items.map(\.span) != items.map(\.span) {
                         containerChanges.append(({ view.setItems([]) }, { view.setItems(items) }))
                     }
                     layoutBindings.append { [weak view, weak renderer, weak self] in
                         entry.bag.observe { [weak view, weak renderer, weak self] in
                             guard let view, let renderer else { return }
-                            let items = children.filter { renderer.componentVisible($0.0) }.map { UKGridItem($0.1, span: $0.0.node.span) }
+                            let items = arranged()
                             if view.items.map(\.view) != items.map(\.view) || view.items.map(\.span) != items.map(\.span) {
                                 view.setItems(items)
                                 self?.body?.contentChanged(animated: false)
@@ -601,7 +638,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         guard let renderer, let view else { return }
                         let text: String
                         var pending = false
-                        var tone = value.tone.native
+                        var tone = value.resolvedTone(in: renderer.reader()).native
                         switch renderer.bindings.string(value.value) {
                         case .ready(let value): text = value
                         case .loading: text = ""; pending = true
@@ -646,19 +683,106 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let renderer, let view else { return }
                         view.apply(row, bindings: renderer.bindings, surface: self.context.surface,
-                                   enabled: row.action.map { renderer.isEnabled($0, from: self) } ?? false) { [weak self, weak view] in
+                                   enabled: row.action.map { renderer.isEnabled($0, from: self) && renderer.isEnabled(node: row.node) } ?? false) { [weak self, weak view] in
                             guard let self, let action = row.action else { return }
                             self.renderer?.activate(action, from: self, source: view, symbol: row.icon?.drawn ?? "")
                         }
                     }
                 }
+            case .overlay(let overlay):
+                if let view = entry.view as? UKServerUIOverlayView {
+                    let children = overlay.children.map { ($0, node($0)) }
+                    let reparent = view.needsReparent(children.filter { renderer.componentVisible($0.0) }.map(\.1))
+                    containerChanges.append(({ if reparent { view.clear() } }, {
+                        entry.bag.observe { [weak view, weak renderer, weak self] in
+                            guard let view, let renderer else { return }
+                            let shown = children.filter { renderer.componentVisible($0.0) }
+                            // The first child is the base; the rest are the controls on top.
+                            let base = shown.first.flatMap { $0.0.node.id == overlay.children.first?.node.id ? $0.1 : nil }
+                            view.apply(overlay, base: base, controls: shown.filter { $0.0.node.id != overlay.children.first?.node.id }
+                                .map { ($0.0.node.id, $0.1) })
+                            self?.body?.contentChanged(animated: false)
+                        }
+                    }))
+                }
+            case .stack(let stack):
+                if let view = entry.view as? UKStackView {
+                    let children = stack.children.map { ($0, node($0)) }
+                    let reparent = view.needsReparent(children.filter { renderer.componentVisible($0.0) }.map(\.1))
+                    containerChanges.append(({ if reparent { view.clear() } }, {
+                        entry.bag.observe { [weak view, weak renderer, weak self] in
+                            guard let view, let renderer, let self else { return }
+                            UKServerUIStyleParts.apply(stack, to: view, children: children, page: self, renderer: renderer)
+                            self.body?.contentChanged(animated: false)
+                        }
+                    }))
+                }
+            case .repeatNode(let value):
+                if let view = entry.view as? UKRepeatView, let template = value.template {
+                    let collection = renderer.collections[value.providerId]
+                    let plan = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                                                       limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
+                    var hosts: [UKServerUICellHost] = []
+                    var scopes: [UKServerUICellScope] = []
+                    let count: Int
+                    let isPlaceholder: Bool
+                    var word: String?
+                    switch plan.body {
+                    case .cells(let shown): (count, isPlaceholder) = (shown, false)
+                    case .placeholders(let shown): (count, isPlaceholder) = (shown, true); word = value.words.loading
+                    case .word(let which): (count, isPlaceholder) = (0, false); word = plan.text(which, in: value.words)
+                    }
+                    for index in 0..<count {
+                        let key = (cellKey.isEmpty ? "" : cellKey + "#") + (isPlaceholder ? "p" : "") + "\(index)"
+                        let scopeKey = id + "#" + key
+                        let scope = cellScopes[scopeKey] ?? UKServerUICellScope(index: index)
+                        scope.list = collection
+                        cellScopes[scopeKey] = scope
+                        retainedScopes[scopeKey] = scope
+                        scope.set(isPlaceholder ? nil : collection?.records[safe: index])
+                        let (outerCell, outerKey) = (currentCell, cellKey)
+                        (currentCell, cellKey) = (scope, key)
+                        let content = node(isPlaceholder ? (value.placeholder ?? template) : template)
+                        (currentCell, cellKey) = (outerCell, outerKey)
+                        scopes.append(scope)
+                        hosts.append(view.drawnCells.first { $0.scope === scope && $0.content === content }
+                                     ?? UKServerUICellHost(scope: scope, content: content))
+                    }
+                    view.apply(value, cells: hosts, word: word, footnote: plan.isStale ? value.words.stale : nil)
+                    let drawn = plan
+                    var last = collection?.records ?? []
+                    layoutBindings.append { [weak view, weak renderer, weak self] in
+                        entry.bag.observe { [weak self, weak renderer] in
+                            // One write for each record that differs, to that cell's own scope; a different count or state re-arranges once.
+                            guard let renderer else { return }
+                            let collection = renderer.collections[value.providerId]
+                            let now = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                                                              limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
+                            if now != drawn { DispatchQueue.main.async { [weak self] in self?.render() }; return }
+                            guard case .cells = now.body, let records = collection?.records else { return }
+                            for index in ServerUIRepeatDiff.between(last, records, limit: value.limit).changed {
+                                scopes[safe: index]?.set(records[index])
+                            }
+                            last = records
+                            _ = view
+                        }
+                    }
+                }
+            case .shape(let shape): (entry.view as? UKShapeView)?.apply(shape)
+            case .symbol(let part):
+                if let view = entry.view as? UKSymbolPartView { UKServerUIStyleParts.bind(part, view: view, entry: entry, renderer: renderer) }
+            case .chart(let chart):
+                if let view = entry.view as? UKChartView { UKServerUIDataParts.bind(chart, view: view, entry: entry, renderer: renderer) }
+            case .linearGauge(let gauge):
+                if let view = entry.view as? UKLinearGaugeView { UKServerUIDataParts.bind(gauge, view: view, entry: entry, renderer: renderer) }
             case .localTabs(let tabs):
                 if let view = entry.view as? UKServerUILocalTabs {
                     let scope = tabs.scopeProviderId.flatMap { renderer.records.tabScopes[$0] }
                     var tabs = tabs
                     if let scope { tabs.tabs = tabs.tabs.filter { scope.allowedTabIDs.contains($0.id) } }
                     let children = tabs.tabs.map { $0.children.map { ($0, node($0)) } }
-                    let reparent = view.needsReparent(tabs, children: children.map { $0.map(\.1) })
+                    let areaChildren = tabs.areas.map { $0.children.map { ($0, node($0)) } }
+                    let reparent = view.needsReparent(tabs, children: children.map { $0.map(\.1) }, areaChildren: areaChildren.map { $0.map(\.1) })
                     containerChanges.append(({ if reparent { view.clear() } }, {
                         if let scope {
                             do { try view.prepareScope(scope, stateID: tabs.stateId, state: renderer.localState) }
@@ -683,8 +807,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                             do { resolved = try view.resolveSelection(scope, stored: selection, value: tabs) }
                             catch { renderer.onError(.init(code: .unavailableSource, pointer: "/document/localState")); return }
                             if let title = scope?.title() { self.title = title }
-                            view.apply(tabs, children: children.map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
-                                       selection: resolved, page: self, badges: scope?.badges() ?? [:]) { [weak self] value in
+                            // Tabs and areas hidden by their rules, the fallback tab and the areas that draw on the tab on show.
+                            let layout = UKServerUITabLayout.resolve(tabs, requested: resolved, reader: renderer.reader(), memory: &entry.layoutMemory)
+                            view.apply(layout.container, children: layout.keeping(children, parallelTo: tabs.tabs)
+                                           .map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
+                                       areaChildren: areaChildren.map { $0.filter { renderer.componentVisible($0.0) }.map(\.1) },
+                                       shownAreas: layout.shownAreas, selection: layout.selection, page: self,
+                                       badges: scope?.badges() ?? [:]) { [weak self] value in
                                 guard let self else { return }
                                 self.view.endEditing(true)
                                 self.renderer?.activate(.setLocal(stateId: tabs.stateId, value: .string(value)), from: self)
@@ -715,7 +844,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         wrapper.button.title = button.node.title
                         wrapper.button.accessibilityIdentifier = button.node.id
                         wrapper.button.systemImage = button.icon?.drawn
-                        wrapper.button.isEnabled = renderer.isEnabled(button.action, from: self)
+                        wrapper.button.isEnabled = renderer.isEnabled(button.action, from: self) && renderer.isEnabled(node: button.node)
                         wrapper.button.action = { [weak self, weak wrapper] in
                             guard let self else { return }
                             self.renderer?.activate(button.action, from: self, source: wrapper?.button, symbol: button.icon?.drawn ?? "")
@@ -743,14 +872,24 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .rowCollection(let collection):
                 if let view = entry.view as? UKServerUIRowCollection, let model = renderer.collections[collection.providerId] {
-                    entry.bag.observe { [weak self, weak view] in
+                    entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self else { return }
-                        view?.apply(collection, model: model, surface: self.context.surface)
+                        var detail: String?
+                        if let message = collection.emptyMessage, case .ready(let text) = renderer?.bindings.string(message) { detail = text }
+                        var select: ((ServerUIRowItem) -> Void)?
+                        if let action = collection.rowAction {
+                            select = { [weak self, weak view] _ in
+                                guard let self else { return }
+                                self.renderer?.activate(action, from: self, source: view)
+                            }
+                        }
+                        view?.apply(collection, model: model, surface: self.context.surface, emptyDetail: detail, onSelect: select)
                     }
                 }
             case .navigationTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
                     var first = true
+                    var shownFill: D.TileFill?
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer else { return }
                         let subtitle: String?
@@ -761,11 +900,16 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         }
                         var environment = UKTileEnvironment(context: self.context)
                         var fillRGB: UInt32?
+                        var fillDarkRGB: UInt32?
                         if let presentation = tile.presentation {
                             environment.layout = presentation.layout == .anchoredBottom ? .anchoredBottom : .standard
                             environment.titleLines = presentation.titleLines
-                            if case .solidRGB(let red, let green, let blue) = presentation.fill {
-                                fillRGB = UInt32(red) << 16 | UInt32(green) << 8 | UInt32(blue)
+                            // A fill that follows a rule or an entity's color is read here, inside this observation.
+                            let fill = presentation.resolvedFill(in: renderer.reader(), keeping: shownFill)
+                            shownFill = fill
+                            if let pair = UKServerUIHomeViews.pair(fill) {
+                                fillRGB = pair.light
+                                fillDarkRGB = pair.isFixed ? nil : pair.dark
                             }
                         }
                         let title = tile.titleProviderId.flatMap { renderer.recordCollection($0)?.navigationTitle }.flatMap { $0.isEmpty ? nil : $0 } ?? tile.node.title
@@ -773,6 +917,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                                      family: UKServerUIPreflight.family(tile.family), fillRGB: fillRGB,
                                                      isActive: tile.selected == .navigationPath && renderer.isSelected(tile.action, from: self),
                                                      kind: .navigate, identifier: tile.node.id)
+                        model.fillDarkRGB = fillDarkRGB
                         model.bodyHint = tile.presentation?.bodyHint
                         var alarmSpec: TileActionSpec?
                         if let alarm = tile.alarm, let provider = renderer.bindings.alarms[alarm.sourceId] {
@@ -876,6 +1021,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             }
             if let rule = component.node.visibleWhen { observeVisibility(of: entry, rule: rule, component: component) }
+            UKServerUIBadgeViews.bind(component, entry: entry, renderer: renderer)
             return entry.view
         }
         let roots = definition.components.map { ($0, node($0)) }
@@ -905,7 +1051,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         }
         nodes = retained
         let collections = nodes.values.compactMap { $0.view as? UKServerUICollectionView }.filter(\.pullsToRefresh)
-        if !collections.isEmpty, let scroll = pageScroll {
+        let rowLists = nodes.values.compactMap { $0.view as? UKServerUIRowCollection }.filter(\.pullsToRefresh)
+        if !collections.isEmpty || !rowLists.isEmpty, let scroll = pageScroll {
             UKScrollFit.allowsPullToRefresh(scroll)
             let refresh = scroll.refreshControl ?? UIRefreshControl()
             let identifier = UIAction.Identifier("server-ui-refresh")
@@ -913,6 +1060,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             refresh.addAction(UIAction(identifier: identifier) { [weak refresh] _ in
                 Task {
                     for collection in collections { await collection.refresh() }
+                    for list in rowLists { await list.refresh() }
                     refresh?.endRefreshing()
                 }
             }, for: .valueChanged)
@@ -1016,21 +1164,25 @@ final class UKServerUINode {
         case infoBox, statusPill, pagedRow
         case collection, form, recipePart, pinnedActions
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
-        case alarmPanel, doorTile, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
+        case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner
+        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode, chart, linearGauge
     }
 
     /// The node's view, built once and kept for the node's lifetime.
     let view: UIView
     /// The observations tied to the node's lifetime.
     let bag = UKObservationBag()
+    /// A grid's grouping by state, kept for the node's lifetime (`sh.grid-state-groups@1`).
+    var grouping: UKServerUIGridGrouping?
     /// The views the node last placed inside itself, to detect a changed arrangement.
     var childViews: [UIView] = []
     /// Whether the node's `visibleWhen` last said it is shown; `nil` before its first answer (``ServerUIVisibility/WhenUnknown/keep``).
     var shown: Bool?
     /// The panel an authored `selectedWhen` last picked, so a rule selects once when it newly matches.
     var automaticMatch: String?
+    /// What a tab container's tabs and areas and a state tile's discs last showed, so a rule that cannot be answered keeps its answer.
+    var layoutMemory = UKServerUILayoutMemory()
     private let kind: Kind
     private let weatherKind: ServerUICompositionDocument.WeatherPanel.Panel?
 
@@ -1049,9 +1201,6 @@ final class UKServerUINode {
             view = UKAlarmPanelControl(surface: surface, modes: UKServerUISecurityViews.modes(panel),
                                       headerIdentifier: panel.node.id + ".state", modeIdentifierPrefix: panel.node.id + ".mode",
                                       failureIdentifier: panel.node.id + ".failure")
-        case .doorTile(let tile):
-            view = UKGlassTileView(model: UKGlassTileModel(title: tile.node.title, symbol: tile.fallback.icon.drawn,
-                                                          isActive: false, isUnavailable: true, identifier: tile.node.id))
         case .stateTile(let tile):
             view = UKGlassTileView(model: UKGlassTileModel(title: tile.node.title, symbol: tile.icon.drawn,
                                                           isActive: false, isUnavailable: true, kind: .state, identifier: tile.node.id))
@@ -1073,6 +1222,13 @@ final class UKServerUINode {
                 copy: .init(title: banner.node.title, message: banner.message, enable: banner.enableLabel, dismiss: banner.dismissLabel),
                 onEnable: {}, onDismiss: {})
         case .bootstrapMessage: view = UKServerUIBootstrapMessage()
+        case .overlay: view = UKServerUIOverlayView()
+        case .stack: view = UKStackView()
+        case .repeatNode: view = UKRepeatView()
+        case .shape: view = UKShapeView()
+        case .symbol: view = UKSymbolPartView()
+        case .chart: view = UKChartView()
+        case .linearGauge: view = UKLinearGaugeView()
         case .text: view = UKServerUIText()
         case .grid: view = UKDynamicGridView()
         case .section: view = UKServerUISection()
@@ -1126,6 +1282,13 @@ final class UKServerUINode {
         case .bedroom: .bedroom
         case .vacuum: .vacuum
         case .notificationBanner: .notificationBanner
+        case .overlay: .overlay
+        case .stack: .stack
+        case .repeatNode: .repeatNode
+        case .shape: .shape
+        case .symbol: .symbol
+        case .chart: .chart
+        case .linearGauge: .linearGauge
         case .bootstrapMessage: .bootstrapMessage
         case .text: .text
         case .grid: .grid
@@ -1151,7 +1314,6 @@ final class UKServerUINode {
         case .homeLightTile: .homeLightTile
         case .weatherPanel: .weatherPanel
         case .alarmPanel: .alarmPanel
-        case .doorTile: .doorTile
         case .stateTile: .stateTile
         case .settingsLink: .settingsLink
         case .roomCard: .roomCard
@@ -1208,13 +1370,23 @@ final class UKServerUIText: UIView, UKGridMeasuring {
     private let pending = UKPendingValueBar()
     /// The text style; changing it restyles the label.
     var style: UIFont.TextStyle = .body {
+        didSet { restyle() }
+    }
+    /// Whether this is the document's `section-title` (title3, bold, a heading), not its plain `title3`.
+    var isSectionTitle = false {
         didSet {
-            label.font = style == .title3 ? .ukFont(.title3, weight: .bold)
-                : UIFont.preferredFont(forTextStyle: style, compatibleWith: traitCollection)
-            label.textColor = [.subheadline, .footnote].contains(style) ? UKDesignInk.secondary : UKDesignInk.primary
-            accessibilityTraits = style == .title3 ? .header : .staticText
+            restyle()
+            accessibilityTraits = isSectionTitle ? .header : .staticText
         }
     }
+    /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
+    var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }
+    /// The sliding line of a ticker, present only while the look asks for one.
+    private(set) var ticker: UKTickerLabel?
+    /// The ink and the font the text is drawn with now, for tests of the look.
+    var drawnInk: UIColor { label.textColor }
+    var drawnFont: UIFont { label.font }
+    var lineBreak: NSLineBreakMode { label.lineBreakMode }
 
     init() {
         super.init(frame: .zero)
@@ -1224,6 +1396,11 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         label.isAccessibilityElement = false
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKServerUIText, _) in
+            guard view.look.isDeclared else { return }
+            view.restyle()
+            view.ukRemeasureContainers(includingSelf: true)
+        }
     }
 
     @available(*, unavailable)
@@ -1240,22 +1417,60 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         case .loading: label.text = "Loading"; pending.isHidden = false
         }
         label.alpha = pending.isHidden ? 1 : 0
+        ticker?.text = label.text ?? ""
         accessibilityLabel = label.text
         ukRemeasureContainers(includingSelf: true)
     }
 
     /// The height the settings cell needs at `width`.
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        ceil(label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+        if let ticker { return ceil(ticker.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height) }
+        return ceil(label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+    }
+
+    /// Draws the style, then the look over it.
+    private func restyle() {
+        let styled: UIFont = isSectionTitle ? .ukFont(.title3, weight: .bold) : UIFont.preferredFont(forTextStyle: style, compatibleWith: traitCollection)
+        let base: UIFont.Weight? = isSectionTitle ? .bold : nil
+        let font = UKStyledText.font(style: style, look: look, traits: traitCollection, baseWeight: base) ?? styled
+        let ink = look.ink.map(UKStyledText.color) ?? ([.subheadline, .footnote].contains(style) ? UKDesignInk.secondary : UKDesignInk.primary)
+        label.font = font
+        label.textColor = ink
+        label.numberOfLines = look.lines ?? 0
+        label.lineBreakMode = look.shrinks || (look.lines ?? 0) > 0 ? .byTruncatingTail : .byWordWrapping
+        label.textAlignment = UKStyledText.alignment(look.align, rightToLeft: effectiveUserInterfaceLayoutDirection == .rightToLeft)
+        if look.isTicker {
+            let ticker = self.ticker ?? UKTickerLabel(label.text ?? "", truncatesWhenStill: true)
+            if self.ticker == nil { self.ticker = ticker; insertSubview(ticker, belowSubview: pending) }
+            ticker.fontProvider = { [style, look, base] traits in UKStyledText.font(style: style, look: look, traits: traits, baseWeight: base) ?? font }
+            ticker.textColor = ink
+            ticker.textAlignment = label.textAlignment
+            ticker.text = label.text ?? ""
+            label.isHidden = true
+        } else {
+            ticker?.removeFromSuperview()
+            ticker = nil
+            label.isHidden = false
+        }
+        setNeedsLayout()
     }
 
     /// Lays out the label above its pending bar.
     override func layoutSubviews() {
         super.layoutSubviews()
         label.frame = bounds
+        ticker?.frame = bounds
         let size = pending.sizeThatFits(bounds.size)
         pending.frame = CGRect(x: effectiveUserInterfaceLayoutDirection == .rightToLeft ? max(0, bounds.width - size.width) : 0,
                                y: max(0, (bounds.height - size.height) / 2), width: min(size.width, bounds.width), height: size.height)
     }
+}
+
+// MARK: - Measuring for a stack
+
+extension UKServerUIText: UKStackMeasuring {
+    var stackNaturalWidth: CGFloat { ceil(label.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)).width) }
+    var stackFillsWidth: Bool { true }
+    var stackShrinks: Bool { look.shrinks }
 }
 #endif

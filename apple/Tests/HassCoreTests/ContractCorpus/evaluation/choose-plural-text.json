@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "name": "choose-plural-text",
+  "note": "The usual plural: one chore, 3 chores.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "n",
+                "path": [
+                  "count"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "literal",
+              "value": 1
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": "1 chore"
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "{n} chores",
+        "args": {
+          "n": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "n",
+              "path": [
+                "count"
+              ]
+            },
+            "as": "number",
+            "missing": "unavailable"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "n/count": {
+        "status": "value",
+        "value": 3
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "3 chores"
+  }
+}

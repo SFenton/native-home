@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "gauge-span-tomorrow-has-no-marker",
+  "note": "Tomorrow (low 50, high 70): the span starts at 0 and is 50 long; no marker (WeatherHighlightsTests.swift:155-158).",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0,
+        "size": 0.5
+      },
+      "value": null,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 50,
+        "left": 0,
+        "width": 100
+      },
+      "marker": null
+    }
+  }
+}

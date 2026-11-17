@@ -93,33 +93,35 @@ final class UKHostedDesignBrightnessModalTests: XCTestCase {
         let tile = glassTile(in: view)
         let pan = tile?.gestureRecognizers?.compactMap { $0 as? UIPanGestureRecognizer }.first
         XCTAssertNotNil(pan)
+        let controller = try? XCTUnwrap(tile?.swipe)
         let scripted = BrightnessPan()
         scripted.speed = CGPoint(x: 120, y: 10)
-        XCTAssertTrue(view.gestureRecognizerShouldBegin(scripted), "a mostly horizontal drag begins")
+        XCTAssertTrue(controller?.gestureRecognizerShouldBegin(scripted) ?? false, "a mostly horizontal drag begins")
         scripted.speed = CGPoint(x: 10, y: 120)
-        XCTAssertFalse(view.gestureRecognizerShouldBegin(scripted), "a vertical one is the page's scroll")
-        XCTAssertTrue(view.gestureRecognizerShouldBegin(UITapGestureRecognizer()))
-        let handle = NSSelectorFromString("handlePan:")
+        XCTAssertFalse(controller?.gestureRecognizerShouldBegin(scripted) ?? true, "a vertical one is the page's scroll")
+        let handle = NSSelectorFromString("panned:")
         let width = tile?.bounds.width ?? 170
         scripted.scriptedState = .began
         scripted.travel = CGPoint(x: 30, y: 0)
         scripted.point = CGPoint(x: width * 0.25, y: 40)
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
         scripted.scriptedState = .changed
         scripted.point = CGPoint(x: width * 0.55, y: 40)
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
+        let before = tile?.bounds.width ?? -1
         view.layoutIfNeeded()
+        XCTAssertEqual(tile?.bounds.width ?? -2, before, "a layout pass under the lift keeps the tile's width, so it never cancels the drag")
         scripted.scriptedState = .ended
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
         XCTAssertEqual(levels.count, 1)
         XCTAssertEqual(Double(levels.first ?? 0), 55, accuracy: 6, "the level under the finger on release")
         scripted.scriptedState = .began
         scripted.point = CGPoint(x: width * 0.9, y: 40)
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
         scripted.scriptedState = .cancelled
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
         scripted.scriptedState = .possible
-        view.perform(handle, with: scripted)
+        controller?.perform(handle, with: scripted)
         XCTAssertEqual(levels.count, 1, "a cancelled drag commits nothing")
     }
 

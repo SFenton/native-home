@@ -15,6 +15,7 @@
     ],
     "services": [
       "turn_on",
+      "set_cover_position",
       "turn_off",
       "toggle",
       "add_item",

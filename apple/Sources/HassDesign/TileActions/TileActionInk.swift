@@ -23,12 +23,16 @@ public enum TileActionInk {
     }
 
     /// ``resolve(face:isOn:family:)`` as raw sRGB, which the UIKit port draws.
-    public static func resolveTokens(face: TileActionFace, isOn: Bool, family: ColorFamily?) -> (disc: HassRGB, glyph: HassRGB) {
+    /// - Parameter discGlyphTint: An authored colour for the glyph of a disc that is off on a dark face (`sh.tile-ink@1`, `discGlyphTint`); nil
+    ///   draws what the face always drew. A disc that is on, the lit face and a filled face keep their ink.
+    public static func resolveTokens(face: TileActionFace, isOn: Bool, family: ColorFamily?,
+                                     discGlyphTint: HassRGB? = nil) -> (disc: HassRGB, glyph: HassRGB) {
         if face == .lit { return (LitTile.inkToken, .white) }
         if isOn { return (.white, family?.fillToken ?? LitTile.inkToken) }
         switch face {
         case .filled, .lit: return (HassRGB.black.opacity(filledDiscOpacity), .white)
         case .dark:
+            if let discGlyphTint { return (HassRGB.white.opacity(darkDiscOpacity), discGlyphTint) }
             guard let family, offGlyphPasses(family) else { return (HassRGB.white.opacity(darkDiscOpacity), .white) }
             return (HassRGB.white.opacity(darkDiscOpacity), family.offGlyphToken)
         }
