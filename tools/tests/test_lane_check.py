@@ -4,7 +4,9 @@ Each shape comes from the T-gh-native-gate post-mortem (Action 1): a lane starte
 base another session's fetch had moved (#25), ``core.hooksPath`` as an absolute path, and ``house_scan`` found late.
 """
 
+import contextlib
 import importlib.util
+import io
 import json
 import os
 import stat
@@ -603,6 +605,99 @@ class ScopeCheckTests(unittest.TestCase):
             done = lane(clone, "check", "--only", "scope")
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertIn("scope check skipped", done.stderr)
+
+
+class CiCheckTests(unittest.TestCase):
+    """``check --only ci``: CI's cheap repo checks, each its own subprocess, one ``name exit=N`` line each (A1 of the PR 122 retro)."""
+
+    COPIED = ("pattern_guard.py", "components_index.py", "house_scan.py", "affected_tests.py")
+    OWNED = "apple/Sources/HassDesign/Owned.swift"
+    REGISTRY = {"schemaVersion": 1, "componentScopes": ["apple/Sources/HassDesign/**/*.swift"], "internal": [], "patterns": [{
+        "id": "owned", "title": "Owned", "status": "current", "doc": ".agents/patterns/owned.md", "summary": "s", "keywords": ["owned"],
+        "web": [], "canonical": {"apple": [{"path": "apple/Sources/HassDesign/Owned.swift", "symbol": "Owned"}]},
+        "owns": ["apple/Sources/HassDesign/Owned.swift"], "guards": [], "related": {"patterns": []}, "supersedes": [], "supersededBy": None}]}
+
+    def ci_clone(self, tmp):
+        """A repository carrying the real pattern, component-index and house-scan tools over one owned HassDesign file, all committed clean."""
+        clone, _ = make_repo(tmp)
+        git(clone, "switch", "-q", "-c", "agents/x")
+        (clone / "tools").mkdir()
+        for name in self.COPIED:
+            (clone / "tools" / name).write_text((TOOLS / name).read_text())
+        (clone / "contracts").mkdir()
+        (clone / "contracts/patterns.json").write_text(json.dumps(self.REGISTRY))
+        (clone / "contracts/house_scan.json").write_text((TOOLS.parent / "contracts/house_scan.json").read_text())
+        (clone / ".agents/patterns").mkdir(parents=True)
+        (clone / ".agents/patterns/owned.md").write_text("# Owned\n\nOwned files: Owned.swift\n")
+        (clone / self.OWNED).parent.mkdir(parents=True)
+        (clone / self.OWNED).write_text("public struct Owned {}\n")
+        subprocess.run([sys.executable, str(clone / "tools/components_index.py")], cwd=clone, env=ENV, check=True, capture_output=True)
+        git(clone, "add", "-A")
+        git(clone, "commit", "-q", "-m", "ci tools")
+        return clone
+
+    def test_a_clean_tree_passes_and_each_command_prints_its_exit(self):
+        """Fails if: a tree every CI check accepts is refused, or a command's `name exit=N` line is missing."""
+        with TemporaryDirectory() as tmp:
+            clone = self.ci_clone(tmp)
+            done = lane(clone, "check", "--only", "ci")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            for name in ("house_scan", "pattern_guard", "components_index"):
+                self.assertIn(f"{name} exit=0", done.stdout)
+            self.assertIn("rules_lint skipped", done.stdout)
+            for name in ("mockups_check", "mockups_index"):  # this fixture carries no mockup tools, so CI's first step is reported skipped
+                self.assertRegex(done.stdout, rf"{name} (exit=0|skipped)")
+
+    def test_an_unowned_design_file_a_stale_index_and_a_house_literal_fail_naming_three_commands(self):
+        """Fails if: any of the three CI failures goes unreported, the failing command is not named, or the check exits 0 (the PR 122 shape)."""
+        with TemporaryDirectory() as tmp:
+            clone = self.ci_clone(tmp)
+            commit(clone, "apple/Sources/HassDesign/Fresh.swift", "public struct Fresh {}\n", "unowned file")
+            commit(clone, "apple/Tests/HassDesignTests/FreshTests.swift", 'let host = "' + ".".join(["192", "168", "1", "77"]) + '"\nlet camera = "' + "camera" + ".kitchen_door_cam" + '"\n', "house literal")
+            done = lane(clone, "check", "--only", "ci")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            for name in ("house_scan", "pattern_guard", "components_index"):
+                self.assertIn(f"{name} exit=1", done.stdout + done.stderr)
+            for command in ("python3 tools/house_scan.py", "python3 tools/pattern_guard.py", "python3 tools/components_index.py --check"):
+                self.assertIn(f"`{command}` exit=1", done.stderr)
+
+    def test_the_commands_are_the_workflows_in_its_order_with_both_mockups_steps_first(self):
+        """Fails if: a cheap linux-checks step (the two Mockups commands included) is missing, or the order differs from pr-checks.yml."""
+        spec = importlib.util.spec_from_file_location("lane_check_o", LANE_CHECK)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        names = [name for name, _ in module.ci_commands(Path("/r"), "main")]
+        self.assertEqual(names, ["mockups_check", "mockups_index", "pattern_guard", "components_index", "jev", "house_scan",
+                                 "rules_lint", "lint_motion", "test_plans", "test_suites"])
+
+    def test_the_private_denylist_is_never_read_and_a_pipe_free_command_reports_its_own_code(self):
+        """Fails if: the child sees the caller's denylist, a failing command's own exit code (7) is replaced, or a later command is skipped."""
+        spec = importlib.util.spec_from_file_location("lane_check_t", LANE_CHECK)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with TemporaryDirectory() as tmp:
+            private = Path(tmp) / "private.txt"
+            private.write_text("secret\n")
+            probe = Path(tmp) / "probe.sh"
+            probe.write_text('#!/bin/sh\n[ "$HOUSE_SCAN_DENYLIST" != "%s" ] && [ ! -e "$HOUSE_SCAN_DENYLIST" ]\n' % private)
+            seven = Path(tmp) / "seven.sh"
+            seven.write_text("#!/bin/sh\nexit 7\n")
+            for script in (probe, seven):
+                script.chmod(stat.S_IRWXU)
+            saved = os.environ.get("HOUSE_SCAN_DENYLIST")
+            os.environ["HOUSE_SCAN_DENYLIST"] = str(private)
+            try:
+                out = io.StringIO()
+                with contextlib.redirect_stdout(out):
+                    why = module.check_ci("main", Path(tmp), [("probe", [str(probe)]), ("seven", [str(seven)]), ("after", [str(probe)])])
+            finally:
+                if saved is None:
+                    del os.environ["HOUSE_SCAN_DENYLIST"]
+                else:
+                    os.environ["HOUSE_SCAN_DENYLIST"] = saved
+            self.assertEqual(out.getvalue().splitlines(), ["probe exit=0", "seven exit=7", "after exit=0"])
+            self.assertIn("seven.sh` exit=7", why)
+            self.assertNotIn("probe.sh", why)
 
 
 if __name__ == "__main__":
