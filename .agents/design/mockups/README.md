@@ -32,7 +32,7 @@
 | Components | [components/](components/README.md) | 95 |
 | Flows | [flows/](flows/README.md) | 13 |
 
-In flight (decided, not on `main` yet): [Vacuum sheet (Controls, Rooms, Auto-Clean, Dock, Info)](modals/vacuums/vacuum-sheet/vacuum-sheet.html) (`t3/native-ingest`), [Valetudo map canvas and map frame](components/vacuums/vacuum-map-canvas/vacuum-map-canvas.html) (`t3/native-ingest`)
+In flight (decided, not on `main` yet): none
 
 <!-- END generated -->
 

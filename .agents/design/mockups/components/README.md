@@ -196,7 +196,7 @@
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
 | [Vacuum tiles, chips and setting rows](vacuums/vacuum-status-chip/vacuum-status-chip.html) | `vacuum-status-chip` | shipped | iphone, duo, ipad |  |
-| [Valetudo map canvas and map frame](vacuums/vacuum-map-canvas/vacuum-map-canvas.html) | `vacuum-map-canvas` | in flight (t3/native-ingest) | iphone, duo, ipad |  |
+| [Valetudo map canvas and map frame](vacuums/vacuum-map-canvas/vacuum-map-canvas.html) | `vacuum-map-canvas` | shipped | iphone, duo, ipad |  |
 
 ## widgets (4)
 

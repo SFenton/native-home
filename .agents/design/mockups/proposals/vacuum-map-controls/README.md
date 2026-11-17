@@ -1,8 +1,8 @@
 # Map orientation and corner button groups (proposal, decided)
 > **What:** the owner-review page for flipping the vacuum map and placing buttons in its corners, and what the build settled. **Read when:** you want to know why the map buttons and the flip work as they do. The current design is [vacuum-sheet](../../modals/vacuums/vacuum-sheet/vacuum-sheet.html) and [vacuum-map-canvas](../../components/vacuums/vacuum-map-canvas/vacuum-map-canvas.html).
-- Mockup: [vacuum-map-controls.html](vacuum-map-controls.html) · status decided 2026-11-16 · built on `t3/native-ingest` (4b066cd6), not on `main` yet
-- Owner request (2026-11-16): flip the map horizontally, vertically or both; any number of buttons as a row or a column in each of the four corners, in an order the owner sets; the app handles what does not fit. Gate: `matches_request=yes`.
-- Decision record: `.agents/decisions/2026-11-16-map-controls.md` and the rules in `.agents/patterns/map-controls.md`, both on `t3/native-ingest`; this file stands in for them until that branch is on `main`.
+- Mockup: [vacuum-map-controls.html](vacuum-map-controls.html) · status decided
+- Owner request: flip the map horizontally, vertically or both; any number of buttons as a row or a column in each of the four corners, in an order the owner sets; the app handles what does not fit. Gate: `matches_request=yes`.
+- Decision record: `.agents/decisions/` (map-controls); rules: `.agents/patterns/map-controls.md`.
 - Built as drawn: one glass shape per group, 44 pt buttons, 8 pt from the card's edges, 12 pt between groups; the flip after the rotation; badges, markers and buttons never mirror; nothing authored draws Locate alone at top leading.
 - Settled by the build, where this page differs or was silent:
   - A vacuum command on the map (Clean, Pause, Return to Dock) follows the command tiles: hidden when the vacuum does not offer it, dimmed with its reason when offered but blocked. So Clean is hidden, not dimmed, while the robot is unavailable; the page's "Robot unavailable" state still draws Pause and Return to Dock.

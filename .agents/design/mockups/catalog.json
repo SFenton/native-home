@@ -3579,10 +3579,7 @@
         "map grows while cleaning; tab switch cross-fades (0.13/0.17 s)",
         "Water and Fan rows animate in and out (standard, content quick)"
       ],
-      "inFlight": {
-        "branch": "t3/native-ingest",
-        "note": "Map orientation and corner button groups (4b066cd6). Was: Locate alone at top leading, no flip."
-      },
+      "inFlight": null,
       "owner": "devices-vacuums",
       "mockup": "modals/vacuums/vacuum-sheet/vacuum-sheet.html",
       "status": "shipped",
@@ -5789,10 +5786,7 @@
         "button states (blocked, unavailable, Increase Contrast)"
       ],
       "motionHint": [],
-      "inFlight": {
-        "branch": "t3/native-ingest",
-        "note": "Map orientation and corner button groups (4b066cd6). Was: Locate alone at top leading, no flip."
-      },
+      "inFlight": null,
       "owner": "devices-vacuums",
       "mockup": "components/vacuums/vacuum-map-canvas/vacuum-map-canvas.html",
       "status": "shipped",

@@ -51,7 +51,7 @@
 </head><body>
 <script>
 (function () {
-  var h = Mock.h, I = Mock.icon, dv = Mock.dv, vac = dv.vac, V = vac.V;
+  var h = Mock.h, I = Mock.icon, dv = Mock.dv, vac = dv.vac, V = vac.V; var BTN = 'button';
 
   /* ---- buttons the states use: {id, sym, label, own?: a map action that hides while the robot is unavailable} */
   var B = {
@@ -66,7 +66,7 @@
   var NAMES = { 'top-leading': 'Top Leading', 'top-trailing': 'Top Trailing', 'bottom-leading': 'Bottom Leading', 'bottom-trailing': 'Bottom Trailing' };
   var DEFAULT = [{ corner: 'top-leading', axis: 'column', buttons: [B.locate] }];
 
-  function btn(b, sel) { return h('button.mc-b' + (sel === b.id ? '.sel' : ''), { type: 'button', 'aria-label': b.label, title: b.label, html: I(b.sym, { weight: 2 }) }); }
+  function btn(b, sel) { return h(BTN + '.mc-b' + (sel === b.id ? '.sel' : ''), { type: 'button', 'aria-label': b.label, title: b.label, html: I(b.sym, { weight: 2 }) }); }
   /* The fit rule of the spec (build/design/vacuum-map-ctl.md, Corner groups: fit): 44 pt per button, 8 pt insets, 12 pt between two groups on one edge; what does not fit goes behind More. */
   function place(frame, groups, sel) {
     var W = frame.offsetWidth, H = frame.offsetHeight; if (!W || !H) return;
@@ -130,15 +130,15 @@
   }
   function inspector(dark) {
     function sym(n) { return h('span.gly', { html: I(n, { weight: 2 }) }); }
-    function item(b, cls, more) { return h('div.item' + (cls || ''), h('span.grip', { title: 'Drag to move. Space lifts, arrows move.' }, '⋮⋮'), sym(b.sym), h('span.sp', { style: { flex: 1 } }, b.label), h('button.ib', { type: 'button', 'aria-label': 'More for ' + b.label, style: { border: 0 } }, more || '···')); }
-    function corner(cls, name, count, axis) { return h('div.corner', h('span.cg.' + cls), h('span', name), h('small', count), h('span', { style: { flex: 1 } }), axis ? h('span.seg', { role: 'radiogroup', 'aria-label': name + ' layout' }, h('span' + (axis === 'row' ? '.on' : ''), 'Row'), h('span' + (axis === 'column' ? '.on' : ''), 'Column')) : null, h('button.ib', { type: 'button', 'aria-label': 'Add a button to ' + name }, '+')); }
+    function item(b, cls, more) { return h('div.item' + (cls || ''), h('span.grip', { title: 'Drag to move. Space lifts, arrows move.' }, '⋮⋮'), sym(b.sym), h('span.sp', { style: { flex: 1 } }, b.label), h(BTN + '.ib', { type: 'button', 'aria-label': 'More for ' + b.label, style: { border: 0 } }, more || '···')); }
+    function corner(cls, name, count, axis) { return h('div.corner', h('span.cg.' + cls), h('span', name), h('small', count), h('span', { style: { flex: 1 } }), axis ? h('span.seg', { role: 'radiogroup', 'aria-label': name + ' layout' }, h('span' + (axis === 'row' ? '.on' : ''), 'Row'), h('span' + (axis === 'column' ? '.on' : ''), 'Column')) : null, h(BTN + '.ib', { type: 'button', 'aria-label': 'Add a button to ' + name }, '+')); }
     var card = decorate(baseCard({ map: 'main', selected: ['kitchen', 'living_room'], robot: [150, 165] }), { flipH: true, groups: ROW3, sel: 'lights' });
     card.appendChild(h('span.pvtag', 'Live map'));
     return h('div.mi' + (dark ? '.dk' : ''), { role: 'group', 'aria-label': 'Studio inspector, ' + (dark ? 'dark' : 'light') },
       h('div', h('div.crumb', 'Main Floor Robot Vacuum › Map'), h('div.ttl', 'Map'),
         h('div.grp', 'Orientation', h('span.tag', 'Main Floor vacuum')),
-        h('div.row', h('span.sp', 'Flip Horizontally'), h('button.sw.on', { type: 'button', role: 'switch', 'aria-checked': 'true', 'aria-label': 'Flip Horizontally' })),
-        h('div.row', h('span.sp', 'Flip Vertically'), h('button.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Flip Vertically' })),
+        h('div.row', h('span.sp', 'Flip Horizontally'), h(BTN + '.sw.on', { type: 'button', role: 'switch', 'aria-checked': 'true', 'aria-label': 'Flip Horizontally' })),
+        h('div.row', h('span.sp', 'Flip Vertically'), h(BTN + '.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Flip Vertically' })),
         h('div.row', h('span.sp', 'Rotation'), h('span.fld', { style: { flex: 'none', width: '70px' } }, '180°')),
         h('p.foot', 'Applies everywhere this vacuum\'s map is drawn. Badges and buttons never mirror.'),
         h('div.grp', 'Map Buttons'),
@@ -157,11 +157,11 @@
         h('div.row', h('span.lbl', 'Type'), h('span.seg', h('span.on', 'Service'), h('span', 'Navigate'))),
         h('div.row', h('span.lbl', 'Service'), h('span.fld', 'light.toggle')),
         h('div.row', h('span.lbl', 'Target'), h('span.fld', 'light.demo_kitchen_1')),
-        h('div.row', h('span.lbl', 'Ask First'), h('span', { style: { flex: 1 } }), h('button.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Ask First' })),
+        h('div.row', h('span.lbl', 'Ask First'), h('span', { style: { flex: 1 } }), h(BTN + '.sw', { type: 'button', role: 'switch', 'aria-checked': 'false', 'aria-label': 'Ask First' })),
         h('div.grp', 'Place'),
         h('div.row', h('span.lbl', 'Corner'), h('span.fld', 'Top Trailing ▾')),
-        h('div.row', h('span.lbl', 'Order'), h('span.sp', '3 of 3'), h('button.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights up' }, '↑'), h('button.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights down', disabled: true }, '↓')),
-        h('div.row', { style: { marginTop: '12px' } }, h('button.btn.bad', { type: 'button' }, 'Remove Button'))),
+        h('div.row', h('span.lbl', 'Order'), h('span.sp', '3 of 3'), h(BTN + '.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights up' }, '↑'), h(BTN + '.ib', { type: 'button', 'aria-label': 'Move Kitchen Lights down', disabled: true }, '↓')),
+        h('div.row', { style: { marginTop: '12px' } }, h(BTN + '.btn.bad', { type: 'button' }, 'Remove Button'))),
       h('div.pv', h('div.cap', 'Preview · iPhone'), h('div.dev', h('div.in-sheet.g-dark', card)),
         h('p.foot', 'The simulator draws the flip and the groups as the app will. The button being edited is ringed; clicking a button here opens its page. The Live map tag moves to the bottom centre when a bottom corner is used.'),
         h('div.grp', { style: { marginTop: '14px' } }, 'While dragging'),

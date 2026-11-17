@@ -1,8 +1,9 @@
 # Valetudo map canvas and map frame (component)
 > **What:** the vacuum map on its dark card: rooms, selection badges (no room names, owner 2026-10-28), hatching, robot, dock, path, area, fallbacks, the flip and the corner button groups. **Read when:** you change `ValetudoMapView`, the map frame, a button over the map or the flip.
-- Mockup: [vacuum-map-canvas.html](vacuum-map-canvas.html) · status shipped (PR #210), in flight on `t3/native-ingest` (corner groups and flip, 4b066cd6) · reviewed 2026-10-23, map buttons 2026-11-16
+- Mockup: [vacuum-map-canvas.html](vacuum-map-canvas.html) · status shipped (PR #210) · reviewed 2026-10-23
 - Source: `apple/Sources/HassUI/Features/Vacuums/ValetudoMapView.swift, VacuumMapPanel.swift, HassCore/Vacuums/ValetudoMapStyle.swift` (paths under `apple/Sources/` unless full) · Spec: `.agents/patterns/valetudo-map.md` · Patterns: valetudo-map, vacuum-sheet
-- Corner groups and flip (in flight): up to four groups, one per corner, 44 pt buttons 8 pt in and 12 pt apart; `k = floor(available / 44)`, more than `k` shows `k - 1` and More (a system menu). Locate hides while the robot is unavailable; a command not offered is hidden, a blocked one dimmed. The flip moves the picture and what sits on it; badges, markers and buttons never mirror. Helper: `../../../modals/vacuums/_map-controls.js`; rules: `.agents/patterns/map-controls.md` on that branch.
+- Corner groups: up to four, one per corner, 44 pt buttons 8 pt in and 12 pt apart; `k = floor(available / 44)`, more than `k` shows `k - 1` and More (a system menu). Locate hides while the robot is unavailable; a command not offered is hidden, a blocked one dimmed.
+- Flip: moves the picture and what sits on it; badges, markers and buttons never mirror. Helper: `../../../modals/vacuums/_map-controls.js`; rules: `.agents/patterns/map-controls.md`.
 - States covered: corner groups (default, row, column), orientation (four results, hatching), More (closed, open, two groups on one edge), button states (blocked, unavailable, Map Unavailable, Increase Contrast), flat rooms (three robots), selected, skipped (hatched), robot docked/cleaning/last reported, area and handles, frame (default, grown, no Locate), loading, unavailable, ax5
 - Motion: map growth (0.28 s), room selection (none)
 - Devices: compact and regular width (dark card, both appearances)

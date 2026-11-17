@@ -17,6 +17,7 @@
  * With no groups the card keeps today's Locate circle. */
 (function () {
   var h = Mock.h, I = Mock.icon, vac = Mock.dv.vac;
+  var BTN = 'button';
   var SIZE = 44, INSET = 8, GAP = 12;   // MapControlFit.controlSize, inset, gap
   var st = document.getElementById('mc-style');
   if (!st) { st = document.createElement('style'); st.id = 'mc-style'; document.head.appendChild(st); }
@@ -73,7 +74,7 @@
     if (b.hint) attrs['aria-description'] = b.hint;
     if (reason) { attrs['aria-disabled'] = 'true'; attrs['aria-description'] = reason; }
     if (b === mc.MORE) attrs['aria-haspopup'] = 'menu';
-    return h('button.mc-b' + (reason ? '.dim' : ''), attrs);
+    return h(BTN + '.mc-b' + (reason ? '.dim' : ''), attrs);
   }
   function menu(hidden, c) {
     return h('div.mc-menu', { role: 'menu', 'aria-label': mc.MORE.label }, hidden.map(function (b) {
