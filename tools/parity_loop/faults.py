@@ -27,6 +27,7 @@ import argparse
 import json
 import sys
 import time
+from os import environ as ENVIRONMENT
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence
@@ -49,6 +50,9 @@ SHELL_CHROME: List[Dict[str, Any]] = [
 ]
 #: The mask cap for a page-region compare (the shell chrome covers more than the default 15% of a phone screen).
 PAGE_REGION_MASK_PERCENT = 30.0
+#: The text-size axis: the name a run takes and the ``simctl ui content_size`` category it sets on both simulators. ``None`` leaves the
+#: setting alone. Set with ``simctl ui`` (the system setting, a real accessibility choice), not by a launch variable or a fixture string.
+TEXT_SIZES: Dict[str, Optional[str]] = {"default": None, "accessibility-large": "accessibility-large"}
 #: The most a gate delay may be on the candidate (``UKServerUIPreviewFlags.maximumGateDelayMs``).
 MAX_GATE_DELAY_MS = 60_000
 
@@ -219,15 +223,29 @@ def fault_launcher(faults: Mapping[str, Fault] = FAULTS, renames: Optional[Mappi
     return launcher
 
 
-def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False) -> Dict[str, Any]:
+def content_size(runner: Any, udid: str) -> str:
+    """The simulator's current content size category (``simctl ui UDID content_size``), or ``""`` when it cannot be read."""
+    result = runner(["xcrun", "simctl", "ui", udid, "content_size"])
+    return result.out.strip() if result.code == 0 else ""
+
+
+def set_content_size(runner: Any, udid: str, category: str) -> None:
+    """Set the content size category and confirm the simulator reports it; refuse when it does not."""
+    result = runner(["xcrun", "simctl", "ui", udid, "content_size", category])
+    if result.code != 0 or content_size(runner, udid) != category:
+        raise Refused(f"could not set the text size to {category} on {udid}")
+
+
+def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, text_size: str = "default") -> Dict[str, Any]:
     """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags.
 
     With ``page_region`` the shell chrome (:data:`SHELL_CHROME`) is masked on both halves and left out of the AX compare, so the
     pair judges the page only; the reference gallery draws no shell and the candidate does.
     """
     row = dict(surface)
-    row.update(id=f"{surface['id']}.{fault.id}", fault=fault.id, base_surface=surface["id"],
-               state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"])
+    suffix = "" if text_size == "default" else f".{text_size}"
+    row.update(id=f"{surface['id']}.{fault.id}{suffix}", fault=fault.id, base_surface=surface["id"],
+               state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"] + ([f"text:{text_size}"] if suffix else []))
     if page_region:
         row.update(masks=list(surface.get("masks") or []) + [dict(rule) for rule in SHELL_CHROME], mask_both_sides=True)
     return row
@@ -236,17 +254,20 @@ def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False) 
 def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], fault_ids: Sequence[str],
                pin_hash: Optional[str] = None, env: Optional[Mapping[str, str]] = None, pin_path: Path = run_mod.DEFAULT_PIN,
                inventory: Optional[Sequence[Mapping[str, Any]]] = None, page_region: bool = True,
-               renames: Optional[Mapping[str, str]] = None) -> int:
+               renames: Optional[Mapping[str, str]] = None, text_size: str = "default") -> int:
     """Pair every ``surface`` x ``fault`` the reference supports. Returns the compare's exit status (2 when nothing is paired).
 
-    ``page_region`` (the default) compares the page only (:data:`SHELL_CHROME` masked); ``renames`` aligns fixture names on the candidate.
+    ``page_region`` (the default) compares the page only (:data:`SHELL_CHROME` masked); ``renames`` aligns fixture names on the candidate; ``text_size`` (:data:`TEXT_SIZES`) sets
+    the same content size on both simulators for the run and puts each back afterwards.
     """
     if ctx.mode == "live":
         raise Refused("fault staging is fixtures only: live mode is refused")
+    if text_size not in TEXT_SIZES:
+        raise Refused(f"unknown text size {text_size}; choose from {', '.join(TEXT_SIZES)}")
     unknown = [f for f in fault_ids if f not in FAULTS]
     if unknown:
         raise Refused(f"unknown fault(s): {', '.join(unknown)}")
-    derived = [derive(s, FAULTS[f], page_region) for s in surfaces for f in fault_ids if status_for(s, FAULTS[f]) == PAIRED]
+    derived = [derive(s, FAULTS[f], page_region, text_size) for s in surfaces for f in fault_ids if status_for(s, FAULTS[f]) == PAIRED]
     if not derived:
         raise Refused("no surface and fault pair: the reference has no mechanism for any of them (see `faults.py matrix`)")
     ctx.launcher = fault_launcher(renames=renames)
@@ -254,9 +275,18 @@ def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], faul
         ctx.max_mask_percent = PAGE_REGION_MASK_PERCENT
     if page_region:
         ctx.status_bar_equal = False
+    previous: Dict[str, str] = {}
     try:
+        if TEXT_SIZES[text_size]:
+            launch_mod.require_hold(env if env is not None else ENVIRONMENT)
+            for side, half in ctx.halves.items():
+                previous[side] = content_size(ctx.runner, half.udid)
+                set_content_size(ctx.runner, half.udid, str(TEXT_SIZES[text_size]))
         return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
     finally:
+        for side, size in previous.items():  # put each simulator's text size back
+            if size:
+                ctx.runner(["xcrun", "simctl", "ui", ctx.halves[side].udid, "content_size", size])
         for side in (REFERENCE, CANDIDATE):  # leave both simulators in a clean state
             half = ctx.halves.get(side)
             if half is None:
@@ -305,13 +335,14 @@ def publish(run_dir: Path, out_dir: Path, family: str, sha: str) -> List[Dict[st
             continue
         name = f"{sid}-{family}.png".replace("/", "-")
         side_by_side(Path(run_dir) / entry["reference_png"], Path(run_dir) / entry["candidate_png"], Path(out_dir) / name)
-        rows.append({"id": sid, "image": name, "verdict": results.get(sid, "unjudged"), "note": "; ".join(entry.get("problems") or [])})
+        rows.append({"id": sid, "image": name, "verdict": results.get(sid, "unjudged"), "note": "; ".join(entry.get("problems") or []),
+                     "state": str(entry.get("state", ""))})
     lines = [f"# Parity states: {family}, tool sha {sha}", "",
              "> **What:** one side-by-side per staged state, reference on the left, candidate on the right. Fixtures only; no live write, no live fault.", "",
-             "| State | Verdict | Image | Note |", "|---|---|---|---|"]
+             "| State | Verdict | State tags (text size is `text:`) | Image | Note |", "|---|---|---|---|---|"]
     for row in rows:
         image = f"![{row['id']}]({row['image']})" if row["image"] else ""
-        lines.append(f"| {row['id']} | {row['verdict']} | {image} | {row['note']} |")
+        lines.append(f"| {row['id']} | {row['verdict']} | {row.get('state', '')} | {image} | {row['note']} |")
     (Path(out_dir) / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return rows
 
@@ -338,6 +369,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     rn.add_argument("--candidate-agent", required=True)
     rn.add_argument("--publication", type=Path, help="candidate preview publication directory to feed before the run")
     rn.add_argument("--rename-file", type=Path, help="JSON object of exact strings to replace in the candidate's publication (aligns fixture names)")
+    rn.add_argument("--text-size", choices=sorted(TEXT_SIZES), default="default",
+                    help="set this content size on both simulators for the run (simctl ui content_size) and restore it after")
     rn.add_argument("--full-frame", action="store_true", help="compare the whole frame, shell chrome included (the default compares the page region)")
     rn.add_argument("--reference-pin", type=Path, default=run_mod.DEFAULT_PIN)
     pb = sub.add_parser("publish")
@@ -368,7 +401,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             launch_mod.feed_preview(launch_mod.container(run, args.candidate_udid, "data"), args.publication)
         renames = read_json(args.rename_file) if args.rename_file else None
         return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"],
-                          page_region=not args.full_frame, renames=renames)
+                          page_region=not args.full_frame, renames=renames, text_size=args.text_size)
     except (launch_mod.Refused, ValueError, OSError, KeyError) as error:
         print(f"faults: {error}", file=sys.stderr)
         return 2

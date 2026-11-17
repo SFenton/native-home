@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import png_raster  # noqa: E402
 from parity_loop import capture, faults, launch, run as plrun, sidecar, states  # noqa: E402
-from parity_loop.common import read_json  # noqa: E402
+from parity_loop.common import Result, read_json  # noqa: E402
 from parity_loop_fakes import FakeWorld, solid  # noqa: E402
 
 SURFACES = read_json(states.SURFACES_FILE)
@@ -251,6 +251,40 @@ class PairingTests(unittest.TestCase):
         self.assertIsNone(ctx.max_mask_percent)
         self.assertTrue(ctx.status_bar_equal)
         self.assertNotIn("chores.empty/candidate.masks.json", read_json(ctx.run_dir / "manifest.json")["pairs"][0]["mask_files"])
+
+    def test_a_text_size_is_set_on_both_halves_tagged_and_restored(self) -> None:
+        self.world.content_size = {"reference": "medium", "candidate": "extra-large"}
+        ctx = self.context()
+        faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, text_size="accessibility-large")
+        sets = [c[5] for c in self.world.simctl_calls if len(c) > 5 and c[4] == "content_size"]
+        self.assertEqual(sets, ["accessibility-large", "accessibility-large", "medium", "extra-large"])
+        self.assertEqual(self.world.content_size, {"reference": "medium", "candidate": "extra-large"})
+        pair = read_json(ctx.run_dir / "manifest.json")["pairs"][0]
+        self.assertEqual(pair["id"], "chores.empty.accessibility-large")
+        self.assertIn("text:accessibility-large", pair["state"])
+
+    def test_default_text_size_touches_no_setting(self) -> None:
+        faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
+        self.assertFalse([c for c in self.world.simctl_calls if "content_size" in c])
+
+    def test_a_text_size_needs_a_hold_and_a_known_name(self) -> None:
+        with self.assertRaises(launch.Refused):
+            faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], env={}, text_size="accessibility-large")
+        with self.assertRaises(faults.Refused):
+            faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], env=HOLD, text_size="huge")
+        self.assertEqual(self.world.content_size, {"reference": "large", "candidate": "large"})
+
+    def test_a_setting_that_does_not_take_is_refused_and_nothing_runs(self) -> None:
+        original = self.world.__call__
+        class Stuck(type(self.world)):
+            def __call__(inner, argv, env=None, timeout=150.0):
+                if list(argv[:3]) == ["xcrun", "simctl", "ui"] and argv[4:5] == ["content_size"] and len(argv) > 5:
+                    return Result(0, "")
+                return original(argv, env, timeout)
+        self.world.__class__ = Stuck
+        with self.assertRaises(faults.Refused):
+            faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, text_size="accessibility-large")
+        self.assertEqual(self.world.calls["reference"], [])
 
     def test_both_simulators_are_left_clean(self) -> None:
         faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)

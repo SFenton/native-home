@@ -49,6 +49,7 @@ class FakeWorld:
         self.shots = {"reference": 0, "candidate": 0}
         self.appearance = {"reference": "dark", "candidate": "dark"}  # what the simulators report
         self.appearance_works = True
+        self.content_size = {"reference": "large", "candidate": "large"}  # what the simulators report
         self.simctl_calls: List[List[str]] = []
         for side, text in (("reference", "ref-binary"), ("candidate", "cand-binary")):
             app = self.root / side / "App.app"
@@ -75,6 +76,12 @@ class FakeWorld:
         if argv[:3] == ["xcrun", "simctl", "get_app_container"]:
             side = self.side_of(argv[3])
             return Result(0, str(self.root / side / ("App.app" if argv[5] == "app" else "data")) + "\n")
+        if argv[:3] == ["xcrun", "simctl", "ui"] and argv[4:5] == ["content_size"]:
+            side = self.side_of(argv[3])
+            if len(argv) > 5:
+                self.content_size[side] = argv[5]
+                self.simctl_calls.append(argv)
+            return Result(0, self.content_size[side] + "\n")
         if argv[:3] == ["xcrun", "simctl", "ui"]:
             return Result(0, self.appearance[self.side_of(argv[3])] + "\n")
         if argv[:3] == ["xcrun", "simctl", "status_bar"]:
