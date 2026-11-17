@@ -217,7 +217,7 @@ final class UKVacationModeContent: UKVacationContent {
         let solo = controller.soloTripEngaged
         let key = solo ? "solo" : controller.showsInlineDates ? "dates" : "checklist"
         if key != layoutKey {
-            let animated = !layoutKey.isEmpty && !UIAccessibility.isReduceMotionEnabled && scrollView.window != nil
+            let animated = !layoutKey.isEmpty && !UKMotion.reduceMotion && scrollView.window != nil
             layoutKey = key
             let apply = {
                 self.statusSlot.isHidden = !solo

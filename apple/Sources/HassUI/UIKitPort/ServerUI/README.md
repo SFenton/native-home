@@ -447,6 +447,27 @@ restores `HouseConfigSource.shared` to what it held before the preview started. 
 preferences land in an isolated defaults suite. Known fixture difference: recipe and inventory collections stay empty in live
 preview (their reads are response-bearing service calls, which stay refused). Fixtures mode keeps `DemoHouse`.
 
+### Preview state flags (DEBUG)
+
+`UKServerUIPreviewFlags` stages an error or edge state with no live write. They mirror the reference's launch variables, so one
+state is staged on both sides. Read from `bootstrap.json` `flags` (keys below), then the launch environment, which wins. A
+variable counts only when it is `1` (the delay: a number); with no flag the preview and its receipt are unchanged, and a set flag
+is written to the receipt as `flags`. Each acts through an existing seam, never a view branch:
+
+| Flag | Reference variable | Seam |
+|---|---|---|
+| `connection` `offline` / `reconnecting` | `FENTON_GALLERY_OFFLINE` / `_RECONNECTING` | the shell header state production reads from `HassConnection.isOffline` and `ReconnectingIndicator`; weather `connected` |
+| `failCalls` | `FENTON_GALLERY_FAIL` or `_FAIL_COMPLETE` | the fixture caller and records answer every call with `UKServerUIPreviewFault.callFailed` (`UKServerUIPreviewFailingCaller` without a gallery) |
+| `empty` | `FENTON_GALLERY_EMPTY` | the fixture todo lists keep their ids and hold no item; no inventory row |
+| `gateDelayMs` | `FENTON_GALLERY_GATE_DELAY_MS` | the load waits before it applies the publication (at most 60 s); the status line stays up |
+| `animationsPaused` | `FENTON_GALLERY_PAUSE_CONTINUOUS_ANIMATIONS` (the reference's `pauseContinuousAnimations`) | `UKDesign.animationsPaused` |
+| `reduceMotion` | `FENTON_GALLERY_REDUCE_MOTION` | `UKMotion.reduceMotionOverride`; every UIKit read goes through `UKMotion.reduceMotion` |
+
+`connection`, `failCalls` and `empty` act on the gallery fixtures (`gallery` in the bootstrap; `failCalls` also on a plain
+`entities` bootstrap); a `live` preview ignores them, and faults on live runs belong to the guard proxy's fault layer. The two
+process-wide switches are put back when the preview leaves the screen. All of it is `#if os(iOS) && DEBUG`
+(`tools/tests/test_preview_flags_debug_only.py`).
+
 Normal-session provider preparation resolves authored device descriptors before checking their references; house-config
 providers fill only keys those descriptors do not own. Reconnect permission changes replace idle bedroom providers without a
 new document revision, but never discard an owned draft or command. Schedule reads and writes use the same session-fenced

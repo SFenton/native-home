@@ -23,7 +23,7 @@ enum UKArrivalMotion {
             guard let view else { return }
             // Held back only while this moment's arrival is under way; at all other times the element is simply there.
             let shown = shell?.arrival.map { $0.moment != moment || $0.isRevealed } ?? true
-            let reduceMotion = shell?.reduceMotion ?? UIAccessibility.isReduceMotionEnabled
+            let reduceMotion = shell?.reduceMotion ?? UKMotion.reduceMotion
             let offset: CGAffineTransform
             switch kind {
             case .rise: offset = CGAffineTransform(translationX: 0, y: MotionTokens.Arrival.riseDistance)

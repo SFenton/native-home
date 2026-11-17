@@ -461,7 +461,7 @@ final class UKCameraControlButton: UIControl {
         isAccessibilityElement = true
         if symbol != model.symbol {
             let image = UIImage(systemName: model.symbol)
-            if symbol != nil, !UIAccessibility.isReduceMotionEnabled, window != nil {
+            if symbol != nil, !UKMotion.reduceMotion, window != nil {
                 icon.setSymbolImage(image ?? UIImage(), contentTransition: .replace)
             } else {
                 icon.image = image
@@ -488,7 +488,7 @@ final class UKCameraControlButton: UIControl {
     }
 
     private func updatePulse() {
-        let wants = (model?.pulses ?? false) && !UIAccessibility.isReduceMotionEnabled
+        let wants = (model?.pulses ?? false) && !UKMotion.reduceMotion
         guard wants != pulsing else { return }
         pulsing = wants
         if wants {

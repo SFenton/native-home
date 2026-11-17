@@ -262,7 +262,7 @@ final class UKWeatherCarouselView: UIView, UKGridMeasuring {
         paging = WeatherCarouselPaging(count: cells.count, perPage: compactPerPage)
         super.init(frame: .zero)
         paging = currentPaging()
-        strip = UKPagedRowView(itemCount: cells.count, perPage: paging.perPage, animatesPaging: !UIAccessibility.isReduceMotionEnabled) { [weak self] index in
+        strip = UKPagedRowView(itemCount: cells.count, perPage: paging.perPage, animatesPaging: !UKMotion.reduceMotion) { [weak self] index in
             self?.cells[index] ?? UIView()
         }
         strip.accessibilityIdentifier = "\(identifier).carousel"
@@ -344,7 +344,7 @@ final class UKWeatherCarouselView: UIView, UKGridMeasuring {
 
     private func go(to target: Int) {
         // The row scrolls across to the page itself (or jumps with Reduce Motion).
-        strip.animatesPaging = !UIAccessibility.isReduceMotionEnabled
+        strip.animatesPaging = !UKMotion.reduceMotion
         strip.firstVisible = paging.firstIndex(ofPage: paging.clamped(target))
         pageChanged()
     }

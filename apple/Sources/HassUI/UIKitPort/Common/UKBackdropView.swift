@@ -80,7 +80,7 @@ final class UKBackdropView: UIView {
         bag.observe { [weak self] in
             guard let self else { return }
             let arrived = self.shell?.arrival?.isRevealed ?? true
-            let reduceMotion = self.shell?.reduceMotion ?? UIAccessibility.isReduceMotionEnabled
+            let reduceMotion = self.shell?.reduceMotion ?? UKMotion.reduceMotion
             self.arrive(arrived, reduceMotion: reduceMotion)
         }
     }
@@ -96,7 +96,7 @@ final class UKBackdropView: UIView {
                 let uiImage = UIImage(cgImage: image, scale: 1, orientation: .up)
                 // The photo cross-fades in when it first arrives or is re-rendered (`motionSafeAnimation(standard / quick)`).
                 if shownImage != nil || !imageView.isHidden, window != nil {
-                    let duration = (shell?.reduceMotion ?? UIAccessibility.isReduceMotionEnabled) ? MotionTokens.quickDuration : MotionTokens.standardDuration
+                    let duration = (shell?.reduceMotion ?? UKMotion.reduceMotion) ? MotionTokens.quickDuration : MotionTokens.standardDuration
                     UIView.transition(with: imageView, duration: duration, options: [.transitionCrossDissolve, .allowUserInteraction]) {
                         self.imageView.image = uiImage
                     }

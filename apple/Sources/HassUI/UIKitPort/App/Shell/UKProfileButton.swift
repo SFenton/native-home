@@ -162,7 +162,7 @@ final class UKProfileButtonView: UIView {
             self.disc.alpha = image == nil ? 1 : 0
         }
         guard animated else { return apply() }
-        let duration = UIAccessibility.isReduceMotionEnabled ? 0.2 : MotionTokens.stateDuration
+        let duration = UKMotion.reduceMotion ? 0.2 : MotionTokens.stateDuration
         if image != nil { disc.alpha = 1 }
         UIView.transition(with: self, duration: duration, options: [.transitionCrossDissolve, .allowUserInteraction], animations: apply)
     }

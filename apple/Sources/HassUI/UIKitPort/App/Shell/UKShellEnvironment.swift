@@ -51,7 +51,7 @@ final class UKShellEnvironment {
     /// No network path at all: the Profile button's offline badge.
     var isOffline = false
     /// The Reduce Motion setting, mirrored so a page reads it inside a ``UKObservation``.
-    var reduceMotion = UIAccessibility.isReduceMotionEnabled
+    var reduceMotion = UKMotion.reduceMotion
     /// Reduce Transparency, mirrored for the same reason.
     var reduceTransparency = UIAccessibility.isReduceTransparencyEnabled
 
@@ -71,7 +71,7 @@ final class UKShellEnvironment {
         let center = NotificationCenter.default
         return [
             center.addObserver(forName: UIAccessibility.reduceMotionStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
-                MainActor.assumeIsolated { self?.reduceMotion = UIAccessibility.isReduceMotionEnabled }
+                MainActor.assumeIsolated { self?.reduceMotion = UKMotion.reduceMotion }
             },
             center.addObserver(forName: UIAccessibility.reduceTransparencyStatusDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.reduceTransparency = UIAccessibility.isReduceTransparencyEnabled }

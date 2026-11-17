@@ -158,7 +158,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
                     colorScheme: traits.userInterfaceStyle == .dark ? .dark : .light,
                     regularWidth: traits.horizontalSizeClass == .regular,
                     voiceOver: UIAccessibility.isVoiceOverRunning,
-                    reduceMotion: UIAccessibility.isReduceMotionEnabled)).collect(connection: connection)
+                    reduceMotion: UKMotion.reduceMotion)).collect(connection: connection)
             }
     }
 
