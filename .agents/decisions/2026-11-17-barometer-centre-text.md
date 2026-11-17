@@ -18,3 +18,8 @@ Until the contract carries the field, the barometer does not ship with the 2 pt 
 No pair stills were judged: the pick follows from the owner's choice and the arithmetic of the two layouts, not from how 2 pt looks. The built result is checked against production on iPhone, Duo and iPad, at the default and an accessibility text size, with and without a unit, before the verdict.
 
 Pair stills: the Verifier's index for PR #132 is `build/evidence/ne-dial-arc/pairs/index.md` (not committed). It found the ring and the AX text off; both were fixed to production's arithmetic (ring `min(width, 1.4 * height) / 2` centred 0.56 down; value and unit scaled as `UIFontMetrics` does) and the barometer rows are rerun on the new head.
+
+## Departure: sub-pixel antialiasing
+
+Decision: accept the remaining pair differences as a recorded departure. With the ring, the ticks and the text at 0.00 pt from production, 56 of 72 pair rows pass and 16 fail. The 16 are 8 row kinds, each in both directions: the iPhone and Duo gauge at 1013 hPa and with no unit at the default size, the same at AX3 for 1013 hPa, the Duo gauge at AX3 for 1013 hPa, and the iPad gauge at 1013 hPa and with no unit at the default size. They differ only in how the same geometry is antialiased, by ink shifts of 0.03 to 0.06 pt and, on Duo at AX3, a unit top 0.33 pt (one pixel at 3x) off. Each is below the 0.33 pt pixel grid, and no edge, size or place differs. The cheaper option, a second round of rounding changes to chase pixel noise, lost to the risk of breaking the other dial and text cases for no visible gain. Evidence: `build/evidence/ne-dial-arc/pairs/index.md` (not committed).
+
