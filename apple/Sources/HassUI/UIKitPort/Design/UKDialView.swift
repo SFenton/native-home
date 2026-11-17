@@ -146,10 +146,11 @@ final class UKDialView: UIView, UKGridMeasuring, UKStackMeasuring {
     // MARK: Sizing
 
     /// The width the dial is drawn at when `available` points are on offer: its own size (scaled with the text size, up to its cap) or all of the room,
-    /// and never more than `maxWidth`.
-    func dialWidth(forAvailable available: CGFloat) -> CGFloat {
+    /// and never more than `maxWidth`. With `height` the room is also short of height, the dial fits its shape in it: no wider than `aspect` times that
+    /// height, as the weather barometer is in a tile taller than its shape.
+    func dialWidth(forAvailable available: CGFloat, height: CGFloat = 0) -> CGFloat {
         guard let dial else { return 0 }
-        var width = available
+        var width = CGFloat(ServerUIDialLayout.fittedWidth(available: Double(available), height: Double(height), aspect: dial.aspect))
         if let size = dial.size {
             let own: CGFloat
             if let relativeTo = size.relativeTo {
@@ -193,7 +194,7 @@ final class UKDialView: UIView, UKGridMeasuring, UKStackMeasuring {
     private func place(animated: Bool) {
         guard let dial, bounds.width > 0 else { return }
         let rtl = effectiveUserInterfaceLayoutDirection == .rightToLeft
-        let width = dialWidth(forAvailable: bounds.width)
+        let width = dialWidth(forAvailable: bounds.width, height: bounds.height)
         let layout = ServerUIDialLayout.layoutDial(dial.layoutInput(width: Double(width), value: reading.value, rtl: rtl))
         let frame = CGRect(x: ((bounds.width - width) / 2).rounded(.down), y: max(0, (bounds.height - CGFloat(layout.height)) / 2),
                            width: width, height: CGFloat(layout.height))

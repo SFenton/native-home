@@ -23,8 +23,9 @@ public enum WeatherDialSpecs {
 
     private static func node(_ id: String) -> ServerUICompositionDocument.Node { .init(id: id, title: id, span: 1) }
 
-    private static func look(weight: ServerUITextLook.Weight? = nil, digits: ServerUITextLook.Digits? = nil, shrinks: Bool = false, ink: ServerUIInk) -> ServerUITextLook {
+    private static func look(weight: ServerUITextLook.Weight? = nil, digits: ServerUITextLook.Digits? = nil, shrinks: Bool = false, scale: ServerUITextLook.Scale? = nil, ink: ServerUIInk) -> ServerUITextLook {
         var look = ServerUITextLook()
+        look.scale = scale
         look.weight = weight
         look.digits = digits
         look.ink = ink
@@ -53,12 +54,13 @@ public enum WeatherDialSpecs {
     // MARK: Barometer
 
     /// The barometer: one lit tick at the pressure's share of 970 to 1050 hPa (0 to 100), with the value and its unit in the middle, half the height down and 4 pt below, where the hand-built view put them.
+    /// The sizes are fixed points that scale with the text size as `UIFontMetrics` does, as the hand-built labels did.
     /// - Parameter hasUnit: Whether a second line, the unit, is drawn.
     public static func barometer(hasUnit: Bool) -> ServerUIDial {
         var lines = [ServerUIDial.Line(value: .literal(""), style: .title3, unavailableText: "-",
-                                       look: look(weight: .bold, digits: .monospaced, shrinks: true, ink: white()))]
+                                       look: look(weight: .bold, digits: .monospaced, shrinks: true, scale: .init(points: 20, relativeTo: .title3), ink: white()))]
         if hasUnit {
-            lines.append(.init(value: .literal(""), style: .caption1, unavailableText: "-", look: look(ink: white(0.85))))
+            lines.append(.init(value: .literal(""), style: .caption1, unavailableText: "-", look: look(scale: .init(points: 12, relativeTo: .caption1), ink: white(0.85))))
         }
         return ServerUIDial(
             node: node("weather-barometer"), sweep: .init(start: 145, length: 250), scale: .percent, aspect: 1.4, centerY: 0.56,

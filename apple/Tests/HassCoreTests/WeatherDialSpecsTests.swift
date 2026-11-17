@@ -104,4 +104,22 @@ struct WeatherDialSpecsTests {
         #expect(abs(plain.textBlockTop(height: 100, blockHeight: 20) - 46) < 0.000001)
         #expect(ServerUIDial.TextPlace().offset == 0)
     }
+
+    /// Production's ring: radius `min(width, 1.4 * height) / 2`, centred `0.56` down the tile (iPhone, Duo, iPad with a unit, iPad without, iPad at AX3).
+    @Test(arguments: [(338.0, 229.3), (402.0, 229.3), (306.0, 219.0), (476.0, 229.0), (476.0, 340.0)])
+    func theBarometerRingFitsItsTileAsTheHandBuiltViewDid(tileWidth: Double, tileHeight: Double) {
+        let dial = WeatherDialSpecs.barometer(hasUnit: true)
+        let width = ServerUIDialLayout.fittedWidth(available: tileWidth, height: tileHeight, aspect: dial.aspect)
+        let layout = ServerUIDialLayout.layoutDial(dial.layoutInput(width: width, value: 50, rtl: false))
+        let top = (tileHeight - layout.height) / 2
+        #expect(abs(layout.radius - min(tileWidth, 1.4 * tileHeight) / 2) < 0.3)
+        #expect(abs(top + layout.cy - 0.56 * tileHeight) < 0.3)
+        #expect(layout.height <= tileHeight + 0.5, "the ring does not clip at the bottom of the tile")
+    }
+
+    @Test func aRoomWithNoHeightLimitKeepsItsWidth() {
+        #expect(ServerUIDialLayout.fittedWidth(available: 300, height: 0, aspect: 1.4) == 300)
+        #expect(ServerUIDialLayout.fittedWidth(available: 300, height: 214.5, aspect: 1.4) == 300, "within half a point")
+        #expect(ServerUIDialLayout.fittedWidth(available: 300, height: 100, aspect: 1.4) == 140)
+    }
 }

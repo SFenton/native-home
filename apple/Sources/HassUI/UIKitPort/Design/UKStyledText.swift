@@ -70,7 +70,11 @@ enum UKStyledText {
         let monospaced = look.digits == .monospaced
         let weight = look.weight.map(weight) ?? baseWeight
         if let scale = look.scale {
-            let font = UIFont.systemFont(ofSize: scaledPoints(scale, traits: traits), weight: weight ?? styleWeight(style, traits: traits))
+            // Scaled as a label's font is (`UIFontMetrics.scaledFont`), which settles on the whole sizes the system draws.
+            let base = UIFont.systemFont(ofSize: CGFloat(scale.points), weight: weight ?? styleWeight(style, traits: traits))
+            let metrics = UIFontMetrics(forTextStyle: textStyle(scale.relativeTo))
+            let font = scale.maxPoints.map { metrics.scaledFont(for: base, maximumPointSize: CGFloat($0), compatibleWith: traits) }
+                ?? metrics.scaledFont(for: base, compatibleWith: traits)
             return monospaced ? monospacingDigits(font) : font
         }
         return UKFont.preferred(style, weight: weight, monospacedDigit: monospaced, traits: traits)

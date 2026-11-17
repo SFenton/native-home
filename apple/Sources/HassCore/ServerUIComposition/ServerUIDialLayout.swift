@@ -291,6 +291,12 @@ public enum ServerUIDialLayout {
         public let share: Double?
     }
 
+    /// The width a dial is drawn at in a room `available` wide and `height` tall (0 for no limit): all the width, but no wider than `aspect` times the
+    /// height, so the dial's shape fits the room. The room's width is kept when the height cap is within half a point of it.
+    public static func fittedWidth(available: Double, height: Double, aspect: Double) -> Double {
+        height > 0 && aspect * height < available - 0.5 ? aspect * height : available
+    }
+
     /// Rounds to four places the way the Studio does (`Math.round`: halves go up), and never gives a negative zero.
     static func round4(_ value: Double) -> Double { ((value * 10_000 + 0.5).rounded(.down) / 10_000) + 0 }
 
