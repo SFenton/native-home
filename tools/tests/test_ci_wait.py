@@ -137,6 +137,26 @@ class WaitTests(unittest.TestCase):
         self.assertIn("cancelled #7", lines[-1])
         self.assertNotIn("ci failed", lines[-1])
 
+    def test_a_cancelled_run_with_a_moved_head_follows_the_new_run_and_prints_superseded_once(self):
+        """Fails if: a push that cancels the run ends the wait with exit 4, or `superseded` is missing or repeated."""
+        new = "b" * 40
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        fake = FakeGh(prs=[pr(), pr(sha=new), pr(sha=new), pr("MERGED", sha=new)], runs=[[{"databaseId": 9, "headSha": SHA}], [{"databaseId": 10, "headSha": new}]],
+                      views=[cancelled, cancelled, run(), run()])
+        code, lines = go(fake, merge_wait=60, poll=30)
+        self.assertEqual(code, 0, lines)
+        self.assertEqual([x for x in lines if x.startswith("superseded")], ["superseded: aaaaaaaa -> bbbbbbbb"])
+        self.assertIn("run 10", lines)
+        self.assertIn("on bbbbbbbb", lines[-1])
+
+    def test_a_cancelled_run_with_an_unchanged_head_still_exits_four_with_no_superseded_line(self):
+        """Fails if: an unchanged head is treated as superseded, or exit 4 is lost."""
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        code, lines = go(FakeGh(prs=[pr(), pr()], views=[cancelled]))
+        self.assertEqual(code, 4)
+        self.assertFalse([x for x in lines if x.startswith("superseded")])
+        self.assertIn("head is unchanged", lines[-1])
+
     def test_a_failed_job_names_the_failing_checks_and_exits_one(self):
         """Fails if: a red run exits 0, or the line does not name the failing job."""
         jobs = [{"name": "repo-checks", "conclusion": "failure"}, {"name": "tests", "conclusion": "success"}]
