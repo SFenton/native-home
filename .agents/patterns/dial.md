@@ -62,5 +62,6 @@ The schema leaves these to the renderer; the native dial fixes one answer for ev
 
 - The compass is `WeatherDialSpecs.compass()`: 104 pt scaled with `footnote` to 160, 48 ticks, north a flag, E and W only with a bearing.
 - The barometer is `barometer(hasUnit:)`: 49 ticks over 250 degrees from 145, one lit, 1.4 wide, centre 0.56 down, value and unit in the middle.
+- The barometer's value and unit say a scaled size (20 and 12 points) so they grow with the text as `UIFontMetrics` does. The ring fits its tile's height as well as its width.
 - The sun arc is `sunArc()`: a 100 by 48 box, 200 pt at most.
 - The wind tile does not measure the compass: the dial's own size is its intrinsic size.

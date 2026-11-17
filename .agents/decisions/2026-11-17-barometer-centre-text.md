@@ -16,3 +16,5 @@ The field's meaning (the contract picks its name): the centre of the block of li
 Until the contract carries the field, the barometer does not ship with the 2 pt shift: either the native dial model carries the place and only `WeatherDialSpecs.barometer` sets it (preferred: one dial now, the decoder reads it when the capability lands), or the barometer stays on its old view until then.
 
 No pair stills were judged: the pick follows from the owner's choice and the arithmetic of the two layouts, not from how 2 pt looks. The built result is checked against production on iPhone, Duo and iPad, at the default and an accessibility text size, with and without a unit, before the verdict.
+
+Pair stills: the Verifier's index for PR #132 is `build/evidence/ne-dial-arc/pairs/index.md` (not committed). It found the ring and the AX text off; both were fixed to production's arithmetic (ring `min(width, 1.4 * height) / 2` centred 0.56 down; value and unit scaled as `UIFontMetrics` does) and the barometer rows are rerun on the new head.
