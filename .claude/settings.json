@@ -61,6 +61,10 @@
           },
           {
             "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/studio_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/worktree_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           }
         ]
@@ -91,6 +95,10 @@
           {
             "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/studio_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           }
         ]
       },
@@ -104,6 +112,10 @@
           {
             "type": "command",
             "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/owner_prompt_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
+          },
+          {
+            "type": "command",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/tools/hooks/studio_guard.py\"; [ -f \"$f\" ] || exit 0; exec python3 \"$f\""
           }
         ]
       },
