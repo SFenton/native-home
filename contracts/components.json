@@ -1833,6 +1833,18 @@
    }
   },
   {
+   "name": "TileSwipeStart",
+   "kind": "enum",
+   "file": "apple/Sources/HassDesign/TileSwipe.swift",
+   "pattern": "tile-swipe",
+   "tests": {
+    "swift": [
+     "HassDesignTests"
+    ],
+    "journeys": []
+   }
+  },
+  {
    "name": "TileTextFit",
    "kind": "enum",
    "file": "apple/Sources/HassDesign/TileTextFit.swift",

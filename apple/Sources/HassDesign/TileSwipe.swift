@@ -174,3 +174,26 @@ public enum TileSwipeBubble {
         return Swift.max(0, topInset - top)
     }
 }
+
+// MARK: - Where a drag starts
+
+/// Whether a drag that is about to begin on a tile is the tile's swipe or the page's scroll (conflict C1 of `build/design/tile-swipe.md`).
+///
+/// The recognizer asks as it is about to begin, with what it has seen of the touch so far. Velocity alone is the least reliable of the two: it
+/// is read from the last few samples, so a first sample that leans sideways (a coarse driver, a pointer, a stylus, a stutter at touch down) can
+/// say "horizontal" about a stroke that has gone up the page at 60 degrees. The way the finger has travelled since it went down is the stroke's
+/// own shape. Both must agree before a tile takes the drag, so a steeper-than-diagonal stroke is always the scroll's.
+public enum TileSwipeStart {
+    /// Least travel, in points, before the translation says anything: a touch that has not moved yet is judged by its velocity alone.
+    public static let travelFloor: CGFloat = 1
+
+    /// Whether a tile's swipe may begin for a drag `translation` points from where the finger went down and moving at `velocity`.
+    ///
+    /// A drag begins as a swipe only when it is wider than it is tall by both measures (45 degrees is the line); the page's scroll takes the
+    /// rest. A drag with no velocity at all never begins.
+    public static func isHorizontal(translation: CGPoint, velocity: CGPoint) -> Bool {
+        guard abs(velocity.x) > abs(velocity.y) else { return false }
+        let travelled = max(abs(translation.x), abs(translation.y))
+        return travelled < travelFloor || abs(translation.x) > abs(translation.y)
+    }
+}

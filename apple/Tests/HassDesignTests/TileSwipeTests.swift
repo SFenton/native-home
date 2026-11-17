@@ -136,3 +136,47 @@ struct TileSwipeTests {
         #expect(TileSwipeBubble.topShift(tileTop: 0, metrics: m) == 44)
     }
 }
+
+// MARK: - Where a drag starts (C1)
+
+/// Whether a drag that is about to begin is the tile's swipe or the page's scroll.
+struct TileSwipeStartTests {
+    /// A stroke at `degrees` above horizontal: its first-sample travel over `distance` points and a velocity of 120 points per second along it.
+    private func stroke(_ degrees: Double, distance: CGFloat = 12) -> (CGPoint, CGPoint) {
+        let radians = degrees * .pi / 180
+        return (CGPoint(x: distance * cos(radians), y: -distance * sin(radians)), CGPoint(x: 120 * cos(radians), y: -120 * sin(radians)))
+    }
+
+    @Test(arguments: [0.0, 10, 30, 44])
+    func aStrokeWiderThanItIsTallBegins(degrees: Double) {
+        let (travel, speed) = stroke(degrees)
+        #expect(TileSwipeStart.isHorizontal(translation: travel, velocity: speed))
+    }
+
+    @Test(arguments: [46.0, 50, 60, 75, 90])
+    func aStrokeTallerThanItIsWideIsTheScrolls(degrees: Double) {
+        let (travel, speed) = stroke(degrees)
+        #expect(!TileSwipeStart.isHorizontal(translation: travel, velocity: speed))
+    }
+
+    @Test func aSidewaysFirstSampleCannotStartAStrokeThatWentUpThePage() {
+        let (travel, _) = stroke(60)
+        #expect(!TileSwipeStart.isHorizontal(translation: travel, velocity: CGPoint(x: 40, y: -10)), "the velocity alone said horizontal")
+    }
+
+    @Test func aTouchThatHasNotTravelledIsJudgedByItsVelocity() {
+        #expect(TileSwipeStart.isHorizontal(translation: .zero, velocity: CGPoint(x: 90, y: 10)))
+        #expect(!TileSwipeStart.isHorizontal(translation: .zero, velocity: CGPoint(x: 10, y: 90)))
+        #expect(!TileSwipeStart.isHorizontal(translation: CGPoint(x: 0.4, y: -0.4), velocity: .zero), "no velocity at all never begins")
+    }
+
+    @Test func aSidewaysStrokeWithAVerticalFirstSampleIsAlsoRefused() {
+        #expect(!TileSwipeStart.isHorizontal(translation: CGPoint(x: 14, y: 4), velocity: CGPoint(x: 20, y: 90)))
+    }
+
+    @Test func leftwardAndDownwardStrokesAreJudgedByTheirShapeNotTheirSign() {
+        #expect(TileSwipeStart.isHorizontal(translation: CGPoint(x: -14, y: 5), velocity: CGPoint(x: -100, y: 30)))
+        #expect(!TileSwipeStart.isHorizontal(translation: CGPoint(x: 6, y: 12), velocity: CGPoint(x: 30, y: 100)))
+    }
+}
+

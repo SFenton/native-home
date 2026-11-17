@@ -9,12 +9,14 @@ final class ScriptedSwipePan: UIPanGestureRecognizer {
     var scriptedState: UIGestureRecognizer.State = .possible
     var point = CGPoint.zero
     var speed = CGPoint(x: 120, y: 0)
+    /// How far the finger has travelled since it went down; a stroke that begins sideways by default.
+    var travel = CGPoint(x: 30, y: 0)
     override var state: UIGestureRecognizer.State {
         get { scriptedState }
         set {}
     }
     override func location(in view: UIView?) -> CGPoint { point }
-    override func translation(in view: UIView?) -> CGPoint { CGPoint(x: 30, y: 0) }
+    override func translation(in view: UIView?) -> CGPoint { travel }
     override func velocity(in view: UIView?) -> CGPoint { speed }
 }
 
