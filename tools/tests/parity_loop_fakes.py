@@ -79,8 +79,12 @@ class FakeWorld:
         if argv[:3] == ["xcrun", "simctl", "ui"] and argv[4:5] == ["content_size"]:
             side = self.side_of(argv[3])
             if len(argv) > 5:
-                self.content_size[side] = argv[5]
                 self.simctl_calls.append(argv)
+                budget = getattr(self, "content_size_set_budget", None)
+                if budget is None or budget > 0:  # a simulator that stops taking the setting once its budget is spent
+                    self.content_size[side] = argv[5]
+                    if budget is not None:
+                        self.content_size_set_budget = budget - 1
             return Result(0, self.content_size[side] + "\n")
         if argv[:3] == ["xcrun", "simctl", "ui"]:
             return Result(0, self.appearance[self.side_of(argv[3])] + "\n")
@@ -96,6 +100,8 @@ class FakeWorld:
         data: Dict[str, Any] = {}
         if verb == "snapshot":
             data = {"nodes": self.nodes[side]}
+        elif verb == "swipe" and not getattr(self, "swipe_works", True):
+            return Result(0, json.dumps({"success": False}))
         elif verb == "scroll" and not getattr(self, "scroll_works", True):
             return Result(0, json.dumps({"success": False, "error": {"code": "COMMAND_FAILED", "message": "scroll bottom moved nothing"}}))
         elif verb == "settings":

@@ -387,8 +387,10 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
 SCROLL_TYPES = frozenset({"scrollview", "collectionview", "tableview"})
 #: Bars whose buttons are chrome, never a floating control.
 CHROME_TYPES = frozenset({"navigationbar", "tabbar", "toolbar", "statusbar"})
-#: Identifiers of shell controls that are never a floating page control (the navigation flyout's invisible scrim).
-CHROME_IDENTIFIERS = re.compile(r"^nav\.flyout\.")
+#: The navigation flyout's close and scrim buttons: shell controls, never a floating page control, and left out of a page-region AX
+#: compare. Defined once; ``faults.SHELL_CHROME`` and :func:`floating_overlaps` both use it.
+FLYOUT_CONTROLS = r"^nav\.flyout\.(close|scrim)$"
+CHROME_IDENTIFIERS = re.compile(FLYOUT_CONTROLS)
 
 
 def _area(rect: Mapping[str, float]) -> float:
@@ -413,6 +415,11 @@ def _ancestors(nodes: Sequence[Mapping[str, Any]], index: int) -> List[int]:
     return out
 
 
+def end_stop_failed() -> Dict[str, Any]:
+    """The floating-control result for a capture whose scroll to the end failed: nothing is claimed about overlap."""
+    return {"scrollView": None, "lastContent": None, "floating": [], "intersects": None, "covers": [], "endStop": "failed"}
+
+
 def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     """Does a floating control cover the last content the page can scroll to? Read from the AX tree only.
 
@@ -429,7 +436,7 @@ def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
     """
     rects = [_node_rect(n) for n in nodes]
     scrolls = [i for i, n in enumerate(nodes) if _node_role(n).lower() in SCROLL_TYPES and rects[i] and _area(rects[i]) > 0]
-    empty: Dict[str, Any] = {"scrollView": None, "lastContent": None, "floating": [], "intersects": False, "covers": []}
+    empty: Dict[str, Any] = {"scrollView": None, "lastContent": None, "floating": [], "intersects": False, "covers": [], "endStop": "reached"}
     if not scrolls:
         return empty
     main = max(scrolls, key=lambda i: _area(rects[i]))
@@ -457,7 +464,7 @@ def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
               for f in floating for i in sorted(leaves) if _overlap(rects[f], rects[i]) > 0]
     return {"scrollView": _frame(nodes[main]), "lastContent": {"label": _ax_label(nodes[last]), "frame": _frame(nodes[last])},
             "floating": [{"label": _ax_label(nodes[f]), "frame": _frame(nodes[f])} for f in floating],
-            "intersects": any(_overlap(rects[f], rects[last]) > 0 for f in floating), "covers": covers}
+            "intersects": any(_overlap(rects[f], rects[last]) > 0 for f in floating), "covers": covers, "endStop": "reached"}
 
 
 # MARK: - One shot

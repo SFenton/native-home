@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import expo_pair_compare  # noqa: E402
 from parity_loop import launch as launch_mod  # noqa: E402
 from parity_loop import sidecar as sidecar_mod  # noqa: E402
-from parity_loop.capture import Agent, ReachPlan, capture_shot, floating_overlaps, perform_reach, plan_reach, write_opening_labels  # noqa: E402
+from parity_loop.capture import Agent, ReachPlan, capture_shot, end_stop_failed, floating_overlaps, perform_reach, plan_reach, write_opening_labels  # noqa: E402
 from parity_loop.common import APPS, BUNDLE_ID, CANDIDATE, REFERENCE, REPO, Runner, png_size, read_json, run, write_json  # noqa: E402
 
 SURFACES_FILE = Path(__file__).resolve().parent / "surfaces.json"
@@ -124,13 +124,15 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
         launcher(half, surface, plan, ctx)
         if not perform_reach(half.agent, plan, surface, ctx.guarded):
             problems.append(f"{stem}: reach did not run")
+        end_failed = False
         if surface.get("stop") == "end" and not half.agent.scroll_bottom().get("success"):
+            end_failed = True
             problems.append(f"{stem}: scroll to the end failed")
         shot = capture_shot(half.agent, folder, stem, mask_rules(surface), ctx.family["scale"])
         if not shot.ok:
             problems.append(f"{stem}: {shot.problem}")
         if surface.get("stop") == "end" and shot.ax.is_file() and stem != "reference2":
-            entry.setdefault("floating", {})[stem] = floating_overlaps(read_json(shot.ax).get("nodes") or [])
+            entry.setdefault("floating", {})[stem] = end_stop_failed() if end_failed else floating_overlaps(read_json(shot.ax).get("nodes") or [])
         size = png_size(shot.png)
         if ctx.family["size"] and size and size != ctx.family["size"]:
             problems.append(f"{stem}: screenshot is {size[0]}x{size[1]}, expected {ctx.family['size'][0]}x{ctx.family['size'][1]}")
@@ -168,8 +170,8 @@ def annotate_floating(records: Sequence[Dict[str, Any]], entries: Sequence[Mappi
     by_id = {e["id"]: e.get("floating") for e in entries if e.get("floating")}
     for record in records:
         if record.get("id") in by_id:
-            record["floatingOverlap"] = {side: {"intersects": r["intersects"], "lastContent": r["lastContent"], "floating": r["floating"],
-                                              "covers": r["covers"]} for side, r in by_id[record["id"]].items()}
+            record["floatingOverlap"] = {side: {"endStop": r.get("endStop", "reached"), "intersects": r["intersects"], "lastContent": r["lastContent"],
+                                              "floating": r["floating"], "covers": r["covers"]} for side, r in by_id[record["id"]].items()}
 
 
 def floating_markdown(records: Sequence[Mapping[str, Any]]) -> str:
@@ -178,6 +180,9 @@ def floating_markdown(records: Sequence[Mapping[str, Any]]) -> str:
              "| Pair | Half | Last content | Floating controls | Covers last content | Content covered |", "|---|---|---|---|---|---|"]
     for record in records:
         for side, r in (record.get("floatingOverlap") or {}).items():
+            if r.get("endStop") == "failed":
+                lines.append(f"| {record['id']} | {side} | end_stop: failed | n/a | n/a | n/a |")
+                continue
             last = (r["lastContent"] or {}).get("label", "none")
             lines.append(f"| {record['id']} | {side} | {last} | {', '.join(f['label'] for f in r['floating']) or 'none'} | "
                          f"{'yes' if r['intersects'] else 'no'} | {', '.join(sorted({c['label'] for c in r['covers']})) or 'none'} |")

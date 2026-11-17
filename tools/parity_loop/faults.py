@@ -5,15 +5,16 @@
     faults.py run --device iphone --run NAME --surfaces chores --faults empty [run.py's device options]
     faults.py publish --run-dir DIR --out build/evidence/screens/parity-states-SHA
 
-**Fixtures only.** A state is staged by what the apps read at launch, never by a write or a fault on a live connection (owner answer,
-``build/decisions/parity-depth.md``: "No, fixtures only"):
+**Fixtures only: never a live write, never a live fault.** A state is staged by what the apps read at launch. :func:`run_faults` and
+:func:`fault_launcher` refuse live mode, and :func:`parity_loop.simguard.guard` refuses a protected simulator or one without its own
+``devcap`` hold before anything is booted or changed:
 
 * the reference reads ``variables`` (``FENTON_GALLERY_*``) and ``pauseContinuousAnimations`` from its gallery fixture
   ``bootstrap.json``;
 * the candidate reads ``flags`` (the same names, in the preview's ``bootstrap.json``; the mapping lives in
   ``apple/Sources/HassUI/UIKitPort/ServerUI/README.md``, "Preview state flags") and the fixture ``entities``.
 
-``run`` and ``publish`` both refuse live mode; the guard proxy's fault modes (drop, delay, refuse-read) are deliberately not built.
+The guard proxy's fault modes (drop, delay, refuse-read) are deliberately not built.
 A reference gallery page honours a variable only on the pages named in :attr:`Fault.reference_pages` (read in the reference source);
 elsewhere the reference has no mechanism and the row is ``no-reference`` (the Studio sim is the reference for it).
 
@@ -24,18 +25,22 @@ surface row ``<surface>.<fault>`` with a ``fault`` key that the launcher reads b
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
+import shutil
 import sys
 import time
 from os import environ as ENVIRONMENT
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence
+from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import png_raster  # noqa: E402
 from parity_loop import launch as launch_mod  # noqa: E402
 from parity_loop import run as run_mod  # noqa: E402
+from parity_loop import simguard  # noqa: E402
+from parity_loop import capture  # noqa: E402
 from parity_loop.capture import Agent, ReachPlan  # noqa: E402
 from parity_loop.common import BUNDLE_ID, CANDIDATE, REFERENCE, REPO, read_json, run  # noqa: E402
 
@@ -46,7 +51,7 @@ PAIRED, NO_REFERENCE = "paired", "no-reference"
 SHELL_CHROME: List[Dict[str, Any]] = [
     {"label": "shell-nav", "ax_type": "^NavigationBar$", "drop": "within"},
     {"label": "shell-tabbar", "ax_type": "^TabBar$", "drop": "within"},
-    {"label": "shell-flyout", "ax_identifier": r"^nav\.flyout\.", "ax_only": True, "drop": "node"},
+    {"label": "shell-flyout", "ax_identifier": capture.FLYOUT_CONTROLS, "ax_only": True, "drop": "node"},
 ]
 #: The mask cap for a page-region compare (the shell chrome covers more than the default 15% of a phone screen).
 PAGE_REGION_MASK_PERCENT = 30.0
@@ -170,6 +175,10 @@ def stage_reference(data_dir: Path, page: str, fault: Optional[Fault]) -> None:
     (folder / "receipt.json").unlink(missing_ok=True)
 
 
+#: The publication as it was fed, kept beside it while renames are applied so the run can put it back.
+PRISTINE_PUBLICATION = "publication.pristine.json"
+
+
 def apply_renames(value: Any, renames: Mapping[str, str]) -> Any:
     """``value`` with every string equal to a key of ``renames`` replaced (exact match, any depth)."""
     if isinstance(value, str):
@@ -204,10 +213,15 @@ def stage_candidate(data_dir: Path, fault: Optional[Fault], renames: Optional[Ma
     else:
         config.pop("flags", None)
     path.write_text(json.dumps(config, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
-    publication = folder / "publication.json"
+    publication, pristine = folder / "publication.json", folder / PRISTINE_PUBLICATION
     if renames and publication.is_file():  # align fixture names with the reference gallery's; the publication input only, no product string
-        publication.write_text(json.dumps(apply_renames(json.loads(publication.read_text(encoding="utf-8")), renames),
+        if not pristine.is_file():
+            shutil.copyfile(publication, pristine)
+        publication.write_text(json.dumps(apply_renames(json.loads(pristine.read_text(encoding="utf-8")), renames),
                                           separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    elif not renames and pristine.is_file():  # a launch with no renames puts the fed publication back
+        shutil.copyfile(pristine, publication)
+        pristine.unlink()
     (folder / "receipt.json").unlink(missing_ok=True)
 
 
@@ -239,6 +253,36 @@ def set_content_size(runner: Any, udid: str, category: str) -> None:
         raise Refused(f"could not set the text size to {category} on {udid}")
 
 
+@contextlib.contextmanager
+def applied_text_size(ctx: run_mod.Context, text_size: str, env: Mapping[str, str]) -> Iterator[None]:
+    """Hold ``text_size`` on every half for the block, then put each half's own size back.
+
+    Both starting sizes are read first, and the block is refused (nothing set) when either cannot be read. The restore runs in a
+    ``finally`` whatever the block did, reads each size back, and raises :class:`Refused` when a restore did not take, so a simulator is
+    never left at a large size without a loud failure.
+    """
+    category = TEXT_SIZES[text_size]
+    if not category:
+        yield
+        return
+    before = {side: content_size(ctx.runner, half.udid) for side, half in ctx.halves.items()}
+    unreadable = [side for side, size in before.items() if not size]
+    if unreadable:
+        raise Refused(f"could not read the starting text size on the {', '.join(unreadable)} simulator: nothing was changed")
+    try:
+        for half in ctx.halves.values():
+            set_content_size(ctx.runner, half.udid, category)
+        yield
+    finally:
+        failed = []
+        for side, half in ctx.halves.items():
+            ctx.runner(["xcrun", "simctl", "ui", half.udid, "content_size", before[side]])
+            if content_size(ctx.runner, half.udid) != before[side]:
+                failed.append(f"{side} ({half.udid}) is not back at {before[side]}")
+        if failed:
+            raise Refused("the text size restore did not take: " + "; ".join(failed))
+
+
 def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, text_size: str = "default",
            stop: str = "rest") -> Dict[str, Any]:
     """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags.
@@ -268,6 +312,7 @@ def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], faul
     """
     if ctx.mode == "live":
         raise Refused("fault staging is fixtures only: live mode is refused")
+    simguard.guard([half.udid for half in ctx.halves.values()], env if env is not None else ENVIRONMENT)
     bad = [s for s in stops if s not in STOPS]
     if bad:
         raise Refused(f"unknown stop(s): {', '.join(bad)}; choose from {', '.join(STOPS)}")
@@ -285,18 +330,10 @@ def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], faul
         ctx.max_mask_percent = PAGE_REGION_MASK_PERCENT
     if page_region:
         ctx.status_bar_equal = False
-    previous: Dict[str, str] = {}
     try:
-        if TEXT_SIZES[text_size]:
-            launch_mod.require_hold(env if env is not None else ENVIRONMENT)
-            for side, half in ctx.halves.items():
-                previous[side] = content_size(ctx.runner, half.udid)
-                set_content_size(ctx.runner, half.udid, str(TEXT_SIZES[text_size]))
-        return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
+        with applied_text_size(ctx, text_size, env if env is not None else ENVIRONMENT):
+            return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
     finally:
-        for side, size in previous.items():  # put each simulator's text size back
-            if size:
-                ctx.runner(["xcrun", "simctl", "ui", ctx.halves[side].udid, "content_size", size])
         for side in (REFERENCE, CANDIDATE):  # leave both simulators in a clean state
             half = ctx.halves.get(side)
             if half is None:
@@ -341,8 +378,11 @@ def publish(run_dir: Path, out_dir: Path, family: str, sha: str) -> List[Dict[st
     if results_file.is_file():
         for record in read_json(results_file):
             for side, r in (record.get("floatingOverlap") or {}).items():
-                text = f"{side}: " + (f"{', '.join(f['label'] for f in r['floating'])} covers {(r['lastContent'] or {}).get('label', '')}" if r["intersects"]
-                                      else "no overlap with the last content")
+                if r.get("endStop") == "failed":
+                    text = f"{side}: end_stop: failed"
+                else:
+                    text = f"{side}: " + (f"{', '.join(f['label'] for f in r['floating'])} covers {(r['lastContent'] or {}).get('label', '')}" if r["intersects"]
+                                          else "no overlap with the last content")
                 floating[record["id"]] = "; ".join(filter(None, [floating.get(record["id"]), text]))
     rows = []
     for entry in manifest["pairs"]:
@@ -408,6 +448,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
             publish(args.run_dir, args.out, args.family, sha)
             return 0
+        simguard.guard([args.reference_udid, args.candidate_udid], ENVIRONMENT)  # before the first container read or write
         halves = {REFERENCE: run_mod.Half(REFERENCE, args.reference_udid, Agent(args.reference_agent)),
                   CANDIDATE: run_mod.Half(CANDIDATE, args.candidate_udid, Agent(args.candidate_agent))}
         sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
@@ -420,7 +461,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         renames = read_json(args.rename_file) if args.rename_file else None
         return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"],
                           page_region=not args.full_frame, renames=renames, text_size=args.text_size, stops=args.stops.split(","))
-    except (launch_mod.Refused, ValueError, OSError, KeyError) as error:
+    except (launch_mod.Refused, simguard.Refused, ValueError, OSError, KeyError) as error:
         print(f"faults: {error}", file=sys.stderr)
         return 2
 
