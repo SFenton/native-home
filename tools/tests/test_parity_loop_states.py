@@ -407,7 +407,7 @@ class PairingTests(unittest.TestCase):
             faults.fault_launcher()(ctx.halves["reference"], {"fault": "empty"}, capture.ReachPlan("gallery"), ctx)
 
     def test_a_failed_run_still_puts_both_text_sizes_back(self) -> None:
-        """Fails if a run that raises after the text size was set leaves either simulator at the large size."""
+        """Fails if: a run that raises after the text size was set leaves either simulator at the large size."""
         self.world.content_size = {"reference": "medium", "candidate": "extra-large"}
         with self.assertRaises(launch.Refused):  # a changed pin makes run_all refuse after the size was set
             faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], "0" * 64, env=HOLD, pin_path=self.pin_path,
@@ -416,7 +416,7 @@ class PairingTests(unittest.TestCase):
         self.assertEqual([c[5] for c in self.world.simctl_calls if len(c) > 5 and c[4] == "content_size"][:2], ["accessibility-large"] * 2)
 
     def test_an_unreadable_starting_size_refuses_before_anything_is_set(self) -> None:
-        """Fails if a run sets a text size when it could not read the size to restore."""
+        """Fails if: a run sets a text size when it could not read the size to restore."""
         original = self.world.__call__
 
         class Unreadable(type(self.world)):
@@ -432,7 +432,7 @@ class PairingTests(unittest.TestCase):
         self.assertEqual(self.world.calls["reference"], [])
 
     def test_a_restore_that_does_not_take_fails_loudly(self) -> None:
-        """Fails if the run ends quietly while a simulator is still at the large size."""
+        """Fails if: the run ends quietly while a simulator is still at the large size."""
         self.world.content_size_set_budget = 2  # the two sets take; the two restores are ignored
         with self.assertRaises(faults.Refused) as caught:
             faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path,
@@ -442,7 +442,7 @@ class PairingTests(unittest.TestCase):
         self.assertIn("candidate", str(caught.exception))
 
     def test_a_protected_simulator_is_refused_before_anything_is_touched(self) -> None:
-        """Fails if a protected simulator is booted, launched on or reconfigured by a states run."""
+        """Fails if: a protected simulator is booted, launched on or reconfigured by a states run."""
         for udid in ("D14299B9-9F37-437D-85CE-208E13B01087", "366d4d0f", "366D4D0F-8AE1-44F1-988B-E4D2DBDD1672"):
             self.world.udid["reference"] = udid
             env = {"DEVCAP_HELD": f"simulator,device-{udid},device-UDID-CAND"}  # even a hold on it does not make it usable
@@ -453,7 +453,7 @@ class PairingTests(unittest.TestCase):
             self.assertEqual(self.world.simctl_calls, [])
 
     def test_each_simulator_needs_its_own_device_hold(self) -> None:
-        """Fails if a run proceeds with a hold on only one of its simulators, or on the simulator pool alone."""
+        """Fails if: a run proceeds with a hold on only one of its simulators, or on the simulator pool alone."""
         for held in ("simulator", "simulator,device-UDID-REF", "simulator,device-UDID-CAND", "device-UDID-REF,device-UDID-CAND"):
             with self.assertRaises(simguard.Refused, msg=held):
                 faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env={"DEVCAP_HELD": held},
@@ -461,13 +461,13 @@ class PairingTests(unittest.TestCase):
         self.assertEqual(self.world.calls["reference"], [])
 
     def test_the_cli_refuses_a_protected_simulator_before_reading_a_container(self) -> None:
-        """Fails if the command line touches a container of a protected simulator."""
+        """Fails if: the command line touches a container of a protected simulator."""
         status = faults.main(["run", "--surfaces", "chores", "--faults", "empty", "--reference-udid", "366D4D0F-8AE1-44F1-988B-E4D2DBDD1672",
                               "--reference-agent", "x", "--candidate-udid", "B", "--candidate-agent", "y", "--out", str(self.dir / "o")])
         self.assertEqual(status, 2)
 
     def test_the_renamed_publication_is_put_back_after_the_run(self) -> None:
-        """Fails if a run leaves the candidate's publication with the aligned names."""
+        """Fails if: a run leaves the candidate's publication with the aligned names."""
         folder = self.world.root / "candidate" / "data" / launch.PREVIEW_SUBPATH
         (folder / "publication.json").write_text(json.dumps({"title": "Old Name"}))
         faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path,
@@ -476,7 +476,7 @@ class PairingTests(unittest.TestCase):
         self.assertFalse((folder / faults.PRISTINE_PUBLICATION).exists())
 
     def test_a_failed_scroll_reports_end_stop_failed_not_no_overlap(self) -> None:
-        """Fails if a capture whose scroll to the end failed reads as "no overlap"."""
+        """Fails if: a capture whose scroll to the end failed reads as "no overlap"."""
         self.world.scroll_works = False
         self.world.swipe_works = False
         ctx = self.context()
@@ -628,21 +628,21 @@ class EndStopTests(unittest.TestCase):
 
 class SimGuardTests(unittest.TestCase):
     def test_protected_udids_match_whole_or_first_eight_in_any_case(self) -> None:
-        """Fails if a protected simulator slips through as a short or lower-case UDID."""
+        """Fails if: a protected simulator slips through as a short or lower-case UDID."""
         for udid in ("D14299B9", "d14299b9", "366D4D0F-8AE1-44F1-988B-E4D2DBDD1672", " 366d4d0f "):
             self.assertTrue(simguard.is_protected(udid), udid)
         for udid in ("", "D14299", "74239575-A116-4C48-BEA0-599948E52E39", "2559ED4B-6DBA-4B56-B92F-2C2C7DC3CF31"):
             self.assertFalse(simguard.is_protected(udid), udid)
 
     def test_guard_needs_the_pool_and_every_device_gate(self) -> None:
-        """Fails if guard accepts a missing pool gate or a missing device gate."""
+        """Fails if: guard accepts a missing pool gate or a missing device gate."""
         simguard.guard(["A", "B"], {"DEVCAP_HELD": "simulator,device-A,device-B"})
         for held in ("", "simulator", "simulator,device-A", "device-A,device-B"):
             with self.assertRaises(simguard.Refused, msg=held):
                 simguard.guard(["A", "B"], {"DEVCAP_HELD": held})
 
     def test_protection_wins_over_a_hold(self) -> None:
-        """Fails if a hold on a protected simulator lets a tool use it."""
+        """Fails if: a hold on a protected simulator lets a tool use it."""
         with self.assertRaises(simguard.Refused) as caught:
             simguard.guard(["366D4D0F-8AE1-44F1-988B-E4D2DBDD1672"], {"DEVCAP_HELD": "simulator,device-366D4D0F-8AE1-44F1-988B-E4D2DBDD1672"})
         self.assertIn("protected", str(caught.exception))
