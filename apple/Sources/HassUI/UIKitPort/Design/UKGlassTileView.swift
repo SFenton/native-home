@@ -203,7 +203,7 @@ final class UKGlassTileView: UIControl, UKGridMeasuring {
     /// The face the tile draws now, for a grid grouped by state (`sh.grid-state-groups@1`).
     var gridFace: UKGridFace { model.isUnavailable ? .unavailable : model.isActive ? .active : .idle }
     private var lastGridFace: UKGridFace?
-    /// How many times ``configure(_:environment:animated:action:perform:)`` ran; a drag must not add to it (`build/design/tile-swipe.md`, C8).
+    /// How many times ``configure(_:environment:animated:action:perform:)`` ran; a drag must not add to it (`.agents/patterns/tile-swipe.md`, C8).
     private(set) var configureCount = 0
     /// The face, for views that wrap a tile.
     let face: UKGlassTileFaceView

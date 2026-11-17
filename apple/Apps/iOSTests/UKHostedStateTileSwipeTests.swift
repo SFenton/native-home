@@ -210,7 +210,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         }
     }
 
-    /// What a release draws (`build/design/tile-swipe-release.md`): live 40, a drag to 50, "closing" 20 held under the finger, the lift at 50 and a
+    /// What a release draws (`.agents/patterns/tile-swipe.md`): live 40, a drag to 50, "closing" 20 held under the finger, the lift at 50 and a
     /// hold of 3 s the house never answers.
     /// 1. one call with 50 and the band stays at 50, the held configure never drawn;
     /// 2. the first configure after the lift keeps the band at 50 and speaks "50%";

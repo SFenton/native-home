@@ -1,13 +1,13 @@
 import SwiftUI
 
 /// Measurements of the inset grouped look, matched to the system's `List` on iPhone, iPad and iPhone Duo (compared on the
-/// simulators by `build/compare/settings`).
+/// simulators against the system Settings screens).
 public enum InsetGroupedMetrics {
     /// Space between the screen edge and a section's card in a compact-width window (iPhone, folded Duo).
     public static let margin: CGFloat = 16
     /// The same in a regular-width window (iPad, unfolded Duo), where the system's inset grouped `List` measured 20 pt: the card's edge
     /// sat 40 px in on the iPad's 1668 px (2x) and 60 px in on the Duo (3x), against 48 px (3x) on the iPhone, in the Settings
-    /// comparison screenshots (`build/compare/settings`, 2026-10-27).
+    /// comparison screenshots (2026-10-27).
     public static let regularMargin: CGFloat = 20
 
     /// The card's side margin for a window's width class.

@@ -6,7 +6,7 @@ import XCTest
 
 // MARK: - Swipe to adjust on every family: the start, the bubble and the sheet
 
-/// Hosted UX and accessibility checks for three Verifier findings on the tile swipe (`sh.tile-swipe@1`, `build/design/tile-swipe.md`), each
+/// Hosted UX and accessibility checks for three Verifier findings on the tile swipe (`sh.tile-swipe@1`, `.agents/patterns/tile-swipe.md`), each
 /// written for the iPhone, the iPhone Duo and the iPad:
 ///
 /// - **diag-ipad (C1).** A drag that starts about 60 degrees from horizontal belongs to the page's scroll, never to a tile.

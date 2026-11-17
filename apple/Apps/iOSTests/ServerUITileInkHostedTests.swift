@@ -324,7 +324,7 @@ final class ServerUITileInkHostedTests: XCTestCase {
         // The base tree was measured in the simulator's own appearance, so this tile is drawn in it too.
         let plain = tile(model(actions: [Self.pause]), width: 260, dark: false)
         let disc = try XCTUnwrap(discs(in: plain).first)
-        // The values the base tree (a7caa157) draws, measured by `ServerUIDefaultsProbeHostedTests` there (build/evidence/native-ingest/ni-tc5/base-probe.json).
+        // The values the base tree (a7caa157) draws, measured by `ServerUIDefaultsProbeHostedTests` there.
         XCTAssertEqual(Self.base.icon, packed(plain.face.drawnGlyphColor, in: plain), "the icon is the neutral off glyph of the base tree")
         XCTAssertEqual(packed(disc.drawnGlyphColor, in: disc), Self.base.discGlyph, "the disc glyph")
         let ground = channels(try XCTUnwrap(disc.backgroundColor), in: disc)

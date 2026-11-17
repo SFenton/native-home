@@ -3,7 +3,7 @@ import Foundation
 // MARK: - State words (`sh.state-words@1`)
 
 /// The words a tile says for its states (`sh.state-words@1`). An absent key draws the app's word, production's, so a document without `words` is
-/// byte-identical and draws production's text (`build/design/sim-fidelity-contract.md`, section 2).
+/// byte-identical and draws production's text (`.agents/design/mockups/proposals/sim-fidelity-contract`, section 2).
 public struct ServerUIStateWords: Equatable, Sendable {
     /// A word key.
     public enum Key: String, Sendable, CaseIterable {

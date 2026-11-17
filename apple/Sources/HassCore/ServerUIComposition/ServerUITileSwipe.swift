@@ -6,7 +6,7 @@ import Foundation
 /// trait and no hint: it is the tile it always was.
 ///
 /// The tile tracks the finger absolutely (the band's edge is where the finger is), sends one call when the finger lifts, and the bubble always
-/// names the value the release will send (`build/design/tile-swipe.md`). The pure drag maths is `TileSwipe` in `HassDesign`.
+/// names the value the release will send (`.agents/patterns/tile-swipe.md`). The pure drag maths is `TileSwipe` in `HassDesign`.
 public struct ServerUITileSwipe: Equatable, Sendable {
     /// The most steps a range may hold: 100 steps is 1.5 points of travel a step on the narrowest tile (150 points).
     public static let maximumSteps = 100

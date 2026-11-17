@@ -3,7 +3,7 @@ import Foundation
 
 // MARK: - Swipe to adjust: the pure maths
 
-/// The maths of swiping a tile to adjust a number (`sh.tile-swipe@1`, `build/design/tile-swipe.md`): where the finger is as a value, the snap,
+/// The maths of swiping a tile to adjust a number (`sh.tile-swipe@1`, `.agents/patterns/tile-swipe.md`): where the finger is as a value, the snap,
 /// the clamp, the right-to-left mirror, the detent lines that tick, the step of VoiceOver's increment, and the bubble's text, size and place.
 ///
 /// It generalises ``BrightnessTile``'s percent maths (0 to 100 by 1, a tick every 10) to any range. It takes plain numbers, so `HassDesign`
@@ -129,7 +129,7 @@ public struct TileSwipe: Equatable, Sendable {
 
 // MARK: - The bubble
 
-/// The bubble that names the value a release will send (`build/design/tile-swipe.md`, section 2): a capsule over the band's edge, never under
+/// The bubble that names the value a release will send (`.agents/patterns/tile-swipe.md`, section 2): a capsule over the band's edge, never under
 /// the finger. These are the numbers the Studio uses for its "word does not fit" warning.
 public enum TileSwipeBubble {
     /// The metrics of one text size.
@@ -177,7 +177,7 @@ public enum TileSwipeBubble {
 
 // MARK: - Where a drag starts
 
-/// Whether a drag that is about to begin on a tile is the tile's swipe or the page's scroll (conflict C1 of `build/design/tile-swipe.md`).
+/// Whether a drag that is about to begin on a tile is the tile's swipe or the page's scroll (conflict C1 of `.agents/patterns/tile-swipe.md`).
 ///
 /// The recognizer asks as it is about to begin, with what it has seen of the touch so far. Velocity alone is the least reliable of the two: it
 /// is read from the last few samples, so a first sample that leans sideways (a coarse driver, a pointer, a stylus, a stutter at touch down) can

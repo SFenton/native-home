@@ -24,7 +24,7 @@ struct UKTileSwipeConfig: Equatable {
 }
 
 /// One swipe controller for any glass tile: the pan, the bubble, the lift, the tick, and VoiceOver's increment and decrement
-/// (`build/design/tile-swipe.md`, sections 1 to 5).
+/// (`.agents/patterns/tile-swipe.md`, sections 1 to 5).
 ///
 /// Tracking is absolute: the band's edge is the finger. While the finger is down the controller moves the host's band and the bubble per sample
 /// through ``onFrame`` and does not rebuild the tile (`configure`), writes no state and sends no call; the one call goes out on release through

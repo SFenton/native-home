@@ -2,7 +2,7 @@
 import CoreGraphics
 import Testing
 
-/// The maths of swiping a tile to adjust a number (`sh.tile-swipe@1`, `build/design/tile-swipe.md`).
+/// The maths of swiping a tile to adjust a number (`sh.tile-swipe@1`, `.agents/patterns/tile-swipe.md`).
 struct TileSwipeTests {
     private let light = TileSwipe.brightness
     private let setpoint = TileSwipe(min: 60, max: 85, step: 0.5, detent: 5)
