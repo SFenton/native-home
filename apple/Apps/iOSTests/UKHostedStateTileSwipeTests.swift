@@ -214,9 +214,8 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             XCTAssertTrue(called, "width \(width)")
             XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "one call")
             XCTAssertEqual(sent(r.caller), [50], "the value the finger chose, not the house's 20")
-            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle }
-            XCTAssertTrue(drawn, "the new state word is drawn after the lift")
-            XCTAssertEqual(try XCTUnwrap(r.tile.model.progress), 0.5, accuracy: 0.001, "the band holds the committed value until Home Assistant answers")
+            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.5) < 0.001 }
+            XCTAssertTrue(drawn, "the new state word is drawn after the lift, with the band at the committed value (\(String(describing: r.tile.model.progress)))")
             HostedPage.hideTracked()
         }
     }
@@ -269,7 +268,10 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             container.layoutIfNeeded()
             XCTAssertFalse(r.controller.isDragging, "a changed width drops the drag (width \(width))")
             XCTAssertTrue(r.controller.lastCancelReason?.hasPrefix("width") == true, r.controller.lastCancelReason ?? "no reason")
-            drag(r, [0.5], end: .ended)
+            // The finger lifts: the controller has no drag left, so the release has no value to send.
+            let lift = ScriptedSwipePan()
+            lift.scriptedState = .ended
+            r.controller.perform(NSSelectorFromString("panned:"), with: lift)
             await HostedPage.pump(passes: 5)
             XCTAssertEqual(r.caller.calls, [], "nothing is sent")
             HostedPage.hideTracked()
