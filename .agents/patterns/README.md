@@ -33,6 +33,7 @@
 | [server-ui-tab-areas.md](server-ui-tab-areas.md) | `HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift` | none (native only) |
 | [server-ui-badges.md](server-ui-badges.md) | `HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift` | none (native only) |
 | [server-ui-data-flow.md](server-ui-data-flow.md) | `HassCore/ServerUIFlow/ServerUIFlowSession.swift` | none (native only) |
+| [server-ui-chart-gauge.md](server-ui-chart-gauge.md) | `HassUI/UIKitPort/Design/UKChartView.swift`, `UKLinearGaugeView.swift` | none (the Studio's `chart` and `gauge` nodes) |
 | [vacuum-lowering.md](vacuum-lowering.md) | `HassCore/ServerUIComposition/ServerUIVacuumLowering.swift` | `src/components/hass/VacuumCard.tsx` |
 | [valetudo-map.md](valetudo-map.md) | `HassUI/UIKitPort/Features/Vacuums/UKValetudoMapView.swift`, `HassCore/Vacuums/ValetudoMap.swift` | `src/components/hass/ValetudoMapCard.tsx` |
 | [thermostat-dial.md](thermostat-dial.md) | `HassDesign/ThermostatDial/ThermostatDial.swift` | `src/components/hass/CircularControlDial.tsx` |

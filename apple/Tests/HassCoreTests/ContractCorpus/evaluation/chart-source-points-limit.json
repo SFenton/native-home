@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "chart-source-points-limit",
+  "note": "Only the first `limit` records are drawn: 2 of 3.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 2,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "level": 1
+        },
+        {
+          "label": "b",
+          "level": 2
+        },
+        {
+          "label": "c",
+          "level": 3
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 1
+        },
+        {
+          "label": "b",
+          "value": 2
+        }
+      ]
+    }
+  }
+}

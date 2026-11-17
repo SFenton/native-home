@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-scale-marker-at-end-is-held-inside",
+  "note": "A value of 1 is held so the marker ends at the right edge: 188.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 1,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 100,
+        "left": 188
+      }
+    }
+  }
+}

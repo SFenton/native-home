@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "gauge-scale-ignores-a-span",
+  "note": "A scale gauge colours the whole track whatever span it is given.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0.5,
+      "span": {
+        "start": 0.25,
+        "size": 0.5
+      },
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 50,
+        "left": 94
+      }
+    }
+  }
+}

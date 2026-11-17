@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-points-one-is-centred",
+  "note": "One point is in the middle of the plot.",
+  "subject": {
+    "chart": {
+      "op": "points",
+      "values": [
+        100
+      ],
+      "top": 100,
+      "width": 80,
+      "height": 76
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "points": [
+        {
+          "x": 40,
+          "y": 0
+        }
+      ]
+    }
+  }
+}

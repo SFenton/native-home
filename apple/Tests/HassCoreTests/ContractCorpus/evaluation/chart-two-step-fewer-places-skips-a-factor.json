@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "chart-two-step-fewer-places-skips-a-factor",
+  "note": "A factor whose labels need more places than allowed is skipped: a total of 0.09 with no fraction digits cannot print 0.05, so the step rises to 1 (domain 2).",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": 0.09,
+      "minimumStep": 0.01,
+      "maximumFractionDigits": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 2,
+      "step": 1,
+      "digits": 0
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "gauge-span-empty-is-not-drawn",
+  "note": "A span of size 0 is not drawn (span.alpha = 0, UKWeatherViews.swift:197).",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0.5,
+        "size": 0
+      },
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": null,
+      "marker": null
+    }
+  }
+}

@@ -53,9 +53,13 @@ public enum ServerUIIngestedCapabilities {
     /// `index`; the steps `min`, `max`, `running-sum` and `annotate`, the date styles `hour` and `weekday`, and the `progress` operation of a `date` operand.
     public static let flowRepeat: [String] = ["sh.repeat@1", "sh.flow-extras@1"]
 
+    /// The chart and the linear gauge (lane `ni-wgchart`): one series as bars, a line or an area on an axis, from points written in the document or from the
+    /// records of a flow or a `repeat`; and a rail with a gradient, a span and a marker.
+    public static let dataParts: [String] = ["sh.chart@1", "sh.linear-gauge@1"]
+
     /// Swipe to adjust, the words a tile says for its states, the default tile ink and a grid grouped by state (lane `ni-tilecontract`).
     public static let tileContract: [String] = ["sh.tile-swipe@1", "sh.state-words@1", ServerUITileInkDefault.capability, "sh.grid-state-groups@1"]
 
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts }
 }

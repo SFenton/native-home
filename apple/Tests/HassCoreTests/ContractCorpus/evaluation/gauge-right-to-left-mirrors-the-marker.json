@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "gauge-right-to-left-mirrors-the-marker",
+  "note": "In a right-to-left layout the marker mirrors: a value of 0.25 is at offset 44, so its left edge is 200 - 44 - 12 = 144.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0.25,
+      "rtl": true,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 25,
+        "left": 144
+      }
+    }
+  }
+}

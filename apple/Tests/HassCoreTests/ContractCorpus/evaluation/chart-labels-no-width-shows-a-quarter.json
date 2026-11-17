@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "chart-labels-no-width-shows-a-quarter",
+  "note": "With no width to go by, a quarter of 24 labels show: every 6th. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 24,
+      "plotWidth": 0,
+      "widestLabelWidth": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 6,
+      "indices": [
+        0,
+        6,
+        12,
+        18
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "gauge-scale-value-missing-hides-the-marker",
+  "note": "A gauge that gives no value says the same.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": null
+    }
+  }
+}

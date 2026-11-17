@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "chart-two-step-mm-total-130",
+  "note": "A two-step axis for a total of 130 mm (smallest step 0.25, at most 2 places) tops out at 150 with a middle label of 75 (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:78-92, `amountAxis`).",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": 130,
+      "minimumStep": 0.25,
+      "maximumFractionDigits": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 150,
+      "step": 75,
+      "digits": 0
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "gauge-hero-marker-in-the-day",
+  "note": "Today 60 to 80 with 75 now: the span is the whole track and the marker at 75 percent (WeatherHighlightsTests.swift:174-175).",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0,
+        "size": 1
+      },
+      "value": 0.75,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 75,
+        "left": 144
+      }
+    }
+  }
+}

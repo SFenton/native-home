@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "chart-labels-one-fits",
+  "note": "Only one label fits in a narrow plot: a wide label of 50 in 40 shows the first only of 6. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 6,
+      "plotWidth": 40,
+      "widestLabelWidth": 50
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 6,
+      "indices": [
+        0
+      ]
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "chart-levels-five",
+  "note": "Five levels of an axis to 100: every 25.",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 5,
+      "top": 100,
+      "pattern": "{value}",
+      "digits": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        100,
+        75,
+        50,
+        25,
+        0
+      ],
+      "labels": [
+        "100",
+        "75",
+        "50",
+        "25",
+        "0"
+      ]
+    }
+  }
+}

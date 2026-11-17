@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "chart-labels-24-in-326",
+  "note": "24 labels 32 points wide in a plot of 326: 8 fit, so every 3rd shows. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 24,
+      "plotWidth": 326,
+      "widestLabelWidth": 32
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 3,
+      "indices": [
+        0,
+        3,
+        6,
+        9,
+        12,
+        15,
+        18,
+        21
+      ]
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "chart-ceiling-peak-negative-is-the-least",
+  "note": "A highest value below zero counts as zero, so the least top is used.",
+  "subject": {
+    "chart": {
+      "op": "domain",
+      "domain": {
+        "type": "ceiling",
+        "step": 10,
+        "min": 10,
+        "max": 100
+      },
+      "peak": -5
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 10
+    }
+  }
+}

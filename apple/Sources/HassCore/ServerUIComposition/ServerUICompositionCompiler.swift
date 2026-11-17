@@ -1475,6 +1475,8 @@ struct ServerUICompositionCompiler {
             return try overlay(c, node: node, props: props, depth: depth)
         case "stack": return try stackComponent(c, node: node, props: props, depth: depth)
         case "repeat": return try repeatComponent(c, node: node, props: props, depth: depth)
+        case "chart": return try chartComponent(c, node: node, props: props)
+        case "linear-gauge": return try linearGaugeComponent(c, node: node, props: props)
         case "shape": return try shapeComponent(node, props: props)
         case "symbol": return try symbolComponent(c, node: node, props: props)
         case "room-section":

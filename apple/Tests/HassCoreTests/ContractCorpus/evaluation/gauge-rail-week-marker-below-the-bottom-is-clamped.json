@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "name": "gauge-rail-week-marker-below-the-bottom-is-clamped",
+  "note": "And below the lowest low at 0.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "clamp",
+      "args": [
+        {
+          "type": "math",
+          "op": "scale",
+          "args": [
+            {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "now"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            {
+              "type": "literal",
+              "value": 50
+            },
+            {
+              "type": "literal",
+              "value": 90
+            },
+            {
+              "type": "literal",
+              "value": 0
+            },
+            {
+              "type": "literal",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "type": "literal",
+          "value": 0
+        },
+        {
+          "type": "literal",
+          "value": 100
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "day/now": {
+        "status": "value",
+        "value": 20
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

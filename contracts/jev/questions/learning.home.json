@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 24,
+  "version": 25,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -111,6 +111,7 @@
     ".agents/patterns/scroll-fit.md": "Scroll fit: a vertical scroll view scrolls and bounces only when its content is taller than its viewport. (read when: adding a page, sheet, list or any vertical `ScrollView`, `List` or `Form`, or adding pull-to-refresh.)",
     ".agents/patterns/scroll-frame-rate.md": "Scroll frame rate: the app asks for no refresh rate while scrolling (removed 2026-10-31); iOS manages it. Scroll surfaces report to `ScrollActivity`. (read when: adding a scroll surface or chasing \"fling feels choppy\".)",
     ".agents/patterns/server-ui-badges.md": "Badges: a count or short text on the top trailing corner of a tile or chip. (read when: a node shows a count or word about itself.)",
+    ".agents/patterns/server-ui-chart-gauge.md": "Chart and linear gauge: the document-driven chart (`sh.chart@1`) and linear gauge (`sh.linear-gauge@1`), the generic parts that draw a series and a value on a rail. (read when: you change `UKChartView`, `UKLinearGaugeView`, `ServerUIChart*` or `ServerUILinearGauge`, or the weather chart and rail.)",
     ".agents/patterns/server-ui-data-flow.md": "Data flow session: a document data source that asks Home Assistant for data, runs a closed list of steps and gives rows, a record or a value. (read when: you change `ServerUIFlow*` or a flow's service call.)",
     ".agents/patterns/server-ui-tab-areas.md": "Tab areas: the areas of a tab container, each drawn once for the tabs that name it. (read when: you change a tab container, its bar or its fallback.)",
     ".agents/patterns/settings-section.md": "Settings section: a settings page's header + description + controls block, and the pieces that go in it. (read when: building a settings-style page (Admin, Guests, Vacation, Sprinklers…).)",

@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "gauge-cell-position-is-the-index",
+  "note": "The position of the cell is its 0-based index: the third cell is 2, whatever its record.",
+  "subject": {
+    "operand": {
+      "type": "index"
+    }
+  },
+  "env": {
+    "item": {
+      "level": 70
+    },
+    "index": 2
+  },
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "gauge-hero-marker-past-the-top-is-held",
+  "note": "100 now in a day of 60 to 80 is held at the end (WeatherHighlightsTests.swift:176).",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0,
+        "size": 1
+      },
+      "value": 1,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 100,
+        "left": 188
+      }
+    }
+  }
+}

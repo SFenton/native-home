@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "gauge-span-no-numbers-is-empty",
+  "note": "A span whose start and size are not known is empty.",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": null,
+        "size": null
+      },
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": null,
+      "marker": null
+    }
+  }
+}

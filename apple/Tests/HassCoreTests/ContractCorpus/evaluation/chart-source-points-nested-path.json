@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "chart-source-points-nested-path",
+  "note": "The path may go into a record: the field `wind.speed`.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 2,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "wind",
+            "speed"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "wind": {
+            "speed": 9
+          }
+        },
+        {
+          "label": "b",
+          "wind": null
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 9
+        },
+        {
+          "label": "b",
+          "value": null
+        }
+      ]
+    }
+  }
+}

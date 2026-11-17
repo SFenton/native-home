@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "chart-points-line",
+  "note": "The points of a line sit in the middle of equal slots: [0, 50, null, 100] in 80 wide and 76 tall: x 10, 30, 50, 70; y 76, 38, a break, 0.",
+  "subject": {
+    "chart": {
+      "op": "points",
+      "values": [
+        0,
+        50,
+        null,
+        100
+      ],
+      "top": 100,
+      "width": 80,
+      "height": 76
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "points": [
+        {
+          "x": 10,
+          "y": 76
+        },
+        {
+          "x": 30,
+          "y": 38
+        },
+        {
+          "x": 50,
+          "y": null
+        },
+        {
+          "x": 70,
+          "y": 0
+        }
+      ]
+    }
+  }
+}

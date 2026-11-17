@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "chart-two-step-mm-total-not-finite",
+  "note": "A total that is not a number counts as zero: the millimetre axis falls to 0.5 (WeatherChartMathTests.swift:91). Written as null here, JSON having no infinity.",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": null,
+      "minimumStep": 0.25,
+      "maximumFractionDigits": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 0.5,
+      "step": 0.25,
+      "digits": 2
+    }
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "format": 1,
+  "name": "gauge-rail-flat-on-is-fifty",
+  "note": "With 70 now: 50 (WeatherHighlightsTests.swift:168).",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "below",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "now"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "low"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": 0
+          }
+        },
+        {
+          "when": {
+            "type": "compare",
+            "op": "above",
+            "left": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "now"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            "right": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "low"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          },
+          "then": {
+            "type": "literal",
+            "value": 100
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "literal",
+        "value": 50
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "day/low": {
+        "status": "value",
+        "value": 70
+      },
+      "day/now": {
+        "status": "value",
+        "value": 70
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 50
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "chart-bars-gap-and-least-height-are-the-document's",
+  "note": "A gap of 4 and a least height of 5: [1, 0] in 24 wide: columns 10 wide, the first 5 tall, the zero bar 0.",
+  "subject": {
+    "chart": {
+      "op": "bars",
+      "values": [
+        1,
+        0
+      ],
+      "top": 100,
+      "width": 24,
+      "height": 76,
+      "gap": 4,
+      "minimum": 5
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "bars": [
+        {
+          "x": 0,
+          "width": 10,
+          "height": 5,
+          "unknown": false
+        },
+        {
+          "x": 14,
+          "width": 10,
+          "height": 0,
+          "unknown": false
+        }
+      ]
+    }
+  }
+}

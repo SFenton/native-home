@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-82",
+  "note": "41 of 50 is 82. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 41,
+      "top": 50
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 82
+    }
+  }
+}

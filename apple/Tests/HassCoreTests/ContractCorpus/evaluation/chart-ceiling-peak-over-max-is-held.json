@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "chart-ceiling-peak-over-max-is-held",
+  "note": "A highest value above the largest top is held at it: 140 on a ceiling to 100 gives 100.",
+  "subject": {
+    "chart": {
+      "op": "domain",
+      "domain": {
+        "type": "ceiling",
+        "step": 10,
+        "min": 10,
+        "max": 100
+      },
+      "peak": 140
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 100
+    }
+  }
+}

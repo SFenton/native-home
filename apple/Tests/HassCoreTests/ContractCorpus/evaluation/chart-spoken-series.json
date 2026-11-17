@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "chart-spoken-series",
+  "note": "Each label and its value, joined by a comma and a space, the value as an axis label.",
+  "subject": {
+    "chart": {
+      "op": "spoken",
+      "points": [
+        {
+          "label": "Now",
+          "value": 94
+        },
+        {
+          "label": "7 PM",
+          "value": 40
+        },
+        {
+          "label": "8 PM",
+          "value": 20
+        }
+      ],
+      "pattern": "{value}%",
+      "digits": 0,
+      "unknownText": "Unavailable"
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "spoken": "Now 94%, 7 PM 40%, 8 PM 20%"
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-no-height-is-zero",
+  "note": "An axis with no height gives 0. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 5,
+      "top": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 0
+    }
+  }
+}

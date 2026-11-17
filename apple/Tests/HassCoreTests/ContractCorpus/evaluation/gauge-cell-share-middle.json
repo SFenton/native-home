@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "name": "gauge-cell-share-middle",
+  "note": "A record in the middle of the range puts the marker at half: 70 of 50 to 90.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "scale",
+      "args": [
+        {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        },
+        {
+          "type": "literal",
+          "value": 50
+        },
+        {
+          "type": "literal",
+          "value": 90
+        },
+        {
+          "type": "literal",
+          "value": 0
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "level": 70
+    },
+    "index": 2
+  },
+  "expected": {
+    "status": "value",
+    "value": 0.5
+  }
+}

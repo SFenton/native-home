@@ -115,3 +115,8 @@ of a `date` operand). They are written by `scripts/wgflow-corpus.ts` through the
 expand each use's copy as `<reference id>~<flow id>`. The evaluation cases are the `date-hour-*`, `date-weekday-*`, `date-progress-*` and `index-*` files in `evaluation/`, and the `min-`, `max-`, `running-sum-`, `annotate-`, `index-` and `records-`
 files in `pipelines/`; `evaluation/*.json` environments gain one key, `index` (the position of the item). Their expected values are worked out by hand from `WeatherFormat.swift`, `WeatherDates.swift`, `WeatherRails.swift`,
 `WeatherPrecipitationTimeline.swift` and `WeatherPresentation.swift`, cited in each note.
+
+The `chart-` and `linear-gauge-` files cover `sh.chart@1` and `sh.linear-gauge@1` (weather-gen lane WG-N3): a bar, line or area chart over literal points or `source-points` (a Data Flow's records, with a limit and a
+label and value operand each), the domain kinds `fixed`, `ceiling` and `two-step`, the axis, the unknown-value stubs, a chart over a repeat's list, and the gauge's scale, stops, spans, marker and spoken value. Their
+`pending-` twins from the Studio became `accept/` and `reject/` cases here; the `evaluation/` cases (`chart-*`, `gauge-*`) pin the math in `ServerUIChartMath` and `ServerUIGaugeMath` to the Studio's
+`chart-math.ts` and `gauge-math.ts`. Do not edit them by hand; copy them from the Studio.
