@@ -201,6 +201,9 @@ enum UKServerUIPreflight {
             case .overlay(let overlay):
                 try self.components(overlay.children, at: path + "/children", collections: collections)
             case .stack(let stack): try self.components(stack.children, at: path + "/children", collections: collections)
+            case .repeatNode(let value):
+                if collections[value.providerId] == nil { throw UKServerUIRendererError(code: .unavailableSource, pointer: path + "/props/providerId") }
+                try self.components(value.children, at: path + "/children", collections: collections)
             case .shape: break
             case .symbol(let part): try symbol(part.symbol, at: path + "/props/name")
             case .row(let row):

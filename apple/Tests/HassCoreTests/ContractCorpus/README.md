@@ -108,3 +108,10 @@ The `component-`, `ref-`, `param-` and `body-` files (and their `pending-` twins
 key, the `component-ref` node, parameters (kinds `entity-id` and `state-id`, `label`, `origin`), bindings, template-owned `sources` and `args`; the `component-example-*` files are the four
 template examples (light button, vent tile, humidifier sheet, bed sheet), compiled with placeholder entity ids. They are written by `scripts/generate-component-corpus.ts` through the same generator. The
 accepted ones are pending (the app's list refuses them with `unsupported_capability`); the rejected ones name the code the Studio's compiler gives.
+
+The `repeat-`, `records-`, `flow-extras-` and `owned-flow-` files (and their `pending-` twins) cover the two pending ids of the weather-gen data lane WG-S2: `sh.repeat@1` (a flow output `records`, the node `repeat` with its paging and
+placeholder, the `item` operand in a node slot, the `index` operand, and the Data Flows a saved component owns in `flows`) and `sh.flow-extras@1` (the steps `min`, `max`, `running-sum` and `annotate`, the date styles `hour` and `weekday`, and the `progress` operation
+of a `date` operand). They are written by `scripts/wgflow-corpus.ts` through the same generator; do not edit them by hand. A saved component entry's `flows` field is new: native must decode it and
+expand each use's copy as `<reference id>~<flow id>`. The evaluation cases are the `date-hour-*`, `date-weekday-*`, `date-progress-*` and `index-*` files in `evaluation/`, and the `min-`, `max-`, `running-sum-`, `annotate-`, `index-` and `records-`
+files in `pipelines/`; `evaluation/*.json` environments gain one key, `index` (the position of the item). Their expected values are worked out by hand from `WeatherFormat.swift`, `WeatherDates.swift`, `WeatherRails.swift`,
+`WeatherPrecipitationTimeline.swift` and `WeatherPresentation.swift`, cited in each note.

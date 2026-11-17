@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "date-hour-without-clock",
+  "note": "A time with no offset needs no clock: the hour is read as written.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T19:05:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "hour"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US"
+  },
+  "expected": {
+    "status": "value",
+    "value": "7 PM"
+  }
+}

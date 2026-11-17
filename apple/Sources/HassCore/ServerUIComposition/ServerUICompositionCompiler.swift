@@ -54,6 +54,13 @@ struct ServerUICompositionCompiler {
     var tileContract = ServerUITileContractRefs()
     /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
     private var components = ServerUIComponentExpansion(.null)
+    /// The record shape the walk is inside while it decodes the template of a `repeat` (`sh.repeat@1`); `item` and `index` mean something only there.
+    var repeatScope: ServerUIExpressionParser.Scope?
+    /// The document's data sources as written (after the components expanded), by id: a `repeat` reads the shape of its flow's records from here, since
+    /// the pages are compiled before the sources are.
+    var rawSources: [String: JSONValue] = [:]
+    /// What the repeats of this compile found out about each flow they name, so a flow is decoded once.
+    var repeatFlows: [String: ServerUIFlow?] = [:]
     /// What a stack with an action holds that takes a tap, found in the document as written (``ServerUIStackTapCheck``).
     private var stackTapIssues: [Issue] = []
 
@@ -94,12 +101,16 @@ struct ServerUICompositionCompiler {
         }
         var compiler = Self()
         compiler.components = expansion
-        compiler.stackTapIssues = ServerUIStackTapCheck.issues(in: json)
+        compiler.stackTapIssues = ServerUIStackTapCheck.issues(in: json) + ServerUIRepeatCheck.issues(in: json)
         return try compiler.compile(root, capabilities: capabilities, documentCanonical: documentCanonical)
     }
 
     private mutating func compile(_ root: Cursor, capabilities: [String], documentCanonical: String?) throws -> ServerUICompositionPublication {
         doorSources = ServerUIDoorLowering.sources(in: root.value["document"]?["dataSources"])
+        for source in root.value["document"]?["dataSources"]?.array ?? [] {
+            if let id = source["id"]?.string, rawSources[id] == nil { rawSources[id] = source }
+        }
+        if components.ownsFlows { require("repeat") }
         var document = try document(root.field("document"))
         if let held = root.value["document"], ServerUIAppearanceScan.holdsPair(held) { require(ServerUIAppearanceScan.capability) }
         if let held = root.value["document"], ServerUIInkScan.holdsRGBA(held) { require("text-style") }
@@ -897,7 +908,7 @@ struct ServerUICompositionCompiler {
         switch try c.s("type") {
         case "literal": return try .literal(c.s("value"))
         case "expr":
-            var rules = ServerUIRuleDecoder()
+            var rules = ServerUIRuleDecoder(scope: repeatScope)
             let value = rules.expression(c.value, at: c.pointer)
             try absorb(rules)
             guard let value else { throw Issue(.invalidValue, c.pointer) }
@@ -1097,7 +1108,7 @@ struct ServerUICompositionCompiler {
     }
 
     mutating func predicate(_ c: Cursor) throws -> ServerUIPredicate {
-        var parser = ServerUIExpressionParser()
+        var parser = ServerUIExpressionParser(scope: repeatScope)
         let value = parser.predicate(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
@@ -1105,7 +1116,7 @@ struct ServerUICompositionCompiler {
     }
 
     mutating func operand(_ c: Cursor) throws -> ServerUIOperand {
-        var parser = ServerUIExpressionParser()
+        var parser = ServerUIExpressionParser(scope: repeatScope)
         let value = parser.operand(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
@@ -1114,7 +1125,7 @@ struct ServerUICompositionCompiler {
 
     mutating func callService(_ c: Cursor) throws -> ServerUICallService {
         require("call-service")
-        var parser = ServerUIExpressionParser(allowControl: controlContext)
+        var parser = ServerUIExpressionParser(allowControl: controlContext, scope: repeatScope)
         let value = parser.callService(c.value, at: c.pointer)
         try absorb(parser)
         guard let value else { throw Issue(.invalidValue, c.pointer) }
@@ -1313,7 +1324,7 @@ struct ServerUICompositionCompiler {
             try props.field("stateColors").array().map { item -> D.RoomStateColor in
                 let state = try item.s("state")
                 if !colorStates.insert(state).inserted { add(.invalidCombination, item.path("state")) }
-                var rules = ServerUIRuleDecoder()
+                var rules = ServerUIRuleDecoder(scope: repeatScope)
                 let slot = try rules.fill(item.field("fill").value, at: item.path("fill"))
                 try absorb(rules)
                 guard let slot else { throw Issue(.invalidValue, item.path("fill")) }
@@ -1356,7 +1367,7 @@ struct ServerUICompositionCompiler {
         return result
     }
 
-    private mutating func component(_ c: Cursor, depth: Int, gridChild: Bool) throws -> D.Component {
+    mutating func component(_ c: Cursor, depth: Int, gridChild: Bool) throws -> D.Component {
         nodeCount += 1
         guard nodeCount <= 4_096, depth <= 12 else { throw Issue(.limitExceeded, c.pointer) }
         let id = try c.s("id"), span = try layoutSpan(c)
@@ -1463,6 +1474,7 @@ struct ServerUICompositionCompiler {
         case "overlay":
             return try overlay(c, node: node, props: props, depth: depth)
         case "stack": return try stackComponent(c, node: node, props: props, depth: depth)
+        case "repeat": return try repeatComponent(c, node: node, props: props, depth: depth)
         case "shape": return try shapeComponent(node, props: props)
         case "symbol": return try symbolComponent(c, node: node, props: props)
         case "room-section":
@@ -1575,7 +1587,7 @@ struct ServerUICompositionCompiler {
                                       unavailableText: props.s("unavailableText")))
         case "status-pill":
             require("status-pill")
-            var rules = ServerUIRuleDecoder()
+            var rules = ServerUIRuleDecoder(scope: repeatScope)
             let tone = try rules.tone(props.field("tone").value, at: props.path("tone"))
             try absorb(rules)
             guard let tone else { throw Issue(.invalidValue, props.path("tone")) }
@@ -1905,7 +1917,7 @@ struct ServerUICompositionCompiler {
             if props.value["presentation"] != nil {
                 require("tile-presentation")
                 let p = try props.field("presentation"), fill = try p.field("fill")
-                var rules = ServerUIRuleDecoder()
+                var rules = ServerUIRuleDecoder(scope: repeatScope)
                 let slot = rules.fill(fill.value, at: fill.pointer)
                 try absorb(rules)
                 guard let slot else { throw Issue(.invalidValue, fill.pointer) }
@@ -2059,7 +2071,7 @@ struct ServerUICompositionCompiler {
         }
     }
     private mutating func statusAppearance(_ c: Cursor) throws -> D.StatusAppearance {
-        var rules = ServerUIRuleDecoder()
+        var rules = ServerUIRuleDecoder(scope: repeatScope)
         let icon = try rules.symbol(c.field("icon").value, at: c.path("icon"))
         let fill = try rules.fill(c.field("fill").value, at: c.path("fill"))
         let glyph = c.value["glyph"].flatMap { rules.fill($0, at: c.path("glyph")) }

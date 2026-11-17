@@ -11,10 +11,13 @@ struct ServerUIRuleDecoder {
     typealias D = ServerUICompositionDocument
 
     /// The expression parser every operand and condition passes through; the compiler reads its references and needs afterwards.
-    private(set) var parser = ServerUIExpressionParser()
+    private(set) var parser: ServerUIExpressionParser
     private(set) var issues: [ServerUICompositionError] = []
     /// Capabilities (without `sh.` and `@1`) the decoded values need.
     private(set) var needs: Set<String> = []
+
+    /// A decoder whose expressions may name `item` and `index` where `scope` says (`sh.repeat@1`).
+    init(scope: ServerUIExpressionParser.Scope? = nil) { parser = ServerUIExpressionParser(scope: scope) }
 
     var parserFacts: ServerUIExpressionParser { parser }
 

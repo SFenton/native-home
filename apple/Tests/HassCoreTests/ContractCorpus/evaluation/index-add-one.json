@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "index-add-one",
+  "note": "A cell numbered from 1.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "add",
+      "args": [
+        {
+          "type": "index"
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {
+    "item": {
+      "a": 1
+    },
+    "index": 3
+  },
+  "expected": {
+    "status": "value",
+    "value": 4
+  }
+}

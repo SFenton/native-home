@@ -59,10 +59,20 @@ struct ServerUIExpressionParser {
     /// holds subjects the compiler would refuse (a `null`, an `item` outside a flow) to pin what they evaluate to.
     private let evaluationOnly: Bool
 
-    init(allowControl: Bool = false, flow: Bool = false, evaluationOnly: Bool = false) {
+    /// Where `item` and `index` may stand outside a flow (`sh.repeat@1`): `nil` refuses both; ``Scope/lenient`` is the structure pass, which leaves the
+    /// decision to the compiler's walk (it knows where a node sits); ``Scope/cell(_:placeholder:)`` is a repeat's template (a record of that shape)
+    /// or its placeholder (no record, so `item` is refused there and `index` stays).
+    enum Scope: Equatable {
+        case lenient
+        case cell(ServerUIFlowShape, placeholder: Bool)
+    }
+    private let scope: Scope?
+
+    init(allowControl: Bool = false, flow: Bool = false, evaluationOnly: Bool = false, scope: Scope? = nil) {
         self.allowControl = allowControl
         self.flow = flow
         self.evaluationOnly = evaluationOnly
+        self.scope = scope
     }
 
     // MARK: Entry points
@@ -170,19 +180,37 @@ struct ServerUIExpressionParser {
         case "item":
             needs.insert("pipeline-operands")
             guard let object = fields(json, pointer, ["type", "path"]) else { return nil }
-            if !flow { add(.invalidCombination, pointer) }
+            var itemShape: ServerUIFlowShape?
+            if flow {
+                // A flow's own scope.
+            } else if let scope {
+                needs.insert("repeat")
+                if case .cell(let shape, let placeholder) = scope {
+                    if placeholder { add(.invalidCombination, pointer) } else { itemShape = shape }
+                }
+            } else { add(.invalidCombination, pointer) }
             guard case .array(let items)? = object["path"] else { add(.invalidValue, pointer + "/path"); return nil }
             if items.count > 8 { add(.limitExceeded, pointer + "/path") }
             var path: [String] = []
             for (index, item) in items.enumerated() {
                 guard case .string(let segment) = item else { add(.invalidValue, pointer + "/path/\(index)"); continue }
-                if segment.utf8.count > 160 || ["__proto__", "prototype", "constructor"].contains(segment)
+                // The structure pass leaves the segments to the compiler's walk, which also checks the path against the record's shape; the Studio's
+                // first issue for a reserved segment is that one, at the path itself.
+                if scope != .lenient, segment.utf8.count > 160 || ["__proto__", "prototype", "constructor"].contains(segment)
                     || !ServerUICompositionShape.matches(segment, "^[A-Za-z0-9_-]+$") || segment.allSatisfy(\.isNumber) {
                     add(.invalidReference, pointer + "/path/\(index)")
                 }
                 path.append(segment)
             }
+            if path.count == items.count, items.count <= 8, let itemShape, itemShape.shape(at: path) == nil {
+                add(.invalidReference, pointer + "/path")
+            }
             return path.count == items.count && items.count <= 8 ? .item(path: path) : nil
+        case "index":
+            needs.insert("repeat")
+            guard fields(json, pointer, ["type"]) != nil else { return nil }
+            if !flow, scope == nil { add(.invalidCombination, pointer) }
+            return .index
         case "param":
             needs.insert("pipeline-operands")
             guard let object = fields(json, pointer, ["type", "name"]) else { return nil }
@@ -203,11 +231,13 @@ struct ServerUIExpressionParser {
         case "date":
             needs.insert("pipeline-operands")
             guard let object = fields(json, pointer, ["type", "op", "from", "to"]) else { return nil }
-            if object["op"] != .string("days-between") { add(.unknownVariant, pointer + "/op") }
+            let progress = object["op"] == .string("progress")
+            if object["op"] != .string("days-between"), !progress { add(.unknownVariant, pointer + "/op") }
+            if progress { needs.insert("flow-extras") }
             let from = operand(object["from"] ?? .null, pointer + "/from", depth: depth + 1)
             let to = operand(object["to"] ?? .null, pointer + "/to", depth: depth + 1)
-            guard let from, let to, object["op"] == .string("days-between") else { return nil }
-            return .date(from: from, to: to)
+            guard let from, let to, object["op"] == .string("days-between") || progress else { return nil }
+            return progress ? .progress(from: from, to: to) : .date(from: from, to: to)
         case "raw-state":
             needs.insert("raw-state")
             guard let object = fields(json, pointer, ["type", "sourceId"]) else { return nil }
@@ -299,6 +329,7 @@ struct ServerUIExpressionParser {
                 add(.unknownVariant, at)
                 return nil
             }
+            if style.needsFlowExtras { needs.insert("flow-extras") }
             // A date style draws a date or a date and time: text. A kind that is known and is not text cannot be one.
             if let kind, kind != .string { add(.bindingType, at) }
             return .date(style)
@@ -417,7 +448,7 @@ struct ServerUIExpressionParser {
             }
         case .viewer(let field): field == .isAdmin ? .boolean : .string
         case .format, .clock, .rawState: .string
-        case .math, .date, .listCount: .number
+        case .math, .date, .progress, .index, .listCount: .number
         case .listIncludes: .boolean
         case .object, .list: .structure
         case .map(_, _, let otherwise), .choose(_, let otherwise): kind(otherwise)

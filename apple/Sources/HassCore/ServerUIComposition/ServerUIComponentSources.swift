@@ -15,6 +15,9 @@ extension ServerUIComponentExpansion {
         let reference: String?
         /// The bound fields of the copy, under the source (`/entityId/value`), each to the parameter that filled it.
         let bound: [String: String]
+        /// For the stand-in of an entry's own Data Flow: where the flow is written in the library (`/document/componentLibrary/<i>/flows/<j>`),
+        /// which the issues found in the stand-in move back to.
+        var libraryPointer: String?
     }
 
     /// Which appended source an issue pointer is under, with the rest of the pointer; nil when it is not under one.
@@ -99,12 +102,15 @@ extension ServerUIComponentExpansion.Builder {
     /// An entry's own sources: each id once, and an entity of the form `domain.object`.
     mutating func checkSources(_ entry: ServerUIComponentExpansion.Entry, at pointer: String) {
         var ids = Set<String>()
+        func written(_ index: Int) -> String {
+            index < entry.entityCount ? "\(pointer)/sources/\(index)" : "\(pointer)/flows/\(index - entry.entityCount)"
+        }
         for (index, source) in entry.sources.enumerated() {
-            let at = "\(pointer)/sources/\(index)"
+            let at = written(index)
             // The first of two is where the document check reports a repeated id.
             if let id = source["id"]?.string, !ids.insert(id).inserted {
                 let first = entry.sources.firstIndex { $0["id"]?.string == id } ?? index
-                issues.append(ServerUICompositionError(.duplicateID, "\(pointer)/sources/\(first)/id"))
+                issues.append(ServerUICompositionError(.duplicateID, written(first) + "/id"))
             }
             if let entity = source["entityId"]?["value"]?.string,
                !ServerUICompositionShape.matches(entity, "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$") {
@@ -114,11 +120,12 @@ extension ServerUIComponentExpansion.Builder {
     }
 
     /// The copies of an entry's sources that stand in for them while its body is checked, each under its name in `names`.
-    mutating func appendCheckCopies(of entry: ServerUIComponentExpansion.Entry, names: [String]) {
-        for (source, name) in zip(entry.sources, names) {
+    mutating func appendCheckCopies(of entry: ServerUIComponentExpansion.Entry, names: [String], at pointer: String) {
+        for (index, (source, name)) in zip(entry.sources, names).enumerated() {
             guard case .object(var object) = source else { continue }
             object["id"] = .string(name)
-            appended.append(.init(source: .object(object), reference: nil, bound: [:]))
+            appended.append(.init(source: .object(object), reference: nil, bound: [:],
+                                  libraryPointer: index < entry.entityCount ? nil : "\(pointer)/flows/\(index - entry.entityCount)"))
         }
     }
 

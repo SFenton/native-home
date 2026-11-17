@@ -737,7 +737,7 @@ enum ServerUICompositionShape {
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
             "content-panes": .unsupported("sh.content-panes@1")
-        ]).merging(styleNodes(base: base)) { _, rhs in rhs })
+        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
         object([
@@ -875,15 +875,15 @@ enum ServerUICompositionShape {
         case .component:
             walk(value, shape: component, pointer: pointer, issues: &issues, unsupported: &unsupported)
         case .operand:
-            var parser = ServerUIExpressionParser(allowControl: true)
+            var parser = ServerUIExpressionParser(allowControl: true, scope: .lenient)
             _ = parser.operand(value, at: pointer)
             issues += parser.issues
         case .predicate:
-            var parser = ServerUIExpressionParser()
+            var parser = ServerUIExpressionParser(scope: .lenient)
             _ = parser.predicate(value, at: pointer)
             issues += parser.issues
         case .callService:
-            var parser = ServerUIExpressionParser(allowControl: true)
+            var parser = ServerUIExpressionParser(allowControl: true, scope: .lenient)
             _ = parser.callService(value, at: pointer)
             issues += parser.issues
         case .flowOperand:

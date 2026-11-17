@@ -65,6 +65,8 @@ public protocol ServerUIReading {
     var clock: ServerUIClock? { get }
     /// The item a flow step is looking at (`item` operands); `nil` outside a flow step.
     var item: JSONValue? { get }
+    /// The 0-based position of that item (`index` operands, `sh.repeat@1`); `nil` outside a flow step and a repeat cell.
+    var index: Int? { get }
     /// The evaluated value of the flow parameter `name` (`param` operands); `nil` when the flow has no such parameter.
     func parameter(_ name: String) -> JSONValue?
     /// Flow mode: there is no `loading` or `unavailable`, a gap is `null` and a condition is yes or no.
@@ -82,6 +84,7 @@ public extension ServerUIReading {
     var controlValue: JSONValue? { nil }
     var clock: ServerUIClock? { nil }
     var item: JSONValue? { nil }
+    var index: Int? { nil }
     func parameter(_ name: String) -> JSONValue? { nil }
     var isFlow: Bool { false }
     var locale: Locale? { nil }

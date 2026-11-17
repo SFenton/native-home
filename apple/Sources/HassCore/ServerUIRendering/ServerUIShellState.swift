@@ -171,6 +171,11 @@ public final class ServerUIRowCollection {
     private(set) public var rows: [ServerUIRowItem] = []
     /// Where the collection is in loading.
     private(set) public var phase: Phase = .loading
+    /// The records a `repeat` draws when the collection holds a records flow's answer (`sh.repeat@1`); last-good records survive like rows do.
+    private(set) public var records: [JSONValue] = []
+    /// How many records there are. It is written only when the count changes, so a view that watches it re-arranges its cells only then and a
+    /// changed record does not.
+    private(set) public var recordCount = 0
 
     /// Runs the provider again and returns when the new result is published, or `nil` when the collection has nothing to pull
     /// (`sh.list-parts@1` `refreshable`). A flow session sets it.
@@ -191,6 +196,20 @@ public final class ServerUIRowCollection {
                 throw Failure.invalidRows
             }
             if rows != items { rows = items }
+        } else if phase == .ready {
+            throw Failure.invalidRows
+        }
+        if self.phase != phase { self.phase = phase }
+    }
+
+    /// The records of a records flow: `nil` retains data; an explicit empty array is a successful, empty result only. Cells are keyed by position, so
+    /// a record that changes is one change (``ServerUIRepeatDiff``), and a republish that gives the same records writes nothing.
+    public func apply(records items: [JSONValue]?, phase: Phase) throws {
+        if let items {
+            guard phase == .ready || phase == .stale, items.count <= ServerUIRepeat.maximumCells,
+                  items.allSatisfy({ if case .object = $0 { true } else { false } }) else { throw Failure.invalidRows }
+            if records != items { records = items }
+            if recordCount != items.count { recordCount = items.count }
         } else if phase == .ready {
             throw Failure.invalidRows
         }

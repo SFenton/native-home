@@ -120,6 +120,17 @@ public enum ServerUIDates {
         return b.days - a.days
     }
 
+    /// How far the clock has come from the moment `from` to the moment `to` (`sh.flow-extras@1`): 0 at `from`, 1 at `to`, clamped to that range, in
+    /// whole seconds on the clock's wall. `nil` when either moment is not a date or a date and time, when the clock does not parse, or when `to` is not
+    /// after `from` (there is no span to measure).
+    public static func progress(from: String, to: String, clock: ServerUIClock) -> Double? {
+        guard let start = wallTime(from, utcOffsetMinutes: clock.utcOffsetMinutes), let end = wallTime(to, utcOffsetMinutes: clock.utcOffsetMinutes),
+              let now = time(of: clock) else { return nil }
+        let span = end.instant - start.instant
+        guard span > 0 else { return nil }
+        return min(1, max(0, Double(now.instant - start.instant) / Double(span)))
+    }
+
     /// Integer division that rounds toward negative infinity (JavaScript's `Math.floor(a / b)`).
     static func floorDivide(_ a: Int, _ b: Int) -> Int {
         let quotient = a / b

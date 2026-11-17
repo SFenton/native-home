@@ -29,6 +29,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// The id of the collection hosted as the page's scroller, or nil while the column is.
     private var scrollerCollectionID: String?
     private(set) var nodes: [String: UKServerUINode] = [:]
+    /// The scope of each repeat cell, kept across publications so a cell keeps its record and its views.
+    private var cellScopes: [String: UKServerUICellScope] = [:]
     private var inheritedGroups: [D.ChromeGroup]
     private var closePolicy: D.Close?
     private lazy var chrome = UKServerUIChrome(page: self)
@@ -316,7 +318,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         func hasFocus(_ view: UIView) -> Bool { view.isFirstResponder || view.subviews.contains(where: hasFocus) }
         return isViewLoaded && (hasFocus(view) || presentedViewController != nil || nodes.values.contains {
             ($0.view as? UKServerUILocalTabs)?.isTransitioning == true ||
-            ($0.view as? UKServerUIPagedRow)?.blocksPublication == true ||
+            ($0.view as? UKServerUIPagedRow)?.blocksPublication == true || ($0.view as? UKRepeatView)?.blocksPublication == true ||
             ($0.view as? UKServerUIFormView)?.blocksPublication == true
                 || ($0.view as? UKServerUIDeviceAtom)?.hasActiveInteraction == true
                 || ($0.view as? UKGlassTileView)?.swipe?.isDragging == true
@@ -339,15 +341,30 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         case .points(let value): body.maxWidth = value
         }
         var retained: [String: UKServerUINode] = [:]
+        var retainedScopes: [String: UKServerUICellScope] = [:]
+        defer { cellScopes = retainedScopes }
         var containerChanges: [(clear: () -> Void, install: () -> Void)] = []
         var railChanges: [(UKChipRailView, [UIView])] = []
         var sectionChanges: [UKRoomSectionContent] = []
         var layoutBindings: [() -> Void] = []
+        // The repeat cell being built, if any: its nodes are keyed by cell and read the cell's record.
+        var currentCell: UKServerUICellScope?
+        var cellKey = ""
         func node(_ component: D.Component) -> UIView {
-            let id = component.node.id
+            let id = cellKey.isEmpty ? component.node.id : component.node.id + "#" + cellKey
             let entry = nodes[id].flatMap { $0.matches(component) ? $0 : nil } ?? UKServerUINode(component, surface: context.surface)
             retained[id] = entry
             entry.bag.removeAll()
+            if let scope = currentCell {
+                entry.bag.around = { @MainActor [weak renderer] (run: @MainActor () -> Void) in
+                    guard let bindings = renderer?.bindings else { return run() }
+                    let outer = bindings.cell
+                    bindings.cell = scope
+                    run()
+                    bindings.cell = outer
+                }
+            } else { entry.bag.around = nil }
+            if !cellKey.isEmpty { entry.view.accessibilityIdentifier = component.node.id + "." + cellKey.replacingOccurrences(of: "#", with: ".") }
             switch component {
             case .settingsControl(let control):
                 if let view = entry.view as? UKServerUISettingsAtom, let provider = renderer.settingsProvider(for: control.sourceId) {
@@ -699,6 +716,56 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                             self.body?.contentChanged(animated: false)
                         }
                     }))
+                }
+            case .repeatNode(let value):
+                if let view = entry.view as? UKRepeatView, let template = value.template {
+                    let collection = renderer.collections[value.providerId]
+                    let plan = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                                                       limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
+                    var hosts: [UKServerUICellHost] = []
+                    var scopes: [UKServerUICellScope] = []
+                    let count: Int
+                    let isPlaceholder: Bool
+                    var word: String?
+                    switch plan.body {
+                    case .cells(let shown): (count, isPlaceholder) = (shown, false)
+                    case .placeholders(let shown): (count, isPlaceholder) = (shown, true); word = value.words.loading
+                    case .word(let which): (count, isPlaceholder) = (0, false); word = plan.text(which, in: value.words)
+                    }
+                    for index in 0..<count {
+                        let key = (cellKey.isEmpty ? "" : cellKey + "#") + (isPlaceholder ? "p" : "") + "\(index)"
+                        let scopeKey = id + "#" + key
+                        let scope = cellScopes[scopeKey] ?? UKServerUICellScope(index: index)
+                        cellScopes[scopeKey] = scope
+                        retainedScopes[scopeKey] = scope
+                        scope.set(isPlaceholder ? nil : collection?.records[safe: index])
+                        let (outerCell, outerKey) = (currentCell, cellKey)
+                        (currentCell, cellKey) = (scope, key)
+                        let content = node(isPlaceholder ? (value.placeholder ?? template) : template)
+                        (currentCell, cellKey) = (outerCell, outerKey)
+                        scopes.append(scope)
+                        hosts.append(view.drawnCells.first { $0.scope === scope && $0.content === content }
+                                     ?? UKServerUICellHost(scope: scope, content: content))
+                    }
+                    view.apply(value, cells: hosts, word: word, footnote: plan.isStale ? value.words.stale : nil)
+                    let drawn = plan
+                    var last = collection?.records ?? []
+                    layoutBindings.append { [weak view, weak renderer, weak self] in
+                        entry.bag.observe { [weak self, weak renderer] in
+                            // One write for each record that differs, to that cell's own scope; a different count or state re-arranges once.
+                            guard let renderer else { return }
+                            let collection = renderer.collections[value.providerId]
+                            let now = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                                                              limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
+                            if now != drawn { DispatchQueue.main.async { [weak self] in self?.render() }; return }
+                            guard case .cells = now.body, let records = collection?.records else { return }
+                            for index in ServerUIRepeatDiff.between(last, records, limit: value.limit).changed {
+                                scopes[safe: index]?.set(records[index])
+                            }
+                            last = records
+                            _ = view
+                        }
+                    }
                 }
             case .shape(let shape): (entry.view as? UKShapeView)?.apply(shape)
             case .symbol(let part):
@@ -1094,7 +1161,7 @@ final class UKServerUINode {
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
         case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol
+        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode
     }
 
     /// The node's view, built once and kept for the node's lifetime.
@@ -1152,6 +1219,7 @@ final class UKServerUINode {
         case .bootstrapMessage: view = UKServerUIBootstrapMessage()
         case .overlay: view = UKServerUIOverlayView()
         case .stack: view = UKStackView()
+        case .repeatNode: view = UKRepeatView()
         case .shape: view = UKShapeView()
         case .symbol: view = UKSymbolPartView()
         case .text: view = UKServerUIText()
@@ -1209,6 +1277,7 @@ final class UKServerUINode {
         case .notificationBanner: .notificationBanner
         case .overlay: .overlay
         case .stack: .stack
+        case .repeatNode: .repeatNode
         case .shape: .shape
         case .symbol: .symbol
         case .bootstrapMessage: .bootstrapMessage

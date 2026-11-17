@@ -1,0 +1,134 @@
+{
+  "format": 1,
+  "name": "index-after-a-filter",
+  "note": "Positions are those of the list a step looks at: after a filter drops the first item, the next map counts the kept items from 0.",
+  "response": [
+    {
+      "v": "a"
+    },
+    {
+      "v": "b"
+    },
+    {
+      "v": "c"
+    }
+  ],
+  "compiles": true,
+  "context": {
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "inputs": {
+    "title": "Case",
+    "parameters": [],
+    "request": {
+      "type": "entity-attribute",
+      "entityId": {
+        "type": "literal",
+        "value": "sensor.demo_case"
+      },
+      "path": [
+        "value"
+      ],
+      "responseShape": {
+        "kind": "array",
+        "of": {
+          "kind": "object",
+          "fields": {
+            "v": {
+              "shape": {
+                "kind": "string",
+                "enum": [
+                  "a",
+                  "b",
+                  "c"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "steps": [
+      {
+        "id": "later",
+        "op": "filter",
+        "where": {
+          "type": "compare",
+          "op": "above",
+          "left": {
+            "type": "index"
+          },
+          "right": {
+            "type": "literal",
+            "value": 0
+          }
+        }
+      },
+      {
+        "id": "pos",
+        "op": "map",
+        "fields": {
+          "v": {
+            "type": "item",
+            "path": [
+              "v"
+            ]
+          },
+          "at": {
+            "type": "index"
+          }
+        }
+      }
+    ],
+    "output": {
+      "kind": "records",
+      "max": 24
+    },
+    "schema": {
+      "kind": "array",
+      "of": {
+        "kind": "object",
+        "fields": {
+          "at": {
+            "shape": {
+              "kind": "number",
+              "integer": true
+            }
+          },
+          "v": {
+            "shape": {
+              "kind": "string",
+              "enum": [
+                "a",
+                "b",
+                "c"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "refresh": {
+      "on": [
+        "open"
+      ],
+      "staleAfterSeconds": 300
+    }
+  },
+  "expected": {
+    "status": "ok",
+    "output": [
+      {
+        "v": "b",
+        "at": 0
+      },
+      {
+        "v": "c",
+        "at": 1
+      }
+    ]
+  }
+}

@@ -68,16 +68,16 @@ extension ServerUIOperand {
         case .map(let of, let cases, let otherwise): of.flowReads + cases.flatMap(\.then.flowReads) + otherwise.flowReads
         case .math(_, let args), .list(let args): args.flatMap(\.flowReads)
         case .object(let fields): fields.values.flatMap(\.flowReads)
-        case .date(let from, let to): from.flowReads + to.flowReads
+        case .date(let from, let to), .progress(let from, let to): from.flowReads + to.flowReads
         case .choose(let cases, let otherwise): cases.flatMap { $0.then.flowReads } + otherwise.flowReads
-        case .literal, .control, .viewer, .item, .param, .clock, .rawState, .listCount, .listIncludes: []
+        case .literal, .control, .viewer, .item, .index, .param, .clock, .rawState, .listCount, .listIncludes: []
         }
     }
 }
 
 // MARK: - The session
 
-/// Runs one Data Flow that provides the rows of a collection.
+/// Runs one Data Flow that provides the rows of a collection, or the records a `repeat` draws (`sh.repeat@1`).
 ///
 /// A session asks for its data (a service's response, an entity's attribute, the held entities, or a pushed subscription), evaluates the
 /// flow on the runner, and publishes one result to its ``ServerUIRowCollection`` per change. Everything it reads goes through the app's
@@ -140,7 +140,7 @@ public final class ServerUIFlowSession {
     public func start() {
         guard !started else { return }
         started = true
-        guard flow.givesRows else {
+        guard flow.givesList else {
             try? collection.apply(nil, phase: .unavailable)
             return
         }
@@ -319,7 +319,7 @@ public final class ServerUIFlowSession {
 
     /// The clock moved: runs the flow again without asking for its data again.
     private func clockMoved() {
-        guard flow.givesRows else { return }
+        guard flow.givesList else { return }
         guard case .serviceResponse = flow.request else { evaluate(clockOnly: true); return }
         // A call in flight reads the clock when it runs; with no answer yet there is nothing to run on.
         guard !inFlight, let cached = lastServiceResponse, var context = lastContext else { return }
@@ -336,7 +336,11 @@ public final class ServerUIFlowSession {
     private func publish(_ run: ServerUIFlowRun, fresh: Bool) {
         publications += 1
         let phase: ServerUIRowCollection.Phase = !fresh && degraded ? .stale : .ready
-        if run.status == .ok, (try? collection.apply(run.rows, phase: phase)) != nil {
+        let published: Bool
+        if run.status != .ok { published = false }
+        else if flow.givesRecords { published = (try? collection.apply(records: run.records, phase: phase)) != nil }
+        else { published = (try? collection.apply(run.rows, phase: phase)) != nil }
+        if published {
             hasGoodRows = true
             if fresh { degraded = false }
         } else {

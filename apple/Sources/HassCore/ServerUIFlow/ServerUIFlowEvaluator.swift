@@ -50,6 +50,9 @@ public struct ServerUIFlowRun: Equatable, Sendable {
     /// What each step left, in order.
     public let trace: [Trace]
 
+    /// The records an output of kind `records` gave.
+    public var records: [JSONValue] { output.array ?? [] }
+
     /// The rows an output of kind `rows` gave.
     public var rows: [ServerUIRowItem] {
         (output.array ?? []).compactMap { row in
@@ -87,6 +90,8 @@ public enum ServerUIFlowEvaluator {
         let meter: Meter
         let parameters: Parameters
         var item: JSONValue?
+        /// The 0-based position of ``item`` in the list a step is visiting (`index` operands, `sh.repeat@1`).
+        var index: Int?
 
         var viewer: ServerUIViewer? { context.viewer }
         var clock: ServerUIClock? { context.clock }
@@ -96,7 +101,7 @@ public enum ServerUIFlowEvaluator {
         func viewerPersonState() -> ServerUIReadResult { .unavailable }
         func parameter(_ name: String) -> JSONValue? { parameters.value(name) }
         func spend() { meter.spend() }
-        func with(item: JSONValue) -> Self { var copy = self; copy.item = item; return copy }
+        func with(item: JSONValue, index: Int = 0) -> Self { var copy = self; copy.item = item; copy.index = index; return copy }
     }
 
     /// The value of every declared parameter, evaluated in dependency order. A parameter that cannot be evaluated (a cycle the compiler
@@ -226,9 +231,9 @@ public enum ServerUIFlowEvaluator {
             let items = list(value)
             each(items)
             var kept: [JSONValue] = []
-            for item in items {
+            for (at, item) in items.enumerated() {
                 if meter.exceeded { break }
-                if condition.evaluate(environment.with(item: item)) == .yes { kept.append(item) }
+                if condition.evaluate(environment.with(item: item, index: at)) == .yes { kept.append(item) }
             }
             return .array(kept)
         case .sort(let keys):
@@ -237,7 +242,7 @@ public enum ServerUIFlowEvaluator {
             var keyed: [(item: JSONValue, index: Int, keys: [Key?])] = []
             for (index, item) in items.enumerated() {
                 if meter.exceeded { break }
-                let own = environment.with(item: item)
+                let own = environment.with(item: item, index: index)
                 keyed.append((item, index, keys.map { sortKey(json($0.value, own), $0.kind, context) }))
             }
             keyed.sort { a, b in
@@ -255,14 +260,14 @@ public enum ServerUIFlowEvaluator {
             return .array(keyed.map(\.item))
         case .limit(let count): return .array(Array(list(value).prefix(count)))
         case .map(let fields):
-            func build(_ item: JSONValue) -> JSONValue {
-                let own = environment.with(item: item)
+            func build(_ item: JSONValue, _ at: Int = 0) -> JSONValue {
+                let own = environment.with(item: item, index: at)
                 return .object(fields.mapValues { json($0, own) })
             }
             if case .array(let items) = value {
                 each(items)
                 var built: [JSONValue] = []
-                for item in items { if meter.exceeded { break }; built.append(build(item)) }
+                for (at, item) in items.enumerated() { if meter.exceeded { break }; built.append(build(item, at)) }
                 return .array(built)
             }
             return isRecord(value) ? build(value) : .null
@@ -271,9 +276,9 @@ public enum ServerUIFlowEvaluator {
             each(items)
             var order: [String] = []
             var groups: [String: (key: JSONValue, items: [JSONValue])] = [:]
-            for item in items {
+            for (at, item) in items.enumerated() {
                 if meter.exceeded { break }
-                let key = json(by, environment.with(item: item)), slot = ServerUIFlowText.identity(key)
+                let key = json(by, environment.with(item: item, index: at)), slot = ServerUIFlowText.identity(key)
                 if groups[slot] == nil {
                     order.append(slot)
                     switch key {
@@ -292,9 +297,9 @@ public enum ServerUIFlowEvaluator {
             let items = list(value)
             each(items)
             var total = 0.0
-            for item in items {
+            for (at, item) in items.enumerated() {
                 if meter.exceeded { break }
-                if case .number(let part) = json(operand, environment.with(item: item)) { total += part }
+                if case .number(let part) = json(operand, environment.with(item: item, index: at)) { total += part }
             }
             return .number(total == 0 ? 0 : total)
         case .first: return list(value).first ?? .null
@@ -307,21 +312,81 @@ public enum ServerUIFlowEvaluator {
             each(items)
             var seen: Set<String> = []
             var kept: [JSONValue] = []
-            for item in items {
+            for (at, item) in items.enumerated() {
                 if meter.exceeded { break }
-                if seen.insert(ServerUIFlowText.identity(json(by, environment.with(item: item)))).inserted { kept.append(item) }
+                if seen.insert(ServerUIFlowText.identity(json(by, environment.with(item: item, index: at)))).inserted { kept.append(item) }
             }
             return .array(kept)
         case .default(let path, let operand):
-            func fill(_ item: JSONValue) -> JSONValue { setDefault(item, path[...], json(operand, environment.with(item: item))) }
+            func fill(_ item: JSONValue, _ at: Int = 0) -> JSONValue { setDefault(item, path[...], json(operand, environment.with(item: item, index: at))) }
             if case .array(let items) = value {
                 each(items)
                 var filled: [JSONValue] = []
-                for item in items { if meter.exceeded { break }; filled.append(fill(item)) }
+                for (at, item) in items.enumerated() { if meter.exceeded { break }; filled.append(fill(item, at)) }
                 return .array(filled)
             }
             return isRecord(value) ? fill(value) : value
+        case .min(let operand), .max(let operand):
+            let items = list(value)
+            each(items)
+            var parts: [JSONValue] = []
+            for (at, item) in items.enumerated() {
+                if meter.exceeded { break }
+                parts.append(json(operand, environment.with(item: item, index: at)))
+            }
+            let kind: ServerUIFlow.Annotation.Aggregate
+            if case .min = step.operation { kind = .min } else { kind = .max }
+            return extreme(kind, parts).map { .number($0) } ?? .null
+        case .runningSum(let operand, let into, let propagates):
+            let items = list(value)
+            each(items)
+            // A total that has gone unknown stays unknown when `nullPropagates`; otherwise a part that is not a number adds nothing. An item
+            // that is not an object passes through unchanged.
+            var total: Double? = 0
+            var scanned: [JSONValue] = []
+            for (at, item) in items.enumerated() {
+                if meter.exceeded { break }
+                let part = json(operand, environment.with(item: item, index: at))
+                var number: Double?
+                if case .number(let held) = part, held.isFinite { number = held }
+                if propagates {
+                    if let held = total, let number { total = held + number } else { total = nil }
+                } else if let number, let held = total { total = held + number }
+                guard case .object(var fields) = item else { scanned.append(item); continue }
+                fields[into] = total.map { .number($0 == 0 ? 0 : $0) } ?? .null
+                scanned.append(.object(fields))
+            }
+            return .array(scanned)
+        case .annotate(let annotations):
+            let items = list(value)
+            each(items)
+            // Each aggregate is taken over the whole list first, then written onto every object in it.
+            var written: [String: JSONValue] = [:]
+            for (name, field) in annotations {
+                var parts: [JSONValue] = []
+                for (at, item) in items.enumerated() {
+                    if meter.exceeded { break }
+                    parts.append(json(field.value, environment.with(item: item, index: at)))
+                }
+                written[name] = extreme(field.aggregate, parts).map { .number($0) } ?? .null
+            }
+            return .array(items.map { item in
+                guard case .object(var fields) = item else { return item }
+                fields.merge(written) { _, new in new }
+                return .object(fields)
+            })
         }
+    }
+
+    /// The lowest or highest of the numbers among `parts`; `nil` when there is none. A part that is not a finite number is skipped, as `sum` skips it,
+    /// and zero is never negative zero.
+    private static func extreme(_ kind: ServerUIFlow.Annotation.Aggregate, _ parts: [JSONValue]) -> Double? {
+        var found: Double?
+        for part in parts {
+            guard case .number(let number) = part, number.isFinite else { continue }
+            found = found.map { kind == .min ? Swift.min($0, number) : Swift.max($0, number) } ?? number
+        }
+        return found == 0 ? 0 : found
     }
 
     // MARK: Run
@@ -373,6 +438,10 @@ public enum ServerUIFlowEvaluator {
         let given: JSONValue
         switch flow.output {
         case .rows(let maximum, let row): given = .array(rows(maximum, row, list(value), environment))
+        case .records(let maximum):
+            let items = list(value)
+            environment.meter.spend(items.count)
+            given = .array(Array(items.filter(isRecord).prefix(maximum)))
         case .record: given = isRecord(value) ? value : .null
         case .scalar:
             switch value {

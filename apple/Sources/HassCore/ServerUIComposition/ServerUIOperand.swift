@@ -34,6 +34,11 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     case clock(ClockPart)
     /// Whole calendar days from the date of `from` to the date of `to` (`sh.pipeline-operands@1`).
     case date(from: ServerUIOperand, to: ServerUIOperand)
+    /// How far the clock is from the moment `from` to the moment `to`, from 0 to 1 (`sh.flow-extras@1`): `null` when either is not a date, the
+    /// clock does not parse, or `to` is not after `from`.
+    case progress(from: ServerUIOperand, to: ServerUIOperand)
+    /// The 0-based position of the item a flow step or a `repeat` cell is looking at (`sh.repeat@1`).
+    case index
     /// The first case whose condition holds gives the value, else `otherwise` (`sh.rules@1`). An undecided case stops the rule:
     /// the operand is `loading` and the slot keeps what it showed (``ServerUIRule``).
     case choose(cases: [ChooseCase], otherwise: ServerUIOperand)
@@ -89,10 +94,10 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     /// The source ids this operand reads, computed from the tree (the compiler stores nothing per change).
     public var sourceIds: Set<String> {
         switch self {
-        case .literal, .control, .viewer, .item, .param, .clock: []
+        case .literal, .control, .viewer, .item, .index, .param, .clock: []
         case .read(let id, _, _), .rawState(let id), .listCount(let id, _): [id]
         case .listIncludes(let id, _, let value): value.sourceIds.union([id])
-        case .date(let from, let to): from.sourceIds.union(to.sourceIds)
+        case .date(let from, let to), .progress(let from, let to): from.sourceIds.union(to.sourceIds)
         case .choose(let cases, let otherwise):
             cases.reduce(otherwise.sourceIds) { $0.union($1.when.sourceIds).union($1.then.sourceIds) }
         case .format(_, let args, _): args.values.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) }
@@ -107,9 +112,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsViewer: Bool {
         switch self {
         case .viewer: true
-        case .literal, .read, .control, .item, .param, .clock, .rawState, .listCount: false
+        case .literal, .read, .control, .item, .index, .param, .clock, .rawState, .listCount: false
         case .listIncludes(_, _, let value): value.readsViewer
-        case .date(let from, let to): from.readsViewer || to.readsViewer
+        case .date(let from, let to), .progress(let from, let to): from.readsViewer || to.readsViewer
         case .choose(let cases, let otherwise):
             otherwise.readsViewer || cases.contains { $0.when.readsViewer || $0.then.readsViewer }
         case .format(_, let args, _): args.values.contains { $0.readsViewer }
@@ -123,9 +128,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var usesControl: Bool {
         switch self {
         case .control: true
-        case .literal, .read, .viewer, .item, .param, .clock, .rawState, .listCount: false
+        case .literal, .read, .viewer, .item, .index, .param, .clock, .rawState, .listCount: false
         case .listIncludes(_, _, let value): value.usesControl
-        case .date(let from, let to): from.usesControl || to.usesControl
+        case .date(let from, let to), .progress(let from, let to): from.usesControl || to.usesControl
         case .choose(let cases, let otherwise): otherwise.usesControl || cases.contains { $0.then.usesControl }
         case .format(_, let args, _): args.values.contains { $0.usesControl }
         case .map(let of, let cases, let otherwise): of.usesControl || otherwise.usesControl || cases.contains { $0.then.usesControl }
@@ -138,7 +143,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsClock: Bool {
         switch self {
         case .clock: true
-        case .literal, .read, .control, .viewer, .item, .param, .rawState, .listCount: false
+        case .literal, .read, .control, .viewer, .item, .index, .param, .rawState, .listCount: false
         case .listIncludes(_, _, let value): value.readsClock
         case .format(_, let args, let formats):
             formats.values.contains { if case .date(let style) = $0 { style.needsClock } else { false } }
@@ -147,6 +152,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
         case .math(_, let args), .list(let args): args.contains { $0.readsClock }
         case .object(let fields): fields.values.contains { $0.readsClock }
         case .date(let from, let to): from.readsClock || to.readsClock
+        case .progress: true
         case .choose(let cases, let otherwise):
             otherwise.readsClock || cases.contains { $0.when.readsClock || $0.then.readsClock }
         }
@@ -181,6 +187,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
         case .item(let path):
             guard let item = environment.item else { return .unavailable }
             return .value(Self.value(at: path, in: item))
+        case .index:
+            return environment.index.map { .value(.number(Double($0))) } ?? .unavailable
         case .param(let name):
             return environment.parameter(name).map { .value($0) } ?? .unavailable
         case .clock(let part):
@@ -193,6 +201,12 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
                   let days = ServerUIDates.daysBetween(first, second, utcOffsetMinutes: environment.clock?.utcOffsetMinutes ?? 0)
             else { return .unavailable }
             return .value(.number(Double(days)))
+        case .progress(let from, let to):
+            let start = from.evaluate(environment), end = to.evaluate(environment)
+            if let blocked = ServerUIReadResult.combine([start, end]) { return blocked }
+            guard case .string(let first)? = start.json, case .string(let second)? = end.json, let clock = environment.clock,
+                  let fraction = ServerUIDates.progress(from: first, to: second, clock: clock) else { return .unavailable }
+            return .value(.number(fraction))
         case .format(let pattern, let args, let formats):
             var values: [String: ServerUIReadResult] = [:]
             for (name, operand) in args { values[name] = operand.evaluate(environment) }

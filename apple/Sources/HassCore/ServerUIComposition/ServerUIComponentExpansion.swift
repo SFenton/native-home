@@ -64,6 +64,8 @@ struct ServerUIComponentExpansion {
     let appendedSources: [AppendedSource]
     /// How many data sources the document itself holds, so which index an appended source has.
     let ownSourceCount: Int
+    /// Whether an entry owns a Data Flow, so the document needs `sh.repeat@1`.
+    let ownsFlows: Bool
     private let regions: [Region]
     /// Argument pointers already refused for their value: what the compiler also finds there is the same fault, said twice.
     private let refusedArguments: Set<String>
@@ -89,6 +91,7 @@ struct ServerUIComponentExpansion {
         regions = builder?.regions ?? []
         appendedSources = builder?.appended ?? []
         ownSourceCount = builder?.ownSourceCount ?? 0
+        ownsFlows = builder?.ownsFlows ?? false
         refusedArguments = builder?.refusedArguments ?? []
     }
 
@@ -105,6 +108,8 @@ struct ServerUIComponentExpansion {
         // A copy of an owned source: a bound field is the argument's fault; the stand-in for an entry's own is checked by the library.
         if let (index, relative) = appendedSource(at: issue.pointer) {
             let source = appendedSources[index]
+            // A Data Flow's own fault is found once, in the stand-in the library check compiles, and is reported where the flow is written.
+            if source.reference == nil { return source.libraryPointer.map { Issue(issue.code, $0 + relative, capability: issue.capability) } }
             guard let reference = source.reference,
                   let parameter = source.bound.first(where: { relative == $0.key || relative.hasPrefix($0.key + "/") })?.value else { return nil }
             return Issue(issue.code, ServerUICompositionJSON.pointer(reference + "/args", parameter), capability: issue.capability)

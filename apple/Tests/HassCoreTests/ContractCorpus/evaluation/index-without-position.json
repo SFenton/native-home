@@ -1,0 +1,14 @@
+{
+  "format": 1,
+  "name": "index-without-position",
+  "note": "Outside a repeat or a step there is no position: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "index"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

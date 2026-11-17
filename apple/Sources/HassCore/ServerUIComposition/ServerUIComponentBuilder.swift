@@ -10,8 +10,10 @@ extension ServerUIComponentExpansion {
         /// The body, each nested reference replaced by a placeholder.
         let node: JSONValue
         let parameters: [(name: String, kind: String)]
-        /// The data sources the entry owns, as authored.
+        /// The data sources the entry owns, as authored: its entities (`sources`), then its Data Flows (`flows`, `sh.repeat@1`).
         let sources: [JSONValue]
+        /// How many of ``sources`` are entities; the rest are flows.
+        let entityCount: Int
         /// The names the sources take in the copies that stand in for them while the body is checked.
         let checkNames: [String]
         /// A binding fills a field of one body node or of one owned source.
@@ -36,6 +38,8 @@ extension ServerUIComponentExpansion {
         var sourceCounter = 0
         private var entries: [String: Entry] = [:]
         private var sawReference = false
+        /// Whether any entry owns a Data Flow, so the document needs `sh.repeat@1`.
+        private(set) var ownsFlows = false
 
         // MARK: - Walk
 
@@ -80,11 +84,13 @@ extension ServerUIComponentExpansion {
                     }
                 }
                 let body = sanitize(item["node"] ?? .null, at: at + "/node")
-                let sources = item["sources"]?.array ?? []
+                let entities = item["sources"]?.array ?? [], flows = item["flows"]?.array ?? []
+                if !flows.isEmpty { ownsFlows = true }
+                let sources = entities + flows
                 let entry = Entry(
                     index: index, id: id, node: body,
                     parameters: (item["params"]?.array ?? []).map { ($0["name"]?.string ?? "", $0["kind"]?.string ?? "") },
-                    sources: sources, checkNames: freshSourceIds(for: sources),
+                    sources: sources, entityCount: entities.count, checkNames: freshSourceIds(for: sources),
                     bindings: (item["bindings"]?.array ?? []).map {
                         ($0["param"]?.string ?? "", $0["nodeId"]?.string, $0["sourceId"]?.string, $0["field"]?.string ?? "")
                     })
@@ -92,7 +98,7 @@ extension ServerUIComponentExpansion {
                 checkParameters(entry, at: at)
                 // The body is checked with its own sources standing as copies of them (see ``appendCheckCopies(of:names:)``).
                 bodies.append(Body(pointer: at + "/node", value: Self.renamingSources(body, Self.privateNames(sources, entry.checkNames))))
-                appendCheckCopies(of: entry, names: entry.checkNames)
+                appendCheckCopies(of: entry, names: entry.checkNames, at: at)
                 if entries[id] == nil { entries[id] = entry }
             }
         }

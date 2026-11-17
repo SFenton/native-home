@@ -122,6 +122,15 @@ extension ServerUICompositionDocument {
         public let pageLabel: String
         public let showsIndicator: Bool
         public internal(set) var children: [Component]
+
+        /// Creates a paged row (a `repeat` draws its pages through the same row).
+        public init(node: Node, perPage: Int, pageLabel: String, showsIndicator: Bool, children: [Component] = []) {
+            self.node = node
+            self.perPage = perPage
+            self.pageLabel = pageLabel
+            self.showsIndicator = showsIndicator
+            self.children = children
+        }
     }
 
     /// The canonical row's slots. There is deliberately no feature/page discriminator.
@@ -226,6 +235,7 @@ extension ServerUICompositionDocument.Component {
         case .localTabs(let value): value.tabs.flatMap(\.children) + value.areas.flatMap(\.children)
         case .overlay(let value): value.children
         case .stack(let value): value.children
+        case .repeatNode(let value): value.children
         default: []
         }
     }

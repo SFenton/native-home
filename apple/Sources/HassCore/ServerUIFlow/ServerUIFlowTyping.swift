@@ -23,6 +23,10 @@ public struct ServerUIFlowTyping {
         var needsOperands = false
         /// Whether a `choose` appears: the flow then needs `sh.rules@1`.
         var usesRules = false
+        /// Whether a step, a date style or a `date` operation of `sh.flow-extras@1` appears: the flow then needs it.
+        var flowExtras = false
+        /// Whether an `index` operand appears: the flow then needs `sh.repeat@1`.
+        var usesRepeat = false
         /// Creates empty facts.
         public init() {}
     }
@@ -121,6 +125,19 @@ public struct ServerUIFlowTyping {
         case .clock(let part):
             facts.needsOperands = true
             return .text(part == .today ? .date : .dateTime)
+        case .index:
+            // The position of the item a step looks at (`sh.repeat@1`); a parameter or the request has no item.
+            facts.usesRepeat = true
+            if scope.item == nil { report(&facts, .invalidCombination, at) }
+            return .integer
+        case .progress(let from, let to):
+            facts.needsOperands = true
+            facts.flowExtras = true
+            let start = sub(from, "from", facts: &facts, budget: &budget), end = sub(to, "to", facts: &facts, budget: &budget)
+            expect(&facts, start, [.string], join(at, "from"))
+            expect(&facts, end, [.string], join(at, "to"))
+            // A fraction of the span, `null` when either moment or the clock is not a date.
+            return Shape.float.orNull
         case .date(let from, let to):
             facts.needsOperands = true
             let start = sub(from, "from", facts: &facts, budget: &budget), end = sub(to, "to", facts: &facts, budget: &budget)
@@ -156,8 +173,11 @@ public struct ServerUIFlowTyping {
                 case .text:
                     facts.needsOperands = true
                     expect(&facts, held, [.string], where_)
-                case .date:
-                    expect(&facts, held, [.number], where_)
+                case .date(let style):
+                    // A date style draws a date or a date and time, which is text; `hour` and `weekday` are `sh.flow-extras@1`'s.
+                    facts.needsOperands = true
+                    if style.needsFlowExtras { facts.flowExtras = true }
+                    expect(&facts, held, [.string], where_)
                 case .number(let format):
                     if format.declaresMinimum {
                         facts.needsOperands = true
@@ -371,6 +391,38 @@ public struct ServerUIFlowTyping {
             let element = list(&facts)
             expect(&facts, operand(by, element ?? .any, "by", facts: &facts), Self.scalarKinds, join(at, "by"))
             return element == nil ? .any : input
+        case .min(let value), .max(let value):
+            // Two list aggregates reduce a list to one number (`null` when it holds none), as `sum` does.
+            facts.flowExtras = true
+            let element = list(&facts)
+            expect(&facts, operand(value, element ?? .any, "value", facts: &facts), [.number], join(at, "value"))
+            return element == nil ? .any : Shape.float.orNull
+        case .runningSum, .annotate:
+            // They keep the list and write a field onto every object in it.
+            facts.flowExtras = true
+            guard let element = list(&facts) else { return .any }
+            guard element.hasObject else { report(&facts, .bindingType, join(at, "op")); return .any }
+            var written: [(String, Shape, String)] = []
+            switch step.operation {
+            case .runningSum(let value, let into, let propagates):
+                expect(&facts, operand(value, element, "value", facts: &facts), [.number], join(at, "value"))
+                written.append((into, propagates ? Shape.float.orNull : .float, join(at, "into")))
+            case .annotate(let fields):
+                let names = fields.keys.sorted()
+                if names.isEmpty || names.count > ServerUIFlow.Limits.mapFields { report(&facts, .limitExceeded, join(at, "fields")) }
+                for name in names {
+                    let own = join(at, "fields", name)
+                    expect(&facts, operand(fields[name]!.value, element, "fields", name, "value", facts: &facts), [.number], join(own, "value"))
+                    written.append((name, Shape.float.orNull, own))
+                }
+            default: break
+            }
+            var updated: Shape? = element
+            for (name, shape, where_) in written {
+                if !ServerUICompositionShape.matches(name, "^[A-Za-z_][A-Za-z0-9_]{0,63}$") { report(&facts, .invalidValue, where_); continue }
+                updated = updated?.settingField(at: [name], to: shape)
+            }
+            return updated.map { .array($0) } ?? .any
         case .default(let path, let value):
             let many = input.withoutNull.kinds.contains(.array)
             let item = many ? input.element : input.withoutNull
