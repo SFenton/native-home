@@ -137,7 +137,7 @@ final class ServerUIDoorEquivalenceHostedTests: XCTestCase {
         URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("Fixtures/ServerUIDoorGolden.json")
     }
 
-    /// What the golden says no longer, by journey: the expectation the Designer set (option 3 of the door disc verdict).
+    /// What the golden says no longer, by journey: the expectation the Designer set (the disc follows the state the request asked for).
     /// A garage door whose request is on its way keeps the disc of the state it asked for, like every other state tile: the
     /// old atom kept the verb and on-state of the state it had left ("Open", off), an accident of its code, so VoiceOver now reads
     /// "Reverse <title>, On, in progress". Nothing is drawn differently: the arc stands in for the disc's fill and glyph while it shows.

@@ -2,7 +2,7 @@
 import Foundation
 import Testing
 
-/// The default tile ink (`sh.tile-ink-default@1`, owner pick A, `.agents/design/mockups/proposals/sim-fidelity-contract` section 1): every face by appearance by
+/// The default tile ink (`sh.tile-ink-default@1`, owner pick A, `.agents/patterns/tile-swipe.md`, "Tile ink"): every face by appearance by
 /// flag, with and without a family, a tint and an unavailable tile.
 struct TileInkDefaultTests {
     private func rgb(_ token: HassRGB, _ appearance: TileAppearance = .dark) -> UInt32 {

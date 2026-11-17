@@ -6,7 +6,7 @@ import Foundation
 ///
 /// The capability has no field. A document that lists it draws the primary ink (white on a page and in a dark sheet, black in a light sheet); one
 /// that does not draws the muted grey it always drew. The Studio lists the id in every document it compiles, and a manifest made before the id
-/// existed is still the manifest of that document (`.agents/design/mockups/proposals/sim-fidelity-contract`, section 1).
+/// existed is still the manifest of that document (`.agents/patterns/tile-swipe.md`, "Tile ink": a document without the id keeps today's grey).
 public enum ServerUITileInkDefault: Sendable {
     /// The capability id.
     public static let capability = "sh.tile-ink-default@1"

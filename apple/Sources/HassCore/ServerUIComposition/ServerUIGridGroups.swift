@@ -3,8 +3,7 @@ import Foundation
 // MARK: - Grid groups (`sh.grid-state-groups@1`)
 
 /// A `tile-grid` grouped by the state its tiles draw (`sh.grid-state-groups@1`). Each tile sits under the heading of the group that holds its
-/// state. A group with no tiles is not drawn; the grid stays one grid, so its columns are solved once (`.agents/design/mockups/proposals/sim-fidelity-contract`,
-/// section 3, heading option A: title only).
+/// state. A group with no tiles is not drawn; the grid stays one grid, so its columns are solved once (`.agents/design/mockups/proposals/sim-fidelity-contract` README: group heading, owner picked A, the title only).
 public struct ServerUIGridGroups: Equatable, Sendable {
     /// The three faces a tile draws, and so the three states a group holds.
     public enum State: String, Sendable, CaseIterable { case active, idle, unavailable }

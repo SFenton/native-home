@@ -129,7 +129,7 @@ public struct TileSwipe: Equatable, Sendable {
 
 // MARK: - The bubble
 
-/// The bubble that names the value a release will send (`.agents/patterns/tile-swipe.md`, section 2): a capsule over the band's edge, never under
+/// The bubble that names the value a release will send (`.agents/patterns/tile-swipe.md`, "Swipe to adjust", the bubble bullets): a capsule over the band's edge, never under
 /// the finger. These are the numbers the Studio uses for its "word does not fit" warning.
 public enum TileSwipeBubble {
     /// The metrics of one text size.
@@ -177,7 +177,7 @@ public enum TileSwipeBubble {
 
 // MARK: - Where a drag starts
 
-/// Whether a drag that is about to begin on a tile is the tile's swipe or the page's scroll (conflict C1 of `.agents/patterns/tile-swipe.md`).
+/// Whether a drag that is about to begin on a tile is the tile's swipe or the page's scroll (`.agents/patterns/tile-swipe.md`, "Not the swipe": a vertical start is the scroll's).
 ///
 /// The recognizer asks as it is about to begin, with what it has seen of the touch so far. Velocity alone is the least reliable of the two: it
 /// is read from the last few samples, so a first sample that leans sideways (a coarse driver, a pointer, a stylus, a stutter at touch down) can

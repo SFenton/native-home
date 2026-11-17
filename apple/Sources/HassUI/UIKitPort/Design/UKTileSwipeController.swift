@@ -24,11 +24,11 @@ struct UKTileSwipeConfig: Equatable {
 }
 
 /// One swipe controller for any glass tile: the pan, the bubble, the lift, the tick, and VoiceOver's increment and decrement
-/// (`.agents/patterns/tile-swipe.md`, sections 1 to 5).
+/// (`.agents/patterns/tile-swipe.md`, "Swipe to adjust").
 ///
 /// Tracking is absolute: the band's edge is the finger. While the finger is down the controller moves the host's band and the bubble per sample
 /// through ``onFrame`` and does not rebuild the tile (`configure`), writes no state and sends no call; the one call goes out on release through
-/// ``onCommit``, and only when the value changed. A touch the system takes sends nothing and the band goes back. The rules of conflict C1 to C8
+/// ``onCommit``, and only when the value changed. A touch the system takes sends nothing and the band goes back. The "Not the swipe" rules
 /// are the delegate's: a vertical start is the scroll's, an edge start is the edge pan's, a horizontal scroller above wins, a disc's touch is
 /// the disc's, and one tile drags at a time.
 @MainActor
@@ -60,11 +60,11 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
     private(set) var dragValue: Double?
     /// Samples taken since the touch began: tests and the cost signpost read it.
     private(set) var sampleCount = 0
-    /// The tile that is dragging now; one at a time (C6).
+    /// The tile that is dragging now; one at a time.
     private static weak var active: UKTileSwipeController?
     nonisolated(unsafe) private var resignObserver: NSObjectProtocol?
     private var width: CGFloat = 0
-    /// The latest `configure` a republish asked for while the finger was down, run once it lifts (C8).
+    /// The latest `configure` a republish asked for while the finger was down, run once it lifts.
     private var deferred: (() -> Void)?
 
     /// Why the last drag was dropped without sending ("resign", "width 170.0 to 171.0", "detach"); tests and diagnostics read it.
@@ -75,7 +75,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: Init
 
-    /// Attaches the swipe to `host`. A tile inside a horizontal scroller keeps its band, trait and actions but takes no pan (C3), decided as the
+    /// Attaches the swipe to `host`. A tile inside a horizontal scroller keeps its band, trait and actions but takes no pan, decided as the
     /// touch begins from the ancestor chain, never from the device.
     init(host: UIView, config: UKTileSwipeConfig) {
         self.host = host
@@ -176,7 +176,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         placeBubble(value)
     }
 
-    /// Drops the drag without sending: a scroll, an edge swipe, a rotation, a fold or the app leaving the foreground (C7).
+    /// Drops the drag without sending: a scroll, an edge swipe, a rotation, a fold or the app leaving the foreground.
     func cancel(reason: String = "cancel") {
         guard isDragging else { return }
         lastCancelReason = reason
@@ -206,7 +206,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         }
     }
 
-    /// A host whose width changed under the finger (a fold, a posture change, a split) drops the drag (C7).
+    /// A host whose width changed under the finger (a fold, a posture change, a split) drops the drag.
     func hostDidLayout(width newWidth: CGFloat) {
         if isDragging, abs(newWidth - width) > 0.5 { cancel(reason: "width \(width) to \(newWidth)") }
     }
@@ -258,7 +258,7 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: Delegate
 
-    /// C1: a start that is mostly horizontal by travel and by velocity (``TileSwipeStart``). C3: no horizontal scroller above. C6: no other tile is dragging. Disabled tiles take no drag.
+    /// A start that is mostly horizontal by travel and by velocity (``TileSwipeStart``), with no horizontal scroller above and no other tile dragging. Disabled tiles take no drag.
     func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         guard let pan = recognizer as? UIPanGestureRecognizer, isEnabled() else { return false }
         if let active = Self.active, active !== self { return false }
@@ -268,12 +268,12 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
         return TileSwipeStart.isHorizontal(translation: pan.translation(in: pan.view), velocity: pan.velocity(in: pan.view))
     }
 
-    /// C5: a touch that starts on a disc is the disc's.
+    /// A touch that starts on a disc is the disc's.
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         !(touch.view is UKTileActionDisc)
     }
 
-    /// C2: the shell's leading-edge pan, the iPad flyout's and the column edge pans take a touch that starts in their zone, even over a tile.
+    /// The shell's leading-edge pan, the iPad flyout's and the column edge pans take a touch that starts in their zone, even over a tile.
     func gestureRecognizer(_ recognizer: UIGestureRecognizer, shouldRequireFailureOf other: UIGestureRecognizer) -> Bool {
         other is UIScreenEdgePanGestureRecognizer
     }
@@ -348,7 +348,7 @@ extension UIView {
         return nil
     }
 
-    /// Whether a scroll view above this view scrolls sideways (a paged row, `ukPagesByViewport`, a chip rail): it wins, and the tile takes no pan (C3).
+    /// Whether a scroll view above this view scrolls sideways (a paged row, `ukPagesByViewport`, a chip rail): it wins, and the tile takes no pan.
     var ukHasHorizontalScrollerAbove: Bool {
         var view = superview
         while let current = view {
