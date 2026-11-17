@@ -212,7 +212,7 @@ final class UKVacuumSettingRow: UIView {
 /// The Cleaning Settings group (`VacuumSettingsGroup`): Mode, Fan, Water and Passes on one card. A row the chosen mode makes meaningless
 /// (Water while Mode is Vacuum, Fan while it is Mop) collapses and fades; its hairline goes with it. The card's background, corners and
 /// hairlines belong to the group, so they are right at every frame and everything below slides with it. Reduce Motion cross-fades, and a
-/// change from a reapply or while the sheet is not on screen applies at once (`VacuumShapeMotion`).
+/// change from a reapply or while the sheet is not on screen applies at once.
 @MainActor
 final class UKVacuumSettingsGroup: UIView {
     private struct Entry {

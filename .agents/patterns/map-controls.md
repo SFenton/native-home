@@ -2,7 +2,7 @@
 
 > **What:** the buttons over a map card, the fit rule and the map orientation. **Read when:** changing a button over a map, the map's flip, or the contract that authors them.
 
-Contract: `sh.surface-controls@1` and `sh.surface-orientation@1` (Studio `agents/studio-ux2@7dddfa9`). Design: `build/design/vacuum-map-ctl.md`.
+Contract: `sh.surface-controls@1` and `sh.surface-orientation@1` (Studio `agents/studio-ux2@7dddfa9`).
 
 The overlay ([overlay](overlay.md)) is not a second way to place map buttons: a button over a map is a map control.
 

@@ -73,15 +73,16 @@ final class UKChartView: UIView, UKGridMeasuring, UKStackMeasuring, @preconcurre
         plot.isUserInteractionEnabled = false
         addSubview(plot)
         for layer in [gridLayer, areaLayer, barsLayer, stubsLayer, lineLayer, dotsLayer] {
-            layer.contentsScale = UIScreen.main.scale
             plot.layer.addSublayer(layer)
         }
+        syncContentsScale()
         lineLayer.fillColor = nil
         lineLayer.lineCap = .round
         lineLayer.lineJoin = .round
         emptyLabel.isHidden = true
         addSubview(emptyLabel)
         registerForTraitChanges([UITraitUserInterfaceStyle.self, UITraitAccessibilityContrast.self]) { (view: UKChartView, _) in view.setNeedsLayout() }
+        registerForTraitChanges([UITraitDisplayScale.self]) { (view: UKChartView, _) in view.syncContentsScale() }
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKChartView, _) in
             view.invalidateIntrinsicContentSize()
             view.setNeedsLayout()
@@ -91,6 +92,13 @@ final class UKChartView: UIView, UKGridMeasuring, UKStackMeasuring, @preconcurre
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Gives the plot's layers the view's display scale, so marks stay sharp when the view moves to another screen.
+    private func syncContentsScale() {
+        let scale = traitCollection.displayScale
+        guard scale > 0 else { return }
+        for layer in [gridLayer, areaLayer, barsLayer, stubsLayer, lineLayer, dotsLayer] { layer.contentsScale = scale }
+    }
 
     // MARK: Applying a value
 
