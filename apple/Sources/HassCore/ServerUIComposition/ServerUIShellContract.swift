@@ -26,6 +26,11 @@ extension ServerUICompositionDocument {
         public struct Option: Equatable, Sendable {
             public let id: String
             public let label: String
+            /// The symbol a segmented choice draws for the option, and the words VoiceOver adds after the label (`sh.choice-icons@1`).
+            public var symbol: ServerUICompositionDocument.Symbol?
+            public var hint: String?
+            /// Whether the option carries a symbol or a hint, which only a segmented choice draws.
+            public var isDecorated: Bool { symbol != nil || hint != nil }
             /// Creates a option.
             public init(id: String, label: String) { self.id = id; self.label = label }
         }
@@ -220,6 +225,7 @@ extension ServerUICompositionDocument.Component {
         case .roomSection(let value): value.children
         case .localTabs(let value): value.tabs.flatMap(\.children) + value.areas.flatMap(\.children)
         case .overlay(let value): value.children
+        case .stack(let value): value.children
         default: []
         }
     }
@@ -233,6 +239,7 @@ extension ServerUICompositionDocument.Component {
         case .navigationTile(let value): return [value.action]
         case .actionTile(let value): return [.domain(value.action)]
         case .row(let value): return value.action.map { [$0] } ?? []
+        case .stack(let value): return value.action.map { [$0] } ?? []
         case .climate(let value): return value.action.map { [$0] } ?? []
         case .button(let value): return [value.action]
         case .boundControl(let value): return value.actions.map { .callService($0) }

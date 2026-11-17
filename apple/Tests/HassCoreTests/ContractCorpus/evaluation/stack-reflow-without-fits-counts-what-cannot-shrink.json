@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "name": "stack-reflow-without-fits-counts-what-cannot-shrink",
+  "note": "With no fits list, a group counts the widest child that cannot shrink: the ticker gives room, so 140 + 120 + 12 = 272 fits in 300.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "m"
+        },
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "overflow"
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 700,
+          "shrinks": true
+        },
+        {
+          "id": "b",
+          "width": 140
+        },
+        {
+          "id": "c",
+          "width": 120
+        }
+      ],
+      "width": 300,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": false,
+      "reason": null,
+      "axis": "horizontal",
+      "spacing": 12,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 12,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 12,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "c"
+          ],
+          "spacing": 12,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

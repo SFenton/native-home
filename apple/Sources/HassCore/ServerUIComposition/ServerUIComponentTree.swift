@@ -19,6 +19,7 @@ extension ServerUICompositionDocument.Component {
         case .statusRail(var item): item.children = all(item.children); value = .statusRail(item)
         case .roomSection(var item): item.children = all(item.children); value = .roomSection(item)
         case .overlay(var item): item.children = all(item.children); value = .overlay(item)
+        case .stack(var item): item.children = all(item.children); value = .stack(item)
         case .localTabs(var item):
             item.tabs = item.tabs.map { tab in var tab = tab; tab.children = all(tab.children); return tab }
             item.areas = item.areas.map { area in var area = area; area.children = all(area.children); return area }

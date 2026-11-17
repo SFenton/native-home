@@ -566,7 +566,9 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 (entry.view as? UKServerUIBootstrapMessage)?.apply(message)
             case .text(let text):
                 if let view = entry.view as? UKServerUIText {
+                    view.isSectionTitle = text.style == .sectionTitle
                     view.style = UKServerUIPreflight.textStyle(text.style)
+                    view.look = text.look
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer else { return }
                         view?.apply(renderer.bindings.string(text.value), unavailable: text.unavailableText)
@@ -672,6 +674,21 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         }
                     }))
                 }
+            case .stack(let stack):
+                if let view = entry.view as? UKStackView {
+                    let children = stack.children.map { ($0, node($0)) }
+                    let reparent = view.needsReparent(children.filter { renderer.componentVisible($0.0) }.map(\.1))
+                    containerChanges.append(({ if reparent { view.clear() } }, {
+                        entry.bag.observe { [weak view, weak renderer, weak self] in
+                            guard let view, let renderer, let self else { return }
+                            UKServerUIStyleParts.apply(stack, to: view, children: children, page: self, renderer: renderer)
+                            self.body?.contentChanged(animated: false)
+                        }
+                    }))
+                }
+            case .shape(let shape): (entry.view as? UKShapeView)?.apply(shape)
+            case .symbol(let part):
+                if let view = entry.view as? UKSymbolPartView { UKServerUIStyleParts.bind(part, view: view, entry: entry, renderer: renderer) }
             case .localTabs(let tabs):
                 if let view = entry.view as? UKServerUILocalTabs {
                     let scope = tabs.scopeProviderId.flatMap { renderer.records.tabScopes[$0] }
@@ -1063,7 +1080,7 @@ final class UKServerUINode {
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
         case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner, overlay
+        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol
     }
 
     /// The node's view, built once and kept for the node's lifetime.
@@ -1118,6 +1135,9 @@ final class UKServerUINode {
                 onEnable: {}, onDismiss: {})
         case .bootstrapMessage: view = UKServerUIBootstrapMessage()
         case .overlay: view = UKServerUIOverlayView()
+        case .stack: view = UKStackView()
+        case .shape: view = UKShapeView()
+        case .symbol: view = UKSymbolPartView()
         case .text: view = UKServerUIText()
         case .grid: view = UKDynamicGridView()
         case .section: view = UKServerUISection()
@@ -1172,6 +1192,9 @@ final class UKServerUINode {
         case .vacuum: .vacuum
         case .notificationBanner: .notificationBanner
         case .overlay: .overlay
+        case .stack: .stack
+        case .shape: .shape
+        case .symbol: .symbol
         case .bootstrapMessage: .bootstrapMessage
         case .text: .text
         case .grid: .grid
@@ -1253,13 +1276,23 @@ final class UKServerUIText: UIView, UKGridMeasuring {
     private let pending = UKPendingValueBar()
     /// The text style; changing it restyles the label.
     var style: UIFont.TextStyle = .body {
+        didSet { restyle() }
+    }
+    /// Whether this is the document's `section-title` (title3, bold, a heading), not its plain `title3`.
+    var isSectionTitle = false {
         didSet {
-            label.font = style == .title3 ? .ukFont(.title3, weight: .bold)
-                : UIFont.preferredFont(forTextStyle: style, compatibleWith: traitCollection)
-            label.textColor = [.subheadline, .footnote].contains(style) ? UKDesignInk.secondary : UKDesignInk.primary
-            accessibilityTraits = style == .title3 ? .header : .staticText
+            restyle()
+            accessibilityTraits = isSectionTitle ? .header : .staticText
         }
     }
+    /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
+    var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }
+    /// The sliding line of a ticker, present only while the look asks for one.
+    private(set) var ticker: UKTickerLabel?
+    /// The ink and the font the text is drawn with now, for tests of the look.
+    var drawnInk: UIColor { label.textColor }
+    var drawnFont: UIFont { label.font }
+    var lineBreak: NSLineBreakMode { label.lineBreakMode }
 
     init() {
         super.init(frame: .zero)
@@ -1269,6 +1302,11 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         isAccessibilityElement = true
         accessibilityTraits = .staticText
         label.isAccessibilityElement = false
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKServerUIText, _) in
+            guard view.look.isDeclared else { return }
+            view.restyle()
+            view.ukRemeasureContainers(includingSelf: true)
+        }
     }
 
     @available(*, unavailable)
@@ -1285,22 +1323,60 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         case .loading: label.text = "Loading"; pending.isHidden = false
         }
         label.alpha = pending.isHidden ? 1 : 0
+        ticker?.text = label.text ?? ""
         accessibilityLabel = label.text
         ukRemeasureContainers(includingSelf: true)
     }
 
     /// The height the settings cell needs at `width`.
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        ceil(label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+        if let ticker { return ceil(ticker.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height) }
+        return ceil(label.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude)).height)
+    }
+
+    /// Draws the style, then the look over it.
+    private func restyle() {
+        let styled: UIFont = isSectionTitle ? .ukFont(.title3, weight: .bold) : UIFont.preferredFont(forTextStyle: style, compatibleWith: traitCollection)
+        let base: UIFont.Weight? = isSectionTitle ? .bold : nil
+        let font = UKStyledText.font(style: style, look: look, traits: traitCollection, baseWeight: base) ?? styled
+        let ink = look.ink.map(UKStyledText.color) ?? ([.subheadline, .footnote].contains(style) ? UKDesignInk.secondary : UKDesignInk.primary)
+        label.font = font
+        label.textColor = ink
+        label.numberOfLines = look.lines ?? 0
+        label.lineBreakMode = look.shrinks || (look.lines ?? 0) > 0 ? .byTruncatingTail : .byWordWrapping
+        label.textAlignment = UKStyledText.alignment(look.align, rightToLeft: effectiveUserInterfaceLayoutDirection == .rightToLeft)
+        if look.isTicker {
+            let ticker = self.ticker ?? UKTickerLabel(label.text ?? "", truncatesWhenStill: true)
+            if self.ticker == nil { self.ticker = ticker; insertSubview(ticker, belowSubview: pending) }
+            ticker.fontProvider = { [style, look, base] traits in UKStyledText.font(style: style, look: look, traits: traits, baseWeight: base) ?? font }
+            ticker.textColor = ink
+            ticker.textAlignment = label.textAlignment
+            ticker.text = label.text ?? ""
+            label.isHidden = true
+        } else {
+            ticker?.removeFromSuperview()
+            ticker = nil
+            label.isHidden = false
+        }
+        setNeedsLayout()
     }
 
     /// Lays out the label above its pending bar.
     override func layoutSubviews() {
         super.layoutSubviews()
         label.frame = bounds
+        ticker?.frame = bounds
         let size = pending.sizeThatFits(bounds.size)
         pending.frame = CGRect(x: effectiveUserInterfaceLayoutDirection == .rightToLeft ? max(0, bounds.width - size.width) : 0,
                                y: max(0, (bounds.height - size.height) / 2), width: min(size.width, bounds.width), height: size.height)
     }
+}
+
+// MARK: - Measuring for a stack
+
+extension UKServerUIText: UKStackMeasuring {
+    var stackNaturalWidth: CGFloat { ceil(label.sizeThatFits(CGSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)).width) }
+    var stackFillsWidth: Bool { true }
+    var stackShrinks: Bool { look.shrinks }
 }
 #endif

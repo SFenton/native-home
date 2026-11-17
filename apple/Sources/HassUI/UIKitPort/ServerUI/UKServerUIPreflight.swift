@@ -210,6 +210,9 @@ enum UKServerUIPreflight {
                 }
             case .overlay(let overlay):
                 try self.components(overlay.children, at: path + "/children", collections: collections)
+            case .stack(let stack): try self.components(stack.children, at: path + "/children", collections: collections)
+            case .shape: break
+            case .symbol(let part): try symbol(part.symbol, at: path + "/props/name")
             case .row(let row):
                 if let icon = row.icon { try symbol(icon, at: path + "/props/icon") }
             case .statusPill(let pill): try symbol(pill.icon, at: path + "/icon")
@@ -313,6 +316,12 @@ enum UKServerUIPreflight {
         case .subheadline: .subheadline
         case .footnote: .footnote
         case .sectionTitle: .title3
+        case .largeTitle: .largeTitle
+        case .title1: .title1
+        case .title2: .title2
+        case .title3: .title3
+        case .callout: .callout
+        case .caption2: .caption2
         }
     }
 }

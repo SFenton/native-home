@@ -632,7 +632,7 @@ enum ServerUICompositionShape {
                     "value": textValue(.text(16_384, blank: true)),
                     "style": .choice(ServerUICompositionDocument.TextStyle.allCases.map(\.rawValue)),
                     "unavailableText": .text(16_384, blank: false)
-                ])
+                ].merging(textLookFields) { _, rhs in rhs })
             ]),
             "account-header": node("account-header", [
                 "binding": object(["sourceId": id, "projection": fixed("profile-account@1")]),
@@ -737,7 +737,7 @@ enum ServerUICompositionShape {
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
             "content-panes": .unsupported("sh.content-panes@1")
-        ]) { _, rhs in rhs })
+        ]).merging(styleNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
         object([

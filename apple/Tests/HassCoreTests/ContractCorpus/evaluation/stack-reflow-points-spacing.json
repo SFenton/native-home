@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "stack-reflow-points-spacing",
+  "note": "Spacing in points is used as written: 100 + 100 + 30 = 230 in 229 stacks.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "points",
+          "value": 30
+        },
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "overflow"
+          ],
+          "fits": [
+            "a",
+            "b"
+          ],
+          "spacing": {
+            "type": "points",
+            "value": 2
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 100
+        },
+        {
+          "id": "b",
+          "width": 100
+        }
+      ],
+      "width": 229,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": true,
+      "reason": "overflow",
+      "axis": "vertical",
+      "spacing": 2,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 2,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 2,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}
