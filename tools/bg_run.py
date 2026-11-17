@@ -7,8 +7,8 @@ exits, and the notification carries the digest, not the log. Never poll the log 
     tools/bg_run.py LABEL [--timeout SECONDS] [--expect-minutes N] [--dir DIR] [--allow-empty] -- COMMAND [ARG …]
 
 The full output goes to ``build/runs/LABEL.log`` (``--dir`` to change it) and the digest, from
-``tools/log_digest.py`` (its RESULT line carries the git SHA and the worktree name), to ``LABEL.digest`` next to it. The exit status is the command's, or 124 after
-``--timeout`` (the process group is killed). A command that exits 0 but whose log shows a test run that executed nothing, or
+``tools/log_digest.py`` (its RESULT line carries the git SHA and the worktree name of the command's working directory, not of the worktree that launched bg_run), to ``LABEL.digest`` next to it. The exit status is the command's, or 124 after
+``--timeout`` (the process group is killed; if the group cannot be signalled, ``PermissionError``, the leader is killed instead, and the digest is written either way). A command that exits 0 but whose log shows a test run that executed nothing, or
 whose every test skipped, digests as ``RESULT: EMPTY`` and bg_run exits 1 (``--allow-empty`` keeps the command's 0); the digest
 shows ``executed N, skipped N, failed N``.
 
@@ -78,6 +78,10 @@ def kill_group(process: "subprocess.Popen[bytes]", grace: float = KILL_GRACE) ->
         os.killpg(pgid, signal.SIGTERM)
     except ProcessLookupError:
         return
+    except PermissionError:  # the group is not ours to signal (a child changed its credentials): kill the leader
+        process.kill()
+        process.wait()
+        return
     deadline = time.monotonic() + grace
     while time.monotonic() < deadline:
         process.poll()  # reap the leader so a zombie does not keep the group "alive"
@@ -88,18 +92,24 @@ def kill_group(process: "subprocess.Popen[bytes]", grace: float = KILL_GRACE) ->
         os.killpg(pgid, signal.SIGKILL)
     except ProcessLookupError:
         pass
+    except PermissionError:
+        process.kill()
     process.wait()
 
 
-def run(label: str, command: List[str], directory: Path, timeout: Optional[float], allow_empty: bool = False) -> int:
-    """Run ``command`` with output to ``directory/label.log``, print its digest and return its status."""
+def run(label: str, command: List[str], directory: Path, timeout: Optional[float], allow_empty: bool = False,
+        cwd: Optional[str] = None) -> int:
+    """Run ``command`` with output to ``directory/label.log``, print its digest and return its status.
+
+    ``cwd`` is where the command runs and where the digest's ``sha`` and ``lane`` are read from (default: the current directory)."""
+    cwd = cwd or os.getcwd()
     directory.mkdir(parents=True, exist_ok=True)
     log = directory / f"{label}.log"
     started = time.monotonic()
     status = 0
     marker = directory / f"{label}.running"
     try:
-        marker.write_text(json.dumps({"pid": os.getpid(), "label": label, "started": time.time(), "cwd": os.getcwd()}))
+        marker.write_text(json.dumps({"pid": os.getpid(), "label": label, "started": time.time(), "cwd": cwd}))
     except OSError:
         pass
     previous = {}
@@ -113,7 +123,7 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
             process = None
             try:
                 process = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
-                                           start_new_session=True)
+                                           start_new_session=True, cwd=cwd)
                 status = process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
                 kill_group(process)
@@ -131,7 +141,7 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
         elapsed = time.monotonic() - started
         text = redact_lines(log.read_text(encoding="utf-8", errors="replace"))
         log.write_text(text, encoding="utf-8")  # the kept log never holds a token
-        sha, lane = log_digest.git_context(str(ROOT))
+        sha, lane = log_digest.git_context(cwd)
         digest = redact(log_digest.digest_text(text, exit_code=status, elapsed=elapsed, label=label, log=str(log),
                                                sha=sha, lane=lane, allow_empty=allow_empty))
         if status == 0 and digest.startswith(("RESULT: EMPTY", "RESULT: MISMATCH")):

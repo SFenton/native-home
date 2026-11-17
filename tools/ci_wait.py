@@ -5,14 +5,15 @@
 
 Run it through ``bg_run`` in the background and end the turn (``.claude/agents/orchestrator.md``, "CI waits"). The digest carries the
 ``RESULT:`` line. Exit 0: merged, or green and CLEAN and not armed. Exit 1: a failed check, or the PR closed unmerged. Exit 2: no run appeared for the head in
-``--appear-timeout``, or ``gh`` failed. Exit 3: blocked (see below). Exit 4: the run was cancelled.
+``--appear-timeout``, or ``gh`` failed. Exit 3: blocked (see below). Exit 4: the run was cancelled and the PR head is unchanged.
 
 A rerun resets a completed run to a new attempt, so a completed read is confirmed again after ``--settle`` seconds and discarded when the
 attempt or ``updatedAt`` changed. Stdlib and ``gh`` only; nothing is written or merged.
 
 The ruleset also requires ``ai-review`` on the head, so after a green ``pr-checks`` the PR's check rollup and ``mergeStateStatus`` are read
 too. Exit 3 is ``blocked``: the head moved, ``ai-review`` is missing or not successful, or the PR stays BLOCKED (armed or not) after
-``--merge-wait``. Exit 4 is a cancelled run. Exit 0 is only ``merged``, or green and CLEAN on a PR that is not armed.
+``--merge-wait``. Exit 4 is a cancelled run on a head that did not move: when the head moved (a push cancelled the run), the waiter prints
+``superseded: <old> -> <new>`` once, follows the new head's run (waiting up to ``--appear-timeout`` for it) and reports that one. Exit 0 is only ``merged``, or green and CLEAN on a PR that is not armed.
 
 :func:`pr_blockers.blockers` (shared with ``tools/pr_land.py``) reads ``mergeable``, ``isDraft``, ``reviewDecision`` and whether the changed files match
 ``.github/CODEOWNERS``. A ``CONFLICTING`` PR exits 3 on the first poll (GitHub runs no ``pull_request`` checks on it), and a PR that ends
@@ -145,31 +146,38 @@ def wait(number: str, repo: str = REPO, *, gh: Callable = gh_json, sleep: Callab
         pr = pr_state(number, repo, gh)
         head, branch = pr.get("headRefOid", ""), pr.get("headRefName", "")
         lines = [f"PR {number} head {short(head)} branch {branch}"]
-        waited = 0.0
-        run_id = None
         while True:
-            if pr.get("state") == "MERGED":
-                return 0, lines + [f"RESULT: merged #{number}"]
-            if pr.get("state") == "CLOSED":
-                return 1, lines + [f"RESULT: closed #{number} without merging"]
-            if pr.get("mergeable") == "CONFLICTING":
-                return 3, lines + [f"RESULT: blocked #{number}: {pr_blockers.blockers(pr)[0]}"]
-            run_id = find_run(branch, head, repo, gh)
-            if run_id is not None:
-                break
-            if waited >= appear_timeout:
-                return 2, lines + [f"RESULT: no {WORKFLOW} run appeared for {short(head)} within {int(appear_timeout)} s"]
-            sleep(poll)
-            waited += poll
-            pr = pr_state(number, repo, gh)
-            if pr.get("headRefOid") != head:
-                return 3, lines + [f"RESULT: blocked: head moved from {short(head)} to {short(pr.get('headRefOid', ''))}; start a new waiter"]
-        lines.append(f"run {run_id}")
-        run = wait_finished(run_id, repo, gh, sleep, poll, settle)
-        lines += [f"job {job.get('name')}: {job.get('conclusion')}" for job in run.get("jobs", [])]
-        tail = f"{WORKFLOW} {run.get('conclusion')} on {short(head)} (run {run_id}, attempt {run.get('attempt')})"
-        if run.get("conclusion") == "cancelled":
-            return 4, lines + [f"RESULT: cancelled #{number}: {tail}; re-run the workflow or push"]
+            waited = 0.0
+            while True:
+                if pr.get("state") == "MERGED":
+                    return 0, lines + [f"RESULT: merged #{number}"]
+                if pr.get("state") == "CLOSED":
+                    return 1, lines + [f"RESULT: closed #{number} without merging"]
+                if pr.get("mergeable") == "CONFLICTING":
+                    return 3, lines + [f"RESULT: blocked #{number}: {pr_blockers.blockers(pr)[0]}"]
+                run_id = find_run(branch, head, repo, gh)
+                if run_id is not None:
+                    break
+                if waited >= appear_timeout:
+                    return 2, lines + [f"RESULT: no {WORKFLOW} run appeared for {short(head)} within {int(appear_timeout)} s"]
+                sleep(poll)
+                waited += poll
+                pr = pr_state(number, repo, gh)
+                if pr.get("headRefOid") != head:
+                    return 3, lines + [f"RESULT: blocked: head moved from {short(head)} to {short(pr.get('headRefOid', ''))}; start a new waiter"]
+            lines.append(f"run {run_id}")
+            run = wait_finished(run_id, repo, gh, sleep, poll, settle)
+            lines += [f"job {job.get('name')}: {job.get('conclusion')}" for job in run.get("jobs", [])]
+            tail = f"{WORKFLOW} {run.get('conclusion')} on {short(head)} (run {run_id}, attempt {run.get('attempt')})"
+            if run.get("conclusion") == "cancelled":
+                pr = pr_state(number, repo, gh)
+                now = pr.get("headRefOid", "")
+                if now and now != head:  # a push cancelled the run: follow the new head's run
+                    lines.append(f"superseded: {short(head)} -> {short(now)}")
+                    head, branch = now, pr.get("headRefName", branch)
+                    continue
+                return 4, lines + [f"RESULT: cancelled #{number}: {tail}; the head is unchanged, re-run the workflow or push"]
+            break
         if run.get("conclusion") != "success":
             failed = [str(job.get("name")) for job in run.get("jobs", []) if job.get("conclusion") not in ("success", "skipped", "neutral")]
             return 1, lines + [f"RESULT: ci failed #{number}: {', '.join(failed) or tail}; {tail}"]
