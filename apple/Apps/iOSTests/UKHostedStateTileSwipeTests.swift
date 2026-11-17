@@ -199,7 +199,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
     /// band that follow are drawn.
     func testAHeldChangeThenTheFingerLiftsSendsTheDraggedValueAndThenDrawsTheNewState() async throws {
         for width in Self.widths {
-            let r = try await rig(width: width, revert: 30)
+            let r = try await rig(width: width, revert: 0.7)
             defer { r.window.isHidden = true }
             r.window.layoutIfNeeded()
             await HostedPage.pump(passes: 5)
@@ -214,8 +214,12 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             XCTAssertTrue(called, "width \(width)")
             XCTAssertEqual(r.caller.calls, ["cover.set_cover_position"], "one call")
             XCTAssertEqual(sent(r.caller), [50], "the value the finger chose, not the house's 20")
-            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.5) < 0.001 }
-            XCTAssertTrue(drawn, "the new state word is drawn after the lift, with the band at the committed value (\(String(describing: r.tile.model.progress)))")
+            // The call's optimistic feedback keeps the tile at the committed value (the band) and the word it asked for ("open").
+            let held = await HostedPage.settle { abs((r.tile.model.progress ?? 0) - 0.5) < 0.001 }
+            XCTAssertTrue(held, "the band holds the committed value (\(String(describing: r.tile.model.progress)))")
+            // When the hold ends, the house's state the finger held back is drawn: its word and its band.
+            let drawn = await HostedPage.settle { r.tile.model.subtitle != heldSubtitle && abs((r.tile.model.progress ?? 0) - 0.2) < 0.001 }
+            XCTAssertTrue(drawn, "the held state follows once the hold ends: \(String(describing: r.tile.model.subtitle)), \(String(describing: r.tile.model.progress))")
             HostedPage.hideTracked()
         }
     }
