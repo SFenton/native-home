@@ -1,6 +1,6 @@
 # Modals
 
-> **What:** every modal mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need a modal's mockup. Sheets, pushes inside sheets, covers and alerts. Sheets follow the system appearance unless always-dark.
+> **What:** every modal mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need to see how a modal looks today, or to find the mockup to update. Sheets, pushes inside sheets, covers and alerts. Sheets follow the system appearance unless always-dark.
 
 ## bedroom (8)
 

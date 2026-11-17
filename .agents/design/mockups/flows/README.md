@@ -1,6 +1,6 @@
 # Flows
 
-> **What:** every flow mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need a flow's mockup. Sequences across screens: launch, sign-in, navigation, offline.
+> **What:** every flow mockup, by area, generated from [catalog.json](../catalog.json). **Read when:** you need to see how a flow looks today, or to find the mockup to update. Sequences across screens: launch, sign-in, navigation, offline.
 
 ## shell (13)
 

@@ -6277,7 +6277,7 @@
       "id": "login-form-parts",
       "kind": "component",
       "area": "login",
-      "title": "Sign-in form parts (fields module, failure card, inline error)",
+      "title": "Sign-in form parts",
       "path": "components/login/login-form-parts",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift"
@@ -7837,7 +7837,7 @@
       "id": "push-notification-banner",
       "kind": "component",
       "area": "widgets",
-      "title": "S+H Home Integration notification banner (system UI, with actions)",
+      "title": "S+H Home Integration notification banner",
       "path": "components/widgets/push-notification-banner",
       "sources": [
         "apple/Apps/NotificationService/NotificationService.swift",
@@ -8705,7 +8705,7 @@
       "id": "scroll-fit",
       "kind": "component",
       "area": "shell",
-      "title": "Scroll fit (scroll only when there is something to scroll)",
+      "title": "Scroll fit (only when needed)",
       "path": "components/shell/scroll-fit",
       "sources": [
         "apple/Sources/HassDesign/HassModal.swift",
