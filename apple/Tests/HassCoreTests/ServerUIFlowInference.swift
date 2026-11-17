@@ -1,23 +1,24 @@
 import Foundation
+@testable import HassCore
 
 // MARK: - Shape inference
 
-/// Shape inference: the shape of a sample, and the merge of many. The rules are fixed so the Studio and the app show the same outline:
+/// Test-only shape inference: the shape of a sample, and the merge of many. The rules are fixed so the Studio and the app show the same outline:
 /// a whole number is `number` with `integer`; a string is a `date`, `date-time`, `entity-id`, `url` or `numeric` in that order, else a
 /// candidate for an `enum` (at most 64 characters); a list is the merge of its items; an object lists its fields, each required.
-public enum ServerUIFlowInference {
+enum ServerUIFlowInference {
     /// Whether the text is a date (`YYYY-MM-DD`, a real calendar date).
-    public static func isDateText(_ text: String) -> Bool {
+    static func isDateText(_ text: String) -> Bool {
         text.utf8.count == 10 && ServerUIDates.wallTime(text, utcOffsetMinutes: 0) != nil
     }
 
     /// Whether the text is a date and time.
-    public static func isDateTimeText(_ text: String) -> Bool {
+    static func isDateTimeText(_ text: String) -> Bool {
         text.utf8.count > 10 && ServerUIDates.wallTime(text, utcOffsetMinutes: 0) != nil
     }
 
     /// The format a string is recognised as, if any.
-    public static func stringFormat(_ value: String) -> ServerUIFlowShape.Format? {
+    static func stringFormat(_ value: String) -> ServerUIFlowShape.Format? {
         if isDateText(value) { return .date }
         if isDateTimeText(value) { return .dateTime }
         if value.utf16.count <= 160, ServerUICompositionShape.matches(value, "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$") { return .entityId }
@@ -27,7 +28,7 @@ public enum ServerUIFlowInference {
     }
 
     /// The shape of one value.
-    public static func shape(of value: JSONValue, depth: Int = 1) -> ServerUIFlowShape {
+    static func shape(of value: JSONValue, depth: Int = 1) -> ServerUIFlowShape {
         switch value {
         case .null: return .null
         case .bool: return .boolean
@@ -45,7 +46,7 @@ public enum ServerUIFlowInference {
     }
 
     /// The shape that fits every sample (`never` for none).
-    public static func shape(ofSamples samples: [JSONValue]) -> ServerUIFlowShape {
+    static func shape(ofSamples samples: [JSONValue]) -> ServerUIFlowShape {
         samples.reduce(.never) { $0.merged(with: shape(of: $1)) }
     }
 }

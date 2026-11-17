@@ -9407,7 +9407,7 @@
       "mockup": "proposals/tile-swipe/tile-swipe.html",
       "note": "Owner request 2026-11-16: swipe to adjust on any tile, configured in the Studio, off by default. Decided: absolute tracking, band and bubble, selection tick per detent, one call on release. Built as sh.tile-swipe@1 (lanes TC6 and NT6). Current design: brightness-tile and state-styled-tile. Includes the Studio (web) inspector.",
       "decision": ".agents/decisions/2026-11-16-tile-swipe.md",
-      "shippedIn": "fba79957"
+      "shippedIn": "#122"
     },
     {
       "id": "sim-fidelity-contract",
@@ -9427,7 +9427,7 @@
       "mockup": "proposals/sim-fidelity-contract/sim-fidelity-contract.html",
       "note": "Owner requests 2026-11-16 (task sim-fidelity): white tile icons and text by default, customizable state strings, group by state on any grid. The owner picked ink option A (uncoloured icons and every state line in the primary ink) and heading option A (title only); the state words fold was picked under the gate. Built as sh.tile-ink-default@1, sh.state-words@1 and sh.grid-state-groups@1 (lanes TC7 and NT7). Current design: brightness-tile, state-styled-tile and dynamic-grid-layout. Includes the Studio (web) inspector.",
       "decision": ".agents/decisions/2026-11-16-tile-swipe.md",
-      "shippedIn": "fba79957"
+      "shippedIn": "#122"
     },
     {
       "id": "vacuum-map-controls",
@@ -9444,7 +9444,7 @@
       "mockup": "proposals/vacuum-map-controls/vacuum-map-controls.html",
       "note": "Owner request 2026-11-16 (gate matches_request=yes): flip the map; button groups as a row or column in each corner, ordered; the app handles overflow with a More menu. Built on t3/native-ingest (4b066cd6). Current design: vacuum-sheet and vacuum-map-canvas. The README lists what the build settled (Clean and Locate hidden while unavailable, More a system menu).",
       "decision": "proposals/vacuum-map-controls/README.md",
-      "shippedIn": "4b066cd6"
+      "shippedIn": "#122"
     }
   ]
 }
