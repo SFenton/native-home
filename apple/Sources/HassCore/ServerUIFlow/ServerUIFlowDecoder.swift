@@ -154,6 +154,22 @@ struct ServerUIFlowDecoder {
             case "default":
                 guard let value = operand(item["value"], own + "/value") else { return nil }
                 operation = .default(path: Self.path(item["path"]), value: value)
+            case "min", "max":
+                guard let value = operand(item["value"], own + "/value") else { return nil }
+                operation = op == "min" ? .min(value) : .max(value)
+            case "running-sum":
+                guard let value = operand(item["value"], own + "/value"), let into = item["into"]?.string,
+                      case .bool(let propagates)? = item["nullPropagates"] else { return nil }
+                operation = .runningSum(value: value, into: into, nullPropagates: propagates)
+            case "annotate":
+                guard case .object(let entries)? = item["fields"] else { return nil }
+                var fields: [String: ServerUIFlow.Annotation] = [:]
+                for (key, entry) in entries.sorted(by: { $0.key < $1.key }) {
+                    guard let aggregate = entry["aggregate"]?.string.flatMap(ServerUIFlow.Annotation.Aggregate.init(rawValue:)),
+                          let parsed = operand(entry["value"], ServerUICompositionJSON.pointer(own + "/fields", key) + "/value") else { return nil }
+                    fields[key] = .init(aggregate: aggregate, value: parsed)
+                }
+                operation = .annotate(fields)
             default: return nil
             }
             result.append(.init(id: id, operation: operation))
@@ -170,6 +186,7 @@ struct ServerUIFlowDecoder {
             let subtitle = row["subtitle"] == nil ? nil : operand(row["subtitle"], pointer + "/row/subtitle")
             let value = row["value"] == nil ? nil : operand(row["value"], pointer + "/row/value")
             return .rows(max: json["max"]?.number.map { Int($0) } ?? 0, row: .init(id: id, title: title, subtitle: subtitle, value: value))
+        case "records": return .records(max: json["max"]?.number.map { Int($0) } ?? 0)
         case "record": return .record
         case "scalar": return .scalar
         default: return nil

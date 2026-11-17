@@ -58,6 +58,8 @@ public enum ServerUIFlowCompiler {
             facts.reads += local.reads
             facts.needsOperands = facts.needsOperands || local.needsOperands
             facts.usesRules = facts.usesRules || local.usesRules
+            facts.flowExtras = facts.flowExtras || local.flowExtras
+            facts.usesRepeat = facts.usesRepeat || local.usesRepeat
             for ref in local.parameterReferences {
                 facts.parameterReferences.append(ref)
                 parameterRefs.append((parameter.name, ref.name, ref.pointer))
@@ -85,6 +87,8 @@ public enum ServerUIFlowCompiler {
             facts.parameterReferences += local.parameterReferences
             facts.needsOperands = facts.needsOperands || local.needsOperands
             facts.usesRules = facts.usesRules || local.usesRules
+            facts.flowExtras = facts.flowExtras || local.flowExtras
+            facts.usesRepeat = facts.usesRepeat || local.usesRepeat
         }
         func shapeCheck(_ shape: Shape, _ pointer: String) { if let found = shape.problem(at: pointer) { issue(found.code, found.pointer) } }
         func entity(_ value: String, at: String, domain: String? = nil) {
@@ -209,6 +213,10 @@ public enum ServerUIFlowCompiler {
                     }
                     absorb(local)
                 } else { issue(.bindingType, join(outputAt, "kind")) }
+            case .records:
+                // `sh.repeat@1`: a list of objects, which the `repeat` node reads by field.
+                if let element = final.element { if !element.hasObject { issue(.bindingType, join(outputAt, "kind")) } }
+                else { issue(.bindingType, join(outputAt, "kind")) }
             case .record:
                 if core != .any, !(present.count == 1 && present.contains(.object)) { issue(.bindingType, join(outputAt, "kind")) }
             case .scalar:
@@ -226,6 +234,10 @@ public enum ServerUIFlowCompiler {
             let wanted: Bool
             switch flow.output {
             case .rows: wanted = have.count == 1 && have.contains(.array)
+            case .records:
+                if have.count == 1, have.contains(.array), let element = flow.schema.element, element != .any, element.hasObject {
+                    wanted = element.withoutNull.kinds.count == 1
+                } else { wanted = false }
             case .record: wanted = have.count == 1 && have.contains(.object)
             case .scalar: wanted = !have.isEmpty && have.allSatisfy { [Shape.Kind.boolean, .number, .string].contains($0) } && flow.schema != .any
             }
@@ -238,6 +250,7 @@ public enum ServerUIFlowCompiler {
         if flow.steps.count > ServerUIFlow.Limits.steps { issue(.limitExceeded, join(base, "steps")) }
 
         let capabilities = [capability] + (facts.needsOperands ? [operandsCapability] : []) + (facts.usesRules ? ["rules"] : [])
+            + (flow.givesRecords || facts.usesRepeat ? ["repeat"] : []) + (facts.flowExtras ? ["flow-extras"] : [])
         return Result(issues: facts.issues, reads: facts.reads.map { ($0.sourceId, $0.pointer) }, capabilities: capabilities)
     }
 
@@ -249,12 +262,12 @@ public enum ServerUIFlowCompiler {
         public let suffix: String
     }
 
-    /// Checks a `read` that names a flow: a record flow is read by field name, a scalar flow by `["value"]`, a rows flow not at all (a list
+    /// Checks a `read` that names a flow: a record flow is read by field name, a scalar flow by `["value"]`, a rows or records flow not at all (a list
     /// cannot be indexed; a node shows rows through its provider). The field must exist in `schema` and be a scalar of the kind the read asks for.
     public static func checkRead(_ flow: ServerUIFlow, path: [String], as kind: ServerUICompositionDocument.ScalarKind) -> ReadIssue? {
         let leaf: Shape?
         switch flow.output {
-        case .rows: return ReadIssue(code: .invalidReference, suffix: "/from/path")
+        case .rows, .records: return ReadIssue(code: .invalidReference, suffix: "/from/path")
         case .scalar: leaf = path == ["value"] ? flow.schema : nil
         case .record: leaf = flow.schema.shape(at: path)
         }
@@ -263,6 +276,13 @@ public enum ServerUIFlowCompiler {
         if have.isEmpty { return nil }
         let want: Shape.Kind = kind == .number ? .number : kind == .boolean ? .boolean : .string
         return have.contains(want) ? nil : ReadIssue(code: .bindingType, suffix: "/as")
+    }
+
+    /// Checks a `repeat` node's `providerId` (`sh.repeat@1`): only a records flow is drawn by a `repeat`, so any other output is `binding_type` at the
+    /// provider. `at` is the pointer of the node's `props`. Returns the shape of one record when the flow gives records.
+    public static func checkRepeatProvider(_ flow: ServerUIFlow, at: String) -> (issues: [ServerUICompositionError], item: ServerUIFlowShape?) {
+        guard flow.givesRecords else { return ([Issue(.bindingType, join(at, "providerId"))], nil) }
+        return ([], flow.schema.element)
     }
 
     /// Checks a node that names a flow as its `providerId`: only a rows flow is a provider, and a `collection` shows it with the `rows`

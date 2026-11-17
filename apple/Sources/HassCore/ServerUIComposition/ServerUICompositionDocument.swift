@@ -717,6 +717,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         case notificationBanner(NotificationBanner)
         case overlay(ServerUIOverlay)
         case stack(ServerUIStack), shape(ServerUIShapePart), symbol(ServerUISymbolPart)
+        /// A list drawn from a records flow (`sh.repeat@1`).
+        case repeatNode(ServerUIRepeat)
         public var node: Node {
             switch self {
             case .text(let value): value.node
@@ -766,6 +768,7 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
             case .stack(let value): value.node
             case .shape(let value): value.node
             case .symbol(let value): value.node
+            case .repeatNode(let value): value.node
             }
         }
     }

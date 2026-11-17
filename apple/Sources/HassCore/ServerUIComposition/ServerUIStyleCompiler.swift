@@ -172,7 +172,7 @@ extension ServerUICompositionCompiler {
     /// A `symbol`: a symbol drawn on its own (`sh.symbol-part@1`).
     mutating func symbolComponent(_ c: Cursor, node: D.Node, props: Cursor) throws -> D.Component {
         require("symbol-part"); require("text-style")
-        var rules = ServerUIRuleDecoder()
+        var rules = ServerUIRuleDecoder(scope: repeatScope)
         let name = try rules.symbol(props.field("name").value, at: props.path("name"))
         try absorb(rules)
         guard let name else { throw Issue(.invalidValue, props.path("name")) }

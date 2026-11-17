@@ -109,6 +109,16 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         records.isVisible(value) && bindings.roomVisible(value)
     }
 
+    /// The scope of the repeat cell `view` sits in, or `nil` outside a repeat.
+    static func cellScope(of view: UIView?) -> UKServerUICellScope? {
+        var current = view
+        while let candidate = current {
+            if let host = candidate as? UKServerUICellHost { return host.scope }
+            current = candidate.superview
+        }
+        return nil
+    }
+
     /// The environment authored expressions are evaluated against: entity boxes, the optimistic overlay and the signed-in person.
     func reader(control: JSONValue? = nil) -> UKServerUIReader {
         UKServerUIReader(bindings: bindings, viewerSource: viewerSource, runner: callRunner, controlValue: control)
@@ -1070,6 +1080,11 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - confirmed: The sender already asked the question (a tile presents the action's confirmation itself).
     func activate(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                   control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) {
+        // A tap inside a repeat cell reads that cell's `item` and `index`: the scope of the cell the sending view sits in is current while it runs.
+        let outerCell = bindings.cell
+        let cell = Self.cellScope(of: source) ?? outerCell
+        bindings.cell = cell
+        defer { bindings.cell = outerCell }
         // An action chosen by rule is resolved here, once, from the house as it is now; no case holding runs nothing.
         guard let action = action.resolved(reader(control: control)) else { return }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) {
@@ -1106,6 +1121,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The same intent boundary is available to hosted tests and the parent's integration adapter.
     func perform(_ action: D.Action, from page: UKServerUIPage, source: UIView? = nil, symbol: String = "",
                  control: JSONValue? = nil, site: String? = nil, confirmed: Bool = false) throws {
+        // A replay (a discard guard, a pending intent) comes back here with the sending view: its cell is current again.
+        let outerCell = bindings.cell
+        bindings.cell = Self.cellScope(of: source) ?? outerCell
+        defer { bindings.cell = outerCell }
         guard let action = action.resolved(reader(control: control)) else { return }
         guard let nav = senderStack(page), activeAlert == nil else { throw blocked() }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) { throw blocked() }
@@ -1793,6 +1812,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
         }
         let identifier = site ?? source?.accessibilityIdentifier ?? "call-service"
+        // The confirmation runs later, outside this call: it brings the repeat cell's scope back so `item` and `index` still read.
+        let cell = bindings.cell
         let send: (ServerUICallService.Resolved) -> Void = { [weak self] resolved in
             guard let self else { return }
             let entities = call.optimistic.compactMap { entry in
@@ -1809,6 +1830,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let alert = UIAlertController(title: title, message: message, preferredStyle: style == .dialog ? .actionSheet : .alert)
         let confirm = UIAlertAction(title: confirmLabel, style: destructive ? .destructive : .default) { [weak self, weak page] _ in
             guard let self else { return }
+            let outerCell = self.bindings.cell
+            self.bindings.cell = cell
+            defer { self.bindings.cell = outerCell }
             do {
                 // What is confirmed is what the house says now: operands are resolved again.
                 guard let page, self.senderStack(page) != nil, self.publication.revision == revision,

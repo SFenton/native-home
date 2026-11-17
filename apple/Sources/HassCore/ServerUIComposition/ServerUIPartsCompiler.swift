@@ -47,7 +47,7 @@ extension ServerUICompositionCompiler {
         parts.failureText = try props.optionalString("failureText")
         if props.value["metrics"] != nil { parts.metrics = try props.e("metrics") }
         if props.value["glyph"] != nil {
-            var rules = ServerUIRuleDecoder()
+            var rules = ServerUIRuleDecoder(scope: repeatScope)
             let slot = try rules.fill(props.field("glyph").value, at: props.path("glyph"))
             try absorb(rules)
             guard let slot else { throw Issue(.invalidValue, props.path("glyph")) }
@@ -72,7 +72,7 @@ extension ServerUICompositionCompiler {
 
     /// One disc of a state tile: its symbol and label, each plain or following a rule, and whether it names the tile.
     mutating func disc(_ disc: Cursor, id: String, action: D.Action) throws -> ServerUITileParts.Disc {
-        var rules = ServerUIRuleDecoder()
+        var rules = ServerUIRuleDecoder(scope: repeatScope)
         let icon = try rules.symbol(disc.field("icon").value, at: disc.path("icon"))
         try absorb(rules)
         guard let icon else { throw Issue(.invalidValue, disc.path("icon")) }

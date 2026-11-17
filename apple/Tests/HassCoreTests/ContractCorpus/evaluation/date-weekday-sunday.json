@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-weekday-sunday",
+  "note": "15 November 2026 is a Sunday (WeatherDates.swift:61-66, names start at Sun).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-15T10:00:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "weekday"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Sun"
+  }
+}

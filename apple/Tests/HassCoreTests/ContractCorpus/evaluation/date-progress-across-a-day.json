@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "date-progress-across-a-day",
+  "note": "The sun case: from the last sunrise to the next sunset, 34 hours; the clock at 11:30 PM is 17 hours in, half way.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-14T06:30:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T16:30:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-14T23:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0.5
+  }
+}

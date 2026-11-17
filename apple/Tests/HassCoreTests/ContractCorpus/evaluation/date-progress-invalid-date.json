@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "date-progress-invalid-date",
+  "note": "A moment that is not a date: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "later"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T16:00:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

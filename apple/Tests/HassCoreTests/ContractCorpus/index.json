@@ -8304,6 +8304,963 @@
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
+    },
+    {
+      "file": "accept/repeat-rows-flow-needs-no-id.json",
+      "outcome": "accept",
+      "note": "A rows flow and the list that shows it need neither new id: the older documents stay as they are."
+    },
+    {
+      "file": "reject/flow-extras-annotate-bad-name.json",
+      "outcome": "reject",
+      "note": "The name of a field is a plain name.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/dataSources/5/inputs/steps/1/fields/bad name"
+      }
+    },
+    {
+      "file": "reject/flow-extras-annotate-empty.json",
+      "outcome": "reject",
+      "note": "annotate writes at least one field.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/dataSources/5/inputs/steps/1/fields"
+      }
+    },
+    {
+      "file": "reject/flow-extras-annotate-extra-key.json",
+      "outcome": "reject",
+      "note": "An annotated field has an aggregate and a value only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/5/inputs/steps/1/fields/lowest/of"
+      }
+    },
+    {
+      "file": "reject/flow-extras-annotate-unknown-aggregate.json",
+      "outcome": "reject",
+      "note": "The aggregates are min and max.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/dataSources/5/inputs/steps/1/fields/lowest/aggregate"
+      }
+    },
+    {
+      "file": "reject/flow-extras-date-hour-over-a-number.json",
+      "outcome": "reject",
+      "note": "The hour style needs a date: a number is binding_type.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/d"
+      }
+    },
+    {
+      "file": "reject/flow-extras-date-unknown-operation.json",
+      "outcome": "reject",
+      "note": "The operations of a date operand are days-between and progress.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/op"
+      }
+    },
+    {
+      "file": "reject/flow-extras-date-unknown-style.json",
+      "outcome": "reject",
+      "note": "The date styles are a fixed set.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/d"
+      }
+    },
+    {
+      "file": "reject/flow-extras-max-of-a-record.json",
+      "outcome": "reject",
+      "note": "max reads a list: the steps before give one record.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/steps/2/op"
+      }
+    },
+    {
+      "file": "reject/flow-extras-min-extra-field.json",
+      "outcome": "reject",
+      "note": "min has a value and nothing else.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/dataSources/5/inputs/steps/1/into"
+      }
+    },
+    {
+      "file": "reject/flow-extras-min-of-text.json",
+      "outcome": "reject",
+      "note": "min over text is not a number: binding_type at the value.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/steps/1/value"
+      }
+    },
+    {
+      "file": "reject/flow-extras-min-without-a-value.json",
+      "outcome": "reject",
+      "note": "min needs a value.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/5/inputs/steps/1/value"
+      }
+    },
+    {
+      "file": "reject/flow-extras-progress-without-to.json",
+      "outcome": "reject",
+      "note": "progress needs both moments.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/value/value/to"
+      }
+    },
+    {
+      "file": "reject/flow-extras-running-sum-bad-into.json",
+      "outcome": "reject",
+      "note": "The field written is a plain name.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/dataSources/5/inputs/steps/1/into"
+      }
+    },
+    {
+      "file": "reject/flow-extras-running-sum-of-scalars.json",
+      "outcome": "reject",
+      "note": "running-sum writes a field onto objects: a list of numbers is binding_type.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/steps/0/op"
+      }
+    },
+    {
+      "file": "reject/flow-extras-running-sum-of-text.json",
+      "outcome": "reject",
+      "note": "The value to add up is a number: text is binding_type.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/steps/1/value"
+      }
+    },
+    {
+      "file": "reject/flow-extras-running-sum-without-null-propagates.json",
+      "outcome": "reject",
+      "note": "Whether a gap ends the total is always authored.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/5/inputs/steps/1/nullPropagates"
+      }
+    },
+    {
+      "file": "reject/owned-flow-binding-field-missing.json",
+      "outcome": "reject",
+      "note": "A binding names a field the flow has.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/owned-flow-binding-kind-mismatch.json",
+      "outcome": "reject",
+      "note": "A text parameter cannot fill a flow's entity id.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/componentLibrary/0/bindings/0/field"
+      }
+    },
+    {
+      "file": "reject/owned-flow-duplicate-id.json",
+      "outcome": "reject",
+      "note": "A component names each flow once.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/componentLibrary/0/flows/0/id"
+      }
+    },
+    {
+      "file": "reject/owned-flow-item-outside-its-repeat.json",
+      "outcome": "reject",
+      "note": "item in the body of a component, outside its repeat, is refused as anywhere else.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/componentLibrary/0/node/props/value/value"
+      }
+    },
+    {
+      "file": "reject/owned-flow-not-a-flow.json",
+      "outcome": "reject",
+      "note": "An item of flows is a flow: an entity source there is refused.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/componentLibrary/0/flows/0/entityId"
+      }
+    },
+    {
+      "file": "reject/owned-flow-over-eight.json",
+      "outcome": "reject",
+      "note": "A component owns at most 8 flows.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/componentLibrary/0/flows"
+      }
+    },
+    {
+      "file": "reject/owned-flow-provider-missing.json",
+      "outcome": "reject",
+      "note": "The repeat in the body names a flow the component does not own and the document does not have: invalid_reference.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/componentLibrary/0/node/props/providerId"
+      }
+    },
+    {
+      "file": "reject/owned-flow-step-error.json",
+      "outcome": "reject",
+      "note": "A fault inside an owned flow is reported at the flow of the component: an unknown step.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/componentLibrary/0/flows/0/inputs/steps/2/op"
+      }
+    },
+    {
+      "file": "accept/flow-extras-annotate.json",
+      "outcome": "accept",
+      "note": "annotate writes list-wide minimum and maximum onto every item, so a map after it can share each item's range of the whole list."
+    },
+    {
+      "file": "accept/flow-extras-date-hour.json",
+      "outcome": "accept",
+      "note": "The date style hour: the 12-hour clock's hour, 7 PM."
+    },
+    {
+      "file": "accept/flow-extras-date-progress.json",
+      "outcome": "accept",
+      "note": "progress is how far the clock has come between two moments, 0 to 1: the daylight of a sunrise and a sunset."
+    },
+    {
+      "file": "accept/flow-extras-date-weekday.json",
+      "outcome": "accept",
+      "note": "The date style weekday: the short name, Thu."
+    },
+    {
+      "file": "accept/flow-extras-index-label.json",
+      "outcome": "accept",
+      "note": "index in a step makes the first item read Now: a rule over the position."
+    },
+    {
+      "file": "accept/flow-extras-max.json",
+      "outcome": "accept",
+      "note": "max is the largest number over the list."
+    },
+    {
+      "file": "accept/flow-extras-min-of-a-computation.json",
+      "outcome": "accept",
+      "note": "The value is any operand of the item: the smallest of a sum."
+    },
+    {
+      "file": "accept/flow-extras-min.json",
+      "outcome": "accept",
+      "note": "min is the smallest number over the list: a number or null."
+    },
+    {
+      "file": "accept/flow-extras-progress-of-reads.json",
+      "outcome": "accept",
+      "note": "A moment may be read from a source as well as written."
+    },
+    {
+      "file": "accept/flow-extras-running-sum-skips-gaps.json",
+      "outcome": "accept",
+      "note": "With nullPropagates off a gap adds nothing."
+    },
+    {
+      "file": "accept/flow-extras-running-sum.json",
+      "outcome": "accept",
+      "note": "running-sum writes the total so far into a field of each object, a gap making every later total null."
+    },
+    {
+      "file": "accept/owned-flow-beside-a-document-flow.json",
+      "outcome": "accept",
+      "note": "A flow of the document and the saved component's own flow of the same id do not clash: inside the body the owned one wins."
+    },
+    {
+      "file": "accept/owned-flow-no-params.json",
+      "outcome": "accept",
+      "note": "A saved component may own a flow with no parameter: every use reads the same entity through its own copy."
+    },
+    {
+      "file": "accept/owned-flow-one-use.json",
+      "outcome": "accept",
+      "note": "A saved component owns the flow its repeat reads: each use gets its own copy, named <reference id>~series, and the repeat inside follows."
+    },
+    {
+      "file": "accept/owned-flow-two-uses.json",
+      "outcome": "accept",
+      "note": "Two uses own two flows (strip-a~series and strip-b~series), each filled by its own entity argument."
+    },
+    {
+      "file": "accept/owned-flow-with-extras.json",
+      "outcome": "accept",
+      "note": "The owned flow may use the extra steps: running-sum over its list."
+    },
+    {
+      "file": "accept/records-flow-alone.json",
+      "outcome": "accept",
+      "note": "A records flow no node draws is still a flow: the output declares the id."
+    },
+    {
+      "file": "accept/records-from-a-service.json",
+      "outcome": "accept",
+      "note": "Records from a service answer: the steps give a list of objects whatever the request."
+    },
+    {
+      "file": "accept/records-index-in-a-step.json",
+      "outcome": "accept",
+      "note": "index in a step is the position of the item in the list the step is looking at."
+    },
+    {
+      "file": "accept/records-max-hundred.json",
+      "outcome": "accept",
+      "note": "A records output holds at most 100."
+    },
+    {
+      "file": "accept/records-of-whole-entries.json",
+      "outcome": "accept",
+      "note": "The records may be the entries as they come: no map step is needed when the schema is the forecast entry itself."
+    },
+    {
+      "file": "accept/repeat-body-a-single-text.json",
+      "outcome": "accept",
+      "note": "The cell is any node: a lone text will do."
+    },
+    {
+      "file": "accept/repeat-horizontal.json",
+      "outcome": "accept",
+      "note": "A row of cells, one for each record of a records flow: the smallest repeat, with the five words and no paging."
+    },
+    {
+      "file": "accept/repeat-in-a-stack.json",
+      "outcome": "accept",
+      "note": "A repeat is a part like any other: it sits inside a stack beside a title."
+    },
+    {
+      "file": "accept/repeat-index-and-item.json",
+      "outcome": "accept",
+      "note": "A rule on the position: the first cell says Now, the others their label."
+    },
+    {
+      "file": "accept/repeat-index-text.json",
+      "outcome": "accept",
+      "note": "index is the cell's position, from 0: the text numbers its cells from 1."
+    },
+    {
+      "file": "accept/repeat-item-in-a-label.json",
+      "outcome": "accept",
+      "note": "A stack that is one accessibility element named by the record."
+    },
+    {
+      "file": "accept/repeat-item-in-an-action.json",
+      "outcome": "accept",
+      "note": "A tap that calls a service with a value of the record."
+    },
+    {
+      "file": "accept/repeat-item-in-rotation.json",
+      "outcome": "accept",
+      "note": "A symbol turned by a number of the record, in degrees."
+    },
+    {
+      "file": "accept/repeat-item-in-symbol.json",
+      "outcome": "accept",
+      "note": "A symbol that follows the record: its name is a rule over the label."
+    },
+    {
+      "file": "accept/repeat-item-in-visible-when.json",
+      "outcome": "accept",
+      "note": "A cell part hidden by a rule on the record: the rule reads item."
+    },
+    {
+      "file": "accept/repeat-item-number-format.json",
+      "outcome": "accept",
+      "note": "A number of the record in a format, with no fraction digits."
+    },
+    {
+      "file": "accept/repeat-item-text.json",
+      "outcome": "accept",
+      "note": "item reads a field of the record: the cell text is the record's label."
+    },
+    {
+      "file": "accept/repeat-item-whole-record-path.json",
+      "outcome": "accept",
+      "note": "A path of one field that is optional in the flow still exists: the value is a gap, not an error."
+    },
+    {
+      "file": "accept/repeat-limit-hundred.json",
+      "outcome": "accept",
+      "note": "The limit may be the 100 a records flow gives at most."
+    },
+    {
+      "file": "accept/repeat-limit.json",
+      "outcome": "accept",
+      "note": "At most 6 records are drawn, whatever the flow gives."
+    },
+    {
+      "file": "accept/repeat-paging-buttons-never.json",
+      "outcome": "accept",
+      "note": "Previous and next buttons can be turned off while the indicator stays."
+    },
+    {
+      "file": "accept/repeat-paging-counts-only.json",
+      "outcome": "accept",
+      "note": "Paging with the two counts: 6 cells to a page in a compact window, 9 in a regular one."
+    },
+    {
+      "file": "accept/repeat-paging-full.json",
+      "outcome": "accept",
+      "note": "Every paging field: the count scales down with the text size to at least 2, with a page indicator, buttons at regular width and a name for VoiceOver."
+    },
+    {
+      "file": "accept/repeat-paging-minimum-equals-compact.json",
+      "outcome": "accept",
+      "note": "The fewest a page shrinks to may equal the compact count."
+    },
+    {
+      "file": "accept/repeat-paging-one.json",
+      "outcome": "accept",
+      "note": "A page may hold one cell."
+    },
+    {
+      "file": "accept/repeat-paging-scale-flat.json",
+      "outcome": "accept",
+      "note": "A scale that never changes is not growing: [1, 1, 1, 1] is allowed."
+    },
+    {
+      "file": "accept/repeat-paging-twelve.json",
+      "outcome": "accept",
+      "note": "A page holds at most 12."
+    },
+    {
+      "file": "accept/repeat-placeholder-index-only.json",
+      "outcome": "accept",
+      "note": "The placeholder reads the position (index) but no record: it numbers its cells."
+    },
+    {
+      "file": "accept/repeat-placeholder-max.json",
+      "outcome": "accept",
+      "note": "The placeholder count is at most 24."
+    },
+    {
+      "file": "accept/repeat-placeholder.json",
+      "outcome": "accept",
+      "note": "While the flow has not answered, 6 placeholder cells are drawn from the second child, which has no record."
+    },
+    {
+      "file": "accept/repeat-reads-a-document-source.json",
+      "outcome": "accept",
+      "note": "A cell may read a document source as well as its record: the same fan state in every cell."
+    },
+    {
+      "file": "accept/repeat-two-in-a-page.json",
+      "outcome": "accept",
+      "note": "Two repeats of one page read the same flow (the flow runs once)."
+    },
+    {
+      "file": "accept/repeat-vertical.json",
+      "outcome": "accept",
+      "note": "A column of cells: a vertical repeat is not paged."
+    },
+    {
+      "file": "accept/repeat-with-a-rule.json",
+      "outcome": "accept",
+      "note": "A repeat may be shown by a rule of its own, which reads no record."
+    },
+    {
+      "file": "reject/records-index-in-a-parameter.json",
+      "outcome": "reject",
+      "note": "A parameter has no item: index there is invalid_combination.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/parameters/0/value"
+      }
+    },
+    {
+      "file": "reject/records-index-in-the-request.json",
+      "outcome": "reject",
+      "note": "The request has no item either.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/request/value"
+      }
+    },
+    {
+      "file": "reject/records-max-missing.json",
+      "outcome": "reject",
+      "note": "A records output says how many it gives.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/dataSources/5/inputs/output/max"
+      }
+    },
+    {
+      "file": "reject/records-max-over-hundred.json",
+      "outcome": "reject",
+      "note": "A records output holds at most 100.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/dataSources/5/inputs/output/max"
+      }
+    },
+    {
+      "file": "reject/records-max-zero.json",
+      "outcome": "reject",
+      "note": "And at least 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/dataSources/5/inputs/output/max"
+      }
+    },
+    {
+      "file": "reject/records-of-numbers.json",
+      "outcome": "reject",
+      "note": "A list of numbers is not a list of objects: binding_type at the output.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/output/kind"
+      }
+    },
+    {
+      "file": "reject/records-over-a-record.json",
+      "outcome": "reject",
+      "note": "The steps give one record, not a list: binding_type at the output.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/output/kind"
+      }
+    },
+    {
+      "file": "reject/records-schema-is-not-a-list.json",
+      "outcome": "reject",
+      "note": "The authored schema of a records flow is a list of objects: an object is invalid_combination.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/schema"
+      }
+    },
+    {
+      "file": "reject/records-schema-not-given.json",
+      "outcome": "reject",
+      "note": "The steps do not give what the schema says: binding_type at the schema.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/dataSources/5/inputs/schema"
+      }
+    },
+    {
+      "file": "reject/records-schema-of-any.json",
+      "outcome": "reject",
+      "note": "A list of anything says nothing the nodes can check against.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/schema"
+      }
+    },
+    {
+      "file": "reject/records-schema-of-text.json",
+      "outcome": "reject",
+      "note": "A list of text is not a list of objects.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/schema"
+      }
+    },
+    {
+      "file": "reject/repeat-axis-unknown.json",
+      "outcome": "reject",
+      "note": "The axis is horizontal or vertical.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/axis"
+      }
+    },
+    {
+      "file": "reject/repeat-component-ref-inside.json",
+      "outcome": "reject",
+      "note": "A saved component inside a repeat could hold a repeat: it is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "reject/repeat-index-in-a-sibling.json",
+      "outcome": "reject",
+      "note": "A node beside the repeat is outside it: index is refused there too.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/1/props/value/value/args/n"
+      }
+    },
+    {
+      "file": "reject/repeat-index-outside-a-repeat.json",
+      "outcome": "reject",
+      "note": "index outside a repeat or a flow step has no position: invalid_combination.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value/value/args/n"
+      }
+    },
+    {
+      "file": "reject/repeat-item-in-an-action-missing-field.json",
+      "outcome": "reject",
+      "note": "A record field an action reads must exist too.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/children/0/action/data/fields/brightness_pct/path"
+      }
+    },
+    {
+      "file": "reject/repeat-item-in-the-placeholder.json",
+      "outcome": "reject",
+      "note": "The placeholder has no record: item is refused there.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/1/children/0/props/value/value"
+      }
+    },
+    {
+      "file": "reject/repeat-item-in-the-repeats-own-rule.json",
+      "outcome": "reject",
+      "note": "The repeat itself is outside its records: a rule on the repeat that reads item is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/visibleWhen/left"
+      }
+    },
+    {
+      "file": "reject/repeat-item-outside-a-repeat.json",
+      "outcome": "reject",
+      "note": "item outside a repeat has no record: invalid_combination.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value/value"
+      }
+    },
+    {
+      "file": "reject/repeat-item-path-missing.json",
+      "outcome": "reject",
+      "note": "A path the flow's schema does not have: invalid_reference at the path.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/children/0/props/value/value/path"
+      }
+    },
+    {
+      "file": "reject/repeat-item-path-reserved.json",
+      "outcome": "reject",
+      "note": "A reserved segment is never a path: invalid_reference.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/children/0/props/value/value/path"
+      }
+    },
+    {
+      "file": "reject/repeat-limit-fraction.json",
+      "outcome": "reject",
+      "note": "The limit is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/limit"
+      }
+    },
+    {
+      "file": "reject/repeat-limit-over-hundred.json",
+      "outcome": "reject",
+      "note": "A records flow gives at most 100: the limit may not ask for more.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/limit"
+      }
+    },
+    {
+      "file": "reject/repeat-limit-zero.json",
+      "outcome": "reject",
+      "note": "The limit is at least 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/limit"
+      }
+    },
+    {
+      "file": "reject/repeat-nested.json",
+      "outcome": "reject",
+      "note": "A repeat does not hold a repeat: invalid_combination at the inner node.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/0/type"
+      }
+    },
+    {
+      "file": "reject/repeat-no-child.json",
+      "outcome": "reject",
+      "note": "A repeat draws one thing: it needs a first child.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-buttons-unknown.json",
+      "outcome": "reject",
+      "note": "The buttons are never or regular-width.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/paging/buttons"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-compact-fraction.json",
+      "outcome": "reject",
+      "note": "A count is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/paging/compact"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-compact-over-twelve.json",
+      "outcome": "reject",
+      "note": "A compact page holds at most 12.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/compact"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-compact-zero.json",
+      "outcome": "reject",
+      "note": "A page holds at least one cell.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/compact"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-minimum-over-compact.json",
+      "outcome": "reject",
+      "note": "The fewest a page shrinks to is at most the compact count.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/paging/minimum"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-minimum-over-regular.json",
+      "outcome": "reject",
+      "note": "And at most the regular count.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/paging/minimum"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-on-a-vertical-repeat.json",
+      "outcome": "reject",
+      "note": "A column is not paged: paging needs a horizontal repeat.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/paging"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-regular-over-twelve.json",
+      "outcome": "reject",
+      "note": "A regular page holds at most 12.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/regular"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-scale-grows.json",
+      "outcome": "reject",
+      "note": "The count never grows with the text size: 0.5 then 0.8 is refused.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/paging/scaleByTextSize"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-scale-over-one.json",
+      "outcome": "reject",
+      "note": "A factor is at most 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/scaleByTextSize/0"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-scale-three-steps.json",
+      "outcome": "reject",
+      "note": "There are four text-size steps: three factors are refused.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/scaleByTextSize"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-scale-zero.json",
+      "outcome": "reject",
+      "note": "A factor is above 0.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/paging/scaleByTextSize/3"
+      }
+    },
+    {
+      "file": "reject/repeat-paging-unknown-field.json",
+      "outcome": "reject",
+      "note": "Paging has its own fields only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/paging/loop"
+      }
+    },
+    {
+      "file": "reject/repeat-placeholder-over-24.json",
+      "outcome": "reject",
+      "note": "At most 24 placeholder cells.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/placeholder/count"
+      }
+    },
+    {
+      "file": "reject/repeat-placeholder-without-a-child.json",
+      "outcome": "reject",
+      "note": "A placeholder count needs the second child that is drawn.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/repeat-placeholder-zero.json",
+      "outcome": "reject",
+      "note": "At least one placeholder cell.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/placeholder/count"
+      }
+    },
+    {
+      "file": "reject/repeat-provider-is-a-record-flow.json",
+      "outcome": "reject",
+      "note": "A one-record flow is not a list: binding_type at the provider.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/providerId"
+      }
+    },
+    {
+      "file": "reject/repeat-provider-is-a-rows-flow.json",
+      "outcome": "reject",
+      "note": "A rows flow feeds a list of rows, not a repeat: binding_type at the provider.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/providerId"
+      }
+    },
+    {
+      "file": "reject/repeat-provider-missing.json",
+      "outcome": "reject",
+      "note": "The provider names no source: invalid_reference at providerId.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/providerId"
+      }
+    },
+    {
+      "file": "reject/repeat-provider-not-a-flow.json",
+      "outcome": "reject",
+      "note": "The provider is an entity source, not a flow: binding_type.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/providerId"
+      }
+    },
+    {
+      "file": "reject/repeat-provider-read-by-a-node.json",
+      "outcome": "reject",
+      "note": "A records flow is read through a repeat, never field by field: a read of it is invalid_reference.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/value/value/from/path"
+      }
+    },
+    {
+      "file": "reject/repeat-rows-list-over-a-records-flow.json",
+      "outcome": "reject",
+      "note": "A list of rows cannot show a records flow: binding_type at the provider.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/providerId"
+      }
+    },
+    {
+      "file": "reject/repeat-second-child-without-a-placeholder.json",
+      "outcome": "reject",
+      "note": "A second child with no placeholder count is not drawn: refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/1"
+      }
+    },
+    {
+      "file": "reject/repeat-spacing-missing.json",
+      "outcome": "reject",
+      "note": "The space between cells is always authored, never implicit.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/spacing"
+      }
+    },
+    {
+      "file": "reject/repeat-three-children.json",
+      "outcome": "reject",
+      "note": "And at most two: the cell and the placeholder.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/repeat-unknown-prop.json",
+      "outcome": "reject",
+      "note": "A repeat has its own props only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/template"
+      }
+    },
+    {
+      "file": "reject/repeat-word-blank.json",
+      "outcome": "reject",
+      "note": "A word is never blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/staleText"
+      }
+    },
+    {
+      "file": "reject/repeat-word-missing.json",
+      "outcome": "reject",
+      "note": "All five words are authored: loadingText is missing.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/loadingText"
+      }
     }
   ]
 }

@@ -76,6 +76,14 @@ public final class UKPageIndicator: UIView {
 
     @available(*, unavailable) required init?(coder: NSCoder) { fatalError() }
 
+    /// The width the marks take now: the capsule and the dots, or the short count from eleven pages on. A neighbour (the repeat's Previous and
+    /// Next buttons) reads it to sit beside the marks without copying their metrics.
+    public var marksWidth: CGFloat {
+        guard pageCount > 1 else { return 0 }
+        if PageIndicator.showsCount(pageCount: pageCount) { return ceil(countLabel.intrinsicContentSize.width) }
+        return ceil(dots.systemLayoutSizeFitting(UIView.layoutFittingCompressedSize).width)
+    }
+
     private func rebuildMarks() {
         dotViews.forEach { $0.removeFromSuperview() }
         dotViews = []
@@ -243,9 +251,12 @@ public final class UKPagedRowView: UIScrollView, UIScrollViewDelegate {
         let wanted = PagedRowMetrics.page(containing: firstVisible, perPage: perPage, pageCount: pageCount)
         guard wanted != currentPage else { return }
         let target = CGPoint(x: PagedRowMetrics.offset(ofPage: wanted, viewport: bounds.width, contentWidth: contentSize.width), y: 0)
-        let animated = animatesPaging && window != nil && !UIAccessibility.isReduceMotionEnabled
+        let animated = animatesPaging && window != nil && !UKMotion.reduceMotion
         isMovingToPage = animated
         setContentOffset(target, animated: animated)
+        // A jump (Reduce Motion, or no window) has settled already and wrote ``firstVisible`` itself, so ``reportPage`` stays silent; whatever
+        // shows the page (an indicator, buttons, the adjustable value) still needs to hear it.
+        if !animated { onFirstVisibleChange() }
     }
 
     /// Writes the page on screen into ``firstVisible``, once per page.
@@ -271,6 +282,9 @@ public final class UKPagedRowView: UIScrollView, UIScrollViewDelegate {
         followBinding()
         if !isMovingToPage {
             reportPage()
+            // A move the caller asked for already wrote ``firstVisible``, so ``reportPage`` has nothing new to say; the page on screen
+            // is still news to whatever shows it (an indicator, the previous and next buttons).
+            onFirstVisibleChange()
             announcePage()
         }
     }
@@ -298,7 +312,7 @@ public final class UKPagedRowView: UIScrollView, UIScrollViewDelegate {
         guard let target = PagedRowMetrics.page(from: currentPage, step: step, pageCount: pageCount) else { return false }
         // An animated move reports when it ends (`scrollViewDidEndScrollingAnimation`); without a window or with Reduce Motion the
         // offset jumps and no end callback comes, so the page is reported here.
-        let animated = animatesPaging && window != nil && !UIAccessibility.isReduceMotionEnabled
+        let animated = animatesPaging && window != nil && !UKMotion.reduceMotion
         isMovingToPage = animated
         setContentOffset(CGPoint(x: PagedRowMetrics.offset(ofPage: target, viewport: bounds.width, contentWidth: contentSize.width), y: 0), animated: animated)
         if !animated { reportPage() }

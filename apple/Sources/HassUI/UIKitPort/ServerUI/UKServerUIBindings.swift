@@ -266,6 +266,10 @@ final class UKServerUIBindings {
     /// renderer sets it once it exists; without one an expression sees an empty house and is unavailable.
     var readerProvider: (() -> UKServerUIReader)?
 
+    /// The repeat cell whose expressions are being run now, or `nil`. It is set around a cell's observations and around a tap in a cell
+    /// (``UKServerUICellScope``), never held across a turn.
+    var cell: UKServerUICellScope?
+
     /// A text slot's value: a literal, a typed read, or an operand (`sh.rules@1`), each with the fallback it carries
     /// (``ServerUIStringResolver``). Evaluated inside the caller's observation, so it follows exactly the entities it reads.
     func string(_ value: D.StringValue) -> UKServerUIValue<String> {

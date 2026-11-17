@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-hour-evening",
+  "note": "Seven in the evening is 7 PM, and the minutes are not shown (WeatherDates.swift:55-59).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T19:05:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "hour"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "7 PM"
+  }
+}

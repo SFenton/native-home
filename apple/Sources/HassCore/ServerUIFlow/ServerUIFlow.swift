@@ -114,6 +114,13 @@ public struct ServerUIFlow: Equatable, Sendable {
         case flatten(path: [String])
         case unique(by: ServerUIOperand)
         case `default`(path: [String], value: ServerUIOperand)
+        /// The lowest and the highest number the operand gives over the list, `null` when there is none (`sh.flow-extras@1`).
+        case min(ServerUIOperand)
+        case max(ServerUIOperand)
+        /// A running total written onto every object as `into` (`sh.flow-extras@1`); with `nullPropagates` a gap makes every later total `null`.
+        case runningSum(value: ServerUIOperand, into: String, nullPropagates: Bool)
+        /// Each field's aggregate over the whole list, written onto every object in it (`sh.flow-extras@1`).
+        case annotate([String: Annotation])
 
         /// The name a document writes (`op`).
         public var name: String {
@@ -131,8 +138,22 @@ public struct ServerUIFlow: Equatable, Sendable {
             case .flatten: "flatten"
             case .unique: "unique"
             case .default: "default"
+            case .min: "min"
+            case .max: "max"
+            case .runningSum: "running-sum"
+            case .annotate: "annotate"
             }
         }
+    }
+
+    /// One field of an `annotate` step: which aggregate and over which value.
+    public struct Annotation: Equatable, Sendable {
+        /// The aggregate taken over the list.
+        public enum Aggregate: String, Sendable, CaseIterable { case min, max }
+        /// Which aggregate to take.
+        public let aggregate: Aggregate
+        /// The value each item contributes, read from the item.
+        public let value: ServerUIOperand
     }
 
     /// One key of a `sort` step.
@@ -149,9 +170,11 @@ public struct ServerUIFlow: Equatable, Sendable {
         public let kind: Kind
     }
 
-    /// What a flow gives: a list of rows, one record, or one value.
+    /// What a flow gives: a list of rows, a list of records, one record, or one value.
     public enum Output: Equatable, Sendable {
         case rows(max: Int, row: Row)
+        /// The final list, every item an object typed by `schema`, for a `repeat` node to draw (`sh.repeat@1`).
+        case records(max: Int)
         case record
         case scalar
 
@@ -180,6 +203,12 @@ public struct ServerUIFlow: Equatable, Sendable {
     /// Whether the flow gives rows (the only kind a list can show).
     public var givesRows: Bool { if case .rows = output { true } else { false } }
 
+    /// Whether the flow gives records (the only kind a `repeat` can draw).
+    public var givesRecords: Bool { if case .records = output { true } else { false } }
+
+    /// Whether the flow gives a list a node draws: rows or records.
+    public var givesList: Bool { givesRows || givesRecords }
+
     /// Whether a person can pull the flow to run it again.
     public var refreshesManually: Bool { refresh?.on.contains(.manual) == true }
 
@@ -196,7 +225,9 @@ public struct ServerUIFlow: Equatable, Sendable {
         }
         for step in steps {
             switch step.operation {
-            case .selectKey(let operand), .group(let operand), .sum(let operand), .unique(let operand), .default(_, let operand): result.append(operand)
+            case .selectKey(let operand), .group(let operand), .sum(let operand), .unique(let operand), .default(_, let operand),
+                 .min(let operand), .max(let operand), .runningSum(let operand, _, _): result.append(operand)
+            case .annotate(let fields): result += fields.values.map(\.value)
             case .sort(let keys): result += keys.map(\.value)
             case .map(let fields): result += fields.values
             case .filter, .get, .limit, .count, .first, .flatten: break

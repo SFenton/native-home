@@ -5,7 +5,7 @@ import Foundation
 extension ServerUICompositionShape {
     /// The most a library entry and a use of it may hold (the Studio's `COMPONENT_LIMITS`).
     enum ComponentLimits {
-        static let parameters = 16, bindings = 128, arguments = 16, sources = 8
+        static let parameters = 16, bindings = 128, arguments = 16, sources = 8, flows = 8
     }
     /// The kinds a parameter may have, as the Studio's `ComponentParamKind`.
     static let componentParameterKinds = ["source-id", "page-id", "modal-id", "entity-id", "state-id", "text", "symbol"]
@@ -35,6 +35,8 @@ extension ServerUICompositionShape {
                 "name": id, "kind": .choice(componentParameterKinds), "label": .optional(label)
             ]), ComponentLimits.parameters)),
             "sources": .optional(array(componentSource, ComponentLimits.sources)),
+            // The Data Flows it owns (`sh.repeat@1`), copied and renamed for each use like its sources.
+            "flows": .optional(array(pipelineSource, ComponentLimits.flows)),
             "bindings": .optional(array(object([
                 "param": id, "nodeId": .optional(id), "sourceId": .optional(id), "field": .text(160, blank: false)
             ]), ComponentLimits.bindings)),

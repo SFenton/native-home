@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Date styles
 
-/// The six date styles of a `format` operand (`formats[name] = { date: { style } }`, `sh.pipeline-operands@1`).
+/// The date styles of a `format` operand (`formats[name] = { date: { style } }`: six under `sh.pipeline-operands@1`, `hour` and `weekday` under `sh.flow-extras@1`).
 ///
 /// A style is a name, never a pattern string: a pattern would freeze one region's order into every published layout.
 public enum ServerUIDateStyle: String, Sendable, CaseIterable {
@@ -12,6 +12,10 @@ public enum ServerUIDateStyle: String, Sendable, CaseIterable {
     case time
     case dateTime = "date-time"
     case relative
+    /// The hour only, `7 PM` (`sh.flow-extras@1`).
+    case hour
+    /// The short weekday, `Mon` (`sh.flow-extras@1`).
+    case weekday
 }
 
 /// How one argument of a `format` operand is drawn: a number with at most six fraction digits, a date in one of the closed styles, or
@@ -25,7 +29,7 @@ public enum ServerUIFormatSpec: Equatable, Sendable {
 
 // MARK: - Drawing a date
 
-/// Draws a date or a date and time in one of the six styles.
+/// Draws a date or a date and time in one of the styles.
 ///
 /// **United States English is pinned.** For `en_US` (and for a reader that gives no locale) the text is the Studio's: all integer
 /// arithmetic, so the evaluation corpus holds the exact bytes and no time-zone database, `Intl` or ICU data version can change them
@@ -40,6 +44,8 @@ public enum ServerUIFormatSpec: Equatable, Sendable {
 /// | `time` | `9:41 AM` (a date without a time is midnight: `12:00 AM`) |
 /// | `date-time` | `Nov 12 at 9:41 AM` (the short date's year rule) |
 /// | `relative` | `Today`, `Yesterday`, `Tomorrow`, `3 days ago`, `In 3 days`: whole days on the clock |
+/// | `hour` | `7 PM`, `12 AM`: the hour only (`sh.flow-extras@1`) |
+/// | `weekday` | `Mon`: the short weekday name (`sh.flow-extras@1`) |
 ///
 /// `short-date`, `date-time` and `relative` need the clock (they ask what today is); without one they have no text.
 public enum ServerUIDateFormat {
@@ -85,6 +91,10 @@ public enum ServerUIDateFormat {
             let weekday = ((time.days + 4) % 7 + 7) % 7
             return "\(weekdays[weekday]), \(monthShort) \(day)"
         case .time: return clockText(time.seconds)
+        case .hour:
+            let hour = time.seconds / 3_600
+            return "\(hour % 12 == 0 ? 12 : hour % 12) \(hour < 12 ? "AM" : "PM")"
+        case .weekday: return weekdays[((time.days + 4) % 7 + 7) % 7]
         case .shortDate, .dateTime:
             guard let today else { return nil }
             let date = "\(monthShort) \(day)\(year == today.year ? "" : ", \(year)")"
@@ -116,6 +126,8 @@ public enum ServerUIDateFormat {
         case .longDate: formatter.dateStyle = .long; formatter.timeStyle = .none
         case .weekdayDate: formatter.setLocalizedDateFormatFromTemplate("EEEMMMd")
         case .time: formatter.dateStyle = .none; formatter.timeStyle = .short
+        case .hour: formatter.setLocalizedDateFormatFromTemplate("j")
+        case .weekday: formatter.setLocalizedDateFormatFromTemplate("EEE")
         case .shortDate: formatter.setLocalizedDateFormatFromTemplate(sameYear ? "MMMd" : "yMMMd")
         case .dateTime: formatter.setLocalizedDateFormatFromTemplate(sameYear ? "MMMdjmm" : "yMMMdjmm")
         case .relative:
@@ -132,6 +144,8 @@ public enum ServerUIDateFormat {
 }
 
 extension ServerUIDateStyle {
+    /// Whether the style needs `sh.flow-extras@1` (`hour` and `weekday`).
+    var needsFlowExtras: Bool { self == .hour || self == .weekday }
     /// Whether the style asks what today is (`short-date`, `date-time` and `relative`), so it needs the clock and re-draws with it.
     var needsClock: Bool { self == .shortDate || self == .dateTime || self == .relative }
 }

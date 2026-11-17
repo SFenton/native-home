@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "name": "date-hour-morning",
+  "note": "Seven in the morning is 7 AM.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{d}",
+      "args": {
+        "d": {
+          "type": "literal",
+          "value": "2026-11-12T07:00:00"
+        }
+      },
+      "formats": {
+        "d": {
+          "date": {
+            "style": "hour"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "locale": "en_US",
+    "clock": {
+      "now": "2026-11-15T09:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "7 AM"
+  }
+}

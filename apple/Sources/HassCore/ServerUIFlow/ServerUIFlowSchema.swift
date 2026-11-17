@@ -32,7 +32,13 @@ extension ServerUICompositionShape {
             "first": step("first", [:]),
             "flatten": step("flatten", ["path": path(minimum: 0)]),
             "unique": step("unique", ["by": flowOperand]),
-            "default": step("default", ["path": path(minimum: 1), "value": flowOperand])
+            "default": step("default", ["path": path(minimum: 1), "value": flowOperand]),
+            // `sh.flow-extras@1`
+            "min": step("min", ["value": flowOperand]),
+            "max": step("max", ["value": flowOperand]),
+            "running-sum": step("running-sum", ["value": flowOperand, "into": .text(160, blank: true), "nullPropagates": .bool]),
+            "annotate": step("annotate", ["fields": .dictionary(.text(10_000, blank: true), object([
+                "aggregate": .choice(ServerUIFlow.Annotation.Aggregate.allCases.map(\.rawValue)), "value": flowOperand]), 100_000)])
         ])
         let target = Shape.object(Dictionary(uniqueKeysWithValues: ["entity_id", "device_id", "area_id", "floor_id", "label_id"].map {
             ($0, Shape.optional(flowOperand))
@@ -61,6 +67,8 @@ extension ServerUICompositionShape {
             "rows": object(["kind": fixed("rows"), "max": .number(1, Double(limits.rows), integer: true),
                             "row": object(["id": flowOperand, "title": flowOperand, "subtitle": .optional(flowOperand),
                                            "value": .optional(flowOperand)])]),
+            // `sh.repeat@1`
+            "records": object(["kind": fixed("records"), "max": .number(1, Double(limits.rows), integer: true)]),
             "record": object(["kind": fixed("record")]),
             "scalar": object(["kind": fixed("scalar")])
         ])

@@ -4,7 +4,7 @@ import HassCore
 
 // MARK: - Data Flows of a window
 
-/// The Data Flows (`sh.pipeline@1`) of each window: one ``ServerUIFlowSession`` per flow that gives rows, and the collection it fills.
+/// The Data Flows (`sh.pipeline@1`) of each window: one ``ServerUIFlowSession`` per flow that gives rows or records, and the collection it fills.
 ///
 /// A session is kept while its flow stays in the publication and is replaced when the flow changes; the collection object is what the
 /// list draws, so a republish that leaves a flow alone never blanks its rows. The validating window never starts a session.
@@ -29,7 +29,7 @@ final class UKServerUIFlowWindows {
         var current = windows[window] ?? [:]
         var kept: [String: Kept] = [:]
         for source in document.dataSources {
-            guard case .pipeline(let id, let flow) = source, flow.givesRows else { continue }
+            guard case .pipeline(let id, let flow) = source, flow.givesList else { continue }
             let existing = current.removeValue(forKey: id)
             if let existing, existing.session.flow == flow, existing.hostKey == hostKey {
                 kept[id] = existing

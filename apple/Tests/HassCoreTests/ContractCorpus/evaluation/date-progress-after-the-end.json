@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "date-progress-after-the-end",
+  "note": "After the last moment it is 1.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-14T06:00:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-15T08:00:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

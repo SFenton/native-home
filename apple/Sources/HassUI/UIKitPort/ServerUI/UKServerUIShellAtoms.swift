@@ -48,6 +48,30 @@ final class UKServerUIPagedRow: UIView, UKGridMeasuring {
     private var indicator: UKPageIndicator?
     private var definition: ServerUICompositionDocument.PagedRow?
     private var configuredCount = 0
+    /// The points taken from each side of every cell, so cells on a page stand apart (a `repeat`'s spacing is twice this).
+    var cellInset: CGFloat = 0 { didSet { if cellInset != oldValue { cells.forEach { $0.inset = cellInset }; setNeedsLayout() } } }
+    /// How many pages the row has, and the one on screen.
+    var pageCount: Int { row?.pageCount ?? 0 }
+    var currentPage: Int { row?.currentPage ?? 0 }
+    /// The width of the indicator's marks (the dots, or the count), for a neighbour that sits beside them.
+    var marksWidth: CGFloat { indicator?.marksWidth ?? 0 }
+    /// Moves to a page, clamped to the pages there are.
+    func show(page: Int) {
+        guard let row, row.pageCount > 0 else { return }
+        row.firstVisible = row.firstIndex(ofPage: max(0, min(row.pageCount - 1, page)))
+    }
+    /// The colour of the page indicator's current dot; `nil` is the app's ink on its dark ground. A repeat in a sheet that follows the system
+    /// appearance passes the dynamic label colour, so the dots read in light as well.
+    var ink: UIColor?
+    /// Whether the row keeps the count its definition gives at an accessibility text size instead of one cell a page (a `repeat` says how
+    /// many cells a page holds at each text size itself).
+    var keepsAuthoredCount = false
+    private var effectivePerPage: Int {
+        guard let definition else { return 1 }
+        return traitCollection.ukIsAccessibilitySize && !keepsAuthoredCount ? 1 : definition.perPage
+    }
+    /// Called when the page on screen or the number of pages changes.
+    var onPageChange: (() -> Void)?
     var blocksPublication: Bool { row?.isTracking == true || row?.isDragging == true || row?.isDecelerating == true }
 
     func needsReparent(_ views: [UIView]) -> Bool { children != views }
@@ -61,27 +85,40 @@ final class UKServerUIPagedRow: UIView, UKGridMeasuring {
         self.children = children
         if changed || row == nil {
             let first = oldFirst.flatMap { children.firstIndex(of: $0) } ?? min(oldIndex, max(0, children.count - 1))
-            let perPage = traitCollection.ukIsAccessibilitySize ? 1 : definition.perPage
-            row?.removeFromSuperview()
-            cells = children.map(UKServerUIPagedCell.init)
-            let row = UKPagedRowView(itemCount: cells.count, perPage: perPage,
-                animatesPaging: !UIAccessibility.isReduceMotionEnabled) { [weak self] index in
-                    guard let self, cells.indices.contains(index) else { return UIView() }
-                    return cells[index]
-                }
-            self.row = row
-            configuredCount = perPage
-            row.firstVisible = first
-            row.onFirstVisibleChange = { [weak self] in
-                guard let self, let row = self.row else { return }
-                indicator?.page = row.currentPage
+            let perPage = effectivePerPage
+            // A cell whose view is still there keeps its wrapper, so a longer or shorter list leaves the others where they are.
+            let kept = cells
+            cells = children.map { child in
+                let cell = kept.first { $0.content === child } ?? UKServerUIPagedCell(child, inset: cellInset)
+                if cell.content.superview !== cell { cell.addSubview(cell.content) }
+                return cell
             }
-            addSubview(row)
+            if let row {
+                // The scroll view stays: a count change does not replace it under a finger.
+                configuredCount = perPage
+                row.reload(itemCount: cells.count, perPage: perPage)
+                row.firstVisible = first
+            } else {
+                let row = UKPagedRowView(itemCount: cells.count, perPage: perPage,
+                    animatesPaging: !UKMotion.reduceMotion) { [weak self] index in
+                        guard let self, cells.indices.contains(index) else { return UIView() }
+                        return cells[index]
+                    }
+                self.row = row
+                configuredCount = perPage
+                row.firstVisible = first
+                row.onFirstVisibleChange = { [weak self] in
+                    guard let self, let row = self.row else { return }
+                    indicator?.page = row.currentPage
+                    onPageChange?()
+                }
+                addSubview(row)
+            }
         }
         if indicator?.label != definition.pageLabel {
             indicator?.removeFromSuperview()
             let indicator = UKPageIndicator(page: row?.currentPage ?? 0, pageCount: row?.pageCount ?? 0,
-                label: definition.pageLabel, identifier: definition.node.id + ".pages") { [weak self] page in
+                label: definition.pageLabel, identifier: definition.node.id + ".pages", ink: ink) { [weak self] page in
                     guard let row = self?.row else { return }
                     row.firstVisible = row.firstIndex(ofPage: page)
                 }
@@ -93,7 +130,7 @@ final class UKServerUIPagedRow: UIView, UKGridMeasuring {
 
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
         guard let definition else { return 0 }
-        let count = traitCollection.ukIsAccessibilitySize ? 1 : definition.perPage
+        let count = effectivePerPage
         if configuredCount != count {
             configuredCount = count
             row?.reload(perPage: count)
@@ -106,23 +143,25 @@ final class UKServerUIPagedRow: UIView, UKGridMeasuring {
         super.layoutSubviews()
         guard let definition, let row else { return }
         _ = gridHeight(forWidth: bounds.width)
-        row.animatesPaging = !UIAccessibility.isReduceMotionEnabled
+        row.animatesPaging = !UKMotion.reduceMotion
         let shows = definition.showsIndicator && row.pageCount > 1
         row.frame = .init(x: 0, y: 0, width: bounds.width, height: max(0, bounds.height - (shows ? 44 : 0)))
         indicator?.isHidden = !shows
-        if indicator?.pageCount != row.pageCount { indicator?.pageCount = row.pageCount }
+        if indicator?.pageCount != row.pageCount { indicator?.pageCount = row.pageCount; onPageChange?() }
         indicator?.frame = .init(x: 0, y: row.frame.maxY, width: bounds.width, height: shows ? 44 : 0)
     }
 }
 
 /// Bridges width-measured composition children into the native pager's Auto Layout fitting contract.
 @MainActor
-private final class UKServerUIPagedCell: UIView {
+final class UKServerUIPagedCell: UIView {
     let content: UIView
-    init(_ content: UIView) { self.content = content; super.init(frame: .zero); addSubview(content) }
+    var inset: CGFloat
+    init(_ content: UIView, inset: CGFloat = 0) { self.content = content; self.inset = inset; super.init(frame: .zero); addSubview(content) }
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-    func height(width: CGFloat) -> CGFloat {
+    func height(width fullWidth: CGFloat) -> CGFloat {
+        let width = max(0, fullWidth - inset * 2)
         if let content = content as? any UKGridMeasuring { return content.gridHeight(forWidth: width) }
         return content.systemLayoutSizeFitting(.init(width: width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
@@ -131,6 +170,6 @@ private final class UKServerUIPagedCell: UIView {
                                          verticalFittingPriority vertical: UILayoutPriority) -> CGSize {
         .init(width: targetSize.width, height: height(width: targetSize.width))
     }
-    override func layoutSubviews() { super.layoutSubviews(); content.frame = bounds }
+    override func layoutSubviews() { super.layoutSubviews(); content.frame = bounds.insetBy(dx: inset, dy: 0) }
 }
 #endif

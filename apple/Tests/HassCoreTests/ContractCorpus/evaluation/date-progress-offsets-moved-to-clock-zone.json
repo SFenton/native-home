@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "date-progress-offsets-moved-to-clock-zone",
+  "note": "Moments with offsets are moved to the clock's zone: 14:00 UTC to 00:00 UTC is 6 AM to 4 PM at -08:00.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "progress",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-15T14:00:00Z"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-16T00:00:00Z"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-15T08:30:00",
+      "utcOffsetMinutes": -480
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0.25
+  }
+}

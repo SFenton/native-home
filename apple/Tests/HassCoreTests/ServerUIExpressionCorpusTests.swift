@@ -36,7 +36,7 @@ struct ServerUIExpressionCorpusTests {
     @Test func theCorpusIsWholeAndNamedByItsFiles() throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".json") }
         #expect(Self.cases.count == names.count, "a file did not decode")
-        #expect(Self.cases.count >= 250)
+        #expect(Self.cases.count >= 284 + 35)
         let answers = Set(Self.cases.compactMap { $0.expected["tri"]?.string })
         #expect(answers == ["yes", "no", "unknown"])
         let statuses = Set(Self.cases.compactMap { $0.expected["status"]?.string })
@@ -59,6 +59,7 @@ struct ServerUIExpressionCorpusTests {
         var viewer: ServerUIViewer?
         var clock: ServerUIClock?
         var item: JSONValue?
+        var index: Int?
         var parameters: [String: JSONValue] = [:]
         var isFlow = false
         var locale: Locale?
@@ -92,6 +93,7 @@ struct ServerUIExpressionCorpusTests {
             result.clock = ServerUIClock(now: now, utcOffsetMinutes: Int(offset))
         }
         result.item = env["item"]
+        result.index = env["index"]?.number.map { Int($0) }
         if case .object(let parameters)? = env["params"] { result.parameters = parameters }
         result.isFlow = env["flow"]?.bool == true
         result.locale = env["locale"]?.string.map(Locale.init(identifier:))

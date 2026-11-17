@@ -56,6 +56,13 @@ struct UKServerUIReader: ServerUIReading {
         self.controlValue = controlValue
     }
 
+    /// The record of the repeat cell being drawn (`item` operands, `sh.repeat@1`); `nil` outside a cell. Reading it inside an observation
+    /// follows the cell's own record, so one record changing re-runs only the expressions of its cell.
+    var item: JSONValue? { MainActor.assumeIsolated { bindings.cell?.record } }
+
+    /// The position of the repeat cell being drawn (`index` operands).
+    var index: Int? { MainActor.assumeIsolated { bindings.cell?.index } }
+
     var viewer: ServerUIViewer? {
         MainActor.assumeIsolated { viewerSource.viewer(in: bindings.context.store) }
     }
