@@ -270,6 +270,8 @@ final class UKGlassTileFaceView: UIView {
     var drawnGlyphColor: UIColor { glyphView.tintColor }
     var drawnGlyphAlpha: CGFloat { glyphView.alpha }
     var drawnStateLineColor: UIColor { subtitleLabel.textColor }
+    /// The band's frame in the face's coordinates (its right edge is the level), for tests of where the swipe's bubble sits.
+    var drawnBandFrame: CGRect { bandLayer.frame }
     private var layoutKind: TileLayout { environment.layout.resolved(accessibilitySize: traits.ukIsAccessibilitySize) }
 
     /// The caller's tint as a glyph on the face: unchanged on dark, darkened to 3:1 on a light cell.

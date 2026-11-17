@@ -258,13 +258,14 @@ final class UKTileSwipeController: NSObject, UIGestureRecognizerDelegate {
 
     // MARK: Delegate
 
-    /// C1: a start that is mostly horizontal. C3: no horizontal scroller above. C6: no other tile is dragging. Disabled tiles take no drag.
+    /// C1: a start that is mostly horizontal by travel and by velocity (``TileSwipeStart``). C3: no horizontal scroller above. C6: no other tile is dragging. Disabled tiles take no drag.
     func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         guard let pan = recognizer as? UIPanGestureRecognizer, isEnabled() else { return false }
         if let active = Self.active, active !== self { return false }
         if host?.ukHasHorizontalScrollerAbove == true { return false }
-        let velocity = pan.velocity(in: pan.view)
-        return abs(velocity.x) > abs(velocity.y)
+        // The stroke's own shape and its velocity must both say sideways: a first sample that leans sideways cannot start a swipe on a stroke that
+        // has gone up the page at 60 degrees (a diagonal-steep start is the scroll's).
+        return TileSwipeStart.isHorizontal(translation: pan.translation(in: pan.view), velocity: pan.velocity(in: pan.view))
     }
 
     /// C5: a touch that starts on a disc is the disc's.

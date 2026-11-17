@@ -179,6 +179,83 @@ final class ModalSizingJourneyTests: JourneyTestCase {
     func testFilterHeaderHasNoTranslucentBandLight() { assertFilterHeaderHasNoBand("light") }
     func testFilterHeaderHasNoTranslucentBandDark() { assertFilterHeaderHasNoBand("dark") }
 
+    // MARK: - Dismissal
+
+    /// Drags down `distance` points from `element`'s centre, held at the end.
+    private func dragDown(_ element: XCUIElement, in app: XCUIApplication, distance: CGFloat = 420) {
+        let start = element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: distance)), withVelocity: .default, thenHoldForDuration: 0.2)
+    }
+
+    /// A short sheet follows a vertical drag down and closes, from its body and from its top strip (HIG Sheets, "support swiping vertically to
+    /// dismiss"; `.agents/design/motion.md`). The `sheet-portrait` finding: on the iPad in portrait the sheet stayed. On every family, in each
+    /// orientation the family rotates to (the Duo does not rotate in a test, devices.md).
+    private func assertDragDownDismisses(landscape: Bool, kind: String = "short") {
+        let rotates = FentonHomeApp.family != .iPhoneDuo
+        if rotates { XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait }
+        continueAfterFailure = true
+        for start in ["header", "body"] {
+            let app = open(kind)
+            let close = element("sizing.close", in: app)
+            XCTAssertTrue(close.exists)
+            let scroll = element("sizing.\(kind).scroll", in: app)
+            keepScreenshot(app, "modal-open-\(kind)-\(landscape ? "landscape" : "portrait")-\(layout)")
+            let title = kind == "short" ? "Lighting Mode" : "Palette"
+            let target = start == "body" ? scroll : app.staticTexts[title].firstMatch
+            dragDown(target, in: app)
+            let gone = NSPredicate(format: "exists == false")
+            let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: gone, object: close)], timeout: 6)
+            keepScreenshot(app, "modal-drag-\(kind)-\(start)-\(landscape ? "landscape" : "portrait")-\(layout)")
+            XCTAssertEqual(result, .completed, "A drag down from the sheet's \(start) closes it (\(landscape ? "landscape" : "portrait"))")
+            if result != .completed { close.tap() }
+        }
+    }
+
+    func testDragDownDismissesAShortSheetInPortrait() { assertDragDownDismisses(landscape: false) }
+    func testDragDownDismissesAShortSheetInLandscape() { assertDragDownDismisses(landscape: true) }
+    // The full-height form sheet closes by Close in iPad portrait, not by a drag: `.agents/decisions/2026-11-16-ipad-full-form-sheet.md`.
+    func testDragDownDismissesAFullHeightFormSheetInLandscape() { assertDragDownDismisses(landscape: true, kind: "fullForm") }
+
+    // MARK: - Close exit
+
+    /// The full-height form sheet is centred on the iPad and the system keeps it there in portrait, so Close is its exit: it exists, can be
+    /// hit, sits at the sheet's top trailing corner, has a 44 pt hit target, and closes the sheet
+    /// (`.agents/decisions/2026-11-16-ipad-full-form-sheet.md`; HIG Buttons, minimum hit region; HIG Modality, an obvious dismissal).
+    /// The system's `.close` bar item draws at 36 pt (38 on the folded Duo) and XCUITest reports that drawn frame, so the 44 pt target is
+    /// asserted the way `HeaderButtonsJourneyTests.testBothButtonsHaveA44PointTarget` does: a tap 19 pt off centre (inside 44, outside
+    /// the frame) still closes the sheet. Left, right and below stay inside the bar; each tap gets a fresh sheet. The Duo does not rotate
+    /// in a test.
+    private func assertFullHeightFormSheetClosesByClose(landscape: Bool) {
+        if FentonHomeApp.family != .iPhoneDuo { XCUIDevice.shared.orientation = landscape ? .landscapeLeft : .portrait }
+        let pose = landscape ? "landscape" : "portrait"
+        for (name, offset) in [("centre", CGVector(dx: 0, dy: 0)), ("19 pt left", CGVector(dx: -19, dy: 0)),
+                               ("19 pt right", CGVector(dx: 19, dy: 0)), ("19 pt below", CGVector(dx: 0, dy: 19))] {
+            let app = open("fullForm")
+            let close = element("sizing.close", in: app)
+            let scroll = element("sizing.fullForm.scroll", in: app)
+            XCTAssertTrue(close.exists && close.isHittable, "Close is on screen and can be hit (\(pose))")
+            // The scroll view spans the sheet's width and starts at its top edge, so the corner is read against it.
+            XCTAssertGreaterThan(close.frame.midX, scroll.frame.midX, "Close sits on the trailing side (\(pose))")
+            XCTAssertGreaterThanOrEqual(close.frame.maxX, scroll.frame.maxX - 24, "Close sits at the trailing corner (\(pose))")
+            if FentonHomeApp.family == .iPhoneDuo {
+                // The folded Duo moves bar items into its vertical bar on the trailing edge (devices.md), so Close is beside the sheet's
+                // content, not above it: it must still be inside the sheet's height.
+                XCTAssertTrue((scroll.frame.minY...scroll.frame.maxY).contains(close.frame.midY), "Close sits in the trailing rail (\(pose))")
+            } else {
+                XCTAssertLessThan(close.frame.midY, scroll.frame.minY + 60, "Close sits in the top bar (\(pose))")
+            }
+            if name == "centre" { keepScreenshot(app, "modal-close-exit-\(pose)-\(layout)") }
+            close.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).withOffset(offset).tap()
+            let gone = NSPredicate(format: "exists == false")
+            let result = XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: gone, object: close)], timeout: 6)
+            XCTAssertEqual(result, .completed, "A tap \(name) of Close dismisses the sheet (\(pose))")
+            if result != .completed { close.tap() }
+        }
+    }
+
+    func testFullHeightFormSheetClosesByCloseInPortrait() { assertFullHeightFormSheetClosesByClose(landscape: false) }
+    func testFullHeightFormSheetClosesByCloseInLandscape() { assertFullHeightFormSheetClosesByClose(landscape: true) }
+
     // MARK: - Pixels
 
     /// The most blue-over-red and most red-over-blue any pixel in `frame` is, 0 for greys: text in the tint shows a
