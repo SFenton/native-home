@@ -11,7 +11,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .common import DEFAULT_DENSITY, Runner, png_size, run, parse_json, write_json
 
@@ -59,6 +59,36 @@ class Agent:
         if point:
             return self.call("press", f"{point[0]:g}", f"{point[1]:g}")
         return self.call("press", f'label="{label}"')
+
+    def scroll_bottom(self, max_swipes: int = 8) -> Dict[str, Any]:
+        """Scroll the page's main scroll view to the end of its content.
+
+        ``agent-device scroll bottom`` first; some pages ignore a synthesized scroll ("moved nothing across 3 passes"), so on a refusal
+        the page is dragged with ``swipe`` instead (the command's own hint), from the lower-middle to the upper-middle of the screen,
+        until the AX frames stop changing (the end) or ``max_swipes`` is reached. Returns ``success`` and the ``method`` used.
+        """
+        first = self.call("scroll", "bottom")
+        if first.get("success"):
+            return {**first, "method": "scroll"}
+        rects = [r for n in self.snapshot() if (r := _node_rect(n))]  # the screen is the largest frame (the Application node)
+        screen = max(rects, key=lambda r: r["width"] * r["height"], default=None)
+        if not screen:
+            return first
+        x, top, bottom = screen["x"] + screen["width"] / 2, screen["y"] + screen["height"] * 0.3, screen["y"] + screen["height"] * 0.7
+        before = self.frames()
+        for count in range(1, max_swipes + 1):
+            if not self.call("swipe", f"{x:g}", f"{bottom:g}", f"{x:g}", f"{top:g}").get("success"):
+                return {"success": False, "method": "swipe", "swipes": count - 1}
+            self.settle()
+            after = self.frames()
+            if after == before:
+                return {"success": True, "method": "swipe", "swipes": count}
+            before = after
+        return {"success": True, "method": "swipe", "swipes": max_swipes}
+
+    def frames(self) -> List[Any]:
+        """The frames of the labelled nodes now on screen: equal before and after a swipe means the page did not move."""
+        return [(_ax_label(n), _frame(n)) for n in self.snapshot() if _ax_label(n)]
 
     def settle(self) -> Dict[str, Any]:
         return self.call("wait", "stable", "1000", "15000")
@@ -251,6 +281,29 @@ def _frame(node: Mapping[str, Any]) -> Optional[List[float]]:
     return [round(rect[k], 2) for k in ("x", "y", "width", "height")] if rect else None
 
 
+def dropped_indexes(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, Any]]) -> Set[int]:
+    """Indexes of the nodes a ``drop`` rule removes from the compared AX sequence.
+
+    ``"drop": "within"`` removes each matching node and every node whose frame lies inside its frame (a bar and its buttons: the
+    shell chrome a page-region compare leaves out); ``"drop": "node"`` removes only the matching nodes. The frames come from the
+    AX tree, never from fixed pixel rows.
+    """
+    gone: Set[int] = set()
+    for rule in mask_rules:
+        mode = rule.get("drop")
+        if not mode:
+            continue
+        for index, node in enumerate(nodes):
+            if not _matches(rule, node):
+                continue
+            gone.add(index)
+            outer = _node_rect(node)
+            if mode == "within" and outer:
+                gone.update(j for j, other in enumerate(nodes)
+                            if j != index and (inner := _node_rect(other)) is not None and _rect_contains(outer, inner))
+    return gone
+
+
 def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, str]] = ()) -> List[Dict[str, Any]]:
     """The compared AX sequence: role, label, value class, enabled, selected, traits and frame (points).
 
@@ -259,9 +312,10 @@ def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappin
     frames are compared with a tolerance by ``tools/expo_pair_compare.py``.
     """
     patterns = [re.compile(r["ax_match"]) for r in mask_rules if r.get("ax_match")]
+    dropped = dropped_indexes(nodes, mask_rules)
     out: List[Dict[str, Any]] = []
-    for node in nodes:
-        if is_noise(node):
+    for index, node in enumerate(nodes):
+        if is_noise(node) or index in dropped:
             continue
         label = _ax_label(node)
         if label and any(p.search(label) for p in patterns):
@@ -274,9 +328,10 @@ def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappin
 
 
 def _matches(rule: Mapping[str, str], node: Mapping[str, Any]) -> bool:
-    """Does ``node`` match ``rule``? A rule names any of ``ax_match`` (the label), ``ax_identifier`` and ``ax_value``; one hit is
-    enough. The identifier and value forms let a rule find a node that carries no label."""
-    for key, field in (("ax_match", "label"), ("ax_identifier", "identifier"), ("ax_value", "value")):
+    """Does ``node`` match ``rule``? A rule names any of ``ax_match`` (the label), ``ax_identifier``, ``ax_value`` and ``ax_type`` (the
+    node's type, such as ``NavigationBar``); one hit is enough. The identifier, value and type forms let a rule find a node that
+    carries no label."""
+    for key, field in (("ax_match", "label"), ("ax_identifier", "identifier"), ("ax_value", "value"), ("ax_type", "type")):
         pattern, text = rule.get(key), _text(node, field)
         if pattern and text and re.search(pattern, text):
             return True
@@ -315,6 +370,8 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
     """
     regions: List[Dict[str, Any]] = []
     for rule in mask_rules:
+        if rule.get("ax_only"):  # a rule that only drops nodes from the AX compare has no pixel region
+            continue
         matched = [_matches(rule, n) and _node_rect(n) is not None for n in nodes]
         for index, node in enumerate(nodes):
             if matched[index] and not _has_matching_descendant(nodes, index, matched):
@@ -322,6 +379,92 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
                 if region not in regions:
                     regions.append(region)
     return regions
+
+
+# MARK: - Floating controls over the content
+
+#: AX types of a scrolling container; the largest one on screen is the page's main scroll view.
+SCROLL_TYPES = frozenset({"scrollview", "collectionview", "tableview"})
+#: Bars whose buttons are chrome, never a floating control.
+CHROME_TYPES = frozenset({"navigationbar", "tabbar", "toolbar", "statusbar"})
+#: The navigation flyout's close and scrim buttons: shell controls, never a floating page control, and left out of a page-region AX
+#: compare. Defined once; ``faults.SHELL_CHROME`` and :func:`floating_overlaps` both use it.
+FLYOUT_CONTROLS = r"^nav\.flyout\.(close|scrim)$"
+CHROME_IDENTIFIERS = re.compile(FLYOUT_CONTROLS)
+
+
+def _area(rect: Mapping[str, float]) -> float:
+    return rect["width"] * rect["height"]
+
+
+def _overlap(a: Mapping[str, float], b: Mapping[str, float]) -> float:
+    """The area where two rectangles intersect (0 when they do not)."""
+    width = min(a["x"] + a["width"], b["x"] + b["width"]) - max(a["x"], b["x"])
+    height = min(a["y"] + a["height"], b["y"] + b["height"]) - max(a["y"], b["y"])
+    return max(width, 0.0) * max(height, 0.0)
+
+
+def _ancestors(nodes: Sequence[Mapping[str, Any]], index: int) -> List[int]:
+    """Indexes above ``nodes[index]``, nearest first, from ``parentIndex`` (or the ``depth`` order of a pre-order dump)."""
+    out: List[int] = []
+    node = nodes[index]
+    while isinstance(node.get("parentIndex"), int) and 0 <= node["parentIndex"] < len(nodes) and node["parentIndex"] != index:
+        index = node["parentIndex"]
+        out.append(index)
+        node = nodes[index]
+    return out
+
+
+def end_stop_failed() -> Dict[str, Any]:
+    """The floating-control result for a capture whose scroll to the end failed: nothing is claimed about overlap."""
+    return {"scrollView": None, "lastContent": None, "floating": [], "intersects": None, "covers": [], "endStop": "failed"}
+
+
+def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Does a floating control cover the last content the page can scroll to? Read from the AX tree only.
+
+    * the **scroll view** is the largest scrolling container (:data:`SCROLL_TYPES`) on screen;
+    * the **last content element** is the labelled leaf below it (or below a scrolling container drawn inside its frame) with the lowest bottom edge (scroll bars and unlabelled wrappers
+      do not count);
+    * a **floating control** is a hittable button that is not inside the scroll view or a bar (:data:`CHROME_TYPES`), has a frame, and
+      overlaps the scroll view's frame: it floats over the page;
+    * ``intersects`` is true when a floating control's frame overlaps the last content element's frame. ``covers`` lists every
+      content leaf a floating control overlaps, so a partly hidden list shows up even when the last row is clear.
+
+    Returns ``{"scrollView", "lastContent", "floating", "intersects", "covers"}`` (frames ``[x, y, width, height]`` in points), or
+    ``{"scrollView": None, ...}`` when the tree has no scroll view or no content.
+    """
+    rects = [_node_rect(n) for n in nodes]
+    scrolls = [i for i, n in enumerate(nodes) if _node_role(n).lower() in SCROLL_TYPES and rects[i] and _area(rects[i]) > 0]
+    empty: Dict[str, Any] = {"scrollView": None, "lastContent": None, "floating": [], "intersects": False, "covers": [], "endStop": "reached"}
+    if not scrolls:
+        return empty
+    main = max(scrolls, key=lambda i: _area(rects[i]))
+    # Content lives under the main scroll view, or under another scrolling container drawn inside its frame (a page whose empty
+    # state sits in its own scroll view beside the list).
+    roots = {main} | {i for i in scrolls if i != main and _overlap(rects[i], rects[main]) >= _area(rects[i]) - 0.5}
+    children = {i for i in range(len(nodes)) if i not in roots and roots & set(_ancestors(nodes, i))}
+    has_child = {nodes[i]["parentIndex"] for i in children if isinstance(nodes[i].get("parentIndex"), int)}
+    leaves = [i for i in children if i not in has_child and rects[i] and _area(rects[i]) > 0 and _ax_label(nodes[i])
+              and not SCROLL_BAR.match(_ax_label(nodes[i]))]
+    if not leaves:
+        return {**empty, "scrollView": _frame(nodes[main])}
+    last = max(leaves, key=lambda i: (rects[i]["y"] + rects[i]["height"], rects[i]["x"]))
+    floating = []
+    for i, node in enumerate(nodes):
+        if i in roots or i in children or rects[i] is None or _area(rects[i]) <= 0 or _node_role(node).lower() != "button":
+            continue
+        if node.get("hittable") is False or CHROME_IDENTIFIERS.match(_text(node, "identifier")):  # invisible shell controls float over nothing
+            continue
+        if any(_node_role(nodes[a]).lower() in CHROME_TYPES for a in _ancestors(nodes, i)):
+            continue
+        if _overlap(rects[i], rects[main]) > 0:
+            floating.append(i)
+    covers = [{"control": _ax_label(nodes[f]), "label": _ax_label(nodes[i]), "frame": _frame(nodes[i])}
+              for f in floating for i in sorted(leaves) if _overlap(rects[f], rects[i]) > 0]
+    return {"scrollView": _frame(nodes[main]), "lastContent": {"label": _ax_label(nodes[last]), "frame": _frame(nodes[last])},
+            "floating": [{"label": _ax_label(nodes[f]), "frame": _frame(nodes[f])} for f in floating],
+            "intersects": any(_overlap(rects[f], rects[last]) > 0 for f in floating), "covers": covers, "endStop": "reached"}
 
 
 # MARK: - One shot

@@ -1,0 +1,470 @@
+#!/usr/bin/env python3
+"""Stage an error, unavailable, offline, reconnecting, loading or empty state on both apps, then pair them through ``run.py``.
+
+    faults.py matrix [--markdown FILE]
+    faults.py run --device iphone --run NAME --surfaces chores --faults empty [run.py's device options]
+    faults.py publish --run-dir DIR --out build/evidence/screens/parity-states-SHA
+
+**Fixtures only: never a live write, never a live fault.** A state is staged by what the apps read at launch. :func:`run_faults` and
+:func:`fault_launcher` refuse live mode, and :func:`parity_loop.simguard.guard` refuses a protected simulator or one without its own
+``devcap`` hold before anything is booted or changed:
+
+* the reference reads ``variables`` (``FENTON_GALLERY_*``) and ``pauseContinuousAnimations`` from its gallery fixture
+  ``bootstrap.json``;
+* the candidate reads ``flags`` (the same names, in the preview's ``bootstrap.json``; the mapping lives in
+  ``apple/Sources/HassUI/UIKitPort/ServerUI/README.md``, "Preview state flags") and the fixture ``entities``.
+
+The guard proxy's fault modes (drop, delay, refuse-read) are deliberately not built.
+A reference gallery page honours a variable only on the pages named in :attr:`Fault.reference_pages` (read in the reference source);
+elsewhere the reference has no mechanism and the row is ``no-reference`` (the Studio sim is the reference for it).
+
+The pair itself is :func:`parity_loop.run.run_all`: reference, candidate, reference again, then the compare. Each fault is a derived
+surface row ``<surface>.<fault>`` with a ``fault`` key that the launcher reads before every launch.
+"""
+
+from __future__ import annotations
+
+import argparse
+import contextlib
+import json
+import shutil
+import sys
+import time
+from os import environ as ENVIRONMENT
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+import png_raster  # noqa: E402
+from parity_loop import launch as launch_mod  # noqa: E402
+from parity_loop import run as run_mod  # noqa: E402
+from parity_loop import simguard  # noqa: E402
+from parity_loop import capture  # noqa: E402
+from parity_loop.capture import Agent, ReachPlan  # noqa: E402
+from parity_loop.common import BUNDLE_ID, CANDIDATE, REFERENCE, REPO, read_json, run  # noqa: E402
+
+PAIRED, NO_REFERENCE = "paired", "no-reference"
+#: Mask rules that leave the shell chrome out of a page-region compare, found from the AX tree (type and frame), never from pixel
+#: rows: the navigation bar and tab bar are masked and dropped from the AX sequence together with every node inside them; the flyout's
+#: invisible scrim buttons are dropped from the AX sequence only. The compare keeps the status bar and home indicator bands masked itself.
+SHELL_CHROME: List[Dict[str, Any]] = [
+    {"label": "shell-nav", "ax_type": "^NavigationBar$", "drop": "within"},
+    {"label": "shell-tabbar", "ax_type": "^TabBar$", "drop": "within"},
+    {"label": "shell-flyout", "ax_identifier": capture.FLYOUT_CONTROLS, "ax_only": True, "drop": "node"},
+]
+#: The mask cap for a page-region compare (the shell chrome covers more than the default 15% of a phone screen).
+PAGE_REGION_MASK_PERCENT = 30.0
+#: The text-size axis: the name a run takes and the ``simctl ui content_size`` category it sets on both simulators. ``None`` leaves the
+#: setting alone. Set with ``simctl ui`` (the system setting, a real accessibility choice), not by a launch variable or a fixture string.
+#: The scroll stops a pair is captured at: ``rest`` (as launched) and ``end`` (the page's main scroll view scrolled to the end of its
+#: content, on both sides, tagged ``stop:end``; the run then reports whether a floating control covers the last content).
+STOPS = ("rest", "end")
+TEXT_SIZES: Dict[str, Optional[str]] = {"default": None, "accessibility-large": "accessibility-large"}
+#: The most a gate delay may be on the candidate (``UKServerUIPreviewFlags.maximumGateDelayMs``).
+MAX_GATE_DELAY_MS = 60_000
+
+
+# MARK: - The fault table
+
+@dataclass(frozen=True)
+class Fault:
+    """One staged state: how each side is told, and where the reference honours it."""
+    id: str
+    state_class: str
+    reference_vars: Mapping[str, str]
+    #: The candidate's ``flags`` object (``UKServerUIPreviewFlags`` keys).
+    native_flags: Mapping[str, Any]
+    #: Reference gallery pages (``gallery_page`` in ``surfaces.json``) that read ``reference_vars``.
+    reference_pages: FrozenSet[str]
+    reference_pause: bool = False
+    #: Set every fixture entity's state to this on the candidate (``entities`` bootstrap), or ``None``.
+    native_entity_state: Optional[str] = None
+    note: str = ""
+
+
+FAULTS: Dict[str, Fault] = {f.id: f for f in (
+    Fault("offline", "offline", {"FENTON_GALLERY_OFFLINE": "1"}, {"connection": "offline"},
+          frozenset({"shell-header", "media-remote"}), note="Profile offline badge; the reference reads it on the shell header and media remote galleries"),
+    Fault("reconnecting", "offline", {"FENTON_GALLERY_RECONNECTING": "1"}, {"connection": "reconnecting", "animationsPaused": True},
+          frozenset({"shell-header"}), reference_pause=True, note="lit arc beside Quick Links, arc held still on both sides"),
+    Fault("unavailable", "unavailable", {"FENTON_GALLERY_SCENARIO": "unavailable"}, {}, frozenset({"security"}),
+          native_entity_state="unavailable", note="alarm, locks and doors unavailable (dimmed tiles)"),
+    Fault("error", "error", {"FENTON_GALLERY_FAIL": "1"}, {"failCalls": True}, frozenset({"security"}),
+          note="every service call answers with an error; the capture shows the idle page, the failure shows after a control press"),
+    Fault("error-complete", "error", {"FENTON_GALLERY_FAIL_COMPLETE": "1"}, {"failCalls": True}, frozenset({"chores"}),
+          note="every check-off fails"),
+    Fault("empty", "empty", {"FENTON_GALLERY_EMPTY": "1"}, {"empty": True}, frozenset({"chores", "vacation"}),
+          note="every list holds no item"),
+    Fault("loading", "loading", {"FENTON_GALLERY_GATE_DELAY_MS": "20000"}, {"gateDelayMs": 20000, "animationsPaused": True},
+          frozenset({"performance"}), reference_pause=True, note="data arrives after 20 s; the shot is taken while the gate waits"),
+)}
+#: Every ``variables`` name a fault may set; a launch clears these before it sets the fault's own.
+MANAGED_VARIABLES = frozenset(name for f in FAULTS.values() for name in f.reference_vars)
+MANAGED_FLAGS = frozenset(key for f in FAULTS.values() for key in f.native_flags)
+
+
+class Refused(launch_mod.Refused):
+    """A staging the harness will not do."""
+
+
+def check_fault(fault: Fault) -> None:
+    """A gate delay beyond the candidate's maximum would be clamped on one side only; refuse it at definition use."""
+    delay = fault.native_flags.get("gateDelayMs")
+    if delay is not None and not 0 <= int(delay) <= MAX_GATE_DELAY_MS:
+        raise Refused(f"fault {fault.id}: gateDelayMs must be 0 to {MAX_GATE_DELAY_MS}")
+    reference = fault.reference_vars.get("FENTON_GALLERY_GATE_DELAY_MS")
+    if reference is not None and delay is not None and int(reference) != int(delay):
+        raise Refused(f"fault {fault.id}: the two sides must use one delay")
+
+
+# MARK: - The matrix
+
+def status_for(surface: Mapping[str, Any], fault: Fault) -> str:
+    """``paired`` when the reference honours ``fault`` on this surface's gallery page, else ``no-reference``."""
+    return PAIRED if surface.get("gallery_page") in fault.reference_pages else NO_REFERENCE
+
+
+def matrix(surfaces: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    """One row per in-scope surface present in both apps and fault: its pairing status."""
+    rows = []
+    for surface in surfaces:
+        if not surface.get("in_scope") or surface.get("presence") != "both" or surface.get("writes_on_reach"):
+            continue
+        for fault in FAULTS.values():
+            rows.append({"surface": surface["id"], "gallery_page": surface.get("gallery_page"), "fault": fault.id,
+                         "class": fault.state_class, "status": status_for(surface, fault)})
+    return rows
+
+
+def paired_rows(surfaces: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+    return [row for row in matrix(surfaces) if row["status"] == PAIRED]
+
+
+def matrix_markdown(surfaces: Sequence[Mapping[str, Any]]) -> str:
+    """The fault table (mechanisms) and the pairs it yields over ``surfaces``."""
+    lines = ["| Fault | Class | Reference variables | Candidate flags | Reference pages | Paired surfaces |", "|---|---|---|---|---|---|"]
+    pairs = paired_rows(surfaces)
+    for fault in FAULTS.values():
+        ref = ", ".join(f"{k}={v}" for k, v in fault.reference_vars.items()) + (" + pauseContinuousAnimations" if fault.reference_pause else "")
+        nat = json.dumps(dict(fault.native_flags), sort_keys=True) + (f" + entities {fault.native_entity_state}" if fault.native_entity_state else "")
+        sids = sorted(p["surface"] for p in pairs if p["fault"] == fault.id)
+        lines.append(f"| {fault.id} | {fault.state_class} | `{ref}` | `{nat}` | {', '.join(sorted(fault.reference_pages))} | {', '.join(sids) or 'none'} |")
+    return "\n".join(lines) + "\n"
+
+
+# MARK: - Staging
+
+def stage_reference(data_dir: Path, page: str, fault: Optional[Fault]) -> None:
+    """Rewrite the reference's gallery fixture: the page, every managed variable cleared, then ``fault``'s set (none: a clean state)."""
+    folder = Path(data_dir) / launch_mod.FIXTURE_SUBPATH
+    path = folder / "bootstrap.json"
+    if not path.is_file():
+        raise Refused("the reference has no gallery fixture bootstrap on this simulator")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    variables = {k: v for k, v in (config.get("variables") or {}).items() if k not in MANAGED_VARIABLES}
+    variables["FENTON_GALLERY"] = page
+    config.pop("pauseContinuousAnimations", None)
+    if fault:
+        check_fault(fault)
+        variables.update(fault.reference_vars)
+        if fault.reference_pause:
+            config["pauseContinuousAnimations"] = True
+    config["variables"] = variables
+    path.write_text(json.dumps(config, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    (folder / "receipt.json").unlink(missing_ok=True)
+
+
+#: The publication as it was fed, kept beside it while renames are applied so the run can put it back.
+PRISTINE_PUBLICATION = "publication.pristine.json"
+
+
+def apply_renames(value: Any, renames: Mapping[str, str]) -> Any:
+    """``value`` with every string equal to a key of ``renames`` replaced (exact match, any depth)."""
+    if isinstance(value, str):
+        return renames.get(value, value)
+    if isinstance(value, list):
+        return [apply_renames(v, renames) for v in value]
+    if isinstance(value, dict):
+        return {k: apply_renames(v, renames) for k, v in value.items()}
+    return value
+
+
+def stage_candidate(data_dir: Path, fault: Optional[Fault], renames: Optional[Mapping[str, str]] = None) -> None:
+    """Rewrite the preview ``bootstrap.json``: managed flags cleared, then ``fault``'s set; entities forced when the fault says so."""
+    folder = Path(data_dir) / launch_mod.PREVIEW_SUBPATH
+    path = folder / "bootstrap.json"
+    if not path.is_file():
+        raise Refused("the candidate has no preview bootstrap on this simulator (feed a publication first)")
+    config = json.loads(path.read_text(encoding="utf-8"))
+    original = config.pop("_pristine_entities", None)
+    if original is not None:
+        config["entities"] = original  # an earlier fault's entity change is undone before this one
+    flags = {k: v for k, v in (config.get("flags") or {}).items() if k not in MANAGED_FLAGS}
+    if fault:
+        check_fault(fault)
+        flags.update(fault.native_flags)
+        if fault.native_entity_state and isinstance(config.get("entities"), dict):
+            config["_pristine_entities"] = json.loads(json.dumps(config["entities"]))
+            config["entities"] = {key: {**value, "state": fault.native_entity_state} if isinstance(value, dict) else value
+                                  for key, value in config["entities"].items()}
+    if flags:
+        config["flags"] = flags
+    else:
+        config.pop("flags", None)
+    path.write_text(json.dumps(config, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    publication, pristine = folder / "publication.json", folder / PRISTINE_PUBLICATION
+    if renames and publication.is_file():  # align fixture names with the reference gallery's; the publication input only, no product string
+        if not pristine.is_file():
+            shutil.copyfile(publication, pristine)
+        publication.write_text(json.dumps(apply_renames(json.loads(pristine.read_text(encoding="utf-8")), renames),
+                                          separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    elif not renames and pristine.is_file():  # a launch with no renames puts the fed publication back
+        shutil.copyfile(pristine, publication)
+        pristine.unlink()
+    (folder / "receipt.json").unlink(missing_ok=True)
+
+
+def fault_launcher(faults: Mapping[str, Fault] = FAULTS, renames: Optional[Mapping[str, str]] = None):
+    """A ``run.Context.launcher`` that stages the surface's ``fault`` on its half, then relaunches it in gallery mode."""
+    def launcher(half: run_mod.Half, surface: Mapping[str, Any], plan: ReachPlan, ctx: run_mod.Context) -> None:
+        if ctx.mode == "live":
+            raise Refused("fault staging is fixtures only: live mode is refused")
+        fault = faults[surface["fault"]]
+        data = launch_mod.container(ctx.runner, half.udid, "data")
+        if half.side == REFERENCE:
+            stage_reference(data, plan.page or surface.get("gallery_page") or "", fault)
+        else:
+            stage_candidate(data, fault, renames)
+        half.agent.open_app(BUNDLE_ID, launch_mod.GALLERY_ARGS[half.side], relaunch=True)
+    return launcher
+
+
+def content_size(runner: Any, udid: str) -> str:
+    """The simulator's current content size category (``simctl ui UDID content_size``), or ``""`` when it cannot be read."""
+    result = runner(["xcrun", "simctl", "ui", udid, "content_size"])
+    return result.out.strip() if result.code == 0 else ""
+
+
+def set_content_size(runner: Any, udid: str, category: str) -> None:
+    """Set the content size category and confirm the simulator reports it; refuse when it does not."""
+    result = runner(["xcrun", "simctl", "ui", udid, "content_size", category])
+    if result.code != 0 or content_size(runner, udid) != category:
+        raise Refused(f"could not set the text size to {category} on {udid}")
+
+
+@contextlib.contextmanager
+def applied_text_size(ctx: run_mod.Context, text_size: str, env: Mapping[str, str]) -> Iterator[None]:
+    """Hold ``text_size`` on every half for the block, then put each half's own size back.
+
+    Both starting sizes are read first, and the block is refused (nothing set) when either cannot be read. The restore runs in a
+    ``finally`` whatever the block did, reads each size back, and raises :class:`Refused` when a restore did not take, so a simulator is
+    never left at a large size without a loud failure.
+    """
+    category = TEXT_SIZES[text_size]
+    if not category:
+        yield
+        return
+    before = {side: content_size(ctx.runner, half.udid) for side, half in ctx.halves.items()}
+    unreadable = [side for side, size in before.items() if not size]
+    if unreadable:
+        raise Refused(f"could not read the starting text size on the {', '.join(unreadable)} simulator: nothing was changed")
+    try:
+        for half in ctx.halves.values():
+            set_content_size(ctx.runner, half.udid, category)
+        yield
+    finally:
+        failed = []
+        for side, half in ctx.halves.items():
+            ctx.runner(["xcrun", "simctl", "ui", half.udid, "content_size", before[side]])
+            if content_size(ctx.runner, half.udid) != before[side]:
+                failed.append(f"{side} ({half.udid}) is not back at {before[side]}")
+        if failed:
+            raise Refused("the text size restore did not take: " + "; ".join(failed))
+
+
+def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, text_size: str = "default",
+           stop: str = "rest") -> Dict[str, Any]:
+    """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags.
+
+    With ``page_region`` the shell chrome (:data:`SHELL_CHROME`) is masked on both halves and left out of the AX compare, so the
+    pair judges the page only; the reference gallery draws no shell and the candidate does.
+    """
+    row = dict(surface)
+    suffix = "" if text_size == "default" else f".{text_size}"
+    stop_suffix = "" if stop == "rest" else f".stop-{stop}"
+    row.update(id=f"{surface['id']}.{fault.id}{suffix}{stop_suffix}", fault=fault.id, base_surface=surface["id"], stop=stop,
+               state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"] + ([f"text:{text_size}"] if suffix else [])
+               + ([f"stop:{stop}"] if stop_suffix else []))
+    if page_region:
+        row.update(masks=list(surface.get("masks") or []) + [dict(rule) for rule in SHELL_CHROME], mask_both_sides=True)
+    return row
+
+
+def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], fault_ids: Sequence[str],
+               pin_hash: Optional[str] = None, env: Optional[Mapping[str, str]] = None, pin_path: Path = run_mod.DEFAULT_PIN,
+               inventory: Optional[Sequence[Mapping[str, Any]]] = None, page_region: bool = True,
+               renames: Optional[Mapping[str, str]] = None, text_size: str = "default", stops: Sequence[str] = ("rest",)) -> int:
+    """Pair every ``surface`` x ``fault`` the reference supports. Returns the compare's exit status (2 when nothing is paired).
+
+    ``page_region`` (the default) compares the page only (:data:`SHELL_CHROME` masked); ``renames`` aligns fixture names on the candidate; ``text_size`` (:data:`TEXT_SIZES`) sets
+    the same content size on both simulators for the run and puts each back afterwards.
+    """
+    if ctx.mode == "live":
+        raise Refused("fault staging is fixtures only: live mode is refused")
+    simguard.guard([half.udid for half in ctx.halves.values()], env if env is not None else ENVIRONMENT)
+    bad = [s for s in stops if s not in STOPS]
+    if bad:
+        raise Refused(f"unknown stop(s): {', '.join(bad)}; choose from {', '.join(STOPS)}")
+    if text_size not in TEXT_SIZES:
+        raise Refused(f"unknown text size {text_size}; choose from {', '.join(TEXT_SIZES)}")
+    unknown = [f for f in fault_ids if f not in FAULTS]
+    if unknown:
+        raise Refused(f"unknown fault(s): {', '.join(unknown)}")
+    derived = [derive(s, FAULTS[f], page_region, text_size, stop) for s in surfaces for f in fault_ids for stop in stops
+               if status_for(s, FAULTS[f]) == PAIRED]
+    if not derived:
+        raise Refused("no surface and fault pair: the reference has no mechanism for any of them (see `faults.py matrix`)")
+    ctx.launcher = fault_launcher(renames=renames)
+    if page_region and ctx.max_mask_percent is None:
+        ctx.max_mask_percent = PAGE_REGION_MASK_PERCENT
+    if page_region:
+        ctx.status_bar_equal = False
+    try:
+        with applied_text_size(ctx, text_size, env if env is not None else ENVIRONMENT):
+            return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
+    finally:
+        for side in (REFERENCE, CANDIDATE):  # leave both simulators in a clean state
+            half = ctx.halves.get(side)
+            if half is None:
+                continue
+            try:
+                data = launch_mod.container(ctx.runner, half.udid, "data")
+                if side == REFERENCE:
+                    page = (surfaces[0].get("gallery_page") if surfaces else None) or "home"
+                    stage_reference(data, page, None)
+                else:
+                    stage_candidate(data, None)
+            except (launch_mod.Refused, OSError, ValueError):
+                pass
+
+
+# MARK: - Evidence
+
+def side_by_side(reference: Path, candidate: Path, out: Path, gap: int = 12) -> Path:
+    """Write ``reference | candidate`` as one PNG (the shorter half padded with black below)."""
+    a, b = png_raster.read(reference), png_raster.read(candidate)
+    height = max(a.height, b.height)
+    width = a.width + gap + b.width
+    rows = []
+    for y in range(height):
+        left = a.row(y) if y < a.height else bytes(a.width * 3)
+        right = b.row(y) if y < b.height else bytes(b.width * 3)
+        rows.append(left + bytes([40, 40, 40]) * gap + right)
+    Path(out).parent.mkdir(parents=True, exist_ok=True)
+    png_raster.write(png_raster.Raster(width, height, b"".join(rows)), Path(out))
+    return Path(out)
+
+
+def publish(run_dir: Path, out_dir: Path, family: str, sha: str) -> List[Dict[str, str]]:
+    """One side-by-side image per captured state under ``run_dir``, and ``index.md`` in ``out_dir``. Returns the index rows."""
+    manifest = read_json(Path(run_dir) / "manifest.json")
+    results: Dict[str, str] = {}
+    results_file = Path(run_dir) / "results.json"
+    if results_file.is_file():
+        for record in read_json(results_file):
+            results[str(record.get("id", ""))] = str(record.get("verdict", ""))
+    floating: Dict[str, str] = {}
+    if results_file.is_file():
+        for record in read_json(results_file):
+            for side, r in (record.get("floatingOverlap") or {}).items():
+                if r.get("endStop") == "failed":
+                    text = f"{side}: end_stop: failed"
+                else:
+                    text = f"{side}: " + (f"{', '.join(f['label'] for f in r['floating'])} covers {(r['lastContent'] or {}).get('label', '')}" if r["intersects"]
+                                          else "no overlap with the last content")
+                floating[record["id"]] = "; ".join(filter(None, [floating.get(record["id"]), text]))
+    rows = []
+    for entry in manifest["pairs"]:
+        sid = entry["id"]
+        if entry.get("skipped") or not entry.get("reference_png"):
+            rows.append({"id": sid, "image": "", "verdict": "skipped", "note": str(entry.get("skipped", ""))})
+            continue
+        name = f"{sid}-{family}.png".replace("/", "-")
+        side_by_side(Path(run_dir) / entry["reference_png"], Path(run_dir) / entry["candidate_png"], Path(out_dir) / name)
+        rows.append({"id": sid, "image": name, "verdict": results.get(sid, "unjudged"), "note": "; ".join(entry.get("problems") or []),
+                     "state": str(entry.get("state", "")), "floating": floating.get(sid, "")})
+    lines = [f"# Parity states: {family}, tool sha {sha}", "",
+             "> **What:** one side-by-side per staged state, reference on the left, candidate on the right. Fixtures only; no live write, no live fault.", "",
+             "| State | Verdict | State tags (`text:` size, `stop:` scroll stop) | Floating control over last content | Image | Note |", "|---|---|---|---|---|---|"]
+    for row in rows:
+        image = f"![{row['id']}]({row['image']})" if row["image"] else ""
+        lines.append(f"| {row['id']} | {row['verdict']} | {row.get('state', '')} | {row.get('floating', '') or 'n/a'} | {image} | {row['note']} |")
+    (Path(out_dir) / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return rows
+
+
+# MARK: - Command line
+
+def main(argv: Optional[List[str]] = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = ap.add_subparsers(dest="verb", required=True)
+    mx = sub.add_parser("matrix")
+    mx.add_argument("--surfaces-file", type=Path, default=run_mod.SURFACES_FILE)
+    mx.add_argument("--markdown", type=Path)
+    rn = sub.add_parser("run")
+    rn.add_argument("--device", choices=sorted(run_mod.DEVICES), default="iphone")
+    rn.add_argument("--run", default=time.strftime("faults-%Y%m%d-%H%M%S"))
+    rn.add_argument("--surfaces", required=True)
+    rn.add_argument("--faults", required=True)
+    rn.add_argument("--surfaces-file", type=Path, default=run_mod.SURFACES_FILE)
+    rn.add_argument("--out", type=Path, default=run_mod.DEFAULT_OUT)
+    rn.add_argument("--appearance", choices=("light", "dark"), default="dark")
+    rn.add_argument("--reference-udid", required=True)
+    rn.add_argument("--reference-agent", required=True)
+    rn.add_argument("--candidate-udid", required=True)
+    rn.add_argument("--candidate-agent", required=True)
+    rn.add_argument("--publication", type=Path, help="candidate preview publication directory to feed before the run")
+    rn.add_argument("--rename-file", type=Path, help="JSON object of exact strings to replace in the candidate's publication (aligns fixture names)")
+    rn.add_argument("--text-size", choices=sorted(TEXT_SIZES), default="default",
+                    help="set this content size on both simulators for the run (simctl ui content_size) and restore it after")
+    rn.add_argument("--stops", default="rest", help="comma-separated scroll stops to capture: rest, end (default rest)")
+    rn.add_argument("--full-frame", action="store_true", help="compare the whole frame, shell chrome included (the default compares the page region)")
+    rn.add_argument("--reference-pin", type=Path, default=run_mod.DEFAULT_PIN)
+    pb = sub.add_parser("publish")
+    pb.add_argument("--run-dir", type=Path, required=True)
+    pb.add_argument("--out", type=Path, required=True)
+    pb.add_argument("--family", choices=sorted(run_mod.DEVICES), default="iphone")
+    args = ap.parse_args(argv)
+    try:
+        if args.verb == "matrix":
+            text = matrix_markdown(read_json(args.surfaces_file)["surfaces"])
+            if args.markdown:
+                Path(args.markdown).write_text(text, encoding="utf-8")
+            else:
+                sys.stdout.write(text)
+            return 0
+        if args.verb == "publish":
+            sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
+            publish(args.run_dir, args.out, args.family, sha)
+            return 0
+        simguard.guard([args.reference_udid, args.candidate_udid], ENVIRONMENT)  # before the first container read or write
+        halves = {REFERENCE: run_mod.Half(REFERENCE, args.reference_udid, Agent(args.reference_agent)),
+                  CANDIDATE: run_mod.Half(CANDIDATE, args.candidate_udid, Agent(args.candidate_agent))}
+        sha = run(["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"]).out.strip()
+        ctx = run_mod.Context(args.out / args.run, "gallery", args.device, halves, appearance=args.appearance, tool_sha=sha)
+        pin = None if str(args.reference_pin) == "none" else read_json(args.reference_pin)["bundleSHA256"]
+        document = read_json(args.surfaces_file)
+        surfaces = run_mod.select(document, args.surfaces.split(","))
+        if args.publication:
+            launch_mod.feed_preview(launch_mod.container(run, args.candidate_udid, "data"), args.publication)
+        renames = read_json(args.rename_file) if args.rename_file else None
+        return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"],
+                          page_region=not args.full_frame, renames=renames, text_size=args.text_size, stops=args.stops.split(","))
+    except (launch_mod.Refused, simguard.Refused, ValueError, OSError, KeyError) as error:
+        print(f"faults: {error}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main())

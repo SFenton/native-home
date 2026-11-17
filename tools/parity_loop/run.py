@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import expo_pair_compare  # noqa: E402
 from parity_loop import launch as launch_mod  # noqa: E402
 from parity_loop import sidecar as sidecar_mod  # noqa: E402
-from parity_loop.capture import Agent, ReachPlan, capture_shot, perform_reach, plan_reach, write_opening_labels  # noqa: E402
+from parity_loop.capture import Agent, ReachPlan, capture_shot, end_stop_failed, floating_overlaps, perform_reach, plan_reach, write_opening_labels  # noqa: E402
 from parity_loop.common import APPS, BUNDLE_ID, CANDIDATE, REFERENCE, REPO, Runner, png_size, read_json, run, write_json  # noqa: E402
 
 SURFACES_FILE = Path(__file__).resolve().parent / "surfaces.json"
@@ -79,6 +79,11 @@ class Context:
     proxy_cert: Optional[Path] = None
     #: Per half, the hash of the HA user id its session resolves to (``auth/current_user`` through the proxy); recorded in its sidecars.
     user_id_hashes: Dict[str, str] = field(default_factory=dict)
+    #: Passed to the compare as ``--max-mask-percent`` when set (a page-region compare masks the shell chrome, more than the default 15%).
+    max_mask_percent: Optional[float] = None
+    #: ``--status-bar-equal`` (default on). A page-region compare turns it off: the status bar sits outside the page, and over two
+    #: different backdrops its pixels differ for reasons the page compare reports.
+    status_bar_equal: bool = True
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -119,9 +124,15 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
         launcher(half, surface, plan, ctx)
         if not perform_reach(half.agent, plan, surface, ctx.guarded):
             problems.append(f"{stem}: reach did not run")
+        end_failed = False
+        if surface.get("stop") == "end" and not half.agent.scroll_bottom().get("success"):
+            end_failed = True
+            problems.append(f"{stem}: scroll to the end failed")
         shot = capture_shot(half.agent, folder, stem, mask_rules(surface), ctx.family["scale"])
         if not shot.ok:
             problems.append(f"{stem}: {shot.problem}")
+        if surface.get("stop") == "end" and shot.ax.is_file() and stem != "reference2":
+            entry.setdefault("floating", {})[stem] = end_stop_failed() if end_failed else floating_overlaps(read_json(shot.ax).get("nodes") or [])
         size = png_size(shot.png)
         if ctx.family["size"] and size and size != ctx.family["size"]:
             problems.append(f"{stem}: screenshot is {size[0]}x{size[1]}, expected {ctx.family['size'][0]}x{ctx.family['size'][1]}")
@@ -136,6 +147,8 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
         entry[f"{stem}_sidecar"] = f"{sid}/{stem}.sidecar.json"
         entry[f"{stem}_ax_file"] = f"{sid}/{stem}.ax.json"
     entry["mask_files"] = [f"{sid}/reference.masks.json"] + ([f"{sid}/masks.json"] if (folder / "masks.json").is_file() else [])
+    if surface.get("mask_both_sides"):  # the regions the candidate's own AX tree resolves are masked on both halves too
+        entry["mask_files"].append(f"{sid}/candidate.masks.json")
     if problems:
         entry["problems"] = problems
     return entry
@@ -150,6 +163,30 @@ def verify_pin(ctx: Context, pin_hash: Optional[str]) -> Optional[str]:
     if pin_hash and ctx.bundle_hashes[REFERENCE] != pin_hash:
         return "the reference bundle does not match its pin"
     return None
+
+
+def annotate_floating(records: Sequence[Dict[str, Any]], entries: Sequence[Mapping[str, Any]]) -> None:
+    """Put each end-stop entry's floating-control result on its compare record as ``floatingOverlap`` (per half)."""
+    by_id = {e["id"]: e.get("floating") for e in entries if e.get("floating")}
+    for record in records:
+        if record.get("id") in by_id:
+            record["floatingOverlap"] = {side: {"endStop": r.get("endStop", "reached"), "intersects": r["intersects"], "lastContent": r["lastContent"],
+                                              "floating": r["floating"], "covers": r["covers"]} for side, r in by_id[record["id"]].items()}
+
+
+def floating_markdown(records: Sequence[Mapping[str, Any]]) -> str:
+    """A table of the end-stop results: does a floating control cover the last content, per half."""
+    lines = ["", "Floating controls at the end stop (a floating button that overlaps the last content element is a defect: the user cannot scroll clear):", "",
+             "| Pair | Half | Last content | Floating controls | Covers last content | Content covered |", "|---|---|---|---|---|---|"]
+    for record in records:
+        for side, r in (record.get("floatingOverlap") or {}).items():
+            if r.get("endStop") == "failed":
+                lines.append(f"| {record['id']} | {side} | end_stop: failed | n/a | n/a | n/a |")
+                continue
+            last = (r["lastContent"] or {}).get("label", "none")
+            lines.append(f"| {record['id']} | {side} | {last} | {', '.join(f['label'] for f in r['floating']) or 'none'} | "
+                         f"{'yes' if r['intersects'] else 'no'} | {', '.join(sorted({c['label'] for c in r['covers']})) or 'none'} |")
+    return "\n".join(lines) + "\n"
 
 
 def ensure_ignored(path: Path, runner: Runner = run) -> bool:
@@ -198,13 +235,22 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
         raise launch_mod.Refused("the reference bundle changed during the run")
     write_json(ctx.run_dir / "manifest.json", {"pairs": entries})
     flags = ["--manifest", str(ctx.run_dir / "manifest.json"), "--out", str(ctx.run_dir / "compare"),
-             "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax", "--status-bar-equal"]
+             "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax"]
+    if ctx.status_bar_equal:
+        flags.append("--status-bar-equal")
+    if ctx.max_mask_percent is not None:
+        flags += ["--max-mask-percent", f"{ctx.max_mask_percent:g}"]
     if ctx.status_bar_rects:
         flags += ["--status-bar-rects", str(ctx.status_bar_rects)]
     status = expo_pair_compare.main(flags + (["--reference-pin", str(pin_path)] if pin_hash else []))
     results = ctx.run_dir / "compare" / "results.json"
     if results.is_file():
-        (ctx.run_dir / "results.json").write_text(results.read_text(encoding="utf-8"), encoding="utf-8")
+        records = read_json(results)
+        annotate_floating(records, entries)
+        write_json(ctx.run_dir / "results.json", records)
+        if any("floating" in e for e in entries):
+            with (ctx.run_dir / "results.md").open("a", encoding="utf-8") as handle:
+                handle.write(floating_markdown(records))
     return status
 
 
