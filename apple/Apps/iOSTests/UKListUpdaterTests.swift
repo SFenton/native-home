@@ -141,6 +141,28 @@ final class UKListUpdaterTests: XCTestCase {
         XCTAssertEqual(animatedApplies, [false])
     }
 
+    func testACornerNeighbourTheSnapshotAlreadyRedrawsIsNotRedrawnTwice() {
+        let updater = primed()
+        var next = snapshot(["a"])
+        next.reconfigureItems(["a"])
+        var redrawn: [String] = []
+        updater.run(next, old: snapshot(["a", "b"]), cause: .live, hasWindow: true, cornerNeighbours: ["a"]) { next, _, done in
+            redrawn = next.reconfiguredItemIdentifiers
+            done()
+        }
+        XCTAssertEqual(redrawn, ["a"], "the neighbour is reconfigured once, by the caller's snapshot")
+    }
+
+    func testACornerNeighbourTheSnapshotDoesNotRedrawIsAddedOnce() {
+        let updater = primed()
+        var redrawn: [String] = []
+        updater.run(snapshot(["a"]), old: snapshot(["a", "b"]), cause: .live, hasWindow: true, cornerNeighbours: ["a", "gone"]) { next, _, done in
+            redrawn = next.reconfiguredItemIdentifiers
+            done()
+        }
+        XCTAssertEqual(redrawn, ["a"], "a row that became the last is redrawn with the delete, once, and a row that left is not")
+    }
+
     // MARK: A removal is not cut short
 
     /// A removal whose animation is still playing (its completion is held), then another apply.

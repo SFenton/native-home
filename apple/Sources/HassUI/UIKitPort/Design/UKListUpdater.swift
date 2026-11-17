@@ -189,7 +189,9 @@ final class UKListUpdater<Section: Hashable & Sendable, Item: Hashable & Sendabl
             completion?()
             return
         }
-        let neighbours = survivors(cornerNeighbours, remaining)
+        // A neighbour the caller's snapshot already redraws is not asked for twice: one change costs one cell update.
+        let redrawn = Set(snapshot.reconfiguredItemIdentifiers)
+        let neighbours = survivors(cornerNeighbours, remaining).filter { !redrawn.contains($0) }
         var next = snapshot
         next.reconfigureItems(neighbours)
         let focusTarget = plan.removedByPerson ? Self.nextRow(removed: removed, before: before, after: after) : nil
