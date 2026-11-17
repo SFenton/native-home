@@ -54,6 +54,8 @@ struct ServerUICompositionCompiler {
     var tileContract = ServerUITileContractRefs()
     /// The document's saved components, expanded before decoding (`sh.component-ref@1`).
     private var components = ServerUIComponentExpansion(.null)
+    /// What a stack with an action holds that takes a tap, found in the document as written (``ServerUIStackTapCheck``).
+    private var stackTapIssues: [Issue] = []
 
     static func decode(_ bytes: Data) throws -> ServerUICompositionPublication {
         var parser = try ServerUICompositionJSON(bytes)
@@ -92,6 +94,7 @@ struct ServerUICompositionCompiler {
         }
         var compiler = Self()
         compiler.components = expansion
+        compiler.stackTapIssues = ServerUIStackTapCheck.issues(in: json)
         return try compiler.compile(root, capabilities: capabilities, documentCanonical: documentCanonical)
     }
 
@@ -99,6 +102,7 @@ struct ServerUICompositionCompiler {
         doorSources = ServerUIDoorLowering.sources(in: root.value["document"]?["dataSources"])
         var document = try document(root.field("document"))
         if let held = root.value["document"], ServerUIAppearanceScan.holdsPair(held) { require(ServerUIAppearanceScan.capability) }
+        if let held = root.value["document"], ServerUIInkScan.holdsRGBA(held) { require("text-style") }
         compileComponents()
         let updatedAt = try root.s("updatedAt"), publishedAt = try root.s("publishedAt")
         let updated = timestamp(updatedAt, at: "/updatedAt")
@@ -106,7 +110,8 @@ struct ServerUICompositionCompiler {
         if let updated, let published, updated > published { add(.invalidValue, "/updatedAt") }
         validateReferences(document)
         validateChromeContexts(document)
-        if let first = ServerUICompositionShape.first(components.remapped(issues)) { throw first }
+        // The tap check reads the document as written, so it joins after the expansion's issues are moved back.
+        if let first = ServerUICompositionShape.first(components.remapped(issues) + stackTapIssues) { throw first }
         document.dataSources = components.published(document.dataSources)
         // The vacuum kinds the generic parts can draw become those parts here, after the document was checked as written.
         document = ServerUIVacuumLowering.lower(document)
@@ -466,7 +471,7 @@ struct ServerUICompositionCompiler {
             field = try .init(id: id, initial: .number(c.n("initial")),
                               rule: .number(minimum: minimum, maximum: maximum, step: step))
         case "choice":
-            let options = try c.field("options").array().map { try D.LocalField.Option(id: $0.s("id"), label: $0.s("label")) }
+            let options = try choiceOptions(c.field("options"))
             if Set(options.map(\.id)).count != options.count { add(.duplicateID, c.path("options")) }
             field = try .init(id: id, initial: .string(c.s("initial")), rule: .choice(options: options))
         default: throw Issue(.unknownVariant, c.path("type"))
@@ -1457,6 +1462,9 @@ struct ServerUICompositionCompiler {
             return .localTabs(container)
         case "overlay":
             return try overlay(c, node: node, props: props, depth: depth)
+        case "stack": return try stackComponent(c, node: node, props: props, depth: depth)
+        case "shape": return try shapeComponent(node, props: props)
+        case "symbol": return try symbolComponent(c, node: node, props: props)
         case "room-section":
             require("room-section"); require("grid")
             defer { if case .array(let items)? = c.value["children"] { forbidRules(in: items, at: c.path("children")) } }
@@ -1590,7 +1598,9 @@ struct ServerUICompositionCompiler {
             let stateId = try props.s("stateId"), kind: D.LocalControl.Kind = try props.e("kind")
             if let field = localFields.first(where: { $0.id == stateId }) {
                 switch (kind, field.rule) {
-                case (.toggle, .boolean), (.choice, .choice), (.textField, .string): break
+                case (.choice, .choice(let options)):
+                    if options.contains(where: \.isDecorated) { add(.invalidCombination, props.path("stateId")) }
+                case (.toggle, .boolean), (.textField, .string): break
                 case (.segmentedChoice, .choice(let options)):
                     if options.count > 4 { add(.invalidCombination, props.path("stateId")) }
                 case (.stepper, .number(let minimum, let maximum, let step)):
@@ -1864,7 +1874,7 @@ struct ServerUICompositionCompiler {
             if [.subheadline, .footnote].contains(style) { require("supporting-text-styles") }
             if style == .sectionTitle { require("section-title") }
             return try .text(.init(node: node, value: stringValue(props.field("value")),
-                                   style: style, unavailableText: props.s("unavailableText")))
+                                   style: style, unavailableText: props.s("unavailableText"), look: textLook(props, style: style)))
         case "settings-link":
             require("settings-link")
             if gridChild { add(.invalidCombination, c.pointer) }

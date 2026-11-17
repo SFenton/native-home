@@ -45,9 +45,13 @@ public enum ServerUIIngestedCapabilities {
     /// A picture's orientation and the corner button groups on it (lane `ni-mapctl`): a flip, then up to four groups of 44 pt buttons.
     public static let surface: [String] = ["sh.surface-orientation@1", "sh.surface-controls@1"]
 
+    /// The style parts (lane `ni-wgstyle`): a text's font, ink, lines, alignment and ticker with the `rgba` colour, the `stack` and `shape` nodes, the
+    /// `symbol` node, and a symbol and a hint on the options of a segmented choice.
+    public static let styleParts: [String] = ["sh.text-style@1", "sh.stack@1", "sh.symbol-part@1", "sh.choice-icons@1"]
+
     /// Swipe to adjust, the words a tile says for its states, the default tile ink and a grid grouped by state (lane `ni-tilecontract`).
     public static let tileContract: [String] = ["sh.tile-swipe@1", "sh.state-words@1", ServerUITileInkDefault.capability, "sh.grid-state-groups@1"]
 
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + tileContract }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract }
 }

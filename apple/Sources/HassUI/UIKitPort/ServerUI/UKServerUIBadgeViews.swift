@@ -10,7 +10,7 @@ import UIKit
 ///
 /// HIG, Badging: a badge shows a short count or word in a capsule on the corner of the thing it describes. A value of 0 or an empty
 /// text draws nothing. The badge keeps what it showed while its value is loading, so a reconnect never blanks it. VoiceOver reads it
-/// as custom content of the node ("Badge, 3"), not as an element of its own.
+/// as its own element labelled "Badge, 3"; with no text it is not an element.
 @MainActor
 enum UKServerUIBadgeViews {
     /// The tag of the badge view a node carries, so one is made once.

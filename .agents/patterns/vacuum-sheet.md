@@ -39,7 +39,7 @@ disabled tiles. Settings take authored role order, titles and hints.
 
 The optional `autoCleanControl` descriptor names the page switch and its
 `automation`/`pause` semantics. `auto-clean` renders the canonical module toggle
-through `VacuumAutoCleanController` with an explicit control catalog; no house-global
+(see [vacuum-lowering](vacuum-lowering.md)) with an explicit control catalog; no house-global
 lookup or duplicated inversion logic. Actual transport and optimistic state both
 pin source identity. `UKServerUIVacuumEnvironment` injects fixture/read-only map
 loaders, `serviceNames` and `mapURL` without replacing the command caller.

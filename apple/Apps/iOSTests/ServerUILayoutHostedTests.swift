@@ -145,6 +145,46 @@ final class ServerUILayoutHostedTests: XCTestCase {
         }
     }
 
+    /// An overlay over a map carries a status pill at the centre while the map keeps its own Locate group: they do not meet, Locate still takes
+    /// its tap, and VoiceOver reads the map (with Locate inside it), then the pill. Pins the supported use of `sh.overlay@1` with
+    /// `sh.surface-controls@1`; a button over a map is a map control, never an overlay child.
+    func testOverlayPillOverAMapLeavesLocateItsTapAndReadingOrder() async throws {
+        for width in Self.widths {
+            let descriptor = try ConfiguredVacuumFixture.descriptor()
+            let store = ConfiguredVacuumFixture.store(descriptor)
+            let caller = ConfiguredVacuumCaller()
+            let loader = ConfiguredVacuumFixture.loader(leftOnly: false)
+            let map = #"{"kind":"map","overlay":"rooms","height":300,"runtimeHeight":460,"label":"Demo Map","loadingText":"Reading Map","unavailableText":"No Map","locate":true}"#
+            let publication = try ConfiguredVacuumFixture.publication(map, overlayPill: true)
+            let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: store, caller: caller),
+                backdrop: ServerUIRendererFixture.backdrop(),
+                vacuums: .init(loader: { _ in loader }, services: ConfiguredVacuumFixture.services.union(["vacuum.locate"])))
+            let window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 900)))
+            defer { window.isHidden = true }
+            let root = try ServerUIRendererFixture.root(host)
+            await HostedPage.settle {
+                guard let view = root.nodes["robot-control"]?.view else { return false }
+                return HostedPage.descendants(of: view).contains { ($0 as? UKMapControlsView)?.drawnGroups.isEmpty == false }
+            }
+            HostedPage.layoutTracked()
+            let overlay = try XCTUnwrap(root.nodes["over-map"]?.view as? UKServerUIOverlayView, "width \(width)")
+            let base = try XCTUnwrap(root.nodes["robot-control"]?.view, "width \(width)")
+            let pill = try XCTUnwrap(root.nodes["centre-pill"]?.view, "width \(width)")
+            let controls = try XCTUnwrap(find(UKMapControlsView.self, in: base), "width \(width)")
+            let locate = try XCTUnwrap(controls.button(identifier: "vacuum.locate"), "width \(width)")
+            let pillFrame = pill.convert(pill.bounds, to: nil), locateFrame = locate.convert(locate.bounds, to: nil)
+            XCTAssertFalse(pillFrame.intersects(locateFrame), "the pill and Locate do not meet at \(width)")
+            let point = locate.convert(CGPoint(x: locate.bounds.midX, y: locate.bounds.midY), to: overlay)
+            XCTAssertTrue(overlay.hitTest(point, with: nil)?.isDescendant(of: controls) == true, "Locate takes its tap at \(width)")
+            locate.sendActions(for: .touchUpInside)
+            let located = await HostedPage.settle { caller.calls.contains { $0.hasPrefix("vacuum.locate") } }
+            XCTAssertTrue(located, "Locate keeps its service call: \(caller.calls)")
+            let order = (overlay.accessibilityElements ?? []).compactMap { $0 as? UIView }
+            XCTAssertTrue(order.first === base && order.last === pill, "the map, then the pill, at \(width)")
+            XCTAssertTrue(locate.isDescendant(of: base), "Locate reads inside the map")
+        }
+    }
+
     func testOverlayMirrorsItsLeadingAnchorsInRightToLeft() throws {
         let (_, root) = try page("overlay-five-anchors", width: 390)
         let overlay = try XCTUnwrap(root.nodes["lay"]?.view)

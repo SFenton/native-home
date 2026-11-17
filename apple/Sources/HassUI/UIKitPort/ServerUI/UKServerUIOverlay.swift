@@ -5,8 +5,8 @@ import UIKit
 
 // MARK: - Overlay
 
-/// A base with small controls drawn over it at five anchors (`sh.overlay@1`): a map or a tile, with a command, a button, a readout or
-/// text on top.
+/// A base with small nodes drawn over it at five anchors (`sh.overlay@1`): a tile with a control, a readout or text on top, or a map
+/// with a status pill or text on top. A button over a map is a map control (`UKMapControlsView`), never an overlay child.
 ///
 /// The overlay is the height of its base. Each control keeps its natural size, at least 44 by 44 pt (HIG, Buttons: "the hit region is
 /// at least 44x44 pt"), and sits at its anchor with the author's inset from the edge. `leading` and `trailing` are the logical edges,

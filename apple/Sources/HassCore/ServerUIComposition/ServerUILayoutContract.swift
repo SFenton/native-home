@@ -58,7 +58,10 @@ public struct ServerUITabArea: Equatable, Sendable {
     public internal(set) var children: [ServerUICompositionDocument.Component]
 }
 
-/// A node that draws small controls over a base (`sh.overlay@1`): the first child is the base, the rest sit at five anchors.
+/// A node that draws small nodes over a base (`sh.overlay@1`): the first child is the base, the rest sit at five anchors.
+///
+/// Over a tile the nodes on top may be a control, a readout or text. Over a map they are a status pill or text only: a button over a map
+/// is a map control (`sh.surface-controls@1`), which the map frame owns, never an overlay child.
 ///
 /// Every control on top is at least 44 pt (HIG, Buttons: "the hit region is at least 44x44 pt"). `leading` and `trailing` are the
 /// logical edges, so they mirror in a right-to-left language (HIG, Right to left).

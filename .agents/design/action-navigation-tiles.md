@@ -53,7 +53,7 @@ The owner wants action and navigation tiles on **every page in the app**. The au
 Where the decision was silent, the build took these (owner may change any; each is one line in a provider):
 
 - **Lock:** `isOn` means unlocked (filled tile, white disc). A jammed lock offers Lock. A tap shows the lock's own transitional state ("Unlocking…") optimistically, cleared by any live change; this replaces the `isPending` bridge.
-- **Garage:** the morphing disc (open, close). Stop never shows: our doors do not support it and `GarageDoorController` has no stop.
+- **Garage:** the morphing disc (open, close). Stop never shows: our doors do not support it and `CoverActions` offers no stop.
 - **Media transport:** shown for playing, paused and buffering; idle, on and standby show Power only. Prev and next call `media_player.media_previous_track` / `media_next_track`; play/pause use the remote's own commands. Play/pause is emphasized in every transport state. The volume slider shows only when the volume entity is on and supports `volume_set` (Receiver and Beam excepted, as the remote sheet does).
 - **Vacuum:** start is `vacuum.start`; dock is `house.fill`, momentary.
 - **Power discs:** towel racks and PCs use the `power` glyph.

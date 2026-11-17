@@ -4,7 +4,7 @@ import Foundation
 /// Something that can call a Home Assistant service and read the `response` member it returns (`return_response`).
 ///
 /// EverShelf's inventory, barcode and expiry services and the todo pages read this. ``HassServiceResponding`` is the
-/// same call returning the whole result; both go through ``HassConnection/callServiceReturningResult(_:_:data:)``.
+/// same call returning the whole result; both go through ``HassConnection/callServiceReturningResult(_:_:target:data:timeout:)``.
 @MainActor
 public protocol EverShelfCalling: HassServiceCalling {
     /// Calls `domain.service` with `return_response: true`.

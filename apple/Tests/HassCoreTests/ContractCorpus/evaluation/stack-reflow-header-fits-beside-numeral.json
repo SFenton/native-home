@@ -1,0 +1,122 @@
+{
+  "format": 1,
+  "name": "stack-reflow-header-fits-beside-numeral",
+  "note": "A range of 110 points beside an 88 point numeral in 343 points: 110 + 88 + 12 = 210 fits, so the header stays in its two columns.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "m"
+        },
+        "align": "center",
+        "groups": [
+          {
+            "children": [
+              "glyph",
+              "condition",
+              "range"
+            ],
+            "spacing": {
+              "type": "token",
+              "name": "xs"
+            },
+            "grow": true
+          },
+          {
+            "children": [
+              "numeral"
+            ]
+          }
+        ],
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "accessibility-size",
+            "overflow"
+          ],
+          "fits": [
+            "range"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "s"
+          },
+          "groups": [
+            {
+              "children": [
+                "glyph",
+                "numeral"
+              ],
+              "distribution": "spread",
+              "align": "center"
+            },
+            {
+              "children": [
+                "condition"
+              ]
+            },
+            {
+              "children": [
+                "range"
+              ]
+            }
+          ]
+        }
+      },
+      "children": [
+        {
+          "id": "glyph",
+          "width": 40
+        },
+        {
+          "id": "condition",
+          "width": 320,
+          "shrinks": true
+        },
+        {
+          "id": "range",
+          "width": 110
+        },
+        {
+          "id": "numeral",
+          "width": 88
+        }
+      ],
+      "width": 343,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": false,
+      "reason": null,
+      "axis": "horizontal",
+      "spacing": 12,
+      "groups": [
+        {
+          "children": [
+            "glyph",
+            "condition",
+            "range"
+          ],
+          "spacing": 4,
+          "distribution": "natural",
+          "align": "start",
+          "grow": true
+        },
+        {
+          "children": [
+            "numeral"
+          ],
+          "spacing": 12,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

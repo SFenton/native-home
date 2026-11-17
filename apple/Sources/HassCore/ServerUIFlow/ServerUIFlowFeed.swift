@@ -59,19 +59,3 @@ public struct HassFlowFeed: ServerUIFlowFeed {
         return { token.cancel() }
     }
 }
-
-// MARK: - The service a flow calls
-
-extension HassConnection {
-    /// Calls `domain.service` with `return_response` and a target, once (no retry across reconnects), and gives the service's `response`.
-    ///
-    /// HAKit never answers a command that was in flight when the socket closed, so the call ends with ``CommandTimeout`` after `timeout`
-    /// (the flow's own `timeoutSeconds`) instead of waiting for ever.
-    public func callServiceForFlow(_ domain: String, _ service: String, target: [String: JSONValue], data: [String: JSONValue],
-                                   timeout: Duration) async throws -> JSONValue {
-        var fields: [String: any Sendable] = ["domain": domain, "service": service, "return_response": true,
-                                              "service_data": data.mapValues(\.foundationValue)]
-        if !target.isEmpty { fields["target"] = target.mapValues(\.foundationValue) }
-        return try await JSONValue(haData: sendCommand("call_service", data: fields, timeout: timeout))["response"] ?? .null
-    }
-}

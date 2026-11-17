@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "name": "stack-reflow-without-fits-stacks-when-rigid-children-do-not-fit",
+  "note": "The same stack with a rigid third child of 200 points: 140 + 200 + 12 + 12 = 364 in 300 stacks, and with no groups each child is its own.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "m"
+        },
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "overflow"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "xs"
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 700,
+          "shrinks": true
+        },
+        {
+          "id": "b",
+          "width": 140
+        },
+        {
+          "id": "c",
+          "width": 200
+        }
+      ],
+      "width": 300,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": true,
+      "reason": "overflow",
+      "axis": "vertical",
+      "spacing": 4,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 4,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 4,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "c"
+          ],
+          "spacing": 4,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

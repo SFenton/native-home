@@ -142,6 +142,7 @@ struct ServerUIExpressionCorpusTests {
     static func answer(_ item: Case) throws -> JSONValue {
         let env = environment(item.env)
         let subject = item.subject
+        if let stack = subject["stack"] { return try ServerUIStackLayoutTests.answer(stack) }
         if let condition = subject["condition"] {
             return .object(["tri": .string(try predicate(condition).evaluate(env).rawText)])
         }

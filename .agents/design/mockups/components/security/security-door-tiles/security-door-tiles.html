@@ -19,7 +19,7 @@
   Mock.mount({
     kind: 'component', id: 'security-door-tiles', title: 'Door tiles (LockTile, GarageDoorTile)', area: 'security', status: 'shipped', frame: false,
     summary: 'A lock or a garage door as a tile in the Doors and windows colour family: dark while locked or closed, filled while unlocked, open or moving, the red error face when a lock jams or a garage command fails. The tile is the button. The Security page\'s Doors grid and the garage room cards draw them.',
-    source: ['apple/Sources/HassCore/Security/GarageDoorController.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
+    source: ['apple/Sources/HassCore/TileActions/StateStyle.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift'],
     spec: ['.agents/pages/security/ios.md', '.agents/pages/security/spec.md', '.agents/patterns/entity-tile.md'],
     patterns: ['entity-tile', 'optimistic-actions', 'dynamic-grid', 'motion'],
     hig: ['Buttons', 'Color', 'Feedback', 'Dynamic Type'],
@@ -49,8 +49,8 @@
           function lock(sub, sym, active) { face(stage, { title: 'Front Door', subtitle: sub, symbol: sym, family: 'contact', isActive: active, kind: 'command' }); }
           lock('Unlocking', 'lock.open', true); return Mock.sleep(Mock.anim.ms.state() + 500).then(function () { lock('Unlocked', 'lock.open', true); return Mock.sleep(700); }).then(function () { lock('Locked', 'lock', false); return Mock.sleep(Mock.anim.ms.state() + 300); });
         } },
-      { id: 'error-face', what: 'A garage command fails: the tile takes the red error face and says Error, then settles back after 8 s', token: 'state 0.6 s ease-in-out for the face; hold 8 s from GarageDoorController.Timing.failureHold', state: 'garage',
-        source: 'GarageDoorTile (isError: phase == .error), GarageDoorController', reduce: 'cross-fades at 0.2 s; the VoiceOver announcement "Left Door, Error" is unchanged',
+      { id: 'error-face', what: 'A garage command fails: the tile takes the red error face and says Error, then settles back after 8 s', token: 'state 0.6 s ease-in-out for the face; hold 8 s from StateStyle.garageDoor request errorHold', state: 'garage',
+        source: 'GarageDoorTile (isError: phase == .error), StateStyle.garageDoor', reduce: 'cross-fades at 0.2 s; the VoiceOver announcement "Left Door, Error" is unchanged',
         play: function (stage) {
           function g(sub, o) { face(stage, Object.assign({ title: 'Left Door', subtitle: sub, symbol: 'door.garage.closed', family: 'contact', kind: 'command' }, o)); }
           g('Sending Open…', { symbol: 'door.garage.open', isActive: true }); return Mock.sleep(1100).then(function () { g('Error', { isError: true }); return Mock.sleep(Mock.anim.ms.state() + 900); }).then(function () { g('Closed', { isActive: false }); return Mock.sleep(Mock.anim.ms.state() + 200); });
@@ -85,7 +85,7 @@
         { rule: "Tile is the Button with a hint", verdict: 'pass', note: "GlassTile .command with hints 'Locks', 'Unlocks', 'Opens the door', 'Closes the door' (SecurityDoorTile.swift:63, SecurityTiles.swift:61, 71-74).", by: 'swiftui-pro skill' },
         { rule: "Use sensoryFeedback for haptics", verdict: 'pass', note: "Fixed: GlassTile applies tapFeedback and failureFeedback (TapFeedback.swift), used by LockTile and GarageDoorTile.", by: 'swiftui-pro skill' },
         { rule: "Hygiene: remove unused code", verdict: 'pass', note: "Fixed: the unread SecurityConfig.Tone colour extension and GarageDoorTile.tone(for:) are gone with their tests; HassCore SecurityConfig.Tone stays.", by: 'swiftui-pro skill' },
-        { rule: "Controller owns timers, view stays thin", verdict: 'pass', note: "GarageDoorController is unit-tested with a manual clock; the view forwards liveDidChange and connection changes (SecurityTiles.swift:102-121).", by: 'swiftui-pro skill' },
+        { rule: "Controller owns timers, view stays thin", verdict: 'pass', note: "the garage door's request settings are unit-tested in StateStyleTests; the view forwards liveDidChange and connection changes (SecurityTiles.swift:102-121).", by: 'swiftui-pro skill' },
 
       ],
 

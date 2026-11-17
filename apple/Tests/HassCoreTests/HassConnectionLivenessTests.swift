@@ -63,6 +63,44 @@ struct HassConnectionLivenessTests {
         #expect(mock.cancelledRequests.isEmpty)
     }
 
+    // MARK: - A service that answers
+
+    @Test func aServiceCallCarriesItsTargetAndAsksForTheResponse() async throws {
+        let (connection, mock) = makeConnection()
+        let task = Task {
+            try await connection.callServiceReturningResult("script", "turn_on", target: ["entity_id": "script.demo_item"],
+                                                            data: ["variables": ["a": 1]], timeout: .seconds(5))
+        }
+        for _ in 0..<500 where mock.pendingRequests.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        let request = try #require(mock.pendingRequests.first)
+        #expect(request.request.type == .webSocket("call_service"))
+        #expect(request.request.data["domain"] as? String == "script" && request.request.data["service"] as? String == "turn_on")
+        #expect(request.request.data["return_response"] as? Bool == true)
+        #expect((request.request.data["target"] as? [String: String]) == ["entity_id": "script.demo_item"])
+        request.completion(.success(HAData(value: ["response": ["ok": true]])))
+        let result = try await task.value
+        #expect(result["response"]?["ok"] == .bool(true))
+    }
+
+    @Test func aServiceCallWithoutATargetSendsNoTarget() async throws {
+        let (connection, mock) = makeConnection()
+        let task = Task { try await connection.callServiceReturningResult("script", "turn_on", data: [:]) }
+        for _ in 0..<500 where mock.pendingRequests.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        let request = try #require(mock.pendingRequests.first)
+        #expect(request.request.data["target"] == nil)
+        request.completion(.success(HAData(value: [:])))
+        _ = try await task.value
+    }
+
+    @Test func aServiceCallNobodyAnswersEndsAtItsTimeout() async {
+        let (connection, mock) = makeConnection()
+        await #expect(throws: CommandTimeout.self) {
+            _ = try await connection.callServiceReturningResult("script", "turn_on", target: ["entity_id": "script.demo_item"],
+                                                                data: [:], timeout: .milliseconds(80))
+        }
+        #expect(mock.cancelledRequests.count == 1)
+    }
+
     @Test func streamCommandsCarryATimeout() {
         #expect(HassConnection.streamCommandTimeout > .seconds(5))
     }

@@ -1180,12 +1180,6 @@
    "journeys": []
   },
   {
-   "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumsScreen",
-   "swift": [],
-   "journeys": [],
-   "layout_journeys": []
-  },
-  {
    "prefix": "apple/Sources/HassUI/Features/Vacuums/VacuumSheet",
    "swift": [
     "Vacuum"
@@ -1395,13 +1389,6 @@
    "swift": [
     "Rooms",
     "RoomOverview"
-   ],
-   "journeys": []
-  },
-  {
-   "prefix": "apple/Sources/HassCore/Security",
-   "swift": [
-    "SecurityConfig"
    ],
    "journeys": []
   },

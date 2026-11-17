@@ -1,0 +1,85 @@
+{
+  "format": 1,
+  "name": "stack-reflow-collapse-keeps-the-groups-it-does-not-replace",
+  "note": "A collapse with its own space but no groups keeps the stack's groups and uses the new space between them.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "l"
+        },
+        "groups": [
+          {
+            "children": [
+              "a",
+              "b"
+            ]
+          },
+          {
+            "children": [
+              "c"
+            ]
+          }
+        ],
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "accessibility-size"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "s"
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 10
+        },
+        {
+          "id": "b",
+          "width": 10
+        },
+        {
+          "id": "c",
+          "width": 10
+        }
+      ],
+      "width": 300,
+      "accessibilitySize": true
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": true,
+      "reason": "accessibility-size",
+      "axis": "vertical",
+      "spacing": 8,
+      "groups": [
+        {
+          "children": [
+            "a",
+            "b"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "c"
+          ],
+          "spacing": 8,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

@@ -52,7 +52,7 @@ modal stack; a standalone sheet composes that primitive independently. Neither p
 dispatches a compiled controller.
 
 `door-tile` and `security-door@1` (`sh.security-door@1`) bind literal lock/cover targets
-to `LockActions` / `GarageDoorController`, with authored state appearances and feedback
+to `LockActions` / `CoverActions`, with authored state appearances and feedback
 copy. Body and disc run the same immutable intent. Confirmations revalidate state and
 attachment; pending sources/controls cannot be retargeted or removed. Garage network
 lifetime is tracked separately from lockout, timeout and live acknowledgement.

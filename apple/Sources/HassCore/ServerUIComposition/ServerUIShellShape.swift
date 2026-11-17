@@ -13,7 +13,7 @@ extension ServerUICompositionShape {
                               "maximum": .number(-1_000_000, 1_000_000, integer: false),
                               "step": .number(0.000_001, 1_000_000, integer: false)]),
             "choice": object(["id": id, "type": fixed("choice"), "initial": id,
-                              "options": array(object(["id": id, "label": label]), 12, minimum: 2)])
+                              "options": array(choiceOption, 12, minimum: 2)])
         ])
     }()
 
