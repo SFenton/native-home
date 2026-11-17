@@ -4,6 +4,8 @@
 
 Contract: `sh.surface-controls@1` and `sh.surface-orientation@1` (Studio `agents/studio-ux2@7dddfa9`). Design: `build/design/vacuum-map-ctl.md`.
 
+The overlay ([overlay](overlay.md)) is not a second way to place map buttons: a button over a map is a map control.
+
 | Piece | File |
 |---|---|
 | Fit rule (shared oracle), corners, constants | `HassCore/Vacuums/MapControlFit.swift` |

@@ -5,7 +5,7 @@ import Testing
 
 // MARK: - The oracle: what the vacuum atoms drew before they were lowered
 
-/// The Vacuums page's tile face, as `VacuumPageFormat.tile` and `VacuumFormat.tileSubtitle` drew it before the card was lowered.
+/// The Vacuums page's tile face, as the old page format and `VacuumFormat.tileSubtitle` drew it before the card was lowered.
 /// Kept here, frozen, as the reference the lowered tile is checked against (the two functions are deleted).
 private struct OldCardFace: Equatable {
     var subtitle: String

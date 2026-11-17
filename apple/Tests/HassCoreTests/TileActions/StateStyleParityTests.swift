@@ -68,10 +68,10 @@ private func entity(_ id: String, _ state: String, _ attributes: [String: JSONVa
         }
     }
 
-    @Test func garageDoorReverseUsesTheControllersCommand() {
-        for state in ["opening", "closing"] {
+    @Test func garageDoorReverseUsesTheOppositeCommand() {
+        for (state, service) in [("opening", "close_cover"), ("closing", "open_cover")] {
             let spec = StateStyle.garageDoor.spec(for: entity(door, state), entityId: door)
-            #expect(spec?.call?.service == GarageDoorController.command(for: state)?.service)
+            #expect(spec?.call?.service == service, Comment(rawValue: state))
         }
     }
 

@@ -54,7 +54,7 @@ enum ConfiguredVacuumFixture {
     ///   - orientation: The source's `orientation` (`sh.surface-orientation@1`), when authored.
     ///   - extra: Capability ids the content needs beyond the kind's own (the map's `controls` adds its own).
     static func publication(_ primitive: String, autoClean: Bool = false, revision: Double = 1, orientation: String? = nil, rotation: Double? = nil,
-                            extra needs: [String] = []) throws -> ServerUICompositionPublication {
+                            extra needs: [String] = [], overlayPill: Bool = false) throws -> ServerUICompositionPublication {
         var root = try ServerUIRendererFixture.json()
         var descriptor = try JSONDecoder().decode(JSONValue.self, from: JSONEncoder().encode(descriptor()))
         if let rotation { descriptor = try ServerUIRendererFixture.changing(descriptor, path: "/mapRotationDegrees", to: .number(rotation)) }
@@ -71,6 +71,15 @@ enum ConfiguredVacuumFixture {
         nodes.append(.object(["id": .string("robot-control"), "title": .string("Demo Control"),
             "type": .string("vacuum-control"), "layout": .object(["span": .number(1)]),
             "props": .object(["sourceId": .string("source-robot"), "primitive": try json(primitive)])]))
+        if overlayPill {
+            // The control becomes the base of an overlay with a status pill at the centre (`sh.overlay@1`).
+            let base = try XCTUnwrap(nodes.popLast())
+            let pill = try json(#"{"id":"centre-pill","title":"Pill","type":"status-pill","layout":{"span":1},"icon":{"type":"sf-symbol","name":"bolt.fill","rendering":"canonical","unavailable":"fallback"},"props":{"value":{"type":"literal","value":"87%"},"detail":{"type":"literal","value":""},"tone":"ok","unavailableText":"Unavailable"}}"#)
+            nodes.append(.object(["id": .string("over-map"), "title": .string("Over Map"), "type": .string("overlay"),
+                "layout": .object(["span": .number(1)]),
+                "props": try json(#"{"anchors":[{"childId":"centre-pill","anchor":"center","inset":{"type":"token","name":"zero"}}]}"#),
+                "children": .array([base, pill])]))
+        }
         root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/components", to: .array(nodes))
         let kind = try json(primitive)["kind"]?.string
         let extra = kind == "auto-clean" ? ["sh.vacuum-auto-clean@1"] : kind == "map" ? ["sh.vacuum-map@1"]
@@ -80,6 +89,7 @@ enum ConfiguredVacuumFixture {
         if primitive.contains("\"controls\"") { capabilities.append("sh.surface-controls@1") }
         if primitive.contains("source-command") { capabilities.append("sh.vacuum-controls@1") }
         if orientation != nil { capabilities.append("sh.surface-orientation@1") }
+        if overlayPill { capabilities += ["sh.overlay@1", "sh.status-pill@1"] }
         capabilities = Array(Set(capabilities))
         root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(capabilities.sorted().map(JSONValue.string)))
         root = try ServerUIRendererFixture.changing(root, path: "/revision", to: .number(revision))

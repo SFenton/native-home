@@ -364,7 +364,9 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         let connection = connection
         return Self.flowHost(connection: connection, entitySources: entitySources, user: { [weak self] in self?.user },
                              appState: appState, call: { domain, service, target, data, timeout in
-            try await connection.callServiceForFlow(domain, service, target: target, data: data, timeout: timeout)
+            // The flow's timeout is its own `timeoutSeconds`: HAKit never answers a command in flight when the socket closed.
+            try await connection.callServiceReturningResult(domain, service, target: target.mapValues(\.foundationValue),
+                                                            data: data.mapValues(\.foundationValue), timeout: timeout)["response"] ?? .null
         })
     }
 

@@ -2390,8 +2390,134 @@
       "guards": [],
       "related": {
         "patterns": [
-          "valetudo-map"
+          "valetudo-map",
+          "overlay"
         ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "overlay",
+      "title": "Overlay",
+      "status": "current",
+      "doc": ".agents/patterns/overlay.md",
+      "summary": "small nodes drawn over a base at five anchors.",
+      "keywords": [
+        "overlay",
+        "anchors",
+        "sh.overlay"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIOverlay.swift",
+            "symbol": "UKServerUIOverlayView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIOverlay.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "map-controls"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-tab-areas",
+      "title": "Tab areas",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-tab-areas.md",
+      "summary": "the areas of a tab container, each drawn once for the tabs that name it.",
+      "keywords": [
+        "tab areas",
+        "tab-blocks",
+        "tab container",
+        "tab bar"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift",
+            "symbol": "UKServerUIAreaStack"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITabAreas.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-badges",
+      "title": "Badges",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-badges.md",
+      "summary": "a count or short text on the top trailing corner of a tile or chip.",
+      "keywords": [
+        "badge",
+        "sh.badges"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift",
+            "symbol": "UKServerUIBadgeViews"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBadgeViews.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "entity-tile"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
+    },
+    {
+      "id": "server-ui-data-flow",
+      "title": "Data flow session",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-data-flow.md",
+      "summary": "a document data source that asks Home Assistant, runs a closed list of steps and gives rows.",
+      "keywords": [
+        "data flow",
+        "pipeline",
+        "ServerUIFlow",
+        "sh.pipeline"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/ServerUIFlow/ServerUIFlowSession.swift",
+            "symbol": "ServerUIFlowSession"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIFlow/ServerUIFlow*.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
       },
       "supersedes": [],
       "supersededBy": null
