@@ -11,7 +11,7 @@ import re
 import shlex
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple
 
 from .common import DEFAULT_DENSITY, Runner, png_size, run, parse_json, write_json
 
@@ -251,6 +251,29 @@ def _frame(node: Mapping[str, Any]) -> Optional[List[float]]:
     return [round(rect[k], 2) for k in ("x", "y", "width", "height")] if rect else None
 
 
+def dropped_indexes(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, Any]]) -> Set[int]:
+    """Indexes of the nodes a ``drop`` rule removes from the compared AX sequence.
+
+    ``"drop": "within"`` removes each matching node and every node whose frame lies inside its frame (a bar and its buttons: the
+    shell chrome a page-region compare leaves out); ``"drop": "node"`` removes only the matching nodes. The frames come from the
+    AX tree, never from fixed pixel rows.
+    """
+    gone: Set[int] = set()
+    for rule in mask_rules:
+        mode = rule.get("drop")
+        if not mode:
+            continue
+        for index, node in enumerate(nodes):
+            if not _matches(rule, node):
+                continue
+            gone.add(index)
+            outer = _node_rect(node)
+            if mode == "within" and outer:
+                gone.update(j for j, other in enumerate(nodes)
+                            if j != index and (inner := _node_rect(other)) is not None and _rect_contains(outer, inner))
+    return gone
+
+
 def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mapping[str, str]] = ()) -> List[Dict[str, Any]]:
     """The compared AX sequence: role, label, value class, enabled, selected, traits and frame (points).
 
@@ -259,9 +282,10 @@ def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappin
     frames are compared with a tolerance by ``tools/expo_pair_compare.py``.
     """
     patterns = [re.compile(r["ax_match"]) for r in mask_rules if r.get("ax_match")]
+    dropped = dropped_indexes(nodes, mask_rules)
     out: List[Dict[str, Any]] = []
-    for node in nodes:
-        if is_noise(node):
+    for index, node in enumerate(nodes):
+        if is_noise(node) or index in dropped:
             continue
         label = _ax_label(node)
         if label and any(p.search(label) for p in patterns):
@@ -274,9 +298,10 @@ def normalize_ax(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappin
 
 
 def _matches(rule: Mapping[str, str], node: Mapping[str, Any]) -> bool:
-    """Does ``node`` match ``rule``? A rule names any of ``ax_match`` (the label), ``ax_identifier`` and ``ax_value``; one hit is
-    enough. The identifier and value forms let a rule find a node that carries no label."""
-    for key, field in (("ax_match", "label"), ("ax_identifier", "identifier"), ("ax_value", "value")):
+    """Does ``node`` match ``rule``? A rule names any of ``ax_match`` (the label), ``ax_identifier``, ``ax_value`` and ``ax_type`` (the
+    node's type, such as ``NavigationBar``); one hit is enough. The identifier, value and type forms let a rule find a node that
+    carries no label."""
+    for key, field in (("ax_match", "label"), ("ax_identifier", "identifier"), ("ax_value", "value"), ("ax_type", "type")):
         pattern, text = rule.get(key), _text(node, field)
         if pattern and text and re.search(pattern, text):
             return True
@@ -315,6 +340,8 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
     """
     regions: List[Dict[str, Any]] = []
     for rule in mask_rules:
+        if rule.get("ax_only"):  # a rule that only drops nodes from the AX compare has no pixel region
+            continue
         matched = [_matches(rule, n) and _node_rect(n) is not None for n in nodes]
         for index, node in enumerate(nodes):
             if matched[index] and not _has_matching_descendant(nodes, index, matched):

@@ -39,6 +39,16 @@ from parity_loop.capture import Agent, ReachPlan  # noqa: E402
 from parity_loop.common import BUNDLE_ID, CANDIDATE, REFERENCE, REPO, read_json, run  # noqa: E402
 
 PAIRED, NO_REFERENCE = "paired", "no-reference"
+#: Mask rules that leave the shell chrome out of a page-region compare, found from the AX tree (type and frame), never from pixel
+#: rows: the navigation bar and tab bar are masked and dropped from the AX sequence together with every node inside them; the flyout's
+#: invisible scrim buttons are dropped from the AX sequence only. The compare keeps the status bar and home indicator bands masked itself.
+SHELL_CHROME: List[Dict[str, Any]] = [
+    {"label": "shell-nav", "ax_type": "^NavigationBar$", "drop": "within"},
+    {"label": "shell-tabbar", "ax_type": "^TabBar$", "drop": "within"},
+    {"label": "shell-flyout", "ax_identifier": r"^nav\.flyout\.", "ax_only": True, "drop": "node"},
+]
+#: The mask cap for a page-region compare (the shell chrome covers more than the default 15% of a phone screen).
+PAGE_REGION_MASK_PERCENT = 30.0
 #: The most a gate delay may be on the candidate (``UKServerUIPreviewFlags.maximumGateDelayMs``).
 MAX_GATE_DELAY_MS = 60_000
 
@@ -153,7 +163,18 @@ def stage_reference(data_dir: Path, page: str, fault: Optional[Fault]) -> None:
     (folder / "receipt.json").unlink(missing_ok=True)
 
 
-def stage_candidate(data_dir: Path, fault: Optional[Fault]) -> None:
+def apply_renames(value: Any, renames: Mapping[str, str]) -> Any:
+    """``value`` with every string equal to a key of ``renames`` replaced (exact match, any depth)."""
+    if isinstance(value, str):
+        return renames.get(value, value)
+    if isinstance(value, list):
+        return [apply_renames(v, renames) for v in value]
+    if isinstance(value, dict):
+        return {k: apply_renames(v, renames) for k, v in value.items()}
+    return value
+
+
+def stage_candidate(data_dir: Path, fault: Optional[Fault], renames: Optional[Mapping[str, str]] = None) -> None:
     """Rewrite the preview ``bootstrap.json``: managed flags cleared, then ``fault``'s set; entities forced when the fault says so."""
     folder = Path(data_dir) / launch_mod.PREVIEW_SUBPATH
     path = folder / "bootstrap.json"
@@ -176,10 +197,14 @@ def stage_candidate(data_dir: Path, fault: Optional[Fault]) -> None:
     else:
         config.pop("flags", None)
     path.write_text(json.dumps(config, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    publication = folder / "publication.json"
+    if renames and publication.is_file():  # align fixture names with the reference gallery's; the publication input only, no product string
+        publication.write_text(json.dumps(apply_renames(json.loads(publication.read_text(encoding="utf-8")), renames),
+                                          separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
     (folder / "receipt.json").unlink(missing_ok=True)
 
 
-def fault_launcher(faults: Mapping[str, Fault] = FAULTS):
+def fault_launcher(faults: Mapping[str, Fault] = FAULTS, renames: Optional[Mapping[str, str]] = None):
     """A ``run.Context.launcher`` that stages the surface's ``fault`` on its half, then relaunches it in gallery mode."""
     def launcher(half: run_mod.Half, surface: Mapping[str, Any], plan: ReachPlan, ctx: run_mod.Context) -> None:
         if ctx.mode == "live":
@@ -189,32 +214,44 @@ def fault_launcher(faults: Mapping[str, Fault] = FAULTS):
         if half.side == REFERENCE:
             stage_reference(data, plan.page or surface.get("gallery_page") or "", fault)
         else:
-            stage_candidate(data, fault)
+            stage_candidate(data, fault, renames)
         half.agent.open_app(BUNDLE_ID, launch_mod.GALLERY_ARGS[half.side], relaunch=True)
     return launcher
 
 
-def derive(surface: Mapping[str, Any], fault: Fault) -> Dict[str, Any]:
-    """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags."""
+def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False) -> Dict[str, Any]:
+    """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags.
+
+    With ``page_region`` the shell chrome (:data:`SHELL_CHROME`) is masked on both halves and left out of the AX compare, so the
+    pair judges the page only; the reference gallery draws no shell and the candidate does.
+    """
     row = dict(surface)
     row.update(id=f"{surface['id']}.{fault.id}", fault=fault.id, base_surface=surface["id"],
                state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"])
+    if page_region:
+        row.update(masks=list(surface.get("masks") or []) + [dict(rule) for rule in SHELL_CHROME], mask_both_sides=True)
     return row
 
 
 def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], fault_ids: Sequence[str],
                pin_hash: Optional[str] = None, env: Optional[Mapping[str, str]] = None, pin_path: Path = run_mod.DEFAULT_PIN,
-               inventory: Optional[Sequence[Mapping[str, Any]]] = None) -> int:
-    """Pair every ``surface`` x ``fault`` the reference supports. Returns the compare's exit status (2 when nothing is paired)."""
+               inventory: Optional[Sequence[Mapping[str, Any]]] = None, page_region: bool = True,
+               renames: Optional[Mapping[str, str]] = None) -> int:
+    """Pair every ``surface`` x ``fault`` the reference supports. Returns the compare's exit status (2 when nothing is paired).
+
+    ``page_region`` (the default) compares the page only (:data:`SHELL_CHROME` masked); ``renames`` aligns fixture names on the candidate.
+    """
     if ctx.mode == "live":
         raise Refused("fault staging is fixtures only: live mode is refused")
     unknown = [f for f in fault_ids if f not in FAULTS]
     if unknown:
         raise Refused(f"unknown fault(s): {', '.join(unknown)}")
-    derived = [derive(s, FAULTS[f]) for s in surfaces for f in fault_ids if status_for(s, FAULTS[f]) == PAIRED]
+    derived = [derive(s, FAULTS[f], page_region) for s in surfaces for f in fault_ids if status_for(s, FAULTS[f]) == PAIRED]
     if not derived:
         raise Refused("no surface and fault pair: the reference has no mechanism for any of them (see `faults.py matrix`)")
-    ctx.launcher = fault_launcher()
+    ctx.launcher = fault_launcher(renames=renames)
+    if page_region and ctx.max_mask_percent is None:
+        ctx.max_mask_percent = PAGE_REGION_MASK_PERCENT
     try:
         return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
     finally:
@@ -298,6 +335,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     rn.add_argument("--candidate-udid", required=True)
     rn.add_argument("--candidate-agent", required=True)
     rn.add_argument("--publication", type=Path, help="candidate preview publication directory to feed before the run")
+    rn.add_argument("--rename-file", type=Path, help="JSON object of exact strings to replace in the candidate's publication (aligns fixture names)")
+    rn.add_argument("--full-frame", action="store_true", help="compare the whole frame, shell chrome included (the default compares the page region)")
     rn.add_argument("--reference-pin", type=Path, default=run_mod.DEFAULT_PIN)
     pb = sub.add_parser("publish")
     pb.add_argument("--run-dir", type=Path, required=True)
@@ -325,7 +364,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         surfaces = run_mod.select(document, args.surfaces.split(","))
         if args.publication:
             launch_mod.feed_preview(launch_mod.container(run, args.candidate_udid, "data"), args.publication)
-        return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"])
+        renames = read_json(args.rename_file) if args.rename_file else None
+        return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"],
+                          page_region=not args.full_frame, renames=renames)
     except (launch_mod.Refused, ValueError, OSError, KeyError) as error:
         print(f"faults: {error}", file=sys.stderr)
         return 2

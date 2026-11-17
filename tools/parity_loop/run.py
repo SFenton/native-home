@@ -79,6 +79,8 @@ class Context:
     proxy_cert: Optional[Path] = None
     #: Per half, the hash of the HA user id its session resolves to (``auth/current_user`` through the proxy); recorded in its sidecars.
     user_id_hashes: Dict[str, str] = field(default_factory=dict)
+    #: Passed to the compare as ``--max-mask-percent`` when set (a page-region compare masks the shell chrome, more than the default 15%).
+    max_mask_percent: Optional[float] = None
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -136,6 +138,8 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
         entry[f"{stem}_sidecar"] = f"{sid}/{stem}.sidecar.json"
         entry[f"{stem}_ax_file"] = f"{sid}/{stem}.ax.json"
     entry["mask_files"] = [f"{sid}/reference.masks.json"] + ([f"{sid}/masks.json"] if (folder / "masks.json").is_file() else [])
+    if surface.get("mask_both_sides"):  # the regions the candidate's own AX tree resolves are masked on both halves too
+        entry["mask_files"].append(f"{sid}/candidate.masks.json")
     if problems:
         entry["problems"] = problems
     return entry
@@ -199,6 +203,8 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
     write_json(ctx.run_dir / "manifest.json", {"pairs": entries})
     flags = ["--manifest", str(ctx.run_dir / "manifest.json"), "--out", str(ctx.run_dir / "compare"),
              "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax", "--status-bar-equal"]
+    if ctx.max_mask_percent is not None:
+        flags += ["--max-mask-percent", f"{ctx.max_mask_percent:g}"]
     if ctx.status_bar_rects:
         flags += ["--status-bar-rects", str(ctx.status_bar_rects)]
     status = expo_pair_compare.main(flags + (["--reference-pin", str(pin_path)] if pin_hash else []))

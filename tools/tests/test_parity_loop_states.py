@@ -237,6 +237,19 @@ class PairingTests(unittest.TestCase):
         manifest = read_json(ctx.run_dir / "manifest.json")
         self.assertIn("fault:empty", manifest["pairs"][0]["state"])
 
+    def test_a_page_region_run_masks_both_halves_and_lifts_the_cap(self) -> None:
+        ctx = self.context()
+        faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
+        self.assertEqual(ctx.max_mask_percent, faults.PAGE_REGION_MASK_PERCENT)
+        manifest = read_json(ctx.run_dir / "manifest.json")
+        self.assertIn("chores.empty/candidate.masks.json", manifest["pairs"][0]["mask_files"])
+
+    def test_a_full_frame_run_keeps_the_default_cap(self) -> None:
+        ctx = self.context()
+        faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, page_region=False)
+        self.assertIsNone(ctx.max_mask_percent)
+        self.assertNotIn("chores.empty/candidate.masks.json", read_json(ctx.run_dir / "manifest.json")["pairs"][0]["mask_files"])
+
     def test_both_simulators_are_left_clean(self) -> None:
         faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
         self.assertNotIn("FENTON_GALLERY_EMPTY", self.reference_bootstrap()["variables"])
@@ -246,7 +259,7 @@ class PairingTests(unittest.TestCase):
     def test_the_candidate_is_staged_before_its_launch(self) -> None:
         launches = []
         original = faults.stage_candidate
-        faults.stage_candidate = lambda d, f: (launches.append(f and f.id), original(d, f))[1]
+        faults.stage_candidate = lambda d, f, r=None: (launches.append(f and f.id), original(d, f, r))[1]
         try:
             faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
         finally:
@@ -274,6 +287,61 @@ class PairingTests(unittest.TestCase):
     def test_the_cli_refuses_without_a_hold(self) -> None:
         self.assertEqual(faults.main(["run", "--surfaces", "chores", "--faults", "empty", "--reference-udid", "A", "--reference-agent", "x",
                                       "--candidate-udid", "B", "--candidate-agent", "y", "--reference-pin", "none", "--out", str(self.dir / "o")]), 2)
+
+
+NODES = [
+    {"type": "NavigationBar", "label": None, "rect": {"x": 0, "y": 62, "width": 402, "height": 106}},
+    {"type": "Button", "label": "Menu", "rect": {"x": 20, "y": 66, "width": 36, "height": 36}},
+    {"type": "StaticText", "label": "Chores", "rect": {"x": 16, "y": 120, "width": 114, "height": 40}},
+    {"type": "StaticText", "label": "Quick Links", "rect": {"x": 16, "y": 184, "width": 370, "height": 24}},
+    {"type": "Button", "label": "Add Task", "rect": {"x": 252, "y": 731, "width": 133, "height": 52}},
+    {"type": "TabBar", "label": "Tab Bar", "rect": {"x": 0, "y": 791, "width": 402, "height": 83}},
+    {"type": "Button", "label": "Home", "rect": {"x": 25, "y": 795, "width": 77, "height": 54}},
+    {"type": "Button", "label": "Close Navigation", "identifier": "nav.flyout.scrim", "rect": {"x": 300, "y": 62, "width": 102, "height": 812}},
+]
+
+
+class PageRegionTests(unittest.TestCase):
+    def labels(self, rules):
+        return [n["label"] for n in capture.normalize_ax(NODES, rules)]
+
+    def test_shell_chrome_is_dropped_from_the_ax_by_type_and_frame(self) -> None:
+        self.assertEqual(self.labels(faults.SHELL_CHROME), ["Quick Links", "Add Task"])
+
+    def test_without_the_rules_the_chrome_stays(self) -> None:
+        self.assertEqual(self.labels([]), ["Menu", "Chores", "Quick Links", "Add Task", "Tab Bar", "Home", "Close Navigation"])
+
+    def test_page_content_is_never_dropped_with_the_chrome(self) -> None:
+        self.assertIn("Add Task", self.labels(faults.SHELL_CHROME))
+
+    def test_masks_cover_the_bars_only_and_the_ax_only_rule_makes_none(self) -> None:
+        regions = capture.resolve_masks(NODES, faults.SHELL_CHROME)
+        self.assertEqual(sorted((r["label"], r["y"], r["height"]) for r in regions), [("shell-nav", 62.0, 106.0), ("shell-tabbar", 791.0, 83.0)])
+
+    def test_derive_adds_the_chrome_rules_only_on_request(self) -> None:
+        row = {"id": "chores", "masks": [{"label": "clock", "ax_match": "x"}]}
+        plain = faults.derive(row, faults.FAULTS["empty"])
+        paged = faults.derive(row, faults.FAULTS["empty"], page_region=True)
+        self.assertNotIn("mask_both_sides", plain)
+        self.assertTrue(paged["mask_both_sides"])
+        self.assertEqual([m["label"] for m in paged["masks"]], ["clock", "shell-nav", "shell-tabbar", "shell-flyout"])
+        self.assertEqual(len(row["masks"]), 1)
+
+
+class RenameTests(unittest.TestCase):
+    def test_exact_strings_are_replaced_at_any_depth(self) -> None:
+        got = faults.apply_renames({"a": ["Old Name", {"b": "Old Name"}], "c": "Old Name here", "d": 3}, {"Old Name": "New Name"})
+        self.assertEqual(got, {"a": ["New Name", {"b": "New Name"}], "c": "Old Name here", "d": 3})
+
+    def test_staging_renames_the_publication_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp) / launch.PREVIEW_SUBPATH
+            folder.mkdir(parents=True)
+            (folder / "bootstrap.json").write_text(json.dumps({"entities": {}}))
+            (folder / "publication.json").write_text(json.dumps({"tiles": [{"title": "Old Name"}]}))
+            faults.stage_candidate(Path(tmp), None, {"Old Name": "New Name"})
+            self.assertEqual(json.loads((folder / "publication.json").read_text()), {"tiles": [{"title": "New Name"}]})
+            self.assertEqual(json.loads((folder / "bootstrap.json").read_text()), {"entities": {}})
 
 
 class EvidenceTests(unittest.TestCase):
