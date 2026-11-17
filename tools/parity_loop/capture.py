@@ -60,6 +60,10 @@ class Agent:
             return self.call("press", f"{point[0]:g}", f"{point[1]:g}")
         return self.call("press", f'label="{label}"')
 
+    def scroll_bottom(self) -> Dict[str, Any]:
+        """Scroll the page's main scroll view to the end of its content (``agent-device scroll bottom``)."""
+        return self.call("scroll", "bottom")
+
     def settle(self) -> Dict[str, Any]:
         return self.call("wait", "stable", "1000", "15000")
 
@@ -349,6 +353,78 @@ def resolve_masks(nodes: Sequence[Mapping[str, Any]], mask_rules: Sequence[Mappi
                 if region not in regions:
                     regions.append(region)
     return regions
+
+
+# MARK: - Floating controls over the content
+
+#: AX types of a scrolling container; the largest one on screen is the page's main scroll view.
+SCROLL_TYPES = frozenset({"scrollview", "collectionview", "tableview"})
+#: Bars whose buttons are chrome, never a floating control.
+CHROME_TYPES = frozenset({"navigationbar", "tabbar", "toolbar", "statusbar"})
+
+
+def _area(rect: Mapping[str, float]) -> float:
+    return rect["width"] * rect["height"]
+
+
+def _overlap(a: Mapping[str, float], b: Mapping[str, float]) -> float:
+    """The area where two rectangles intersect (0 when they do not)."""
+    width = min(a["x"] + a["width"], b["x"] + b["width"]) - max(a["x"], b["x"])
+    height = min(a["y"] + a["height"], b["y"] + b["height"]) - max(a["y"], b["y"])
+    return max(width, 0.0) * max(height, 0.0)
+
+
+def _ancestors(nodes: Sequence[Mapping[str, Any]], index: int) -> List[int]:
+    """Indexes above ``nodes[index]``, nearest first, from ``parentIndex`` (or the ``depth`` order of a pre-order dump)."""
+    out: List[int] = []
+    node = nodes[index]
+    while isinstance(node.get("parentIndex"), int) and 0 <= node["parentIndex"] < len(nodes) and node["parentIndex"] != index:
+        index = node["parentIndex"]
+        out.append(index)
+        node = nodes[index]
+    return out
+
+
+def floating_overlaps(nodes: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+    """Does a floating control cover the last content the page can scroll to? Read from the AX tree only.
+
+    * the **scroll view** is the largest scrolling container (:data:`SCROLL_TYPES`) on screen;
+    * the **last content element** is the labelled leaf below it with the lowest bottom edge (scroll bars and unlabelled wrappers
+      do not count);
+    * a **floating control** is a button that is not inside the scroll view or a bar (:data:`CHROME_TYPES`), has a frame, and
+      overlaps the scroll view's frame: it floats over the page;
+    * ``intersects`` is true when a floating control's frame overlaps the last content element's frame. ``covers`` lists every
+      content leaf a floating control overlaps, so a partly hidden list shows up even when the last row is clear.
+
+    Returns ``{"scrollView", "lastContent", "floating", "intersects", "covers"}`` (frames ``[x, y, width, height]`` in points), or
+    ``{"scrollView": None, ...}`` when the tree has no scroll view or no content.
+    """
+    rects = [_node_rect(n) for n in nodes]
+    scrolls = [i for i, n in enumerate(nodes) if _node_role(n).lower() in SCROLL_TYPES and rects[i] and _area(rects[i]) > 0]
+    empty: Dict[str, Any] = {"scrollView": None, "lastContent": None, "floating": [], "intersects": False, "covers": []}
+    if not scrolls:
+        return empty
+    main = max(scrolls, key=lambda i: _area(rects[i]))
+    children = {i for i in range(len(nodes)) if i != main and main in _ancestors(nodes, i)}
+    has_child = {nodes[i]["parentIndex"] for i in children if isinstance(nodes[i].get("parentIndex"), int)}
+    leaves = [i for i in children if i not in has_child and rects[i] and _area(rects[i]) > 0 and _ax_label(nodes[i])
+              and not SCROLL_BAR.match(_ax_label(nodes[i]))]
+    if not leaves:
+        return {**empty, "scrollView": _frame(nodes[main])}
+    last = max(leaves, key=lambda i: (rects[i]["y"] + rects[i]["height"], rects[i]["x"]))
+    floating = []
+    for i, node in enumerate(nodes):
+        if i == main or i in children or rects[i] is None or _area(rects[i]) <= 0 or _node_role(node).lower() != "button":
+            continue
+        if any(_node_role(nodes[a]).lower() in CHROME_TYPES for a in _ancestors(nodes, i)):
+            continue
+        if _overlap(rects[i], rects[main]) > 0:
+            floating.append(i)
+    covers = [{"control": _ax_label(nodes[f]), "label": _ax_label(nodes[i]), "frame": _frame(nodes[i])}
+              for f in floating for i in sorted(leaves) if _overlap(rects[f], rects[i]) > 0]
+    return {"scrollView": _frame(nodes[main]), "lastContent": {"label": _ax_label(nodes[last]), "frame": _frame(nodes[last])},
+            "floating": [{"label": _ax_label(nodes[f]), "frame": _frame(nodes[f])} for f in floating],
+            "intersects": any(_overlap(rects[f], rects[last]) > 0 for f in floating), "covers": covers}
 
 
 # MARK: - One shot

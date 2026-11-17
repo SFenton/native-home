@@ -52,6 +52,9 @@ SHELL_CHROME: List[Dict[str, Any]] = [
 PAGE_REGION_MASK_PERCENT = 30.0
 #: The text-size axis: the name a run takes and the ``simctl ui content_size`` category it sets on both simulators. ``None`` leaves the
 #: setting alone. Set with ``simctl ui`` (the system setting, a real accessibility choice), not by a launch variable or a fixture string.
+#: The scroll stops a pair is captured at: ``rest`` (as launched) and ``end`` (the page's main scroll view scrolled to the end of its
+#: content, on both sides, tagged ``stop:end``; the run then reports whether a floating control covers the last content).
+STOPS = ("rest", "end")
 TEXT_SIZES: Dict[str, Optional[str]] = {"default": None, "accessibility-large": "accessibility-large"}
 #: The most a gate delay may be on the candidate (``UKServerUIPreviewFlags.maximumGateDelayMs``).
 MAX_GATE_DELAY_MS = 60_000
@@ -236,7 +239,8 @@ def set_content_size(runner: Any, udid: str, category: str) -> None:
         raise Refused(f"could not set the text size to {category} on {udid}")
 
 
-def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, text_size: str = "default") -> Dict[str, Any]:
+def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, text_size: str = "default",
+           stop: str = "rest") -> Dict[str, Any]:
     """The surface row a fault run captures: id ``<surface>.<fault>``, the fault in its ``fault`` key and state tags.
 
     With ``page_region`` the shell chrome (:data:`SHELL_CHROME`) is masked on both halves and left out of the AX compare, so the
@@ -244,8 +248,10 @@ def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, 
     """
     row = dict(surface)
     suffix = "" if text_size == "default" else f".{text_size}"
-    row.update(id=f"{surface['id']}.{fault.id}{suffix}", fault=fault.id, base_surface=surface["id"],
-               state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"] + ([f"text:{text_size}"] if suffix else []))
+    stop_suffix = "" if stop == "rest" else f".stop-{stop}"
+    row.update(id=f"{surface['id']}.{fault.id}{suffix}{stop_suffix}", fault=fault.id, base_surface=surface["id"], stop=stop,
+               state_tags=list(surface.get("state_tags") or []) + [f"fault:{fault.id}"] + ([f"text:{text_size}"] if suffix else [])
+               + ([f"stop:{stop}"] if stop_suffix else []))
     if page_region:
         row.update(masks=list(surface.get("masks") or []) + [dict(rule) for rule in SHELL_CHROME], mask_both_sides=True)
     return row
@@ -254,7 +260,7 @@ def derive(surface: Mapping[str, Any], fault: Fault, page_region: bool = False, 
 def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], fault_ids: Sequence[str],
                pin_hash: Optional[str] = None, env: Optional[Mapping[str, str]] = None, pin_path: Path = run_mod.DEFAULT_PIN,
                inventory: Optional[Sequence[Mapping[str, Any]]] = None, page_region: bool = True,
-               renames: Optional[Mapping[str, str]] = None, text_size: str = "default") -> int:
+               renames: Optional[Mapping[str, str]] = None, text_size: str = "default", stops: Sequence[str] = ("rest",)) -> int:
     """Pair every ``surface`` x ``fault`` the reference supports. Returns the compare's exit status (2 when nothing is paired).
 
     ``page_region`` (the default) compares the page only (:data:`SHELL_CHROME` masked); ``renames`` aligns fixture names on the candidate; ``text_size`` (:data:`TEXT_SIZES`) sets
@@ -262,12 +268,16 @@ def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], faul
     """
     if ctx.mode == "live":
         raise Refused("fault staging is fixtures only: live mode is refused")
+    bad = [s for s in stops if s not in STOPS]
+    if bad:
+        raise Refused(f"unknown stop(s): {', '.join(bad)}; choose from {', '.join(STOPS)}")
     if text_size not in TEXT_SIZES:
         raise Refused(f"unknown text size {text_size}; choose from {', '.join(TEXT_SIZES)}")
     unknown = [f for f in fault_ids if f not in FAULTS]
     if unknown:
         raise Refused(f"unknown fault(s): {', '.join(unknown)}")
-    derived = [derive(s, FAULTS[f], page_region, text_size) for s in surfaces for f in fault_ids if status_for(s, FAULTS[f]) == PAIRED]
+    derived = [derive(s, FAULTS[f], page_region, text_size, stop) for s in surfaces for f in fault_ids for stop in stops
+               if status_for(s, FAULTS[f]) == PAIRED]
     if not derived:
         raise Refused("no surface and fault pair: the reference has no mechanism for any of them (see `faults.py matrix`)")
     ctx.launcher = fault_launcher(renames=renames)
@@ -327,6 +337,13 @@ def publish(run_dir: Path, out_dir: Path, family: str, sha: str) -> List[Dict[st
     if results_file.is_file():
         for record in read_json(results_file):
             results[str(record.get("id", ""))] = str(record.get("verdict", ""))
+    floating: Dict[str, str] = {}
+    if results_file.is_file():
+        for record in read_json(results_file):
+            for side, r in (record.get("floatingOverlap") or {}).items():
+                text = f"{side}: " + (f"{', '.join(f['label'] for f in r['floating'])} covers {(r['lastContent'] or {}).get('label', '')}" if r["intersects"]
+                                      else "no overlap with the last content")
+                floating[record["id"]] = "; ".join(filter(None, [floating.get(record["id"]), text]))
     rows = []
     for entry in manifest["pairs"]:
         sid = entry["id"]
@@ -336,13 +353,13 @@ def publish(run_dir: Path, out_dir: Path, family: str, sha: str) -> List[Dict[st
         name = f"{sid}-{family}.png".replace("/", "-")
         side_by_side(Path(run_dir) / entry["reference_png"], Path(run_dir) / entry["candidate_png"], Path(out_dir) / name)
         rows.append({"id": sid, "image": name, "verdict": results.get(sid, "unjudged"), "note": "; ".join(entry.get("problems") or []),
-                     "state": str(entry.get("state", ""))})
+                     "state": str(entry.get("state", "")), "floating": floating.get(sid, "")})
     lines = [f"# Parity states: {family}, tool sha {sha}", "",
              "> **What:** one side-by-side per staged state, reference on the left, candidate on the right. Fixtures only; no live write, no live fault.", "",
-             "| State | Verdict | State tags (text size is `text:`) | Image | Note |", "|---|---|---|---|---|"]
+             "| State | Verdict | State tags (`text:` size, `stop:` scroll stop) | Floating control over last content | Image | Note |", "|---|---|---|---|---|---|"]
     for row in rows:
         image = f"![{row['id']}]({row['image']})" if row["image"] else ""
-        lines.append(f"| {row['id']} | {row['verdict']} | {row.get('state', '')} | {image} | {row['note']} |")
+        lines.append(f"| {row['id']} | {row['verdict']} | {row.get('state', '')} | {row.get('floating', '') or 'n/a'} | {image} | {row['note']} |")
     (Path(out_dir) / "index.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     return rows
 
@@ -371,6 +388,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     rn.add_argument("--rename-file", type=Path, help="JSON object of exact strings to replace in the candidate's publication (aligns fixture names)")
     rn.add_argument("--text-size", choices=sorted(TEXT_SIZES), default="default",
                     help="set this content size on both simulators for the run (simctl ui content_size) and restore it after")
+    rn.add_argument("--stops", default="rest", help="comma-separated scroll stops to capture: rest, end (default rest)")
     rn.add_argument("--full-frame", action="store_true", help="compare the whole frame, shell chrome included (the default compares the page region)")
     rn.add_argument("--reference-pin", type=Path, default=run_mod.DEFAULT_PIN)
     pb = sub.add_parser("publish")
@@ -401,7 +419,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             launch_mod.feed_preview(launch_mod.container(run, args.candidate_udid, "data"), args.publication)
         renames = read_json(args.rename_file) if args.rename_file else None
         return run_faults(ctx, surfaces, args.faults.split(","), pin, pin_path=args.reference_pin, inventory=document["surfaces"],
-                          page_region=not args.full_frame, renames=renames, text_size=args.text_size)
+                          page_region=not args.full_frame, renames=renames, text_size=args.text_size, stops=args.stops.split(","))
     except (launch_mod.Refused, ValueError, OSError, KeyError) as error:
         print(f"faults: {error}", file=sys.stderr)
         return 2

@@ -286,6 +286,34 @@ class PairingTests(unittest.TestCase):
             faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, text_size="accessibility-large")
         self.assertEqual(self.world.calls["reference"], [])
 
+    def test_an_end_stop_scrolls_both_halves_before_each_capture_and_reports_floating(self) -> None:
+        self.world.nodes["candidate"] = tree(690)
+        ctx = self.context()
+        faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, stops=["end"])
+        for side in ("reference", "candidate"):
+            verbs = [c[0] for c in self.world.calls[side]]
+            self.assertIn("scroll", verbs)
+            self.assertEqual([c[1] for c in self.world.calls[side] if c[0] == "scroll"], ["bottom"] * verbs.count("scroll"))
+            self.assertLess(verbs.index("scroll"), verbs.index("screenshot"))
+        pair = read_json(ctx.run_dir / "manifest.json")["pairs"][0]
+        self.assertEqual(pair["id"], "chores.empty.stop-end")
+        self.assertIn("stop:end", pair["state"])
+        self.assertEqual(sorted(pair["floating"]), ["candidate", "reference"])
+        results = read_json(ctx.run_dir / "results.json")[0]
+        self.assertTrue(results["floatingOverlap"]["candidate"]["intersects"])
+        self.assertIn("Floating controls at the end stop", (ctx.run_dir / "results.md").read_text())
+
+    def test_rest_and_end_make_two_pairs_and_an_unknown_stop_is_refused(self) -> None:
+        ctx = self.context()
+        faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, stops=["rest", "end"])
+        self.assertEqual([p["id"] for p in read_json(ctx.run_dir / "manifest.json")["pairs"]], ["chores.empty", "chores.empty.stop-end"])
+        with self.assertRaises(faults.Refused):
+            faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], env=HOLD, stops=["middle"])
+
+    def test_a_rest_run_never_scrolls(self) -> None:
+        faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
+        self.assertFalse([c for c in self.world.calls["reference"] if c[0] == "scroll"])
+
     def test_both_simulators_are_left_clean(self) -> None:
         faults.run_faults(self.context(), plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
         self.assertNotIn("FENTON_GALLERY_EMPTY", self.reference_bootstrap()["variables"])
@@ -362,6 +390,68 @@ class PageRegionTests(unittest.TestCase):
         self.assertTrue(paged["mask_both_sides"])
         self.assertEqual([m["label"] for m in paged["masks"]], ["clock", "shell-nav", "shell-tabbar", "shell-flyout"])
         self.assertEqual(len(row["masks"]), 1)
+
+
+def tree(fab_y, last_y=700):
+    """A page: a scroll view holding a list whose last row is at ``last_y``, a floating button at ``fab_y``, a bar and a tab bar."""
+    def node(i, kind, label, parent, x, y, w, h):
+        return {"index": i, "type": kind, "label": label, "parentIndex": parent, "rect": {"x": x, "y": y, "width": w, "height": h}}
+    return [node(0, "Application", "App", None, 0, 0, 402, 874),
+            node(1, "NavigationBar", "", 0, 0, 62, 402, 54), node(2, "Button", "Menu", 1, 20, 66, 36, 36),
+            node(3, "ScrollView", "", 0, 0, 0, 402, 874), node(4, "Other", "", 3, 16, 120, 370, 700),
+            node(5, "StaticText", "Row one", 4, 16, 120, 370, 60), node(6, "StaticText", "Last row", 4, 16, last_y, 370, 60),
+            node(7, "Other", "Vertical scroll bar, 2 pages", 3, 369, 116, 30, 600),
+            node(8, "Button", "Add Task", 0, 16, fab_y, 370, 52),
+            node(9, "TabBar", "Tab Bar", 0, 0, 791, 402, 83), node(10, "Button", "Home", 9, 25, 795, 77, 54)]
+
+
+class FloatingTests(unittest.TestCase):
+    def test_a_button_over_the_last_row_intersects(self) -> None:
+        got = capture.floating_overlaps(tree(fab_y=690))
+        self.assertTrue(got["intersects"])
+        self.assertEqual(got["lastContent"]["label"], "Last row")
+        self.assertEqual([f["label"] for f in got["floating"]], ["Add Task"])
+        self.assertEqual([c["label"] for c in got["covers"]], ["Last row"])
+
+    def test_a_button_clear_of_the_last_row_does_not(self) -> None:
+        got = capture.floating_overlaps(tree(fab_y=770))
+        self.assertFalse(got["intersects"])
+        self.assertEqual(got["covers"], [])
+
+    def test_a_button_over_an_earlier_row_is_listed_in_covers_only(self) -> None:
+        got = capture.floating_overlaps(tree(fab_y=110, last_y=700))
+        self.assertFalse(got["intersects"])
+        self.assertEqual([c["label"] for c in got["covers"]], ["Row one"])
+
+    def test_chrome_buttons_and_scroll_bars_are_never_floating_controls_or_content(self) -> None:
+        got = capture.floating_overlaps(tree(fab_y=770))
+        self.assertEqual([f["label"] for f in got["floating"]], ["Add Task"])
+        self.assertNotIn("Vertical scroll bar, 2 pages", [c["label"] for c in got["covers"]])
+
+    def test_no_scroll_view_or_no_content_is_reported_empty(self) -> None:
+        self.assertIsNone(capture.floating_overlaps([])["scrollView"])
+        bare = [n for n in tree(700) if n["index"] in (0, 3)]
+        self.assertFalse(capture.floating_overlaps(bare)["intersects"])
+
+
+class EndStopTests(unittest.TestCase):
+    def test_derive_tags_and_ids_the_stop(self) -> None:
+        row = faults.derive({"id": "chores"}, faults.FAULTS["empty"], stop="end", text_size="accessibility-large")
+        self.assertEqual((row["id"], row["stop"]), ("chores.empty.accessibility-large.stop-end", "end"))
+        self.assertIn("stop:end", row["state_tags"])
+        rest = faults.derive({"id": "chores"}, faults.FAULTS["empty"])
+        self.assertNotIn("stop-", rest["id"])
+
+    def test_annotate_puts_the_result_on_the_record_and_markdown_lists_it(self) -> None:
+        records = [{"id": "p", "verdict": "fail"}, {"id": "q", "verdict": "pass"}]
+        found = capture.floating_overlaps(tree(690))
+        plrun.annotate_floating(records, [{"id": "p", "floating": {"reference": found, "candidate": capture.floating_overlaps(tree(770))}}, {"id": "q"}])
+        self.assertTrue(records[0]["floatingOverlap"]["reference"]["intersects"])
+        self.assertFalse(records[0]["floatingOverlap"]["candidate"]["intersects"])
+        self.assertNotIn("floatingOverlap", records[1])
+        text = plrun.floating_markdown(records)
+        self.assertIn("| p | reference | Last row | Add Task | yes | Last row |", text)
+        self.assertIn("| p | candidate | Last row | Add Task | no | none |", text)
 
 
 class RenameTests(unittest.TestCase):
