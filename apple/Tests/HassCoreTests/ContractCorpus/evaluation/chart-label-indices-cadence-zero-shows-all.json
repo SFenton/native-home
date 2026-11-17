@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "chart-label-indices-cadence-zero-shows-all",
+  "note": "A cadence below 1 shows every label (WeatherChartMathTests.swift:67).",
+  "subject": {
+    "chart": {
+      "op": "indices",
+      "count": 3,
+      "cadence": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "indices": [
+        0,
+        1,
+        2
+      ]
+    }
+  }
+}

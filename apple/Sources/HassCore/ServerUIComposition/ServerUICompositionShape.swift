@@ -13,6 +13,8 @@ enum ServerUICompositionShape {
         case pattern(String, Int)
         case dictionary(Shape, Shape, Int)
         case identifier, hash, bool, nullableID
+        /// A number between the bounds, or `null` (`sh.chart@1` literal points: a value not known).
+        case nullableNumber(Double, Double)
         case number(Double, Double, integer: Bool)
         case choice([String])
         case variant(String, [String: Shape])
@@ -737,7 +739,7 @@ enum ServerUICompositionShape {
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
             "content-panes": .unsupported("sh.content-panes@1")
-        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs })
+        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs }.merging(chartNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
         object([
@@ -823,6 +825,8 @@ enum ServerUICompositionShape {
             guard case .string(let text) = value, validID(text) else { issue(.invalidValue); return }
         case .nullableID:
             if value != .null { walk(value, shape: .identifier, pointer: pointer, issues: &issues, unsupported: &unsupported) }
+        case .nullableNumber(let minimum, let maximum):
+            if value != .null { walk(value, shape: .number(minimum, maximum, integer: false), pointer: pointer, issues: &issues, unsupported: &unsupported) }
         case .hash:
             guard case .string(let text) = value, matches(text, "^[0-9a-f]{64}$") else { issue(.invalidValue); return }
         case .bool:

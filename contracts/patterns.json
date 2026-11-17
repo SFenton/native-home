@@ -2569,6 +2569,53 @@
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "server-ui-chart-gauge",
+      "title": "Chart and linear gauge",
+      "status": "current",
+      "doc": ".agents/patterns/server-ui-chart-gauge.md",
+      "summary": "the document-driven chart and linear gauge, with the weather chart and rail as the second consumer to converge.",
+      "keywords": [
+        "chart",
+        "gauge",
+        "linear gauge",
+        "audio graph",
+        "sh.chart",
+        "sh.linear-gauge",
+        "rail"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKChartView.swift",
+            "symbol": "UKChartView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKLinearGaugeView.swift",
+            "symbol": "UKLinearGaugeView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIChart*.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUILinearGauge.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKChartContent.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKChartView.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKGaugeContent.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKLinearGaugeView.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIDataParts.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "weather",
+          "server-ui-data-flow"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-marker-size-moves-the-edge",
+  "note": "A marker of 20 at a value of 0.5 sits at 100 - 10 = 90.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0.5,
+      "width": 200,
+      "markerSize": 20
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 50,
+        "left": 90
+      }
+    }
+  }
+}

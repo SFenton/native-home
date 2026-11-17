@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "gauge-span-right-to-left-mirrors",
+  "note": "Mirrored, a span from 10 to 40 percent sits at 200 - 20 - 60 = 120.",
+  "subject": {
+    "gauge": {
+      "fill": "span",
+      "span": {
+        "start": 0.1,
+        "size": 0.3
+      },
+      "rtl": true,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 10,
+        "sizePercent": 30,
+        "left": 120,
+        "width": 60
+      },
+      "marker": null
+    }
+  }
+}

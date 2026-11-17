@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-fraction-domain",
+  "note": "0.09 of 0.1 is 90. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 0.09,
+      "top": 0.1
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 90
+    }
+  }
+}

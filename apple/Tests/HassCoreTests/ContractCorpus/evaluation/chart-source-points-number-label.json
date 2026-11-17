@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "chart-source-points-number-label",
+  "note": "A label that is a number is written as it is.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 2,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": 5,
+          "level": 1
+        },
+        {
+          "label": 6.5,
+          "level": 2
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "5",
+          "value": 1
+        },
+        {
+          "label": "6.5",
+          "value": 2
+        }
+      ]
+    }
+  }
+}

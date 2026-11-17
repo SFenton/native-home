@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "chart-bars-unknown-is-a-stub",
+  "note": "An unknown value is a bar of the least height, not zero: [null, 50] in 62 wide: columns 30 wide, the first 2 tall.",
+  "subject": {
+    "chart": {
+      "op": "bars",
+      "values": [
+        null,
+        50
+      ],
+      "top": 100,
+      "width": 62,
+      "height": 76,
+      "gap": 2,
+      "minimum": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "bars": [
+        {
+          "x": 0,
+          "width": 30,
+          "height": 2,
+          "unknown": true
+        },
+        {
+          "x": 32,
+          "width": 30,
+          "height": 38,
+          "unknown": false
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-full",
+  "note": "100 of 100 is 100. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 100,
+      "top": 100
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 100
+    }
+  }
+}

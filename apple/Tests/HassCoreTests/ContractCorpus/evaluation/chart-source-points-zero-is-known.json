@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "chart-source-points-zero-is-known",
+  "note": "A zero is a known value.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 1,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "level": 0
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 0
+        }
+      ]
+    }
+  }
+}

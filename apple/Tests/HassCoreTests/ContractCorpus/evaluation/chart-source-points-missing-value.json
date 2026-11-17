@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "chart-source-points-missing-value",
+  "note": "A record with no such field is an unknown point.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 2,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a"
+        },
+        {
+          "label": "b",
+          "level": 4
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": null
+        },
+        {
+          "label": "b",
+          "value": 4
+        }
+      ]
+    }
+  }
+}

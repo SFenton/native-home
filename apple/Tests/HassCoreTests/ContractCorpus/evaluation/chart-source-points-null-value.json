@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "chart-source-points-null-value",
+  "note": "A null value is an unknown point, not a zero.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 3,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "item",
+          "path": [
+            "level"
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "level": 5
+        },
+        {
+          "label": "b",
+          "level": null
+        },
+        {
+          "label": "c",
+          "level": 7
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 5
+        },
+        {
+          "label": "b",
+          "value": null
+        },
+        {
+          "label": "c",
+          "value": 7
+        }
+      ]
+    }
+  }
+}

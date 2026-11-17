@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "chart-source-points-computed-value",
+  "note": "The value may be computed from the record: half the level.",
+  "subject": {
+    "chart": {
+      "op": "source-points",
+      "series": {
+        "type": "source",
+        "providerId": "records-flow",
+        "limit": 2,
+        "x": {
+          "label": {
+            "type": "item",
+            "path": [
+              "label"
+            ]
+          }
+        },
+        "y": {
+          "type": "math",
+          "op": "divide",
+          "args": [
+            {
+              "type": "item",
+              "path": [
+                "level"
+              ]
+            },
+            {
+              "type": "literal",
+              "value": 2
+            }
+          ]
+        }
+      },
+      "records": [
+        {
+          "label": "a",
+          "level": 70
+        },
+        {
+          "label": "b",
+          "level": 5
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "sourcePoints": [
+        {
+          "label": "a",
+          "value": 35
+        },
+        {
+          "label": "b",
+          "value": 2.5
+        }
+      ]
+    }
+  }
+}

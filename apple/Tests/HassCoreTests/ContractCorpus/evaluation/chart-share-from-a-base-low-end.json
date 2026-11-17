@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "chart-share-from-a-base-low-end",
+  "note": "And its base at 0. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": -20,
+      "top": 40,
+      "base": -20
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 0
+    }
+  }
+}

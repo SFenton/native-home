@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-levels-digits-round-half-up",
+  "note": "A tie rounds up: 0.125 with 2 places is 0.13.",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 2,
+      "top": 0.125,
+      "pattern": "{value}",
+      "digits": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        0.125,
+        0
+      ],
+      "labels": [
+        "0.13",
+        "0"
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-scale-value-below-zero-is-held",
+  "note": "A value below 0 is held at the start.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": -0.2,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 0,
+        "left": 0
+      }
+    }
+  }
+}

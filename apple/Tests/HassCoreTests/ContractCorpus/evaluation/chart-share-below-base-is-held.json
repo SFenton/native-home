@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-share-below-base-is-held",
+  "note": "A value below the base is held at 0: -5 on an axis from 0. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": -5,
+      "top": 100
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 0
+    }
+  }
+}

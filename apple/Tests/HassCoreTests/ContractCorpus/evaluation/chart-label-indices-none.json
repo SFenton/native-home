@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "chart-label-indices-none",
+  "note": "No labels, no index (WeatherChartMathTests.swift:66).",
+  "subject": {
+    "chart": {
+      "op": "indices",
+      "count": 0,
+      "cadence": 3
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "indices": []
+    }
+  }
+}

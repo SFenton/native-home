@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "chart-bars-heights-and-columns",
+  "note": "Six bars of 94, 40, 20, 0, 100 and 1 on an axis to 100 in a plot 100 wide and 76 tall: columns (100 - 5 x 2) / 6 = 15 wide, 2 apart; heights 71.44, 30.4, 15.2, 0 (zero draws nothing), 76 and 2 (above zero, never below the least).",
+  "subject": {
+    "chart": {
+      "op": "bars",
+      "values": [
+        94,
+        40,
+        20,
+        0,
+        100,
+        1
+      ],
+      "top": 100,
+      "width": 100,
+      "height": 76,
+      "gap": 2,
+      "minimum": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "bars": [
+        {
+          "x": 0,
+          "width": 15,
+          "height": 71.44,
+          "unknown": false
+        },
+        {
+          "x": 17,
+          "width": 15,
+          "height": 30.4,
+          "unknown": false
+        },
+        {
+          "x": 34,
+          "width": 15,
+          "height": 15.2,
+          "unknown": false
+        },
+        {
+          "x": 51,
+          "width": 15,
+          "height": 0,
+          "unknown": false
+        },
+        {
+          "x": 68,
+          "width": 15,
+          "height": 76,
+          "unknown": false
+        },
+        {
+          "x": 85,
+          "width": 15,
+          "height": 2,
+          "unknown": false
+        }
+      ]
+    }
+  }
+}

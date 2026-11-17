@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "chart-ceiling-peak-10",
+  "note": "A ceiling of step 10 from 10 to 100 with a highest value of 10 tops out at 10 (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:70-76, `chanceDomain`).",
+  "subject": {
+    "chart": {
+      "op": "domain",
+      "domain": {
+        "type": "ceiling",
+        "step": 10,
+        "min": 10,
+        "max": 100
+      },
+      "peak": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 10
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-scale-value-over-one-is-held",
+  "note": "A value of 1.5 is held at the end (clamp, UKWeatherViews.swift:190).",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 1.5,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 100,
+        "left": 188
+      }
+    }
+  }
+}

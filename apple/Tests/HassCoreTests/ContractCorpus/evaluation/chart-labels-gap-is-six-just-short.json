@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "chart-labels-gap-is-six-just-short",
+  "note": "One point short of the case before. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 3,
+      "plotWidth": 149,
+      "widestLabelWidth": 44
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 2,
+      "indices": [
+        0,
+        2
+      ]
+    }
+  }
+}

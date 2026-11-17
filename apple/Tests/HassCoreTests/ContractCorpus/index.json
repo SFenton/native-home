@@ -9261,6 +9261,1294 @@
         "code": "missing_required",
         "pointer": "/document/pages/2/components/0/props/loadingText"
       }
+    },
+    {
+      "file": "accept/chart-source-records-flow.json",
+      "outcome": "accept",
+      "note": "A chart over the records of a records flow: each point's label and value are read from the item."
+    },
+    {
+      "file": "accept/chart-source-records-line.json",
+      "outcome": "accept",
+      "note": "A line over the same flow."
+    },
+    {
+      "file": "accept/chart-source-records-limit.json",
+      "outcome": "accept",
+      "note": "A series takes the first records up to its limit."
+    },
+    {
+      "file": "accept/chart-source-label-computed.json",
+      "outcome": "accept",
+      "note": "The label is any text operand over the item: the position, written out."
+    },
+    {
+      "file": "accept/chart-source-value-computed.json",
+      "outcome": "accept",
+      "note": "The value is any number operand over the item: a record's level, halved."
+    },
+    {
+      "file": "accept/chart-source-in-a-repeat.json",
+      "outcome": "accept",
+      "note": "A chart in the cell of a repeat with no provider reads the list of that repeat."
+    },
+    {
+      "file": "accept/chart-source-in-a-repeat-own-flow.json",
+      "outcome": "accept",
+      "note": "A chart in a repeat may name another flow: the repeat's list is then not its own."
+    },
+    {
+      "file": "accept/linear-gauge-in-a-repeat.json",
+      "outcome": "accept",
+      "note": "A gauge in the cell of a repeat: the value is the record's level, as a share of a range."
+    },
+    {
+      "file": "accept/linear-gauge-in-a-repeat-position.json",
+      "outcome": "accept",
+      "note": "A gauge in a repeat may read the position: the share of the list so far."
+    },
+    {
+      "file": "reject/chart-source-records-item-path-unknown.json",
+      "outcome": "reject",
+      "note": "The y path is not in the flow's records: invalid_reference at the path.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/series/y/path"
+      }
+    },
+    {
+      "file": "reject/chart-source-records-label-path-unknown.json",
+      "outcome": "reject",
+      "note": "The label path is not in the flow's records.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/series/x/label/path"
+      }
+    },
+    {
+      "file": "reject/chart-source-records-value-is-text.json",
+      "outcome": "reject",
+      "note": "The value is a number: a field that is text is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/y"
+      }
+    },
+    {
+      "file": "reject/chart-source-records-label-is-number.json",
+      "outcome": "reject",
+      "note": "The label is text: a field that is a number is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/x/label"
+      }
+    },
+    {
+      "file": "reject/chart-source-records-value-literal-text.json",
+      "outcome": "reject",
+      "note": "A written value that is text is refused too.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/y"
+      }
+    },
+    {
+      "file": "reject/chart-source-flow-is-not-records.json",
+      "outcome": "reject",
+      "note": "A rows flow is not records, even with the repeat capability in the document.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/providerId"
+      }
+    },
+    {
+      "file": "reject/chart-source-without-provider-in-a-placeholder.json",
+      "outcome": "reject",
+      "note": "The placeholder of a repeat has no list: a chart with no provider there is refused.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/children/1/props/series"
+      }
+    },
+    {
+      "file": "reject/chart-source-item-outside-a-repeat.json",
+      "outcome": "reject",
+      "note": "An item operand in a chart with no flow and no repeat has no record to read.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/series"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-item-outside-a-repeat.json",
+      "outcome": "reject",
+      "note": "A gauge outside a repeat has no record to read.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-in-a-repeat-item-path-unknown.json",
+      "outcome": "reject",
+      "note": "A gauge in a repeat reads a field the flow does not give.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/children/0/props/value/path"
+      }
+    },
+    {
+      "file": "accept/chart-bar.json",
+      "outcome": "accept",
+      "note": "Three bars on a ceiling axis: the smallest chart."
+    },
+    {
+      "file": "accept/chart-line.json",
+      "outcome": "accept",
+      "note": "The same series as a line."
+    },
+    {
+      "file": "accept/chart-area.json",
+      "outcome": "accept",
+      "note": "The same series as a line over a filled area."
+    },
+    {
+      "file": "accept/chart-bar-axis.json",
+      "outcome": "accept",
+      "note": "Bars with three axis labels (\"100%\", \"50%\", \"0%\") and grid lines."
+    },
+    {
+      "file": "accept/chart-bar-look.json",
+      "outcome": "accept",
+      "note": "The bar block: the gap, the corner radius, the least height of a bar and the ink of an unknown one."
+    },
+    {
+      "file": "accept/chart-line-look.json",
+      "outcome": "accept",
+      "note": "The line block: a width and a dot on each known value."
+    },
+    {
+      "file": "accept/chart-area-look.json",
+      "outcome": "accept",
+      "note": "An area takes the line block for its edge."
+    },
+    {
+      "file": "accept/chart-domain-fixed.json",
+      "outcome": "accept",
+      "note": "A fixed domain from 0 to 100, as a share."
+    },
+    {
+      "file": "accept/chart-domain-fixed-negative-base.json",
+      "outcome": "accept",
+      "note": "A fixed domain may start below zero: a line of temperatures from -20 to 40."
+    },
+    {
+      "file": "accept/chart-domain-two-step.json",
+      "outcome": "accept",
+      "note": "A two-step \"nice\" axis with a smallest step that is a number."
+    },
+    {
+      "file": "accept/chart-domain-two-step-by-unit.json",
+      "outcome": "accept",
+      "note": "The smallest step follows an entity: 0.25 where the unit says millimetres, else 0.01."
+    },
+    {
+      "file": "accept/chart-domain-two-step-factors.json",
+      "outcome": "accept",
+      "note": "Two-step with the factors written: 1, 2, 5 and 10."
+    },
+    {
+      "file": "accept/chart-null-values.json",
+      "outcome": "accept",
+      "note": "A series with unknown values: a bar stub or a break in the line, not a zero."
+    },
+    {
+      "file": "accept/chart-labels-all.json",
+      "outcome": "accept",
+      "note": "Every label under the plot, however narrow."
+    },
+    {
+      "file": "accept/chart-labels-none.json",
+      "outcome": "accept",
+      "note": "No label under the plot."
+    },
+    {
+      "file": "accept/chart-height.json",
+      "outcome": "accept",
+      "note": "A taller plot."
+    },
+    {
+      "file": "accept/chart-ink-pair.json",
+      "outcome": "accept",
+      "note": "A tint that follows light and dark: the pair id is declared too."
+    },
+    {
+      "file": "accept/chart-a11y-series.json",
+      "outcome": "accept",
+      "note": "The spoken value is the series."
+    },
+    {
+      "file": "accept/chart-a11y-bound-label.json",
+      "outcome": "accept",
+      "note": "The spoken name may come from an entity."
+    },
+    {
+      "file": "accept/chart-series-points-100.json",
+      "outcome": "accept",
+      "note": "A hundred points is the most a literal series holds."
+    },
+    {
+      "file": "accept/chart-in-a-grid.json",
+      "outcome": "accept",
+      "note": "A chart takes a width in a grid like any node."
+    },
+    {
+      "file": "reject/chart-source-needs-a-records-flow.json",
+      "outcome": "reject",
+      "note": "A source series names a flow whose output is records: a rows flow is refused with binding_type at providerId.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/providerId"
+      }
+    },
+    {
+      "file": "reject/chart-source-without-provider-outside-a-repeat.json",
+      "outcome": "reject",
+      "note": "A source series with no providerId reads the list of an enclosing repeat; there is none here.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/series"
+      }
+    },
+    {
+      "file": "reject/chart-source-provider-unknown.json",
+      "outcome": "reject",
+      "note": "A provider that names no data source.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/series/providerId"
+      }
+    },
+    {
+      "file": "reject/chart-source-provider-is-an-entity.json",
+      "outcome": "reject",
+      "note": "A provider that is an entity, not a flow.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/series/providerId"
+      }
+    },
+    {
+      "file": "reject/chart-source-limit-zero.json",
+      "outcome": "reject",
+      "note": "A source series takes at least one record.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/series/limit"
+      }
+    },
+    {
+      "file": "reject/chart-source-limit-over-100.json",
+      "outcome": "reject",
+      "note": "A source series takes at most 100 records.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/series/limit"
+      }
+    },
+    {
+      "file": "reject/chart-source-x-missing.json",
+      "outcome": "reject",
+      "note": "A source series says how to read each label.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/series/x"
+      }
+    },
+    {
+      "file": "reject/chart-source-y-missing.json",
+      "outcome": "reject",
+      "note": "A source series says how to read each value.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/series/y"
+      }
+    },
+    {
+      "file": "reject/chart-source-x-not-a-label.json",
+      "outcome": "reject",
+      "note": "x holds a label operand: a bare operand is refused.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/series/x/label"
+      }
+    },
+    {
+      "file": "reject/chart-mark-unknown.json",
+      "outcome": "reject",
+      "note": "The marks are bar, line and area.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/mark"
+      }
+    },
+    {
+      "file": "reject/chart-mark-missing.json",
+      "outcome": "reject",
+      "note": "A chart says its mark.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/mark"
+      }
+    },
+    {
+      "file": "reject/chart-series-missing.json",
+      "outcome": "reject",
+      "note": "A chart has its series.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/series"
+      }
+    },
+    {
+      "file": "reject/chart-series-type-unknown.json",
+      "outcome": "reject",
+      "note": "A series is literal or source.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/series/type"
+      }
+    },
+    {
+      "file": "reject/chart-series-empty.json",
+      "outcome": "reject",
+      "note": "A literal series has a point.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/series/points"
+      }
+    },
+    {
+      "file": "reject/chart-series-over-100-points.json",
+      "outcome": "reject",
+      "note": "A literal series has at most 100 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/series/points"
+      }
+    },
+    {
+      "file": "reject/chart-point-value-text.json",
+      "outcome": "reject",
+      "note": "A point's value is a number or null.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/series/points/0/value"
+      }
+    },
+    {
+      "file": "reject/chart-point-label-missing.json",
+      "outcome": "reject",
+      "note": "A point has its label.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/series/points/0/label"
+      }
+    },
+    {
+      "file": "reject/chart-point-extra-field.json",
+      "outcome": "reject",
+      "note": "A point has a label and a value only.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/series/points/0/tone"
+      }
+    },
+    {
+      "file": "reject/chart-domain-missing.json",
+      "outcome": "reject",
+      "note": "A chart says its domain.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/domain"
+      }
+    },
+    {
+      "file": "reject/chart-domain-type-unknown.json",
+      "outcome": "reject",
+      "note": "The domains are ceiling, fixed and two-step.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/domain/type"
+      }
+    },
+    {
+      "file": "reject/chart-domain-ceiling-min-over-max.json",
+      "outcome": "reject",
+      "note": "A ceiling cannot be asked to be at least more than it may be.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/max"
+      }
+    },
+    {
+      "file": "reject/chart-domain-ceiling-step-zero.json",
+      "outcome": "reject",
+      "note": "The step of a ceiling is above 0.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/domain/step"
+      }
+    },
+    {
+      "file": "reject/chart-domain-ceiling-step-missing.json",
+      "outcome": "reject",
+      "note": "A ceiling has its step.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/domain/step"
+      }
+    },
+    {
+      "file": "reject/chart-domain-fixed-equal-ends.json",
+      "outcome": "reject",
+      "note": "A fixed domain has a height.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/max"
+      }
+    },
+    {
+      "file": "reject/chart-domain-fixed-reversed.json",
+      "outcome": "reject",
+      "note": "A fixed domain rises.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/max"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-minimum-zero.json",
+      "outcome": "reject",
+      "note": "The smallest step is above 0.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/minimumStep"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-minimum-negative.json",
+      "outcome": "reject",
+      "note": "A negative smallest step is refused too.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/minimumStep"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-minimum-text.json",
+      "outcome": "reject",
+      "note": "The smallest step is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/domain/minimumStep"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-minimum-missing.json",
+      "outcome": "reject",
+      "note": "A two-step domain has its smallest step.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/domain/minimumStep"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-factors-descending.json",
+      "outcome": "reject",
+      "note": "The factors rise.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/factors"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-factors-repeat.json",
+      "outcome": "reject",
+      "note": "The factors rise strictly.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/domain/factors"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-factors-one.json",
+      "outcome": "reject",
+      "note": "Two factors at least.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/domain/factors"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-factor-over-ten.json",
+      "outcome": "reject",
+      "note": "A factor is at most 10, one decade.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/domain/factors/1"
+      }
+    },
+    {
+      "file": "reject/chart-domain-two-step-digits-over-six.json",
+      "outcome": "reject",
+      "note": "Labels have at most six places.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/domain/maximumFractionDigits"
+      }
+    },
+    {
+      "file": "reject/chart-tint-standard.json",
+      "outcome": "reject",
+      "note": "The tint is an exact ink: the standard fill is not one.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/tint/type"
+      }
+    },
+    {
+      "file": "reject/chart-tint-missing.json",
+      "outcome": "reject",
+      "note": "A chart has its tint.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/tint"
+      }
+    },
+    {
+      "file": "reject/chart-tint-bound-color.json",
+      "outcome": "reject",
+      "note": "An ink is not chosen by an entity.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/tint/type"
+      }
+    },
+    {
+      "file": "reject/chart-axis-levels-one.json",
+      "outcome": "reject",
+      "note": "An axis has two levels at least.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/axis/levels"
+      }
+    },
+    {
+      "file": "reject/chart-axis-levels-seven.json",
+      "outcome": "reject",
+      "note": "An axis has six levels at most.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/axis/levels"
+      }
+    },
+    {
+      "file": "reject/chart-axis-levels-fraction.json",
+      "outcome": "reject",
+      "note": "Levels is a whole number.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/axis/levels"
+      }
+    },
+    {
+      "file": "reject/chart-axis-pattern-without-value.json",
+      "outcome": "reject",
+      "note": "A label pattern holds {value}.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/axis/label/pattern"
+      }
+    },
+    {
+      "file": "reject/chart-axis-pattern-other-brace.json",
+      "outcome": "reject",
+      "note": "A label pattern holds no other brace.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/axis/label/pattern"
+      }
+    },
+    {
+      "file": "reject/chart-axis-pattern-blank.json",
+      "outcome": "reject",
+      "note": "A label pattern is not blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/axis/label/pattern"
+      }
+    },
+    {
+      "file": "reject/chart-axis-digits-over-six.json",
+      "outcome": "reject",
+      "note": "Axis labels have at most six places.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/axis/label/digits"
+      }
+    },
+    {
+      "file": "reject/chart-axis-ink-bound-color.json",
+      "outcome": "reject",
+      "note": "The grid ink is an exact ink.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/axis/gridInk/type"
+      }
+    },
+    {
+      "file": "reject/chart-axis-extra-field.json",
+      "outcome": "reject",
+      "note": "An axis has levels, label and two inks.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/axis/title"
+      }
+    },
+    {
+      "file": "reject/chart-bar-block-on-a-line.json",
+      "outcome": "reject",
+      "note": "The bar block is for bars.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/bar"
+      }
+    },
+    {
+      "file": "reject/chart-bar-block-on-an-area.json",
+      "outcome": "reject",
+      "note": "And not for an area.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/bar"
+      }
+    },
+    {
+      "file": "reject/chart-line-block-on-bars.json",
+      "outcome": "reject",
+      "note": "The line block is for a line or an area.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/line"
+      }
+    },
+    {
+      "file": "reject/chart-bar-gap-over-16.json",
+      "outcome": "reject",
+      "note": "A gap is at most 16 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/bar/gap"
+      }
+    },
+    {
+      "file": "reject/chart-bar-radius-negative.json",
+      "outcome": "reject",
+      "note": "A radius is not negative.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/bar/radius"
+      }
+    },
+    {
+      "file": "reject/chart-bar-minimum-over-8.json",
+      "outcome": "reject",
+      "note": "The least height is at most 8 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/bar/minimum"
+      }
+    },
+    {
+      "file": "reject/chart-bar-extra-field.json",
+      "outcome": "reject",
+      "note": "A bar block has no tint of its own.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/bar/tint"
+      }
+    },
+    {
+      "file": "reject/chart-line-width-zero.json",
+      "outcome": "reject",
+      "note": "A line is at least half a point wide.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/line/width"
+      }
+    },
+    {
+      "file": "reject/chart-line-width-over-8.json",
+      "outcome": "reject",
+      "note": "A line is at most 8 points wide.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/line/width"
+      }
+    },
+    {
+      "file": "reject/chart-line-dots-text.json",
+      "outcome": "reject",
+      "note": "dots is a yes or no.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/line/dots"
+      }
+    },
+    {
+      "file": "reject/chart-height-below-40.json",
+      "outcome": "reject",
+      "note": "A plot is at least 40 points tall.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/chart-height-over-320.json",
+      "outcome": "reject",
+      "note": "A plot is at most 320 points tall.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/chart-height-fraction.json",
+      "outcome": "reject",
+      "note": "A height is a whole number of points.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/chart-labels-unknown.json",
+      "outcome": "reject",
+      "note": "Labels are fit, all or none.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/labels"
+      }
+    },
+    {
+      "file": "reject/chart-empty-text-missing.json",
+      "outcome": "reject",
+      "note": "A chart says what it draws with no data.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/emptyText"
+      }
+    },
+    {
+      "file": "reject/chart-empty-text-blank.json",
+      "outcome": "reject",
+      "note": "And the words are not blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/emptyText"
+      }
+    },
+    {
+      "file": "reject/chart-props-extra-field.json",
+      "outcome": "reject",
+      "note": "A chart has no title of its own: the spoken name is the label.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/title"
+      }
+    },
+    {
+      "file": "reject/chart-a11y-missing.json",
+      "outcome": "reject",
+      "note": "A chart says how it is read: every chart is accessible.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/chart-a11y-label-missing.json",
+      "outcome": "reject",
+      "note": "The spoken name is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/chart-a11y-label-blank.json",
+      "outcome": "reject",
+      "note": "The spoken name is not blank.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/a11y/label/value"
+      }
+    },
+    {
+      "file": "reject/chart-a11y-label-wrong-kind.json",
+      "outcome": "reject",
+      "note": "The spoken name binds text: a number read is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/a11y/label/as"
+      }
+    },
+    {
+      "file": "reject/chart-a11y-value-unknown.json",
+      "outcome": "reject",
+      "note": "The spoken value is the series.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/value"
+      }
+    },
+    {
+      "file": "reject/chart-has-no-children.json",
+      "outcome": "reject",
+      "note": "A chart is a leaf.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/children"
+      }
+    },
+    {
+      "file": "reject/chart-has-no-action.json",
+      "outcome": "reject",
+      "note": "A chart is not tappable: put it in a stack that is.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/action"
+      }
+    },
+    {
+      "file": "accept/linear-gauge-scale.json",
+      "outcome": "accept",
+      "note": "A rail whose gradient colours the whole track, with a marker at half."
+    },
+    {
+      "file": "accept/linear-gauge-span.json",
+      "outcome": "accept",
+      "note": "A rail whose gradient colours only a span, with a marker inside it."
+    },
+    {
+      "file": "accept/linear-gauge-span-only.json",
+      "outcome": "accept",
+      "note": "A span with no marker."
+    },
+    {
+      "file": "accept/linear-gauge-track-only.json",
+      "outcome": "accept",
+      "note": "A track alone is allowed: a quiet rail."
+    },
+    {
+      "file": "accept/linear-gauge-percent.json",
+      "outcome": "accept",
+      "note": "The value is 0 to 100."
+    },
+    {
+      "file": "accept/linear-gauge-unit-written.json",
+      "outcome": "accept",
+      "note": "The default scale may be written."
+    },
+    {
+      "file": "accept/linear-gauge-marker-border.json",
+      "outcome": "accept",
+      "note": "A marker with a border."
+    },
+    {
+      "file": "accept/linear-gauge-value-from-entity.json",
+      "outcome": "accept",
+      "note": "The value is an entity read as a number."
+    },
+    {
+      "file": "accept/linear-gauge-value-computed.json",
+      "outcome": "accept",
+      "note": "The value is the share of a range, from the grammar's own math: (value - low) / (high - low)."
+    },
+    {
+      "file": "accept/linear-gauge-span-from-entities.json",
+      "outcome": "accept",
+      "note": "A span whose start and size are computed."
+    },
+    {
+      "file": "accept/linear-gauge-six-stops.json",
+      "outcome": "accept",
+      "note": "Six stops, like a six-band scale."
+    },
+    {
+      "file": "accept/linear-gauge-equal-stops.json",
+      "outcome": "accept",
+      "note": "Stops at one position make a hard edge."
+    },
+    {
+      "file": "accept/linear-gauge-ink-pairs.json",
+      "outcome": "accept",
+      "note": "Inks that follow light and dark: the pair id is declared too."
+    },
+    {
+      "file": "accept/linear-gauge-height.json",
+      "outcome": "accept",
+      "note": "A taller rail with a larger marker."
+    },
+    {
+      "file": "accept/linear-gauge-no-animation.json",
+      "outcome": "accept",
+      "note": "A rail that jumps instead of gliding."
+    },
+    {
+      "file": "accept/linear-gauge-a11y-value.json",
+      "outcome": "accept",
+      "note": "A rail read as a value, with its spoken name and value."
+    },
+    {
+      "file": "accept/linear-gauge-a11y-label-only.json",
+      "outcome": "accept",
+      "note": "The spoken value may be left to the app."
+    },
+    {
+      "file": "reject/linear-gauge-fill-unknown.json",
+      "outcome": "reject",
+      "note": "The fills are scale and span.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/fill"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-fill-missing.json",
+      "outcome": "reject",
+      "note": "A gauge says its fill.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/fill"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-span-fill-without-span.json",
+      "outcome": "reject",
+      "note": "A span gauge needs its span.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/span"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-scale-fill-with-span.json",
+      "outcome": "reject",
+      "note": "A scale gauge colours the whole track: a span means nothing.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/span"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-without-value.json",
+      "outcome": "reject",
+      "note": "A marker needs its value.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-value-without-marker.json",
+      "outcome": "reject",
+      "note": "A value with no marker draws nothing.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stops-missing.json",
+      "outcome": "reject",
+      "note": "A gauge has its stops.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/stops"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stops-none.json",
+      "outcome": "reject",
+      "note": "Two stops at least: none.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/stops"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stops-one.json",
+      "outcome": "reject",
+      "note": "Two stops at least: one.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/stops"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stops-descending.json",
+      "outcome": "reject",
+      "note": "Stops do not fall back.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/stops/2/at"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stops-nine.json",
+      "outcome": "reject",
+      "note": "Eight stops at most.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/stops"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stop-over-one.json",
+      "outcome": "reject",
+      "note": "A stop is at 0 to 1.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/stops/1/at"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stop-negative.json",
+      "outcome": "reject",
+      "note": "And not below 0.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/stops/0/at"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stop-ink-standard.json",
+      "outcome": "reject",
+      "note": "A stop is an exact ink.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/stops/0/ink/type"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-stop-missing-ink.json",
+      "outcome": "reject",
+      "note": "A stop has its ink.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/stops/0/ink"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-track-missing.json",
+      "outcome": "reject",
+      "note": "A gauge has its track ink.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/track"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-value-text.json",
+      "outcome": "reject",
+      "note": "The value is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-value-literal-text.json",
+      "outcome": "reject",
+      "note": "A written value is a number too.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-span-start-text.json",
+      "outcome": "reject",
+      "note": "The span's start is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/span/start"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-span-size-text.json",
+      "outcome": "reject",
+      "note": "The span's size is a number.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/span/size"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-span-size-missing.json",
+      "outcome": "reject",
+      "note": "A span has a start and a size.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/span/size"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-scale-unknown.json",
+      "outcome": "reject",
+      "note": "The scales are unit and percent.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/scale"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-height-below-4.json",
+      "outcome": "reject",
+      "note": "A rail is at least 4 points tall.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-height-over-32.json",
+      "outcome": "reject",
+      "note": "A rail is at most 32 points tall.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/height"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-size-below-6.json",
+      "outcome": "reject",
+      "note": "A marker is at least 6 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/marker/size"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-size-over-32.json",
+      "outcome": "reject",
+      "note": "A marker is at most 32 points.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/marker/size"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-ink-missing.json",
+      "outcome": "reject",
+      "note": "A marker has its ink.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/marker/ink"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-border-width-zero.json",
+      "outcome": "reject",
+      "note": "A border is at least half a point.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/pages/2/components/0/props/marker/border/width"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-marker-extra-field.json",
+      "outcome": "reject",
+      "note": "A marker has a size, an ink and a border.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/marker/shape"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-animates-text.json",
+      "outcome": "reject",
+      "note": "animates is a yes or no.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/2/components/0/props/animates"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-props-extra-field.json",
+      "outcome": "reject",
+      "note": "A gauge has no label field: its spoken name is in a11y.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/label"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-a11y-missing.json",
+      "outcome": "reject",
+      "note": "A gauge says whether it is read.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-a11y-element-unknown.json",
+      "outcome": "reject",
+      "note": "The elements are hidden and value.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/a11y/element"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-a11y-hidden-with-label.json",
+      "outcome": "reject",
+      "note": "A hidden gauge has no label.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-a11y-value-without-label.json",
+      "outcome": "reject",
+      "note": "A read gauge has its spoken name.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/a11y/label"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-a11y-label-wrong-kind.json",
+      "outcome": "reject",
+      "note": "The spoken name binds text.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/a11y/label/as"
+      }
+    },
+    {
+      "file": "reject/linear-gauge-has-no-children.json",
+      "outcome": "reject",
+      "note": "A gauge is a leaf.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/children"
+      }
     }
   ]
 }

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "chart-levels-two-step-inches",
+  "note": "The levels of a two-step axis to 0.1 with 2 places: 0.1, 0.05 and 0 (UKWeatherSheet.swift:646-651: domain, step, 0).",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 3,
+      "top": 0.1,
+      "pattern": "{value} in",
+      "digits": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        0.1,
+        0.05,
+        0
+      ],
+      "labels": [
+        "0.1 in",
+        "0.05 in",
+        "0 in"
+      ]
+    }
+  }
+}

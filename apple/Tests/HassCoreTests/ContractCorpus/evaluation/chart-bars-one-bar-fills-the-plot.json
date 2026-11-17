@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "chart-bars-one-bar-fills-the-plot",
+  "note": "One bar takes the whole width.",
+  "subject": {
+    "chart": {
+      "op": "bars",
+      "values": [
+        50
+      ],
+      "top": 100,
+      "width": 80,
+      "height": 76,
+      "gap": 2,
+      "minimum": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "bars": [
+        {
+          "x": 0,
+          "width": 80,
+          "height": 38,
+          "unknown": false
+        }
+      ]
+    }
+  }
+}

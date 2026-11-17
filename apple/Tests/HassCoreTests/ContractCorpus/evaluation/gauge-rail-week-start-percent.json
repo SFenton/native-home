@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "gauge-rail-week-start-percent",
+  "note": "The week rail's span starts at (low - weekLow) / (weekHigh - weekLow) x 100: (60 - 50) / 40 = 25 (WeatherRails.swift:23, WeatherHighlightsTests.swift:151).",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "clamp",
+      "args": [
+        {
+          "type": "math",
+          "op": "scale",
+          "args": [
+            {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "day",
+                "path": [
+                  "low"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            {
+              "type": "literal",
+              "value": 50
+            },
+            {
+              "type": "literal",
+              "value": 90
+            },
+            {
+              "type": "literal",
+              "value": 0
+            },
+            {
+              "type": "literal",
+              "value": 100
+            }
+          ]
+        },
+        {
+          "type": "literal",
+          "value": 0
+        },
+        {
+          "type": "literal",
+          "value": 100
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "day/low": {
+        "status": "value",
+        "value": 60
+      },
+      "day/high": {
+        "status": "value",
+        "value": 80
+      },
+      "day/now": {
+        "status": "value",
+        "value": 70
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 25
+  }
+}

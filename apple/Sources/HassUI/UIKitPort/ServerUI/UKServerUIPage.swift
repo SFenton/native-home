@@ -736,6 +736,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         let key = (cellKey.isEmpty ? "" : cellKey + "#") + (isPlaceholder ? "p" : "") + "\(index)"
                         let scopeKey = id + "#" + key
                         let scope = cellScopes[scopeKey] ?? UKServerUICellScope(index: index)
+                        scope.list = collection
                         cellScopes[scopeKey] = scope
                         retainedScopes[scopeKey] = scope
                         scope.set(isPlaceholder ? nil : collection?.records[safe: index])
@@ -770,6 +771,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             case .shape(let shape): (entry.view as? UKShapeView)?.apply(shape)
             case .symbol(let part):
                 if let view = entry.view as? UKSymbolPartView { UKServerUIStyleParts.bind(part, view: view, entry: entry, renderer: renderer) }
+            case .chart(let chart):
+                if let view = entry.view as? UKChartView { UKServerUIDataParts.bind(chart, view: view, entry: entry, renderer: renderer) }
+            case .linearGauge(let gauge):
+                if let view = entry.view as? UKLinearGaugeView { UKServerUIDataParts.bind(gauge, view: view, entry: entry, renderer: renderer) }
             case .localTabs(let tabs):
                 if let view = entry.view as? UKServerUILocalTabs {
                     let scope = tabs.scopeProviderId.flatMap { renderer.records.tabScopes[$0] }
@@ -1161,7 +1166,7 @@ final class UKServerUINode {
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
         case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode
+        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode, chart, linearGauge
     }
 
     /// The node's view, built once and kept for the node's lifetime.
@@ -1222,6 +1227,8 @@ final class UKServerUINode {
         case .repeatNode: view = UKRepeatView()
         case .shape: view = UKShapeView()
         case .symbol: view = UKSymbolPartView()
+        case .chart: view = UKChartView()
+        case .linearGauge: view = UKLinearGaugeView()
         case .text: view = UKServerUIText()
         case .grid: view = UKDynamicGridView()
         case .section: view = UKServerUISection()
@@ -1280,6 +1287,8 @@ final class UKServerUINode {
         case .repeatNode: .repeatNode
         case .shape: .shape
         case .symbol: .symbol
+        case .chart: .chart
+        case .linearGauge: .linearGauge
         case .bootstrapMessage: .bootstrapMessage
         case .text: .text
         case .grid: .grid

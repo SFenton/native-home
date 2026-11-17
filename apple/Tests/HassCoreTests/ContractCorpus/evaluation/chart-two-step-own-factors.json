@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-two-step-own-factors",
+  "note": "The factors are the document's: with 1, 2, 5 and 10 only, a total of 7.3 needs a step of 5 (domain 10), not the 4 of the default list.",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": 7.3,
+      "minimumStep": 1,
+      "maximumFractionDigits": 0,
+      "factors": [
+        1,
+        2,
+        5,
+        10
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 10,
+      "step": 5,
+      "digits": 0
+    }
+  }
+}

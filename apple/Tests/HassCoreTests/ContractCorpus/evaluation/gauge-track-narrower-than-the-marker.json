@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-track-narrower-than-the-marker",
+  "note": "A track narrower than the marker keeps it at the left edge: min(width - size, ...) is below 0, held at 0.",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0.5,
+      "width": 10,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 10
+      },
+      "marker": {
+        "percent": 50,
+        "left": 0
+      }
+    }
+  }
+}

@@ -18,6 +18,9 @@ final class UKServerUICellScope {
     private(set) var record: JSONValue?
     /// The cell's 0-based position.
     let index: Int
+    /// The list the cell's repeat draws, so a chart in the cell with no flow of its own reads the whole list (`sh.chart@1`). Reading its records
+    /// inside an observation follows the list; the scope itself is not woken by a change of the list.
+    @ObservationIgnored var list: ServerUIRowCollection?
 
     /// Creates the scope of the cell at `index`.
     init(index: Int, record: JSONValue? = nil) {

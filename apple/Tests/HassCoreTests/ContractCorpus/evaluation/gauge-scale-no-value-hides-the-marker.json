@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "gauge-scale-no-value-hides-the-marker",
+  "note": "With no value there is no marker (marker.alpha = 0, UKWeatherViews.swift:204).",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": null,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": null
+    }
+  }
+}

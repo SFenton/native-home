@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-levels-digits-trim-zeros",
+  "note": "A label has up to the digits it is given and no trailing zeros: 12.5 with 2 places is 12.5.",
+  "subject": {
+    "chart": {
+      "op": "levels",
+      "levels": 2,
+      "top": 12.5,
+      "pattern": "{value}",
+      "digits": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "values": [
+        12.5,
+        0
+      ],
+      "labels": [
+        "12.5",
+        "0"
+      ]
+    }
+  }
+}

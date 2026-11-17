@@ -67,7 +67,7 @@ extension ServerUICompositionCompiler {
     }
 
     /// The flow a source holds, decoded once for the repeats that name it; `nil` when it does not decode (the source's own compile says why).
-    private mutating func repeatFlow(_ id: String, _ source: JSONValue) -> ServerUIFlow? {
+    mutating func repeatFlow(_ id: String, _ source: JSONValue) -> ServerUIFlow? {
         if let known = repeatFlows[id] { return known }
         let flow = source["inputs"].flatMap { ServerUIFlowDecoder.decode($0, at: "").flow }
         repeatFlows[id] = .some(flow)

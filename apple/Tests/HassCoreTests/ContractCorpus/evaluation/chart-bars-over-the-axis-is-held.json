@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "chart-bars-over-the-axis-is-held",
+  "note": "A bar above the axis is as tall as the plot.",
+  "subject": {
+    "chart": {
+      "op": "bars",
+      "values": [
+        250
+      ],
+      "top": 100,
+      "width": 80,
+      "height": 76,
+      "gap": 2,
+      "minimum": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "bars": [
+        {
+          "x": 0,
+          "width": 80,
+          "height": 76,
+          "unknown": false
+        }
+      ]
+    }
+  }
+}

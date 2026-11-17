@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "gauge-scale-marker-at-start-is-held-inside",
+  "note": "A value of 0 would put the marker half outside: it is held at the left edge (offset max(0, -6) = 0).",
+  "subject": {
+    "gauge": {
+      "fill": "scale",
+      "value": 0,
+      "width": 200,
+      "markerSize": 12
+    }
+  },
+  "env": {},
+  "expected": {
+    "gauge": {
+      "span": {
+        "startPercent": 0,
+        "sizePercent": 100,
+        "left": 0,
+        "width": 200
+      },
+      "marker": {
+        "percent": 0,
+        "left": 0
+      }
+    }
+  }
+}

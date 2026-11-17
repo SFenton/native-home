@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "chart-two-step-in-total-negative",
+  "note": "A negative total counts as zero (WeatherChartMathTests.swift:88-92).",
+  "subject": {
+    "chart": {
+      "op": "two-step",
+      "total": -5,
+      "minimumStep": 0.01,
+      "maximumFractionDigits": 3
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "domain": 0.02,
+      "step": 0.01,
+      "digits": 2
+    }
+  }
+}

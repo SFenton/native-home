@@ -1,0 +1,27 @@
+{
+  "format": 1,
+  "name": "chart-labels-all-fit",
+  "note": "6 labels 20 points wide in 300: all fit, every one shows. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:59-68)",
+  "subject": {
+    "chart": {
+      "op": "labels",
+      "count": 6,
+      "plotWidth": 300,
+      "widestLabelWidth": 20
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "cadence": 1,
+      "indices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ]
+    }
+  }
+}

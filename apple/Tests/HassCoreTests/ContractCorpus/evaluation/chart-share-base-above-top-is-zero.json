@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "chart-share-base-above-top-is-zero",
+  "note": "An axis that falls (base 10, top 5) has no height: 0. (apple/Tests/HassCoreTests/WeatherChartMathTests.swift:94-103, `scaledPercent`)",
+  "subject": {
+    "chart": {
+      "op": "share",
+      "value": 7,
+      "top": 5,
+      "base": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "chart": {
+      "percent": 0
+    }
+  }
+}
