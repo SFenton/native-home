@@ -81,6 +81,9 @@ class Context:
     user_id_hashes: Dict[str, str] = field(default_factory=dict)
     #: Passed to the compare as ``--max-mask-percent`` when set (a page-region compare masks the shell chrome, more than the default 15%).
     max_mask_percent: Optional[float] = None
+    #: ``--status-bar-equal`` (default on). A page-region compare turns it off: the status bar sits outside the page, and over two
+    #: different backdrops its pixels differ for reasons the page compare reports.
+    status_bar_equal: bool = True
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -202,7 +205,9 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
         raise launch_mod.Refused("the reference bundle changed during the run")
     write_json(ctx.run_dir / "manifest.json", {"pairs": entries})
     flags = ["--manifest", str(ctx.run_dir / "manifest.json"), "--out", str(ctx.run_dir / "compare"),
-             "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax", "--status-bar-equal"]
+             "--markdown", str(ctx.run_dir / "results.md"), "--require-sidecar", "--drift", "--require-ax"]
+    if ctx.status_bar_equal:
+        flags.append("--status-bar-equal")
     if ctx.max_mask_percent is not None:
         flags += ["--max-mask-percent", f"{ctx.max_mask_percent:g}"]
     if ctx.status_bar_rects:

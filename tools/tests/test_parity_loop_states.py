@@ -241,6 +241,7 @@ class PairingTests(unittest.TestCase):
         ctx = self.context()
         faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path)
         self.assertEqual(ctx.max_mask_percent, faults.PAGE_REGION_MASK_PERCENT)
+        self.assertFalse(ctx.status_bar_equal)
         manifest = read_json(ctx.run_dir / "manifest.json")
         self.assertIn("chores.empty/candidate.masks.json", manifest["pairs"][0]["mask_files"])
 
@@ -248,6 +249,7 @@ class PairingTests(unittest.TestCase):
         ctx = self.context()
         faults.run_faults(ctx, plrun.select(SURFACES, ["chores"]), ["empty"], self.pin, env=HOLD, pin_path=self.pin_path, page_region=False)
         self.assertIsNone(ctx.max_mask_percent)
+        self.assertTrue(ctx.status_bar_equal)
         self.assertNotIn("chores.empty/candidate.masks.json", read_json(ctx.run_dir / "manifest.json")["pairs"][0]["mask_files"])
 
     def test_both_simulators_are_left_clean(self) -> None:

@@ -252,6 +252,8 @@ def run_faults(ctx: run_mod.Context, surfaces: Sequence[Mapping[str, Any]], faul
     ctx.launcher = fault_launcher(renames=renames)
     if page_region and ctx.max_mask_percent is None:
         ctx.max_mask_percent = PAGE_REGION_MASK_PERCENT
+    if page_region:
+        ctx.status_bar_equal = False
     try:
         return run_mod.run_all(ctx, derived, pin_hash, env, pin_path, inventory)
     finally:
