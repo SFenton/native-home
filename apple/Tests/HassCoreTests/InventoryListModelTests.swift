@@ -365,6 +365,66 @@ struct InventoryListModelTests {
         #expect(model.deleting.isEmpty)
     }
 
+    // MARK: Pending removal
+
+    @Test func aFullDeleteHidesTheCardAtOnceAndLeavesWhenTheCallLands() async throws {
+        let (model, server) = await loaded()
+        let eggs = try #require(model.displayItem(id: "eggs"))
+        server.latency = .milliseconds(1500)
+        var accepted: [Bool] = []
+        let task = Task { await model.delete(eggs) { accepted.append($0) } }
+        #expect(await eventually { !model.deleting.isEmpty })
+        #expect(model.pendingRemoval == ["eggs": "Eggs"])
+        #expect(!names(model).contains("Eggs"), "hidden before the server answers")
+        #expect(model.displayItem(id: "eggs") != nil, "still stocked until it answers")
+        #expect(accepted == [true])
+        await task.value
+        #expect(model.pendingRemoval.isEmpty)
+        #expect(model.displayItem(id: "eggs") == nil)
+    }
+
+    @Test func aFailedDeleteRestoresTheCardWithAnError() async throws {
+        let (model, server) = await loaded()
+        let eggs = try #require(model.displayItem(id: "eggs"))
+        server.failing = ["evershelf.delete_inventory"]
+        await model.delete(eggs)
+        #expect(model.pendingRemoval.isEmpty)
+        #expect(names(model).contains("Eggs"))
+        #expect(model.rowErrors["eggs"] == "EverShelf is unavailable")
+    }
+
+    @Test func aPartialDeleteOnlyChangesTheQuantity() async throws {
+        let (model, server) = await loaded()
+        let eggs = try #require(model.displayItem(id: "eggs"))
+        server.latency = .milliseconds(1500)
+        var accepted: [Bool] = []
+        let task = Task { await model.delete(eggs, quantity: 5) { accepted.append($0) } }
+        #expect(await eventually { !model.deleting.isEmpty })
+        #expect(model.pendingRemoval.isEmpty, "the card stays")
+        #expect(names(model).contains("Eggs"))
+        #expect(accepted == [false], "a swiped row closes rather than leaving")
+        await task.value
+        #expect(model.displayItem(id: "eggs")?.quantity == 7)
+    }
+
+    @Test func aDeleteThatIsNotAcceptedReportsItDidNotRemove() async {
+        let (model, _) = await loaded()
+        var accepted: [Bool] = []
+        await model.delete(InventoryDisplayItem(rows: [InventoryFixtures.item(nil, "Ghost")])) { accepted.append($0) }
+        #expect(accepted == [false])
+        #expect(model.pendingRemoval.isEmpty)
+    }
+
+    @Test func hidingAllCardsShowsTheEmptyState() async throws {
+        let (model, server) = await loaded(.pantry)
+        let beans = try #require(model.displayItem(id: "black beans"))
+        server.latency = .milliseconds(1500)
+        let task = Task { await model.delete(beans) }
+        #expect(await eventually { !model.pendingRemoval.isEmpty })
+        #expect(model.visibleItems.isEmpty)
+        await task.value
+    }
+
     @Test func unaddressableCardsAreNotDeleted() async {
         let (model, server) = await loaded()
         await model.delete(InventoryDisplayItem(rows: [InventoryFixtures.item(nil, "Ghost")]))

@@ -4,6 +4,6 @@
 - Source: `apple/Sources/HassUI/Features/Inventory/{InventoryRow,InventoryRowActions,InventoryScreen}.swift`, `Settings/Profile/ExpiredFoodList.swift`
 - Spec: `.agents/pages/inventory/ios.md`, `.agents/patterns/module-list.md` · Patterns: module-list, floating-actions
 - States covered: page and sheet surfaces (fresh, soon, expired, no date, count, batches, list of three), actions (cart idle/adding/added, swipes, selected, error, redacted), long-text, in-context, ax5
-- Motion: cart swap (none), row wash (0.6 s)
+- Motion: cart swap (none), row wash (0.6 s), row leaves with the system list animation (a fade under Reduce Motion) with the card corners re-rounding in the same update
 - Devices: iPhone, iPad (size class), embedded devices
 - Open notes: no low-stock state exists in the code; the whole row opens the editor via onTapGesture beside real buttons.

@@ -66,6 +66,8 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
     private var retainedSections: [UKServerUIRecordSection] = []
     private var carousel: UKSuggestedRecipesView?
     private var commandError: String?
+    /// The search, sort and filter the rows were last built for: a change of them replaces the list instead of animating it.
+    private var shownQuestion = ""
 
     init() {
         super.init(frame: .zero)
@@ -159,7 +161,7 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
             }
             shownRecords = Dictionary(records.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             builtDefinition = definition; builtSurface = page.context.surface
-            applyScroller(changed: changed)
+            applyScroller(changed: changed, cause: listCause(provider, rebuilt: rebuildAll))
             return
         }
         if definition.template == .carousel {
@@ -191,6 +193,8 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
             }
             shownRecords = Dictionary(records.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             builtDefinition = definition; builtSurface = page.context.surface
+            let cause = listCause(provider, rebuilt: rebuildAll)
+            let generation = { [weak page] in page?.context.store.reapplyGeneration }
             let views = records.compactMap { next[$0.id] }
             nestedRows = next
             let content: UIView
@@ -214,15 +218,16 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
                     }
                     let todos = group.records.compactMap { if case .todo(let item, _) = $0 { item } else { nil } }
                     let dense = definition.template == .inventory || TodoListSection.hasLateItem(todos, now: .now)
+                    list.generation = generation
                     list.apply(keys: group.records.map(\.id), rows: next, changed: changed, surface: page.context.surface,
-                               density: dense ? .dense : .thin, animates: definition.template == .todo)
+                               density: dense ? .dense : .thin, cause: cause)
                     list.swipe = { [weak self] key, leading in self?.swipe(key, leading: leading) }
                     list.menu = { [weak self] key in self?.menu(key) }
                     views.append(list)
                 }
                 if views.isEmpty, !records.isEmpty {
-                    list.apply(keys: records.map(\.id), rows: next, changed: changed, surface: page.context.surface,
-                               animates: definition.template == .todo)
+                    list.generation = generation
+                    list.apply(keys: records.map(\.id), rows: next, changed: changed, surface: page.context.surface, cause: cause)
                     views.append(list)
                 }
                 if grouped.views != views { grouped.setViews(views) }
@@ -252,8 +257,9 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
 
     /// Shows the retained records in the scroller: the leading notices, each group under its title, and the footer, with only the
     /// records in `changed` reconfigured.
-    private func applyScroller(changed: Set<String>) {
+    private func applyScroller(changed: Set<String>, cause: ListUpdateCause = .live) {
         guard scrolling, let definition, let provider, let page, let scroller else { return }
+        scroller.generation = { [weak page] in page?.context.store.reapplyGeneration }
         let records = retainedRecords
         let isEmpty = records.isEmpty && !provider.loading && provider.error == nil && provider.emptyState != nil
         let failed = commandError ?? provider.error
@@ -278,8 +284,7 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
             content.groups = [.init(id: "records", title: nil, keys: records.map(\.id), dense: false)]
         }
         content.showsFooter = provider.loadingMore
-        scroller.apply(content, changed: changed, signatures: signatures, surface: page.context.surface,
-                       animated: definition.template == .todo)
+        scroller.apply(content, changed: changed, signatures: signatures, surface: page.context.surface, cause: cause)
         retry.action = { [weak self] in self?.reload() }
         if isEmpty, let state = provider.emptyState {
             let key = [state.symbol, state.title, state.message]
@@ -396,7 +401,10 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
                     guard let self, let page = self.page else { return }
                     UKServerUIRecordPrompts.confirm(TodoListSection.deleteSpec(for: item), from: page, source: row ?? self,
                         cancel: { try source.cancelDelete(ticket) },
-                        submit: { try await source.delete(confirmed: ticket) }, report: self.report)
+                        submit: { [weak self] in
+                            self?.expectRemoval(record.id, title: item.displayTitle)
+                            do { try await source.delete(confirmed: ticket) } catch { self?.cancelRemoval(record.id); throw error }
+                        }, report: self.report)
                 }, report: { [weak self] in self?.report($0) })
             return row
         case .inventory(let item, let source):
@@ -432,20 +440,56 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
         } catch { report(error) }
     }
 
-    private func todoAction(_ action: TodoRowActions.Action, record: UKServerUIRecord) {
-        guard case .todo(let item, let source) = record, let page else { return }
+    /// - Parameter done: settles a swipe. Delete holds it until the confirmation answers; the other actions settle it at once.
+    private func todoAction(_ action: TodoRowActions.Action, record: UKServerUIRecord, done: ((Bool) -> Void)? = nil) {
+        guard case .todo(let item, let source) = record, let page else { done?(false); return }
         switch action {
-        case .edit: select(record)
+        case .edit:
+            select(record)
+            done?(true)
         case .delete:
             do {
                 let ticket = try source.deleteTicket(expected: item)
                 UKServerUIRecordPrompts.confirm(TodoListSection.deleteSpec(for: item), from: page,
-                    source: rows[record.id] ?? self, cancel: { try source.cancelDelete(ticket) },
-                    submit: { try await source.delete(confirmed: ticket) }, report: report)
-            } catch { report(error) }
+                    source: rows[record.id] ?? self,
+                    cancel: { done?(false); try source.cancelDelete(ticket) },
+                    submit: { [weak self] in
+                        self?.expectRemoval(record.id, title: item.displayTitle)
+                        done?(true)
+                        do { try await source.delete(confirmed: ticket) } catch { self?.cancelRemoval(record.id); throw error }
+                    }, report: report)
+            } catch { done?(false); report(error) }
         case .complete, .reopen:
+            done?(true)
             Task { do { try await source.toggle(expected: item) } catch { report(error) } }
         }
+    }
+
+    /// What a list update is: a rebuilt definition or surface, or a changed search, sort or filter, replaces the rows
+    /// (``ListUpdateCause/reset``); anything else is a live change, which animates a removal on screen
+    /// (`.agents/patterns/list-row-removal.md`).
+    private func listCause(_ provider: any UKServerUICollectionSource, rebuilt: Bool) -> ListUpdateCause {
+        let question = provider.searchText + "|" + provider.listQuestion
+        defer { shownQuestion = question }
+        return rebuilt || question != shownQuestion ? .reset : .live
+    }
+
+    /// A person confirmed removing `key`: the row leaves with the list animation, "<title> deleted" is announced and focus moves on.
+    /// Call it where the person commits, before the provider's rows change.
+    private func expectRemoval(_ key: String, title: String) {
+        if let scroller { scroller.expectRemoval(of: [key], title: title); return }
+        removalList(of: key).expectRemoval(of: [key], title: title)
+    }
+
+    /// The removal failed and the row stays.
+    private func cancelRemoval(_ key: String) {
+        if let scroller { scroller.cancelExpectation(of: [key]); return }
+        removalList(of: key).cancelExpectation(of: [key])
+    }
+
+    /// The list that holds `key` when the collection sits in the page's column.
+    private func removalList(of key: String) -> UKServerUIRecordList {
+        retainedSections.first { $0.records.contains { $0.id == key } }.flatMap { sectionLists[$0.id] } ?? list
     }
 
     private func swipe(_ key: String, leading: Bool) -> UISwipeActionsConfiguration? {
@@ -454,11 +498,16 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
         case .todo(let item, let source):
             let actions = UKTodoListActions.actions(for: item, canEdit: definition?.selection != nil && UKServerUITodoRow.canEdit(item, provider: source),
                                                     canDelete: source.configuration.canDelete)
-            return UKTodoListActions.swipeConfiguration(actions, item: item, leading: leading) { [weak self] in self?.todoAction($0, record: record) }
+            return UKTodoListActions.swipeConfiguration(actions, item: item, leading: leading) { [weak self] action, done in
+                guard let self else { done(false); return }
+                self.todoAction(action, record: record, done: done)
+            }
         case .inventory(let item, let source):
             if !leading, source.model.deletableRows(of: item) != nil, source.model.batches(for: item).count <= 1 {
+                // The row stays open while the confirmation is up: confirm completes the swipe as the row leaves, cancel closes it.
                 return UKSwipeAction.configuration([UKSwipeAction("Delete", systemImage: "trash", role: .destructive) { [weak self] done in
-                    self?.deleteInventory(item, source: source); done(true)
+                    guard let self else { done(false); return }
+                    self.deleteInventory(item, source: source, done: done)
                 }])
             }
             if leading {
@@ -489,20 +538,44 @@ final class UKServerUICollectionView: UIView, UKGridMeasuring {
         } catch { report(error) }
     }
 
-    private func deleteInventory(_ item: InventoryDisplayItem, source: InventoryCompositionProvider) {
-        guard let page else { return }
+    /// Asks before deleting an inventory card (a quantity prompt when there is more than one) and settles the swipe with `done`: the
+    /// row is held open until the answer, then leaves with the card (`true`) or closes (`false`: cancelled, a partial delete or a failure).
+    private func deleteInventory(_ item: InventoryDisplayItem, source: InventoryCompositionProvider, done: @escaping (Bool) -> Void = { _ in }) {
+        guard let page else { done(false); return }
+        var settled = false
+        let settle: (Bool) -> Void = { removed in
+            guard !settled else { return }
+            settled = true
+            done(removed)
+        }
+        // Registers the ticket before the provider hides the card, and withdraws it when the delete leaves the card in place.
+        let delete: (Double?) async throws -> Void = { [weak self] quantity in
+            let selection = try source.select(item.id)
+            guard selection.item == item else { throw ServerUIRecordFailure.staleSelection }
+            let total = source.model.deletableRows(of: item)?.reduce(0) { $0 + $1.quantity } ?? 0
+            let removes = quantity.map { $0 >= total } ?? true
+            if removes { self?.expectRemoval(item.id, title: item.name) }
+            do {
+                try await source.delete(selection, quantity: quantity) { settle($0) }
+            } catch {
+                if removes { self?.cancelRemoval(item.id) }
+                settle(false)
+                throw error
+            }
+            settle(false)
+        }
         do {
             let selection = try source.select(item.id)
             guard selection.item == item, let rows = source.model.deletableRows(of: item) else { throw ServerUIRecordFailure.staleSelection }
             let total = rows.reduce(0) { $0 + $1.quantity }
             if total > 1 {
-                UKServerUIRecordPrompts.quantity(title: "Delete \(item.name)", maximum: total, from: page,
-                    submit: { try await source.delete(selection, quantity: $0) }, report: report)
+                UKServerUIRecordPrompts.quantity(title: "Delete \(item.name)", maximum: total, from: page, cancel: { settle(false) },
+                    submit: { try await delete($0) }, report: report)
             } else {
                 UKServerUIRecordPrompts.confirm(AlertCopy.delete("Item", named: item.name, detail: nil), from: page, source: self,
-                    submit: { try await source.delete(selection) }, report: report)
+                    cancel: { settle(false) }, submit: { try await delete(nil) }, report: report)
             }
-        } catch { report(error) }
+        } catch { settle(false); report(error) }
     }
 
     private func report(_ error: any Error) {

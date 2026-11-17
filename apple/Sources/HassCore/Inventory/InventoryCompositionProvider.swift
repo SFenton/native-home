@@ -44,6 +44,7 @@ public final class InventoryCompositionProvider {
     public var items: [InventoryDisplayItem] {
         query == .expiredFoodSummary
             ? InventoryCatalog.visible(model.displayItems, sort: .expiry, direction: .ascending, filter: .expired, calendar: model.calendar)
+                .filter { model.pendingRemoval[$0.id] == nil }
             : model.visibleItems
     }
     public var hasPendingIntent: Bool { !pendingKeys.isEmpty }
@@ -70,7 +71,9 @@ public final class InventoryCompositionProvider {
 
     /// Revalidates the confirmed card and quantity immediately before dispatch.
     /// The caller must present the canonical confirmation or quantity prompt first.
-    public func delete(_ selection: Selection, quantity: Double? = nil) async throws {
+    /// - Parameter accepted: called once, before the service call, with whether the card leaves the list (see ``InventoryListModel/delete(_:quantity:accepted:)``).
+    ///   A delete refused before the call (a changed card, a bad quantity, a busy card) never calls it: the caller learns from the thrown error.
+    public func delete(_ selection: Selection, quantity: Double? = nil, accepted: ((Bool) -> Void)? = nil) async throws {
         let item = try current(selection)
         guard let rows = model.deletableRows(of: item) else { throw Failure.unaddressable }
         let total = rows.reduce(0) { $0 + $1.quantity }
@@ -79,7 +82,7 @@ public final class InventoryCompositionProvider {
         }
         guard !model.deleting.contains(item.id), pendingKeys.insert(item.id).inserted else { throw Failure.busy }
         defer { pendingKeys.remove(item.id) }
-        await model.delete(item, quantity: quantity)
+        await model.delete(item, quantity: quantity, accepted: accepted)
         if let error = model.rowErrors[item.id] { throw Failure.commandFailed(error) }
     }
 

@@ -32,13 +32,15 @@ enum UKTodoListActions {
 
     /// The swipe buttons for an edge: Complete leads in green; Delete (red, outermost) and Edit (blue) trail. A full swipe performs
     /// the first.
+    ///
+    /// `perform` settles the swipe through `done`: Delete holds the row open under its confirmation and calls `done(true)` as the row
+    /// leaves or `done(false)` on cancel (`.agents/patterns/list-row-removal.md`); every other action calls `done(true)` at once.
     static func swipeConfiguration(_ actions: TodoRowActions, item: TodoItem, leading: Bool,
-                                   perform: @escaping (TodoRowActions.Action) -> Void) -> UISwipeActionsConfiguration? {
+                                   perform: @escaping (TodoRowActions.Action, _ done: @escaping (Bool) -> Void) -> Void) -> UISwipeActionsConfiguration? {
         let list = leading ? actions.leading : actions.trailing
         return UKSwipeAction.configuration(list.map { action in
             UKSwipeAction(action.title, systemImage: action.symbol, tint: swipeTint(action), identifier: "todo.swipe.\(action.rawValue).\(item.identity)", role: action == .delete ? .destructive : .normal) { done in
-                perform(action)
-                done(true)
+                perform(action, done)
             }
         })
     }

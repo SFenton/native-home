@@ -15,7 +15,6 @@ final class UKServerUIRecordList: UIView, UKGridMeasuring, UICollectionViewDeleg
     private var rows: [String: UIView] = [:]
     private var surface: TileSurface = .page
     private var density: ModuleDensity = .thin
-    private var hasApplied = false
     private lazy var list: UICollectionView = {
         var configuration = UICollectionLayoutListConfiguration(appearance: .plain)
         configuration.showsSeparators = false
@@ -36,13 +35,20 @@ final class UKServerUIRecordList: UIView, UKGridMeasuring, UICollectionViewDeleg
         list.register(UKServerUIRecordCell.self, forCellWithReuseIdentifier: "record")
         return list
     }()
-    private lazy var dataSource = UICollectionViewDiffableDataSource<String, String>(collectionView: list) { [weak self] collection, path, key in
+    private lazy var dataSource: UICollectionViewDiffableDataSource<String, String> = UICollectionViewDiffableDataSource(collectionView: list) { [weak self] collection, path, key in
         guard let self, let view = rows[key],
               let cell = collection.dequeueReusableCell(withReuseIdentifier: "record", for: path) as? UKServerUIRecordCell else { return nil }
-        cell.configure(view, first: path.item == 0, last: path.item == keys.count - 1, surface: surface, density: density)
+        cell.configure(view, first: path.item == 0, last: path.item == keys.count - 1, surface: surface, density: density,
+                       animatedCorners: updater.isAnimating)
         configured?(key)
         return cell
     }
+
+    /// The one applier (`.agents/patterns/list-row-removal.md`).
+    private lazy var updater = UKListUpdater<String, String>(
+        surface: "RecordList", collectionView: list, dataSource: dataSource, generation: { [weak self] in self?.generation?() })
+    /// Reads `EntityStore.reapplyGeneration` inside the observation that renders the list.
+    var generation: (() -> Int?)?
 
     init() {
         super.init(frame: .zero)
@@ -59,9 +65,9 @@ final class UKServerUIRecordList: UIView, UKGridMeasuring, UICollectionViewDeleg
     ///   - changed: The keys whose row view was rebuilt or reconfigured; `nil` treats every row as changed.
     ///   - surface: The surface the module background draws for.
     ///   - density: The module density.
-    ///   - animates: Whether insertions and removals animate once the list has been shown (a completed chore animates away).
+    ///   - cause: ``ListUpdateCause/live`` (the default) animates a removal or insertion once the list is on screen; ``ListUpdateCause/reset`` replaces it at once.
     func apply(keys: [String], rows: [String: UIView], changed: Set<String>? = nil, surface: TileSurface,
-               density: ModuleDensity = .thin, animates: Bool = false) {
+               density: ModuleDensity = .thin, cause: ListUpdateCause = .live) {
         let previousKeys = self.keys
         let restyled = self.surface != surface || self.density != density
         let moved = Set(keys.indices.filter { index in
@@ -79,11 +85,16 @@ final class UKServerUIRecordList: UIView, UKGridMeasuring, UICollectionViewDeleg
             snapshot.appendSections(["rows"]); snapshot.appendItems(keys)
             let existing = Set(dataSource.snapshot().itemIdentifiers)
             snapshot.reconfigureItems(keys.filter { existing.contains($0) && reconfigured.contains($0) })
-            dataSource.apply(snapshot, animatingDifferences: animates && hasApplied && window != nil)
-            hasApplied = true
+            updater.apply(snapshot, cause: cause, cornerNeighbours: keys.filter { moved.contains($0) && !restyled && previousKeys.contains($0) })
         }
         list.collectionViewLayout.invalidateLayout()
     }
+
+    /// A person is removing the rows `keys` (they confirmed): they animate away, "<title> deleted" is announced and focus moves on.
+    func expectRemoval(of keys: [String], title: String? = nil) { updater.expectRemoval(of: keys, title: title) }
+
+    /// The removal failed and the rows stay: no motion, no announcement.
+    func cancelExpectation(of keys: [String]) { updater.cancelExpectation(of: keys) }
 
     func collectionView(_ collectionView: UICollectionView, contextMenuConfigurationForItemAt indexPath: IndexPath,
                         point: CGPoint) -> UIContextMenuConfiguration? {
@@ -115,8 +126,8 @@ private final class UKServerUIRecordCell: UICollectionViewListCell {
     }
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-    func configure(_ view: UIView, first: Bool, last: Bool, surface: TileSurface, density: ModuleDensity) {
-        background.configure(density: density, surface: surface, isFirst: first, isLast: last, selected: false)
+    func configure(_ view: UIView, first: Bool, last: Bool, surface: TileSurface, density: ModuleDensity, animatedCorners: Bool = false) {
+        background.configure(density: density, surface: surface, isFirst: first, isLast: last, selected: false, animated: animatedCorners)
         if hosted !== view {
             hosted?.removeFromSuperview()
             hosted = view
