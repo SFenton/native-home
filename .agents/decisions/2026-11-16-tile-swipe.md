@@ -14,3 +14,4 @@ Gate: matches_request=yes. The owner chose ink option A and heading option A (20
 | Volume slider | Not moved to the swipe | Its handle is inside the tile (HIG, Sliders). A volume swipe on a media player is a departure from "Don't use a slider to adjust audio volume", recorded in `.agents/patterns/entity-tile.md` |
 | Regroup motion | Slides only after a person's tap, fades under Reduce Motion | Motion section 6: the person caused it; HIG, Motion: offer a reduced alternative |
 | Light group tile swipe default | Off | Absent means off in the contract |
+| What a release draws | The committed value until the hold ends, then the store's state | The band never runs 50, 20, 50: a committing release drops the held redraw, sends the call, keeps the committed band to the next configure, then the hold ends on the house's next value or its deadline (`build/design/tile-swipe-release.md`) |

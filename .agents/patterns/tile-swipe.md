@@ -8,7 +8,7 @@ Code: `UKTileSwipeController`, `HassDesign/TileSwipe`, `TileInkDefault`.
 
 - A horizontal drag sets the number under the finger: absolute, snapped to `step`, clamped, mirrored in right to left.
 - One call on release, only if the value changed. A cancel, scroll, edge swipe, fold or leaving the app sends nothing.
-- Band and state line follow the finger with no `configure`; a republish waits for the release.
+- Band and state line follow the finger with no `configure`. A live state change that arrives mid-drag is drawn after release: at once when the release sends nothing, and under the optimistic value when it commits, where it shows when the hold ends.
 - The tile lifts 1.03, none with Reduce Motion. A bubble names the value above the tile.
 - Bubble: dark capsule, 32 pt tall, 60 pt wide at least, 12 pt padding, semibold 15 pt monospaced digits.
 - Bubble at accessibility sizes: 44 pt tall, 84 pt wide at least. At most the tile's width, 8 pt clear above, 4 pt inside the scroller's top.
