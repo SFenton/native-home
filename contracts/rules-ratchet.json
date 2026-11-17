@@ -1196,9 +1196,9 @@
    "long_lines": 2
   },
   ".agents/testing/apple/performance.md": {
-   "forbidden": 27,
+   "forbidden": 26,
    "long_lines": 33,
-   "over_words": 8133,
+   "over_words": 8119,
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {

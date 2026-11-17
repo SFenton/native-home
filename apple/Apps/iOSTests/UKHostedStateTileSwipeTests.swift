@@ -15,7 +15,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
     private static let widths: [CGFloat] = [364, 393, 834]
     private static let blinds = "cover.demo_blinds"
     private static let gate = "fan.demo_bath_fan"
-    private static let capabilities = ["sh.tile-swipe@1", "sh.state-style@1", "sh.call-service@1", "sh.operands@1", "sh.enabled-when@1"]
+    private static let capabilities = ["sh.tile-swipe@1", "sh.state-style@1", "sh.call-service@1", "sh.operands@1"]
 
     override func tearDown() async throws {
         UKMotion.reduceMotionOverride = nil
@@ -67,7 +67,7 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
             "{\"id\":\"gate\",\"kind\":\"ha-entity\",\"entityId\":{\"type\":\"literal\",\"value\":\"\(Self.gate)\"}}",
         ]
         root = try ServerUIRendererFixture.changing(root, path: "/document/dataSources", to: .array(sources + added.map(json)))
-        let capabilities = ServerUICompositionPublication.firstSliceCapabilities + Self.capabilities
+        let capabilities = ServerUICompositionPublication.firstSliceCapabilities + Self.capabilities + (enabledWhen ? ["sh.enabled-when@1"] : [])
         root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(Array(Set(capabilities)).sorted().map(JSONValue.string)))
         let store = EntityStore()
         store.replaceAll([EntityState(entityId: "switch.demo_lamp", state: "off"),
@@ -86,7 +86,9 @@ final class UKHostedStateTileSwipeTests: XCTestCase {
         return Rig(host: host, store: store, window: window, caller: caller, tile: tile, controller: try XCTUnwrap(tile.swipe))
     }
 
+    /// Plays a touch as UIKit would: a recogniser the controller refuses at `gestureRecognizerShouldBegin` never reaches `panned`.
     private func drag(_ rig: Rig, _ fractions: [Double], end: UIGestureRecognizer.State = .ended) {
+        guard rig.controller.gestureRecognizerShouldBegin(ScriptedSwipePan()) else { return }
         let pan = ScriptedSwipePan()
         let selector = NSSelectorFromString("panned:")
         for (index, fraction) in fractions.enumerated() {

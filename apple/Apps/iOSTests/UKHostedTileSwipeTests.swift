@@ -353,11 +353,13 @@ final class UKHostedTileSwipeTests: XCTestCase {
     // MARK: Ink
 
     private func inkTile(_ ink: TileInkDefault, surface: TileSurface, style: UIUserInterfaceStyle, family: ColorFamily? = .neutral,
-                         unavailable: Bool = false) -> (UKGlassTileView, UIWindow) {
+                         unavailable: Bool = false, kind: GlassTileKind = .toggle, warning: Bool = false) -> (UKGlassTileView, UIWindow) {
         var environment = UKTileEnvironment()
         environment.surface = surface
         environment.inkDefault = ink
-        let model = UKGlassTileModel(title: "Fan", subtitle: "Off", symbol: "fan", family: family, isActive: false, isUnavailable: unavailable, kind: .toggle)
+        let model = UKGlassTileModel(title: "Fan", subtitle: "Off", symbol: "fan", family: family, isActive: false, isUnavailable: unavailable, kind: kind)
+        var model = model
+        model.isWarning = warning
         let tile = UKGlassTileView(model: model, environment: environment)
         let host = UIViewController()
         host.view.addSubview(tile)
@@ -404,6 +406,43 @@ final class UKHostedTileSwipeTests: XCTestCase {
         defer { w3.isHidden = true }
         XCTAssertNotEqual(packed(unavailable.face.drawnGlyphColor, in: unavailable), 0xFFFFFF, "the grey, not the primary ink")
         XCTAssertEqual(unavailable.face.drawnGlyphAlpha, 0.5, accuracy: 0.001, "unavailable draws the grey at 50%")
+    }
+
+    func testAnUnavailableStateTileDrawsGreyAndGroupsAsUnavailableLikeAnyOtherTile() throws {
+        for style in [UIUserInterfaceStyle.dark, .light] {
+            let (state, w1) = inkTile(.primary, surface: style == .dark ? .page : .sheet, style: style, unavailable: true, kind: .state)
+            defer { w1.isHidden = true }
+            let (button, w2) = inkTile(.primary, surface: style == .dark ? .page : .sheet, style: style, unavailable: true, kind: .toggle)
+            defer { w2.isHidden = true }
+            XCTAssertTrue(state.model.isInert, "a state tile is read-only")
+            XCTAssertNotEqual(packed(state.face.drawnGlyphColor, in: state), style == .dark ? 0xFFFFFF : 0x000000, "the grey, not the primary ink (\(style.rawValue))")
+            XCTAssertEqual(packed(state.face.drawnGlyphColor, in: state), packed(button.face.drawnGlyphColor, in: button), "the same grey as a button tile")
+            XCTAssertEqual(packed(state.face.drawnStateLineColor, in: state), packed(button.face.drawnStateLineColor, in: button))
+            XCTAssertEqual(state.face.drawnGlyphAlpha, 0.5, accuracy: 0.001, "at 50%")
+            XCTAssertEqual(state.gridFace, .unavailable, "it groups with the unavailable tiles")
+            XCTAssertTrue(state.isEnabled, "the control itself is still never dimmed as disabled")
+        }
+    }
+
+    func testAnAvailableStateTileKeepsThePrimaryInkAndItsFace() throws {
+        for kind in [GlassTileKind.state, .toggle] {
+            let (tile, w) = inkTile(.primary, surface: .sheet, style: .dark, kind: kind)
+            defer { w.isHidden = true }
+            XCTAssertEqual(packed(tile.face.drawnGlyphColor, in: tile), 0xFFFFFF, "\(kind)")
+            XCTAssertEqual(tile.gridFace, .idle)
+        }
+    }
+
+    func testAWarningStateLineIsPrimaryOnADarkFaceAndItsIconKeepsTheAmber() throws {
+        for kind in [GlassTileKind.state, .toggle] {
+            let (tile, w) = inkTile(.primary, surface: .page, style: .dark, kind: kind, warning: true)
+            defer { w.isHidden = true }
+            XCTAssertEqual(packed(tile.face.drawnStateLineColor, in: tile), 0xFFFFFF, "state line primary (\(kind))")
+            XCTAssertNotEqual(packed(tile.face.drawnGlyphColor, in: tile), 0xFFFFFF, "the icon still carries the warning")
+            let (muted, w2) = inkTile(.muted, surface: .page, style: .dark, kind: kind, warning: true)
+            defer { w2.isHidden = true }
+            XCTAssertNotEqual(packed(muted.face.drawnStateLineColor, in: muted), 0xFFFFFF, "a document without the id keeps today's amber")
+        }
     }
 
     // MARK: Minimum width (`n-lgt-minwidth`)
