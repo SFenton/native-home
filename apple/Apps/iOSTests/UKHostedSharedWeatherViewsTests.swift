@@ -128,6 +128,38 @@ final class UKHostedSharedWeatherViewsTests: XCTestCase {
         }
     }
 
+    /// The value and unit are drawn in the fonts, and take the heights, the hand-built labels had (`UILabel.uk`), at the default and an accessibility size.
+    func testTheBarometerLinesAreProductionsFontsAndHeights() {
+        for category in [UIContentSizeCategory.large, .accessibilityExtraExtraLarge] {
+            let gauge = UKWeatherPressureGaugeView(percent: 40, value: "1013", unit: "hPa")
+            gauge.traitOverrides.preferredContentSizeCategory = category
+            let window = hosted(gauge, size: CGSize(width: 338, height: 229.3))
+            defer { window.isHidden = true }
+            let value = UILabel.uk(.title3, weight: .bold, monospacedDigit: true, ink: .white, lines: 1, alignment: .center)
+            let unit = UILabel.uk(.caption1, ink: .white, lines: 1, alignment: .center)
+            value.text = "1013"
+            unit.text = "hPa"
+            gauge.addSubview(value)
+            gauge.addSubview(unit)
+            gauge.layoutIfNeeded()
+            let lines = gauge.face.centerLines
+            XCTAssertEqual(lines[0].drawnFont.pointSize, value.font.pointSize, accuracy: 0.01, "value font at \(category.rawValue)")
+            XCTAssertEqual(lines[1].drawnFont.pointSize, unit.font.pointSize, accuracy: 0.01, "unit font at \(category.rawValue)")
+            XCTAssertEqual(ceil(lines[0].gridHeight(forWidth: 338)), ceil(value.sizeThatFits(CGSize(width: 338, height: 200)).height), "value height at \(category.rawValue)")
+            XCTAssertEqual(ceil(lines[1].gridHeight(forWidth: 338)), ceil(unit.sizeThatFits(CGSize(width: 338, height: 200)).height), "unit height at \(category.rawValue)")
+        }
+    }
+
+    func testTheBarometerRingFitsATileTallerThanItsShapeAsTheHandBuiltViewDid() {
+        let gauge = UKWeatherPressureGaugeView(percent: 40, value: "1013", unit: "hPa")
+        let window = hosted(gauge, size: CGSize(width: 402, height: 229.3))
+        defer { window.isHidden = true }
+        gauge.layoutIfNeeded()
+        XCTAssertEqual(gauge.face.dialFrame.width, 1.4 * 229.3, accuracy: 0.5, "no wider than 1.4 times the tile's height")
+        XCTAssertEqual(gauge.face.dialFrame.height, 229.3, accuracy: 0.5, "and so it does not clip at the bottom")
+        XCTAssertEqual(gauge.face.dialFrame.minY + CGFloat(gauge.face.placed?.cy ?? 0), 0.56 * 229.3, accuracy: 0.3)
+    }
+
     func testTheSunArcDrawsThroughTheArcTrackAndHidesItsMarkerWithoutProgress() {
         let arc = UKWeatherSunArcView(percent: 50)
         let window = hosted(arc, size: CGSize(width: 300, height: 96))
