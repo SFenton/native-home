@@ -70,6 +70,9 @@ struct UKServerUIReader: ServerUIReading {
     /// The wall clock. Reading it starts the minute tick, and the tick stops once nothing reads it (``UKServerUIAppStateSource``).
     var clock: ServerUIClock? { MainActor.assumeIsolated { bindings.appState.clockForReading() } }
 
+    /// The wall clock to the second (`now-second`, `sh.countdown@1`). Reading it starts the one-second tick, which stops one tick after the last read.
+    var secondClock: ServerUIClock? { MainActor.assumeIsolated { bindings.appState.secondClockForReading() } }
+
     /// Dates are drawn in the phone's language and region.
     var locale: Locale? { .autoupdatingCurrent }
 
@@ -95,6 +98,19 @@ struct UKServerUIReader: ServerUIReading {
             case .unavailable: return .unavailable
             case .ready(let id):
                 return .rawState(of: bindings.context.store.entity(id).state, statesLoaded: !bindings.context.valuesPending)
+            }
+        }
+    }
+
+    /// When the source's entity state last changed (`last-changed`, `sh.entity-time@1`). It reads the entity box, so the next change re-runs the reader.
+    func readChanged(sourceId: String) -> ServerUIReadResult {
+        MainActor.assumeIsolated {
+            guard case .haEntity? = bindings.definitions[sourceId] else { return .unavailable }
+            switch bindings.entityID(for: sourceId) {
+            case .loading: return .loading
+            case .unavailable: return .unavailable
+            case .ready(let id):
+                return .lastChanged(of: bindings.context.store.entity(id).state, statesLoaded: !bindings.context.valuesPending)
             }
         }
     }

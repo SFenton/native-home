@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-three-days",
+  "note": "259200 seconds is 3 days.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 259200
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "3 days"
+  }
+}

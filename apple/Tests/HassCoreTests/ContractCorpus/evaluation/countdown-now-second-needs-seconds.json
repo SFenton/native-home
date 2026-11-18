@@ -1,0 +1,20 @@
+{
+  "format": 1,
+  "name": "countdown-now-second-needs-seconds",
+  "note": "A clock whose time has no seconds does not parse: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "clock",
+      "part": "now-second"
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-17T10:00",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

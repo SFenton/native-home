@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-a-day-and-a-bit",
+  "note": "1.4 days is 1 day.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 120960
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 day"
+  }
+}

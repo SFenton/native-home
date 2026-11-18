@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "math-truncate-fractional-places-is-unavailable",
+  "note": "Places are whole.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 1.5
+        },
+        {
+          "type": "literal",
+          "value": 1.5
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-minutes-seconds-negative-is-zero",
+  "note": "Never below 0:00.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": -3
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "0:00"
+  }
+}

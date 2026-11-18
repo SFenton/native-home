@@ -73,6 +73,8 @@ public enum Telemetry {
         /// An animated layout change (a row inserted, a section swapped, a badge fading in), from the value changing to its animation
         /// settling (`measuresMotion`); the interval's page names the change.
         public static let layoutChange: StaticString = "LayoutChange"
+        /// One publication of the second clock (`now-second`, `sh.countdown@1`), from the tick firing to the value written; the 1 Hz path.
+        public static let secondTick: StaticString = "SecondTick"
     }
 
     /// The part of a transition a record measures, stored in the record's `detail` (``TelemetryLog/phaseStats``).

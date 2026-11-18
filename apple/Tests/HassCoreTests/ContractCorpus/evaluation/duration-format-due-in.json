@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-due-in",
+  "note": "A chore's line: \"Due in 3 days\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Due in {n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 259200
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Due in 3 days"
+  }
+}

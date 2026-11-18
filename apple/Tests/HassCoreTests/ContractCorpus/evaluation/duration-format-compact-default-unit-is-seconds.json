@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-default-unit-is-seconds",
+  "note": "A compact duration with no unit counts seconds: 90 is 2m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 90
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2m"
+  }
+}

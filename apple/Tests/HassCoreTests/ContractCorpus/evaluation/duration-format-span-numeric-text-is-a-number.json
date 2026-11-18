@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-numeric-text-is-a-number",
+  "note": "A numeric text is a number: \"86400\" is 1 day.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": "86400"
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 day"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-places-zero",
+  "note": "Zero places is the same as none.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 2.9
+        },
+        {
+          "type": "literal",
+          "value": 0
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

@@ -64,6 +64,10 @@ public enum ServerUIIngestedCapabilities {
     /// a curve with a horizon and a marker; the weather panel's compass, barometer and sun arc draw through them.
     public static let gaugeParts: [String] = ["sh.dial@1", "sh.arc-track@1"]
 
+    /// The edge-logic operands (lane `ne-operands`): when an entity's state last changed (`last-changed`), the seconds between two moments and the clock to the
+    /// second (`seconds-between`, `now-second`), a duration drawn as `30m`, `05:00`, `4:30` or `3 days`, and a number truncated toward zero.
+    public static let edgeOperands: [String] = ["sh.entity-time@1", "sh.countdown@1", "sh.duration-format@1", "sh.math-truncate@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts + edgeOperands }
 }

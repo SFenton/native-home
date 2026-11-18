@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "entity-time-since-a-later-day",
+  "note": "A change dated after today (a clock behind Home Assistant's) is not today: the short date, \"Since Nov 18\".",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "date",
+              "op": "days-between",
+              "from": {
+                "type": "last-changed",
+                "sourceId": "temp"
+              },
+              "to": {
+                "type": "clock",
+                "part": "today"
+              }
+            },
+            "right": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "then": {
+            "type": "format",
+            "pattern": "Since {t}",
+            "args": {
+              "t": {
+                "type": "last-changed",
+                "sourceId": "temp"
+              }
+            },
+            "formats": {
+              "t": {
+                "date": {
+                  "style": "time"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "Since {d}",
+        "args": {
+          "d": {
+            "type": "last-changed",
+            "sourceId": "temp"
+          }
+        },
+        "formats": {
+          "d": {
+            "date": {
+              "style": "short-date"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "changed": {
+      "temp": {
+        "status": "value",
+        "value": "2026-11-18T09:00:00.000Z"
+      }
+    },
+    "clock": {
+      "now": "2026-11-17T23:10:05",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Since Nov 18"
+  }
+}

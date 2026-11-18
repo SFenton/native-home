@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-half-rounds-away-from-zero",
+  "note": "0.5 minutes rounds to 1 (a tie goes away from zero).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0.5
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1m"
+  }
+}

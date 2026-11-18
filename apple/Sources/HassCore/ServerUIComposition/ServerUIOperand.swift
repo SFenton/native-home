@@ -37,6 +37,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     /// How far the clock is from the moment `from` to the moment `to`, from 0 to 1 (`sh.flow-extras@1`): `null` when either is not a date, the
     /// clock does not parse, or `to` is not after `from`.
     case progress(from: ServerUIOperand, to: ServerUIOperand)
+    /// Whole seconds from the moment `from` to the moment `to`, signed (`sh.countdown@1`): `unavailable` when either is not a date or a date and time.
+    case secondsBetween(from: ServerUIOperand, to: ServerUIOperand)
     /// The 0-based position of the item a flow step or a `repeat` cell is looking at (`sh.repeat@1`).
     case index
     /// The first case whose condition holds gives the value, else `otherwise` (`sh.rules@1`). An undecided case stops the rule:
@@ -44,6 +46,8 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     case choose(cases: [ChooseCase], otherwise: ServerUIOperand)
     /// The state text of an `ha-entity` source exactly as Home Assistant reports it, `unknown` and `unavailable` included (`sh.raw-state@1`).
     case rawState(sourceId: String)
+    /// When the state of an `ha-entity` source last changed, as `YYYY-MM-DDTHH:MM:SS.sssZ` (`sh.entity-time@1`); `unavailable` while the entity is.
+    case lastChanged(sourceId: String)
     /// How many items the list attribute `path` of an `ha-entity` source holds (`sh.list-read@1`).
     case listCount(sourceId: String, path: [String])
     /// Whether some scalar item of the list attribute `path` of an `ha-entity` source equals `value` (`sh.list-read@1`).
@@ -62,8 +66,12 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
         }
     }
 
-    /// What the `clock` operand reads.
-    public enum ClockPart: String, Sendable, CaseIterable { case today, now }
+    /// What the `clock` operand reads: today's date, the wall time now (published once a minute), or the wall time to the second
+    /// (`sh.countdown@1`, published once a second, and only while something reads it).
+    public enum ClockPart: String, Sendable, CaseIterable {
+        case today, now
+        case nowSecond = "now-second"
+    }
 
     /// One branch of a ``choose(cases:otherwise:)``.
     public struct ChooseCase: Equatable, Sendable {
@@ -78,13 +86,15 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     /// An arithmetic operation. `scale` takes `[value, fromMin, fromMax, toMin, toMax]`.
     public enum MathOp: String, Sendable, CaseIterable {
         case add, subtract, multiply, divide, min, max, round, clamp, scale
+        /// Toward zero, to 0 to 6 places (`sh.math-truncate@1`).
+        case truncate
 
         /// The number of arguments the operation accepts.
         public var arity: ClosedRange<Int> {
             switch self {
             case .add, .multiply, .min, .max: 2...8
             case .subtract, .divide: 2...2
-            case .round: 1...2
+            case .round, .truncate: 1...2
             case .clamp: 3...3
             case .scale: 5...5
             }
@@ -95,9 +105,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var sourceIds: Set<String> {
         switch self {
         case .literal, .control, .viewer, .item, .index, .param, .clock: []
-        case .read(let id, _, _), .rawState(let id), .listCount(let id, _): [id]
+        case .read(let id, _, _), .rawState(let id), .lastChanged(let id), .listCount(let id, _): [id]
         case .listIncludes(let id, _, let value): value.sourceIds.union([id])
-        case .date(let from, let to), .progress(let from, let to): from.sourceIds.union(to.sourceIds)
+        case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.sourceIds.union(to.sourceIds)
         case .choose(let cases, let otherwise):
             cases.reduce(otherwise.sourceIds) { $0.union($1.when.sourceIds).union($1.then.sourceIds) }
         case .format(_, let args, _): args.values.reduce(into: Set<String>()) { $0.formUnion($1.sourceIds) }
@@ -112,9 +122,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsViewer: Bool {
         switch self {
         case .viewer: true
-        case .literal, .read, .control, .item, .index, .param, .clock, .rawState, .listCount: false
+        case .literal, .read, .control, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount: false
         case .listIncludes(_, _, let value): value.readsViewer
-        case .date(let from, let to), .progress(let from, let to): from.readsViewer || to.readsViewer
+        case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.readsViewer || to.readsViewer
         case .choose(let cases, let otherwise):
             otherwise.readsViewer || cases.contains { $0.when.readsViewer || $0.then.readsViewer }
         case .format(_, let args, _): args.values.contains { $0.readsViewer }
@@ -128,9 +138,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var usesControl: Bool {
         switch self {
         case .control: true
-        case .literal, .read, .viewer, .item, .index, .param, .clock, .rawState, .listCount: false
+        case .literal, .read, .viewer, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount: false
         case .listIncludes(_, _, let value): value.usesControl
-        case .date(let from, let to), .progress(let from, let to): from.usesControl || to.usesControl
+        case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.usesControl || to.usesControl
         case .choose(let cases, let otherwise): otherwise.usesControl || cases.contains { $0.then.usesControl }
         case .format(_, let args, _): args.values.contains { $0.usesControl }
         case .map(let of, let cases, let otherwise): of.usesControl || otherwise.usesControl || cases.contains { $0.then.usesControl }
@@ -143,7 +153,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public var readsClock: Bool {
         switch self {
         case .clock: true
-        case .literal, .read, .control, .viewer, .item, .index, .param, .rawState, .listCount: false
+        case .literal, .read, .control, .viewer, .item, .index, .param, .rawState, .lastChanged, .listCount: false
         case .listIncludes(_, _, let value): value.readsClock
         case .format(_, let args, let formats):
             formats.values.contains { if case .date(let style) = $0 { style.needsClock } else { false } }
@@ -151,7 +161,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
         case .map(let of, let cases, let otherwise): of.readsClock || otherwise.readsClock || cases.contains { $0.then.readsClock }
         case .math(_, let args), .list(let args): args.contains { $0.readsClock }
         case .object(let fields): fields.values.contains { $0.readsClock }
-        case .date(let from, let to): from.readsClock || to.readsClock
+        case .date(let from, let to), .secondsBetween(let from, let to): from.readsClock || to.readsClock
         case .progress: true
         case .choose(let cases, let otherwise):
             otherwise.readsClock || cases.contains { $0.when.readsClock || $0.then.readsClock }
@@ -171,7 +181,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     private func outcome(_ environment: some ServerUIReading) -> ServerUIReadResult {
         switch self {
         case .literal(let value): return .value(value)
-        case .rawState, .listCount, .listIncludes: return evaluateEntityRead(environment)
+        case .rawState, .lastChanged, .listCount, .listIncludes: return evaluateEntityRead(environment)
         case .control: return environment.controlValue.map { .value($0) } ?? .unavailable
         case .viewer(let field):
             guard let viewer = environment.viewer else { return .loading }
@@ -192,7 +202,9 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
         case .param(let name):
             return environment.parameter(name).map { .value($0) } ?? .unavailable
         case .clock(let part):
-            guard let clock = environment.clock, let today = ServerUIDates.today(of: clock) else { return .unavailable }
+            // `now-second` reads the second clock: a reader of it is what starts the app's 1 Hz tick.
+            guard let clock = part == .nowSecond ? environment.secondClock : environment.clock,
+                  let today = ServerUIDates.today(of: clock) else { return .unavailable }
             return .value(.string(part == .today ? today : clock.now))
         case .date(let from, let to):
             let start = from.evaluate(environment), end = to.evaluate(environment)
@@ -201,6 +213,13 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
                   let days = ServerUIDates.daysBetween(first, second, utcOffsetMinutes: environment.clock?.utcOffsetMinutes ?? 0)
             else { return .unavailable }
             return .value(.number(Double(days)))
+        case .secondsBetween(let from, let to):
+            let start = from.evaluate(environment), end = to.evaluate(environment)
+            if let blocked = ServerUIReadResult.combine([start, end]) { return blocked }
+            guard case .string(let first)? = start.json, case .string(let second)? = end.json,
+                  let seconds = ServerUIDates.secondsBetween(first, second, utcOffsetMinutes: environment.clock?.utcOffsetMinutes ?? 0)
+            else { return .unavailable }
+            return .value(.number(Double(seconds)))
         case .progress(let from, let to):
             let start = from.evaluate(environment), end = to.evaluate(environment)
             if let blocked = ServerUIReadResult.combine([start, end]) { return blocked }
@@ -229,6 +248,10 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
                     output += value.finiteNumber.map(format.text) ?? plain
                 case .text(let letterCase)?:
                     output += letterCase.apply(to: plain)
+                case .duration(let format)?:
+                    // A duration draws a number; anything else, or a number with no text, leaves the whole format without one.
+                    guard let drawn = value.finiteNumber.flatMap(format.text) else { return .unavailable }
+                    output += drawn
                 case nil: output += plain
                 }
                 rest = rest[rest.index(after: close)...]
@@ -329,6 +352,12 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
             let factor = pow(10, places)
             return (n[0] * factor).rounded() / factor
         case .clamp: return n[1] <= n[2] ? Swift.min(Swift.max(n[0], n[1]), n[2]) : nil
+        case .truncate:
+            let places = n.count == 2 ? n[1] : 0
+            guard places.rounded() == places, (0...6).contains(places) else { return nil }
+            let factor = pow(10, places)
+            // Toward zero; adding zero turns a result of -0 into 0.
+            return (n[0] * factor).rounded(.towardZero) / factor + 0
         case .scale:
             guard n[1] != n[2] else { return nil }
             return n[3] + (n[0] - n[1]) / (n[2] - n[1]) * (n[4] - n[3])

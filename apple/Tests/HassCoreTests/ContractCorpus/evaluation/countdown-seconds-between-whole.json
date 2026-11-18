@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-whole",
+  "note": "Five minutes is 300 seconds.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T10:05:00"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 300
+  }
+}

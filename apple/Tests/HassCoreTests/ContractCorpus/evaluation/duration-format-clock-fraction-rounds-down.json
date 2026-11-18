@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-fraction-rounds-down",
+  "note": "299.9 seconds is 04:59: whole seconds, rounded down.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 299.9
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "04:59"
+  }
+}

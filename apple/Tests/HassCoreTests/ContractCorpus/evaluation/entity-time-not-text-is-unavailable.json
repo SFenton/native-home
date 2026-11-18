@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "entity-time-not-text-is-unavailable",
+  "note": "A time that is not text is no time.",
+  "subject": {
+    "operand": {
+      "type": "last-changed",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "changed": {
+      "sensor": {
+        "status": "value",
+        "value": 5
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

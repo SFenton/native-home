@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "entity-time-value",
+  "note": "The time is the entity's `last_changed` as Home Assistant reports it, to the millisecond, in UTC.",
+  "subject": {
+    "operand": {
+      "type": "last-changed",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "changed": {
+      "sensor": {
+        "status": "value",
+        "value": "2026-11-17T21:30:00.000Z"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "2026-11-17T21:30:00.000Z"
+  }
+}

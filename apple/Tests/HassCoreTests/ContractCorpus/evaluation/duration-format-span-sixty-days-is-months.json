@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-sixty-days-is-months",
+  "note": "60 days is where months begin: 2 months.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 5184000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2 months"
+  }
+}

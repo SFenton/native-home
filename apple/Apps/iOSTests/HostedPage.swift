@@ -166,13 +166,14 @@ enum HostedPage {
         return CGSize(width: min(size.width, bounds.width), height: min(size.height, bounds.height))
     }
 
-    /// Puts `controller` in a key window of the given size, loads and lays it out, and returns the window (kept alive by the caller).
-    /// The window joins the app's scene (a scene-less window never finishes an animated push or transition); pass
-    /// `inScene: false` for a test that needs a free window.
     /// The phone window a test gets by default, inside the scene (``inScene(_:)``): 393 by 852 on the iPhone and the iPad, the folded
     /// Duo's 678 pt height there.
     static var phoneSize: CGSize { inScene(CGSize(width: 393, height: 852)) }
 
+    /// Puts `controller` in a key window of the given size, loads and lays it out, and returns the window (kept alive by the caller).
+    /// The window joins the app's scene (a scene-less window never finishes an animated push or transition); pass
+    /// `inScene: false` for a test that needs a free window. The caller must hold the returned window for as long as the page is under test: the
+    /// tracker keeps it weakly, and a window that deallocates sends its page a `viewDidDisappear`.
     static func show(_ controller: UIViewController, size: CGSize? = nil, inScene: Bool = true) -> UIWindow {
         let frame = CGRect(origin: .zero, size: size ?? phoneSize)
         let window: UIWindow

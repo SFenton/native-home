@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-seconds-sixty",
+  "note": "60 seconds is 1m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 60
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1m"
+  }
+}

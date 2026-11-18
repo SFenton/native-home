@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-with-fallback-set",
+  "note": "A compact duration with text ignores the fallback: 1800 seconds is 30m.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "format",
+        "pattern": "{m}",
+        "args": {
+          "m": {
+            "type": "literal",
+            "value": 1800
+          }
+        },
+        "formats": {
+          "m": {
+            "duration": {
+              "style": "compact",
+              "unit": "seconds"
+            }
+          }
+        }
+      },
+      "fallback": "Off"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "30m"
+  }
+}

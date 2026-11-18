@@ -68,9 +68,9 @@ extension ServerUIOperand {
         case .map(let of, let cases, let otherwise): of.flowReads + cases.flatMap(\.then.flowReads) + otherwise.flowReads
         case .math(_, let args), .list(let args): args.flatMap(\.flowReads)
         case .object(let fields): fields.values.flatMap(\.flowReads)
-        case .date(let from, let to), .progress(let from, let to): from.flowReads + to.flowReads
+        case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.flowReads + to.flowReads
         case .choose(let cases, let otherwise): cases.flatMap { $0.then.flowReads } + otherwise.flowReads
-        case .literal, .control, .viewer, .item, .index, .param, .clock, .rawState, .listCount, .listIncludes: []
+        case .literal, .control, .viewer, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount, .listIncludes: []
         }
     }
 }

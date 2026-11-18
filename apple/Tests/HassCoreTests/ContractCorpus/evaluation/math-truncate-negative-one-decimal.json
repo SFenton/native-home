@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-negative-one-decimal",
+  "note": "Toward zero for a negative too: -71.99 is -71.9.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": -71.99
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": -71.9
+  }
+}

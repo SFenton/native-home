@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-minutes-seconds-fraction-rounds-up",
+  "note": "269.1 seconds rounds up to 270: 4:30 (BedFormat.countdown rounds up).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 269.1
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "4:30"
+  }
+}

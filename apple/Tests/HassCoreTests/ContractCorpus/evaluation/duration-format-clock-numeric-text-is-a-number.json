@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-numeric-text-is-a-number",
+  "note": "A numeric text is a number, as in every number format: \"90\" is 01:30.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": "90"
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "01:30"
+  }
+}

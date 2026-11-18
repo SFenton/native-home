@@ -27,6 +27,8 @@ public struct ServerUIFlowTyping {
         var flowExtras = false
         /// Whether an `index` operand appears: the flow then needs `sh.repeat@1`.
         var usesRepeat = false
+        /// The edge-logic ids (without `sh.` and `@1`) a duration format, a truncation or a `seconds-between` needs: `duration-format`, `math-truncate`, `countdown`.
+        var edge: Set<String> = []
         /// Creates empty facts.
         public init() {}
     }
@@ -124,6 +126,8 @@ public struct ServerUIFlowTyping {
             return scope.parameters[name].map { shape(of: $0).orNull } ?? .any
         case .clock(let part):
             facts.needsOperands = true
+            // A flow runs once on the minute clock it is given: there is no second clock for it (`sh.countdown@1`).
+            if part == .nowSecond { report(&facts, .invalidCombination, at) }
             return .text(part == .today ? .date : .dateTime)
         case .index:
             // The position of the item a step looks at (`sh.repeat@1`); a parameter or the request has no item.
@@ -140,6 +144,18 @@ public struct ServerUIFlowTyping {
             return Shape.float.orNull
         case .date(let from, let to):
             facts.needsOperands = true
+            let start = sub(from, "from", facts: &facts, budget: &budget), end = sub(to, "to", facts: &facts, budget: &budget)
+            expect(&facts, start, [.string], join(at, "from"))
+            expect(&facts, end, [.string], join(at, "to"))
+            let dated: (Shape) -> Bool = {
+                guard !$0.isNullable, case .string(let format, _) = $0 else { return false }
+                return format == .date || format == .dateTime
+            }
+            return dated(start) && dated(end) ? .integer : Shape.integer.orNull
+        case .secondsBetween(let from, let to):
+            // Whole seconds (`sh.countdown@1`): typed like the days between two dates.
+            facts.needsOperands = true
+            facts.edge.insert("countdown")
             let start = sub(from, "from", facts: &facts, budget: &budget), end = sub(to, "to", facts: &facts, budget: &budget)
             expect(&facts, start, [.string], join(at, "from"))
             expect(&facts, end, [.string], join(at, "to"))
@@ -173,6 +189,10 @@ public struct ServerUIFlowTyping {
                 case .text:
                     facts.needsOperands = true
                     expect(&facts, held, [.string], where_)
+                case .duration(let format):
+                    facts.edge.insert("duration-format")
+                    if format.unit != nil, format.style != .compact { report(&facts, .invalidCombination, join(where_, "duration", "unit")) }
+                    expect(&facts, held, [.number], where_)
                 case .date(let style):
                     // A date style draws a date or a date and time, which is text; `hour` and `weekday` are `sh.flow-extras@1`'s.
                     facts.needsOperands = true
@@ -199,7 +219,8 @@ public struct ServerUIFlowTyping {
             return subject.isNullable ? result.orNull : result
         case .math(let op, let args):
             if !op.arity.contains(args.count) { report(&facts, .invalidCombination, join(at, "args")) }
-            var anyNull = [ServerUIOperand.MathOp.divide, .scale, .clamp, .round].contains(op)
+            if op == .truncate { facts.edge.insert("math-truncate") }
+            var anyNull = [ServerUIOperand.MathOp.divide, .scale, .clamp, .round, .truncate].contains(op)
             for (index, arg) in args.enumerated() {
                 let shape = sub(arg, "args", index, facts: &facts, budget: &budget)
                 expect(&facts, shape, [.number], join(at, "args", index))
@@ -214,7 +235,7 @@ public struct ServerUIFlowTyping {
                 shapes[name] = sub(fields[name]!, "fields", name, facts: &facts, budget: &budget)
             }
             return .record(shapes)
-        case .control, .rawState, .listCount, .listIncludes:
+        case .control, .rawState, .lastChanged, .listCount, .listIncludes:
             report(&facts, .invalidCombination, at)
             return .any
         case .choose(let cases, let otherwise):

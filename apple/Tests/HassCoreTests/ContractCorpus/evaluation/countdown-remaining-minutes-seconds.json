@@ -1,0 +1,57 @@
+{
+  "format": 1,
+  "name": "countdown-remaining-minutes-seconds",
+  "note": "The bed's text: 293 seconds is 4:53.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{s}",
+      "args": {
+        "s": {
+          "type": "date",
+          "op": "seconds-between",
+          "from": {
+            "type": "clock",
+            "part": "now-second"
+          },
+          "to": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "timer",
+              "path": [
+                "attributes",
+                "finishes_at"
+              ]
+            },
+            "as": "string",
+            "missing": "unavailable"
+          }
+        }
+      },
+      "formats": {
+        "s": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "timer/attributes/finishes_at": {
+        "status": "value",
+        "value": "2026-11-17T10:05:00+00:00"
+      }
+    },
+    "clock": {
+      "now": "2026-11-17T10:00:07",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "4:53"
+  }
+}

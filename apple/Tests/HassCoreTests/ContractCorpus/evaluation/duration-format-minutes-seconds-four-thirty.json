@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-minutes-seconds-four-thirty",
+  "note": "The bed's text: 270 seconds is 4:30.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 270
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "4:30"
+  }
+}

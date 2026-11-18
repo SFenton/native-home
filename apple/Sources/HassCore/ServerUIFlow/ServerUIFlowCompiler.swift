@@ -60,6 +60,7 @@ public enum ServerUIFlowCompiler {
             facts.usesRules = facts.usesRules || local.usesRules
             facts.flowExtras = facts.flowExtras || local.flowExtras
             facts.usesRepeat = facts.usesRepeat || local.usesRepeat
+            facts.edge.formUnion(local.edge)
             for ref in local.parameterReferences {
                 facts.parameterReferences.append(ref)
                 parameterRefs.append((parameter.name, ref.name, ref.pointer))
@@ -89,6 +90,7 @@ public enum ServerUIFlowCompiler {
             facts.usesRules = facts.usesRules || local.usesRules
             facts.flowExtras = facts.flowExtras || local.flowExtras
             facts.usesRepeat = facts.usesRepeat || local.usesRepeat
+            facts.edge.formUnion(local.edge)
         }
         func shapeCheck(_ shape: Shape, _ pointer: String) { if let found = shape.problem(at: pointer) { issue(found.code, found.pointer) } }
         func entity(_ value: String, at: String, domain: String? = nil) {
@@ -250,7 +252,7 @@ public enum ServerUIFlowCompiler {
         if flow.steps.count > ServerUIFlow.Limits.steps { issue(.limitExceeded, join(base, "steps")) }
 
         let capabilities = [capability] + (facts.needsOperands ? [operandsCapability] : []) + (facts.usesRules ? ["rules"] : [])
-            + (flow.givesRecords || facts.usesRepeat ? ["repeat"] : []) + (facts.flowExtras ? ["flow-extras"] : [])
+            + (flow.givesRecords || facts.usesRepeat ? ["repeat"] : []) + (facts.flowExtras ? ["flow-extras"] : []) + facts.edge.sorted()
         return Result(issues: facts.issues, reads: facts.reads.map { ($0.sourceId, $0.pointer) }, capabilities: capabilities)
     }
 

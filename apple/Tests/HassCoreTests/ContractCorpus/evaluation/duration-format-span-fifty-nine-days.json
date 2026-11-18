@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-fifty-nine-days",
+  "note": "59 days is 8.4 weeks: 8 weeks.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 5097600
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "8 weeks"
+  }
+}

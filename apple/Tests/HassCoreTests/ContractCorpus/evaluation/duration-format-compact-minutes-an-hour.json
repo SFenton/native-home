@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-an-hour",
+  "note": "60 minutes is 1h.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 60
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1h"
+  }
+}

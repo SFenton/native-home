@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-small-negative-is-zero-not-negative-zero",
+  "note": "-0.04 to one place is 0, not -0 (the authored draws \"0.0\").",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": -0.04
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

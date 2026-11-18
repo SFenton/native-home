@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-zero",
+  "note": "Minutes: 0 has no text.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

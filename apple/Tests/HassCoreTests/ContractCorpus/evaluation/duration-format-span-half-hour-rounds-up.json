@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-half-hour-rounds-up",
+  "note": "1800 seconds is 0.5 hours: a tie goes away from zero, 1 hour.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 1800
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 hour"
+  }
+}

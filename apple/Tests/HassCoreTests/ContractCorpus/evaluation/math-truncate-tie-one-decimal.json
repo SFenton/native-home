@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-tie-one-decimal",
+  "note": "71.25 to one place is 71.2: it cuts, it does not round.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 71.25
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 71.2
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-zero-is-one-hour",
+  "note": "The amount is at least 1: 0 is 1 hour.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 hour"
+  }
+}

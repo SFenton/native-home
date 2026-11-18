@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "countdown-now-second-without-clock-is-unavailable",
+  "note": "Without a clock there is no now.",
+  "subject": {
+    "operand": {
+      "type": "clock",
+      "part": "now-second"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

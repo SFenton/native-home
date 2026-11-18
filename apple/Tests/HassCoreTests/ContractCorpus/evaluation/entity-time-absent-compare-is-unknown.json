@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "entity-time-absent-compare-is-unknown",
+  "note": "Without a time a comparison cannot be answered.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "after",
+      "left": {
+        "type": "last-changed",
+        "sourceId": "temp"
+      },
+      "right": {
+        "type": "clock",
+        "part": "now"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-17T23:10:05",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "tri": "unknown"
+  }
+}

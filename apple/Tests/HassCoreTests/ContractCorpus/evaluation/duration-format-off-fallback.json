@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "name": "duration-format-off-fallback",
+  "note": "The humidifier's \"Off\": a compact duration of 0 has no text, so the slot's fallback draws.",
+  "subject": {
+    "text": {
+      "type": "expr",
+      "value": {
+        "type": "format",
+        "pattern": "{m}",
+        "args": {
+          "m": {
+            "type": "literal",
+            "value": 0
+          }
+        },
+        "formats": {
+          "m": {
+            "duration": {
+              "style": "compact",
+              "unit": "seconds"
+            }
+          }
+        }
+      },
+      "fallback": "Off"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Off"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-ninety-days",
+  "note": "90 days is 3 months of 30 days.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 7776000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "3 months"
+  }
+}
