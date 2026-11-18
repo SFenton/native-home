@@ -1,0 +1,88 @@
+[
+ {
+  "field": "line",
+  "class": "native",
+  "fixedBy": "state-text-core",
+  "reason": "The device and card line draws the constant fallback when no authored states option matches; the old app and the Studio sim show the controller's title-cased state. state-text-core moves the line into ServerUIRemoteDeviceText.line, which falls back to the controller text.",
+  "ids": {
+   "remote-card.options-none.buffering": "Unknown",
+   "remote-card.options-none.idle": "Unknown",
+   "remote-card.options-none.off": "Unknown",
+   "remote-card.options-none.on": "Unknown",
+   "remote-card.options-none.paused": "Unknown",
+   "remote-card.options-none.playing": "Unknown",
+   "remote-card.options-none.standby": "Unknown",
+   "remote-card.options-on-off.buffering": "Unknown",
+   "remote-card.options-on-off.idle": "Unknown",
+   "remote-card.options-on-off.paused": "Unknown",
+   "remote-card.options-on-off.playing": "Unknown",
+   "remote-card.options-on-off.standby": "Unknown",
+   "remote-device.options-none.buffering": "Unknown",
+   "remote-device.options-none.idle": "Unknown",
+   "remote-device.options-none.off": "Unknown",
+   "remote-device.options-none.on": "Unknown",
+   "remote-device.options-none.paused": "Unknown",
+   "remote-device.options-none.playing": "Unknown",
+   "remote-device.options-none.standby": "Unknown",
+   "remote-device.options-on-off.buffering": "Unknown",
+   "remote-device.options-on-off.idle": "Unknown",
+   "remote-device.options-on-off.paused": "Unknown",
+   "remote-device.options-on-off.playing": "Unknown",
+   "remote-device.options-on-off.standby": "Unknown"
+  }
+ },
+ {
+  "field": "line",
+  "class": "native",
+  "fixedBy": null,
+  "reason": "The device line treats unknown as unavailable (EntityState.isUnavailable) and draws the unavailable text; the old app drew Unknown. Not covered by state-text-core, whose line also returns the unavailable text first.",
+  "ids": {
+   "remote-card.options-none.unknown": "Unavailable",
+   "remote-card.options-on-off.unknown": "Unavailable",
+   "remote-device.options-none.unknown": "Unavailable",
+   "remote-device.options-on-off.unknown": "Unavailable"
+  }
+ },
+ {
+  "field": "verb",
+  "class": "native",
+  "fixedBy": null,
+  "reason": "Lock state opening: the new built-in lock style treats it as a moving state (Lock, lock.open, taps ignored); the old provider treated it as ready Unlock. Owner to confirm the new reading.",
+  "ids": {
+   "style-lock.default.opening": "Lock"
+  }
+ },
+ {
+  "field": "symbol",
+  "class": "native",
+  "fixedBy": null,
+  "reason": "Lock state opening: the new built-in lock style treats it as a moving state (Lock, lock.open, taps ignored); the old provider treated it as ready Unlock. Owner to confirm the new reading.",
+  "ids": {
+   "style-lock.default.opening": "lock.open"
+  }
+ },
+ {
+  "field": "phase",
+  "class": "native",
+  "fixedBy": null,
+  "reason": "Lock state opening: the new built-in lock style treats it as a moving state (Lock, lock.open, taps ignored); the old provider treated it as ready Unlock. Owner to confirm the new reading.",
+  "ids": {
+   "style-lock.default.opening": "inFlight"
+  }
+ },
+ {
+  "field": "words",
+  "class": "fixture",
+  "fixedBy": null,
+  "reason": "The old oracle is the provider's stateTextCandidates list, an index and not truth; it lacks these words (Opening, Armed Custom Bypass, Unknown). The old tile's real words for them need an old-UI probe.",
+  "ids": {
+   "style-alarm.default.armed-custom-bypass": "Armed Custom Bypass",
+   "style-alarm.default.unknown": "Unknown",
+   "style-garage-door.features-0.unknown": "Unknown",
+   "style-garage-door.features-8.unknown": "Unknown",
+   "style-lock.default.opening": "Opening",
+   "style-lock.default.unknown": "Unknown",
+   "style-robot.default.unknown": "Unknown"
+  }
+ }
+]

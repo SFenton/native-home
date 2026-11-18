@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "ha_tag": "2026.11.0",
+  "source": "homeassistant/components/<domain>/const.py StrEnum classes and homeassistant/const.py at the tag above; read with gh api raw files",
+  "universal": ["unavailable", "unknown"],
+  "sets": {
+    "lock": {"source": "lock/const.py LockState", "states": ["jammed", "opening", "locking", "open", "unlocking", "locked", "unlocked"], "transitional": ["opening", "locking", "unlocking"]},
+    "cover": {"source": "cover/const.py CoverState", "states": ["closed", "closing", "open", "opening"], "transitional": ["closing", "opening"]},
+    "alarm_control_panel": {"source": "alarm_control_panel/const.py AlarmControlPanelState", "states": ["disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass", "pending", "arming", "disarming", "triggered"], "transitional": ["pending", "arming", "disarming"]},
+    "vacuum": {"source": "vacuum/const.py VacuumActivity", "states": ["cleaning", "docked", "idle", "paused", "returning", "error"], "transitional": ["returning"]},
+    "media_player": {"source": "media_player/const.py MediaPlayerState", "states": ["off", "on", "idle", "playing", "paused", "standby", "buffering"], "transitional": ["buffering"]},
+    "climate": {"source": "climate/const.py HVACMode", "states": ["off", "heat", "cool", "heat_cool", "auto", "dry", "fan_only"], "transitional": []},
+    "binary": {"source": "homeassistant/const.py STATE_ON, STATE_OFF (binary_sensor, switch, light, fan, humidifier, input_boolean)", "states": ["on", "off"], "transitional": []},
+    "numeric": {"source": "generic: a sensor's measured value has no closed set; three representative shapes", "states": ["0", "42", "12.5"], "transitional": []}
+  }
+}

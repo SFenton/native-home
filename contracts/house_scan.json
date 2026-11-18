@@ -228,7 +228,18 @@
       "counter\u002eroom_access_",
       "fan\u002eguest",
       "fan\u002emaster",
-      "remote\u002eorigin"
+      "remote\u002eorigin",
+      "climate.default",
+      "fan.default",
+      "humidifier.default",
+      "light.default",
+      "light.helper",
+      "lock.default",
+      "lock.fill",
+      "lock.open",
+      "lock.trianglebadge",
+      "switch.default",
+      "vacuum.default"
     ],
     "_object_ids_note": "Entries like button.cancel or light.in are mockup CSS classes, hyperscript tags and file names in .agents/design that read as ids to the scanner. They are not entities; real ids never go here.",
     "hosts": [
