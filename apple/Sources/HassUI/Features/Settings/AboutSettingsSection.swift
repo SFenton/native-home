@@ -17,6 +17,8 @@ final class AboutSettingsModel {
     static let copiedText = "Copied."
     /// The footer text before a copy.
     static let tapToCopyText = "Tap to copy."
+    /// What VoiceOver reads after the Version row's value.
+    static let copyHint = "Copies the version to the clipboard."
     /// How long the footer says ``copiedText`` before it goes back to ``tapToCopyText``.
     static let copiedDuration: Duration = .seconds(2)
 

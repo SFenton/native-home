@@ -70,6 +70,7 @@ extension UIView {
         var view: UIView? = includingSelf ? self : superview
         while let current = view {
             (current as? UKDynamicGridView)?.invalidateMeasure()
+            (current as? UKFitCaching)?.invalidateFit()
             current.setNeedsLayout()
             current.invalidateIntrinsicContentSize()
             view = current.superview

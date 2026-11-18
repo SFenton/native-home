@@ -60,6 +60,7 @@ class UKPageScrollView: UIScrollView {
 
     /// Lays the content out again, gliding with the standard spring (`motionSafeAnimation(MotionTokens.standard, …)`) when asked.
     func contentChanged(animated: Bool) {
+        ukInvalidateFits(in: content)
         if animated, window != nil {
             UKMotion.animate(.standard) {
                 self.setNeedsLayout()

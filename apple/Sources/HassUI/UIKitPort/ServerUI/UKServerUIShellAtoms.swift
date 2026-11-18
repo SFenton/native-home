@@ -21,7 +21,7 @@ final class UKServerUIInfoBox: UKServerUIFittingView {
                                    tone: value.tone == .success ? .success : .neutral)
         self.content = content
         addSubview(content); content.ukPin(to: self)
-        ukRemeasureContainers()
+        ukRemeasureContainers(includingSelf: true)
     }
 }
 

@@ -7,7 +7,7 @@ import UIKit
 
 /// One configured atomic control. UIKit fields and canonical bedroom controls retain native input/AX behavior.
 @MainActor
-final class UKServerUIBedroomControl: UIStackView, UKGridMeasuring {
+final class UKServerUIBedroomControl: UIStackView, UKGridWrapping, UKFitCaching {
     private var definition: ServerUIBedroomControl?
     private var providerIdentity: ObjectIdentifier?
     private var sharedFeedback = false
@@ -24,6 +24,10 @@ final class UKServerUIBedroomControl: UIStackView, UKGridMeasuring {
         super.init(frame: .zero)
         axis = .vertical
         spacing = HassTokens.Spacing.s
+        // A text size or Bold Text change re-wraps the tiles; the column above must measure again.
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitLegibilityWeight.self]) { (view: UKServerUIBedroomControl, _) in
+            view.ukRemeasureContainers(includingSelf: true)
+        }
     }
 
     @available(*, unavailable) required init(coder: NSCoder) { fatalError("init(coder:) is not used") }
@@ -62,8 +66,9 @@ final class UKServerUIBedroomControl: UIStackView, UKGridMeasuring {
                 navigate(action, self)
             }
             switch provider {
-            case .bed(let bed): control = UKBedroomTile.bedSide(bed, context: context, action: open)
-            case .wake(let wake): control = UKBedroomTile.wakeLight(wake, context: context, action: open)
+            // The tile is hand-laid, so it needs a host that gives the stack its height (`UKMeasuredView`).
+            case .bed(let bed): control = UKMeasuredView(UKBedroomTile.bedSide(bed, context: context, action: open))
+            case .wake(let wake): control = UKMeasuredView(UKBedroomTile.wakeLight(wake, context: context, action: open))
             case .draft: control = UKServerUIRejected.view("bedroom tile over a draft", pointer: "/document/dataSources", onError: onError)
             }
             refresh = {}
@@ -98,9 +103,28 @@ final class UKServerUIBedroomControl: UIStackView, UKGridMeasuring {
         ukSetArranged([errorLabel])
     }
 
+    /// The measuring done so far; `fits` counts real measurements, not cache hits.
+    private(set) var fitCache = UKFitCache()
+
+    override func invalidateIntrinsicContentSize() {
+        fitCache.invalidate()
+        super.invalidateIntrinsicContentSize()
+    }
+
+    func invalidateFit() { fitCache.invalidate() }
+
+    /// The height at `width`, kept per width and content size category until the control's content changes, so a scrolling page does not
+    /// walk and fit it on every frame.
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+        let category = traitCollection.preferredContentSizeCategory
+        let weight = traitCollection.legibilityWeight
+        if let kept = fitCache.height(forWidth: width, category: category, weight: weight) { return kept }
+        let token = fitCache.token
+        ukPrepareMeasuredViews(in: self, width: width)
+        let height = systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height
+        fitCache.store(height, width: width, category: category, weight: weight, since: token)
+        return height
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {

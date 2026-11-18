@@ -132,6 +132,7 @@ final class UKModuleListView: UIView, UKSurfaceStyled {
             apply(row)
             stack.addArrangedSubview(row)
         }
+        ukRemeasureContainers(includingSelf: true)
     }
 
     private func apply(_ row: UIView) { (row as? UKSurfaceStyled)?.surface = surface }

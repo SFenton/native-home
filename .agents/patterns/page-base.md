@@ -29,6 +29,7 @@ The page base owns the header, the wallpaper, the fold, the scrolling body and i
   The renderer retains live values through compatible publications, rejects an incompatible field replacement, and blocks publication while an editor has focus or a local-tab swap is in flight. All hidden tab children participate in validation and command-rebinding checks.
 - **Collections and drafts have explicit native owners.** `ServerUIRowCollection` accepts at most 100 unique read-only rows and retains last-good rows on loading, stale, failed and unavailable phases. `preflight(..., collections:)` rejects a missing injected provider before acceptance. This is not a paginated or virtualized collection.
   `ServerUIDraft` pins a native save ticket's owner, record and values and blocks edits/discard until resolution; a domain lane must still wire native save, failure and `UKDiscardGuard` exit handling. Authored form guards/save bars remain unsupported, and generic row/primary-button actions are navigation/local-only.
+- **A content change clears kept fits.** `UKPageScrollView.contentChanged` calls `ukInvalidateFits(in:)`, so a container that keeps its measured height (`UKFitCaching`) measures again once per change, never per frame.
 
 ## Column navigation
 

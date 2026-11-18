@@ -26,3 +26,12 @@
 - **Chevrons.** A `NavigationLink` outside a `List` draws none, so the stack's rows draw `SettingsLinkRow(showsChevron: true)`; `SettingsLinkRow`'s chevron colour is explicit because the accent tint otherwise reaches it.
 - **Measured metrics** (matched to the old `List` on iPhone and iPad by screenshot comparison, 2026-10-27): 16 pt side margin (20 pt in a regular-width window: the `List` measured 20 pt on the iPad and the Duo, `InsetGroupedMetrics.regularMargin`), 15 pt leading and 17.5 pt trailing row inset, 28.5 pt above a section (+7 pt above a headerless section that does not follow a footer, a footer gives back 12.5 pt), 10 pt header to card, 8 pt card to footer.
 - **Settings is the stack on iOS 18 and later;** before iOS 18 (which cannot read a view builder's sections) the page falls back to a `List`.
+
+## Server-driven Settings rows draw the recorded row kinds
+
+- `reset-background-blur` is a `.textButton`: action ink, no glyph, 44 pt, dimmed and disabled at the default value.
+- `app-version` is the Version row of [settings-version-row](../design/settings-version-row.md): the `info.circle` glyph, the build text trailing, a tap copies it.
+- VoiceOver reads the spoken version as its value and "Copies the version to the clipboard." as its hint; a copy plays the confirmation haptic.
+- Neither row draws a chevron, and the node's authored icon is ignored. A chevron stays on a row that pushes.
+- `UKServerUIPreferenceRow` draws both.
+- `settings-link` rows pin to their cell (`UKServerUISettingsLink`), so a module list gives each the cell's own height.

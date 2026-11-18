@@ -861,9 +861,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let wrapper = entry.view as? UKServerUIPrimaryButton {
                     entry.bag.observe { [weak self, weak wrapper, weak renderer] in
                         guard let self, let wrapper, let renderer else { return }
-                        wrapper.button.title = button.node.title
+                        wrapper.show(title: button.node.title, symbol: button.icon?.drawn)
                         wrapper.button.accessibilityIdentifier = button.node.id
-                        wrapper.button.systemImage = button.icon?.drawn
                         wrapper.button.isEnabled = renderer.isEnabled(button.action, from: self) && renderer.isEnabled(node: button.node)
                         wrapper.button.action = { [weak self, weak wrapper] in
                             guard let self else { return }
@@ -1390,34 +1389,22 @@ final class UKServerUINode {
 }
 
 /// Bridges the canonical Auto Layout cell into the composition column's width-driven measurement.
+///
+/// The cell is pinned to this view's edges, so a stack (a module list) gets the cell's own height from Auto Layout; without the
+/// pins the link was a 0.67 pt hairline there.
 @MainActor
-final class UKServerUISettingsLink: UIView, UKGridMeasuring {
+final class UKServerUISettingsLink: UKServerUIFittingView {
     /// The settings cell this link draws.
     let cell = UKSettingsStackCell(frame: .zero)
 
     init() {
         super.init(frame: .zero)
         addSubview(cell)
+        cell.ukPin(to: self)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    /// The height the node needs at `width`.
-    func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        cell.frame = CGRect(x: 0, y: 0, width: width, height: max(cell.bounds.height, 2_000))
-        cell.setNeedsLayout()
-        cell.layoutIfNeeded()
-        return ceil(cell.systemLayoutSizeFitting(
-            CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-            withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height)
-    }
-
-    /// Keeps the settings cell and the pending bar at the measured size.
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        cell.frame = bounds
-    }
 }
 
 // MARK: - Text adapter

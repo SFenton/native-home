@@ -49,9 +49,8 @@ extension UKServerUIPage {
             guard let wrapper = entry.view as? UKServerUIPrimaryButton, let call = control.action else { return }
             entry.bag.observe { [weak self, weak wrapper, weak renderer] in
                 guard let self, let wrapper, let renderer else { return }
-                wrapper.button.title = control.node.title
+                wrapper.show(title: control.node.title, symbol: control.icon?.drawn)
                 wrapper.button.accessibilityIdentifier = control.node.id
-                wrapper.button.systemImage = control.icon?.drawn
                 wrapper.button.isEnabled = renderer.isEnabled(.callService(call), from: self) && renderer.isEnabled(node: control.node)
                 wrapper.button.action = { [weak self, weak wrapper] in
                     guard let self else { return }

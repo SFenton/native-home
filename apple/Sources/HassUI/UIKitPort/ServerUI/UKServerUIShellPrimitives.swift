@@ -7,7 +7,18 @@ import UIKit
 
 /// Bridges system fitting into the existing page/grid measurement contract.
 @MainActor
-class UKServerUIFittingView: UIView, UKGridMeasuring {
+class UKServerUIFittingView: UIView, UKGridMeasuring, UKFitCaching {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        // A text size change re-wraps the rows below; the hand-laid column above must measure again.
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitLegibilityWeight.self]) { (view: UKServerUIFittingView, _) in
+            view.ukRemeasureContainers(includingSelf: true)
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
     static func wrapping(_ content: UIView) -> UKServerUIFittingView {
         let host = UKServerUIFittingView(frame: .zero)
         host.addSubview(content)
@@ -15,9 +26,44 @@ class UKServerUIFittingView: UIView, UKGridMeasuring {
         return host
     }
 
+    /// The measuring done so far; `fits` counts real measurements, not cache hits.
+    private(set) var fitCache = UKFitCache()
+
+    override func invalidateIntrinsicContentSize() {
+        fitCache.invalidate()
+        super.invalidateIntrinsicContentSize()
+    }
+
+    func invalidateFit() { fitCache.invalidate() }
+
+    /// The height at `width`, kept per width and content size category until a child reports a content change
+    /// (`ukRemeasureContainers`) or the page does (`ukInvalidateFits`), so a scrolling page measures once, not on every frame.
+    ///
+    /// A real measurement lays the view out once at `width`, then fits once. Rows set their label wrap widths from their own width in
+    /// `layoutSubviews` (`UKRow.swift`, `UKWrapWidth`), so wrapped text is only known after a layout at the width it will get.
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
-        ceil(systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
-                                     withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height)
+        let category = traitCollection.preferredContentSizeCategory
+        let weight = traitCollection.legibilityWeight
+        if let kept = fitCache.height(forWidth: width, category: category, weight: weight) { return kept }
+        let token = fitCache.token
+        ukPrepareMeasuredViews(in: self, width: width)
+        // A view lays out at its own bounds. When those differ from `width` (unplaced, or placed at an earlier width), the measurement
+        // borrows `width` and gives the old width back, so the height kept under `width` is the height at `width`.
+        let originalWidth = bounds.width
+        let borrowed = width > 1 && abs(originalWidth - width) > 0.5
+        if borrowed { bounds.size.width = width }
+        if width > 1 {
+            setNeedsLayout()
+            layoutIfNeeded()
+        }
+        let height = ceil(systemLayoutSizeFitting(CGSize(width: width, height: UIView.layoutFittingCompressedSize.height),
+                                                  withHorizontalFittingPriority: .required, verticalFittingPriority: .fittingSizeLevel).height)
+        if borrowed {
+            bounds.size.width = originalWidth
+            setNeedsLayout()
+        }
+        fitCache.store(height, width: width, category: category, weight: weight, since: token)
+        return height
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -83,6 +129,14 @@ final class UKServerUIPrimaryButton: UKServerUIFittingView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Sets the title and glyph, and clears the kept height when either changed (a longer title can wrap).
+    func show(title: String, symbol: String?) {
+        let changed = button.title != title || button.systemImage != symbol
+        button.title = title
+        button.systemImage = symbol
+        if changed { ukRemeasureContainers(includingSelf: true) }
+    }
 }
 
 @MainActor
@@ -122,7 +176,8 @@ final class UKServerUISection: UIView, UKGridMeasuring {
             body?.removeFromSuperview()
             if value.style == .moduleList {
                 body = UKServerUIFittingView.wrapping(UKModuleListView(value.density == .dense ? .dense : .thin,
-                                                                     hasGlyphs: value.hasGlyphs, surface: surface, rows: children))
+                                                                     hasGlyphs: value.hasGlyphs, surface: surface,
+                                                                     rows: children.map(ukStackRow)))
             } else {
                 let column = UKColumnView()
                 column.spacing = value.spacing.points
@@ -259,6 +314,8 @@ final class UKServerUILocalControl: UKServerUIFittingView {
     private var ruleDisabled = false
     /// A bound toggle's own row or check row (`sh.bound-row-parts@1`, `sh.check-face@1`), when it has parts or an icon.
     private var rowToggle: UKServerUIRowToggle?
+    /// What the last ``apply(_:surface:enabled:)`` drew that changes the text (availability words, the failure caption, the row details).
+    private var drawn: (available: Bool, details: UKServerUIRowDetails?, enabled: Bool)?
 
     init() { super.init(frame: .zero) }
 
@@ -296,15 +353,23 @@ final class UKServerUILocalControl: UKServerUIFittingView {
         if self.spec != spec {
             content?.removeFromSuperview()
             rowToggle = nil
+            drawn = nil
             self.spec = spec
             build(spec, surface: surface, send: send)
         }
         (content as? UKSurfaceStyled)?.surface = surface
         let value = binding.value()
-        rowToggle?.update(binding.rowDetails())
+        let details = binding.rowDetails()
+        rowToggle?.update(details)
         setAvailable(value != nil, spec: spec)
         if let value { show(value) }
         setEnabledByRule(enabled, spec: spec)
+        // A subtitle, an unavailable word or a failure caption can add a line. Clear this view's kept height too, not only the
+        // containers above it: a view that keeps its fit has to forget it itself.
+        let now = (available: value != nil, details: details, enabled: enabled)
+        let changed = drawn.map { $0.available != now.available || $0.details != now.details || $0.enabled != now.enabled } ?? false
+        drawn = now
+        if changed { ukRemeasureContainers(includingSelf: true) }
     }
 
     /// `enabledWhen`: while it says no the control cannot be touched and reads as dimmed and not enabled; when it says yes again the
