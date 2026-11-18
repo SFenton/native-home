@@ -6,7 +6,7 @@ Python 3 standard library only. Tests: `tools/tests/test_parity_loop_*.py` (run 
 
 | File | Job |
 |---|---|
-| `surfaces.json` | Generic surface list (kinds, routes, deep links, reach steps, state tags, mask rules, `writes_on_reach`). No house data. Regenerate: `build_surfaces.py build/research/parity-loop-surfaces.json`. |
+| `surfaces.json` | Generic surface list (kinds, routes, deep links, reach steps, state tags, mask rules, `writes_on_reach`, and optionally `gallery_variables` (names starting `FENTON_GALLERY`, written beside the reference's `FENTON_GALLERY` page), `landing_title` (per half) and `ax_identifier_match` (pair by AX identifier, no pixel diff)). No house data. Regenerate: `build_surfaces.py build/research/parity-loop-surfaces.json`. |
 | `sidecar.py` | One sidecar per capture: simulator model, runtime build, size, scale, appearance, status-bar override, bundle hash, app build. `compare` refuses a pair on any mismatch. |
 | `capture.py` | `Agent` (a bound `agent-device`), reach planning, AX normalisation and mask resolution, `capture_shot`. |
 | `run.py` | Per surface: reference, candidate, reference again; then judges with `tools/expo_pair_compare.py`. Output `build/evidence/parity-loop/<run>/<surface>/`. |
@@ -28,7 +28,7 @@ python3 tools/parity_loop/run.py --mode gallery --device duo --run NAME --surfac
   --candidate-udid U2 --candidate-agent "<agent-device bound to U2>"
 ```
 
-`--device` picks the family table in `run.py` (`duo`, `iphone`, `ipad`: scale, pose, expected screenshot size). Verdicts: `pass`, `fail`, `drift` (the two reference shots differ by more than 0.15%, the noise floor, or in their AX tree), `statusbar`, `refused` (sidecars missing or unequal, or masks covering more than 15% of the image; exit 2), `skipped` (a write-on-reach surface with no deep link). Every row has `class: unclassified` for the judge.
+`--device` picks the family table in `run.py` (`duo`, `iphone`, `ipad`: scale, pose, expected screenshot size). Verdicts: `pass`, `fail`, `drift` (the two reference shots differ by more than 0.15%, the noise floor, or in their AX tree), `statusbar` (the clock differs and nothing else does; a content failure is `fail`), `wrong-page` (a half landed on a page other than the surface's `landing_title`; no pixels or rows are compared), `refused` (sidecars missing or unequal, or masks covering more than 15% of the image; exit 2), `skipped` (a write-on-reach surface with no deep link). Every row has `class: unclassified` for the judge.
 
 ## Live mode (read-only)
 
@@ -50,3 +50,5 @@ python3 tools/parity_loop/run.py --mode gallery --device duo --run NAME --surfac
 ## Native preview state flags
 
 The candidate's DEBUG preview takes the reference's own launch variables (`FENTON_GALLERY_OFFLINE`, `_FAIL`, `_EMPTY`, `_GATE_DELAY_MS` and more) through `SIMCTL_CHILD_<NAME>` or `bootstrap.json` `flags`. The mapping lives in one place: `apple/Sources/HassUI/UIKitPort/ServerUI/README.md`, "Preview state flags".
+
+On the iPad (no tab bar) the candidate reaches a tab by pressing `Sections` (the navigation flyout) and then the tab. The candidate sidecar records `publication` (sha256, revision and the bootstrap's `gallery` flags).

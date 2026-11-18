@@ -91,15 +91,47 @@ def container(runner: Runner, udid: str, kind: str, bundle: str = BUNDLE_ID) -> 
     return Path(result.out.strip())
 
 
-def set_gallery_page(data_dir: Path, page: str) -> None:
-    """Point the reference's gallery fixture at ``page`` (``variables.FENTON_GALLERY``) and clear the stale receipt."""
+#: The only variable names a surface may set beside ``FENTON_GALLERY``; the app's own decode refuses any other name.
+GALLERY_PREFIX = "FENTON_GALLERY"
+#: Names written by the previous :func:`set_gallery_page`, kept beside the bootstrap so the next surface starts clean.
+WRITTEN_FILE = "gallery-variables.json"
+
+
+def checked_variables(variables: Optional[Mapping[str, Any]]) -> Dict[str, str]:
+    """A surface's ``gallery_variables`` as strings, or :class:`Refused` for a name outside ``FENTON_GALLERY*`` or a non-text value."""
+    checked: Dict[str, str] = {}
+    for name, value in (variables or {}).items():
+        if not isinstance(name, str) or not name.startswith(GALLERY_PREFIX):
+            raise Refused(f"gallery variable refused: {name!r} does not start with {GALLERY_PREFIX}")
+        if not isinstance(value, str):
+            raise Refused(f"gallery variable refused: {name} must be text")
+        checked[name] = value
+    return checked
+
+
+def set_gallery_page(data_dir: Path, page: str, variables: Optional[Mapping[str, Any]] = None) -> None:
+    """Point the reference's gallery fixture at ``page`` (``variables.FENTON_GALLERY``) and clear the stale receipt.
+
+    ``variables`` (a surface's ``gallery_variables``, names starting ``FENTON_GALLERY``) are written beside it. Variables the
+    previous call wrote are removed first, so one surface's room or space never leaks into the next.
+    """
+    extra = checked_variables(variables)
     folder = Path(data_dir) / FIXTURE_SUBPATH
     path = folder / "bootstrap.json"
     if not path.is_file():
         raise Refused("the reference has no gallery fixture bootstrap on this simulator")
     fixture = json.loads(path.read_text(encoding="utf-8"))
-    fixture.setdefault("variables", {})["FENTON_GALLERY"] = page
+    held = fixture.setdefault("variables", {})
+    written = folder / WRITTEN_FILE
+    try:
+        for stale in json.loads(written.read_text(encoding="utf-8")):
+            held.pop(stale, None)
+    except (OSError, ValueError, TypeError):
+        pass
+    held["FENTON_GALLERY"] = page
+    held.update(extra)
     path.write_text(json.dumps(fixture, separators=(",", ":"), ensure_ascii=False), encoding="utf-8")
+    written.write_text(json.dumps(sorted(extra)), encoding="utf-8")
     (folder / "receipt.json").unlink(missing_ok=True)
 
 
@@ -114,10 +146,11 @@ def feed_preview(data_dir: Path, publication: Path) -> None:
     (preview / "receipt.json").unlink(missing_ok=True)
 
 
-def launch_gallery(side: str, agent: Agent, udid: str, page: Optional[str] = None, runner: Runner = run) -> Dict[str, Any]:
-    """Relaunch ``side`` in gallery mode; the reference first has its gallery page set."""
+def launch_gallery(side: str, agent: Agent, udid: str, page: Optional[str] = None, runner: Runner = run,
+                   variables: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
+    """Relaunch ``side`` in gallery mode; the reference first has its gallery page (and ``variables``) set."""
     if side == REFERENCE and page:
-        set_gallery_page(container(runner, udid, "data"), page)
+        set_gallery_page(container(runner, udid, "data"), page, variables)
     return agent.open_app(BUNDLE_ID, GALLERY_ARGS[side], relaunch=True)
 
 

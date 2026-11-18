@@ -167,13 +167,25 @@ def write_opening_labels(surfaces: Sequence[Mapping[str, Any]]) -> FrozenSet[str
     return frozenset(labels)
 
 
-def plan_reach(surface: Mapping[str, Any], app: str, mode: str, guarded: FrozenSet[str] = frozenset()) -> ReachPlan:
+#: The tabs of the phone tab bar. The iPad has no tab bar: the candidate reaches each of them through the navigation flyout.
+TAB_LABELS = frozenset({"Home", "Chores", "Security", "Climate", "Settings"})
+#: The header button that opens the navigation flyout on a family without a tab bar.
+FLYOUT_BUTTON = "Sections"
+#: Device families with no tab bar (``run.DEVICES`` keys).
+FLYOUT_DEVICES = frozenset({"ipad"})
+
+
+def plan_reach(surface: Mapping[str, Any], app: str, mode: str, guarded: FrozenSet[str] = frozenset(), device: Optional[str] = None) -> ReachPlan:
     """Choose the reach for ``app`` (``reference`` or ``candidate``) in ``mode`` (``gallery``, ``fixture`` or ``live``).
 
     A ``writes_on_reach`` surface is deep-linked or skipped. Otherwise: the reference in gallery mode opens its gallery page;
     fully automatable press steps come next (in every mode, live included; a lone Quick Links step starts from Home); a deep
     link is the fallback when the steps cannot be pressed; a surface with neither is skipped.
     """
+    # The reference in gallery mode is a fixture app: its page is chosen at launch, nothing is pressed and no house exists to write
+    # to, so ``writes_on_reach`` (a rule for pressing a live house) must not turn its gallery page into a deep link.
+    if mode == "gallery" and app == "reference" and surface.get("gallery_page"):
+        return ReachPlan("gallery", page=surface["gallery_page"])
     link = (surface.get("deep_link") or {}).get(app)
     steps = [_as_press(s) for s in (surface.get("reach") or {}).get(app) or []]
     pressable = bool(steps) and all("press" in s for s in steps)
@@ -189,7 +201,11 @@ def plan_reach(surface: Mapping[str, Any], app: str, mode: str, guarded: FrozenS
     if pressable:
         labels = [s["press"] for s in steps]
         # Quick Links lives on the Home tab: start there, so the previous surface never hides the button.
-        return ReachPlan("steps", steps=(["Home"] + labels) if labels[0] == QUICK_LINKS else labels)
+        labels = (["Home"] + labels) if labels[0] == QUICK_LINKS else labels
+        # No tab bar on this family: open the flyout, then choose the tab, then go on.
+        if app == "candidate" and device in FLYOUT_DEVICES and labels[0] in TAB_LABELS:
+            labels = [FLYOUT_BUTTON] + labels
+        return ReachPlan("steps", steps=labels)
     if mode == "live" and link:
         return ReachPlan("deeplink", url=link)
     if link:
@@ -497,3 +513,56 @@ def capture_shot(agent: Agent, out_dir: Path, name: str, mask_rules: Sequence[Ma
     elif not nodes:
         problem = "empty AX snapshot"
     return Shot(png, ax, masks, not problem, problem, taken)
+
+
+# MARK: - Landing page
+
+#: Text above this y (points) with no navigation bar title is the large title.
+LARGE_TITLE_BAND_PT = 260.0
+
+
+def landing_title(nodes: Sequence[Mapping[str, Any]]) -> Optional[str]:
+    """The title a page landed on: the first navigation bar's text (a child text, else its label or identifier), else the first
+    static text in the top band (a large title). ``None`` when the tree shows neither. Read from the raw AX nodes, in order."""
+    for index, node in enumerate(nodes):
+        if _node_role(node).lower().replace("_", "") != "navigationbar":
+            continue
+        child = next((_text(n, "label") for n in nodes if n.get("parentIndex") == node.get("index", index)
+                      and _node_role(n) == "StaticText" and _text(n, "label")), "")
+        title = child or _text(node, "label") or _text(node, "identifier")
+        if title:
+            return title
+    for node in nodes:
+        rect = _node_rect(node)
+        if _node_role(node) == "StaticText" and _text(node, "label") and not is_status_bar(node) and rect and rect["y"] < LARGE_TITLE_BAND_PT:
+            return _text(node, "label")
+    return None
+
+
+def same_title(expected: str, found: Optional[str]) -> bool:
+    """Do two page titles match, ignoring case and runs of spaces?"""
+    clean = lambda text: re.sub(r"\s+", " ", text or "").strip().casefold()
+    return bool(found) and clean(expected) == clean(found)
+
+
+# MARK: - Pairing by identifier
+
+def identifier_rows(nodes: Sequence[Mapping[str, Any]], pattern: str) -> Dict[str, Tuple[str, str, str]]:
+    """``{identifier: (label, value class, value)}`` for every node whose identifier matches ``pattern``. The first node per
+    identifier wins (a tile and its inner accessibility element share one name)."""
+    rows: Dict[str, Tuple[str, str, str]] = {}
+    matcher = re.compile(pattern)
+    for node in nodes:
+        identifier = _text(node, "identifier")
+        if identifier and matcher.search(identifier) and identifier not in rows:
+            rows[identifier] = (_text(node, "label"), value_class(node.get("value")), _text(node, "value"))
+    return rows
+
+
+def compare_identifiers(first: Sequence[Mapping[str, Any]], second: Sequence[Mapping[str, Any]], pattern: str) -> Dict[str, Any]:
+    """Pair two AX trees by identifier, never by position or pixel: which identifiers only one half has, and which differ in label or
+    value (a value that is a number on one half and text on the other differs; two different words of one class do not)."""
+    a, b = identifier_rows(first, pattern), identifier_rows(second, pattern)
+    changed = sorted(i for i in a.keys() & b.keys() if (a[i][0], a[i][1]) != (b[i][0], b[i][1]))
+    return {"matched": len(a.keys() & b.keys()), "onlyFirst": sorted(a.keys() - b.keys()),
+            "onlySecond": sorted(b.keys() - a.keys()), "changed": changed}

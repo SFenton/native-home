@@ -3,7 +3,7 @@
 
     build_surfaces.py SOURCE.json [--out surfaces.json]
 
-Keeps structure only: ids, kinds, routes, deep links, reach steps, state tags and mask rules. Free text (required state,
+Keeps structure only (plus the optional ``gallery_variables``, ``landing_title`` and ``ax_identifier_match`` when the source carries them): ids, kinds, routes, deep links, reach steps, state tags and mask rules. Free text (required state,
 notes, gaps) is dropped, and any value shaped like a Home Assistant entity id (``domain.object_id``) is refused, so the
 committed file carries no house data. ``live_write_risk`` becomes ``writes_on_reach``: such a surface is reached by deep link
 or skipped, never tapped. Source keys ``expo`` and ``native`` become ``reference`` and ``candidate``.
@@ -76,6 +76,12 @@ def convert(source: Dict[str, Any]) -> Dict[str, Any]:
             "gallery_page": s.get("expo_gallery_page"), "state_tags": list(s.get("state_tags") or []),
             "masks": masks_for(s), "writes_on_reach": bool(s["live_write_risk"]),
         })
+        source_row = rows[-1]
+        for key in ("gallery_variables", "landing_title", "ax_identifier_match"):  # structure only, kept when the inventory has it
+            if s.get(key):
+                source_row[key] = s[key]
+        if any(not name.startswith("FENTON_GALLERY") for name in source_row.get("gallery_variables", {})):
+            raise ValueError(f"{s['id']}: gallery_variables names must start with FENTON_GALLERY")
     document = {"schema": SCHEMA, "surfaces": rows}
     leaks = ENTITY_ID.findall(json.dumps(document))
     if leaks:

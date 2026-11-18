@@ -40,8 +40,10 @@ Parity-loop checks (manifest entries from ``tools/parity_loop/run.py``; each is 
   a transient black disc under the rail clock are masked out of every pixel compare, drift included (:data:`RAIL_MASKS`), for a
   pair whose manifest entry says ``"device": "duo"``.
 
-Every record carries ``class: "unclassified"`` for the judge. Verdicts: ``pass``, ``fail``, ``drift``, ``statusbar``,
-``refused``, ``skipped``.
+Every record carries ``class: "unclassified"`` for the judge. Verdicts: ``pass``, ``fail``, ``drift``, ``statusbar`` (the status
+bar is the only fault; a content failure is ``fail``), ``wrong-page`` (a half landed on a page other than the surface's
+``landing_title``, so no pixels or rows are compared), ``refused``, ``skipped``. A surface with ``ax_identifier_match`` is paired by
+AX identifier only (no pixel diff).
 
 Writes ``OUT/<pair>.json`` and ``OUT/<pair>-diff.png`` per pair, plus ``OUT/results.json``. Exits 1 when any pair fails,
 2 on unusable input or a refused pair. Python 3 standard library only (``tools/png_raster.py`` reads and writes the PNGs).
@@ -59,6 +61,7 @@ from typing import Any, Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import png_raster  # noqa: E402
 from png_raster import Raster  # noqa: E402
+from parity_loop import capture as capture_mod  # noqa: E402
 from parity_loop import sidecar as sidecar_mod  # noqa: E402
 from parity_loop.common import png_size  # noqa: E402
 
@@ -366,15 +369,16 @@ def load_regions(files: List[Any]) -> List[Dict[str, Any]]:
 
 
 #: Status-bar item rectangles per device profile, in points: ``(label, x0, y0, x1, y1)``; a negative ``x`` counts from the right
-#: edge. Only these items are compared (clock, signal and battery), never the page behind the bar. The folded Duo rectangles are
-#: calibrated on a live shot (the items sit in the right-hand rail); the iPhone and iPad ones follow the standard layout.
+#: edge. Only the clock is compared, on every profile: the battery and signal glyphs animate and differ between any two shots, and
+#: the page behind the bar is never compared. The folded Duo rectangle is calibrated on a live shot (the clock sits in the
+#: right-hand rail); the iPhone and iPad ones follow the standard layout.
 #: ``--status-bar-rects FILE`` replaces them with ``{"label": [x0, y0, x1, y1]}`` in points.
 STATUS_BAR_ITEMS: Dict[str, List[Tuple[str, float, float, float, float]]] = {
     # Folded Duo: the status items sit in the right-hand rail. Only the clock is compared: the battery and Wi-Fi ring below it is
     # animated and its phase differs between any two shots (see RAIL_MASKS), so it is masked, not compared.
     "duo": [("clock", -72, 82, -26, 102)],
-    "iphone": [("clock", 24, 12, 104, 42), ("indicators", -124, 12, -24, 42)],
-    "ipad": [("clock", 24, 8, 124, 36), ("indicators", -144, 8, -24, 36)],
+    "iphone": [("clock", 24, 12, 104, 42)],
+    "ipad": [("clock", 24, 8, 124, 36)],
 }
 
 
@@ -495,7 +499,8 @@ def pairs_from_manifest(path: Path) -> List[Dict[str, Any]]:
                              for k in ("reference", "candidate", "reference2")},
                 "ax_files": {k: base / entry[f"{k}_ax_file"] if entry.get(f"{k}_ax_file") else None
                              for k in ("reference", "candidate", "reference2")},
-                "skipped": entry.get("skipped"), "surface": entry.get("surface", name), "device": entry.get("device")})
+                "skipped": entry.get("skipped"), "surface": entry.get("surface", name), "device": entry.get("device"),
+                "landing_title": entry.get("landing_title"), "ax_identifier_match": entry.get("ax_identifier_match")})
     return specs
 
 
@@ -514,6 +519,57 @@ def scan_pairs(root: Path) -> List[Dict[str, Any]]:
 def _refuse(record: Dict[str, Any], problems: List[str], out_dir: Path, spec: Dict[str, Any]) -> Dict[str, Any]:
     record.update(failures=problems, verdict="refused")
     record["class"] = "unclassified"
+    (out_dir / f"{spec['id']}.json").write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
+    return record
+
+
+# MARK: - Landing page
+
+def _raw_nodes(path: Optional[Any]) -> Optional[List[Dict[str, Any]]]:
+    """The raw AX nodes of a capture's ``.ax.json``, or ``None`` when absent or unreadable."""
+    if not path:
+        return None
+    try:
+        value = _json(Path(path)).get("nodes")
+    except (OSError, ValueError, AttributeError):
+        return None
+    return value if isinstance(value, list) else None
+
+
+def landing_titles(expected: Optional[Dict[str, str]], ax_files: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """The title each declared half landed on, read from its AX tree (``None`` when no tree or no title)."""
+    found: Dict[str, Optional[str]] = {}
+    for side in ("reference", "candidate"):
+        if (expected or {}).get(side):
+            nodes = _raw_nodes(ax_files.get(side))
+            found[side] = capture_mod.landing_title(nodes) if nodes is not None else None
+    return found
+
+
+def wrong_page(expected: Optional[Dict[str, str]], ax_files: Dict[str, Any]) -> List[str]:
+    """Failures for each half whose landing title differs from the one the surface expects; none when nothing is declared or a
+    half's AX tree is missing (``--require-ax`` reports that)."""
+    problems: List[str] = []
+    for side, found in landing_titles(expected, ax_files).items():
+        if _raw_nodes(ax_files.get(side)) is not None and not capture_mod.same_title(expected[side], found):
+            problems.append(f"wrong page: the {side} landed on {found!r}, expected {expected[side]!r}")
+    return problems
+
+
+def judge_identifiers(record: Dict[str, Any], spec: Dict[str, Any], ax_files: Dict[str, Any], out_dir: Path) -> Dict[str, Any]:
+    """Judge a pair matched by AX identifier (a component gallery against the same atoms in a page): no pixels, no row order."""
+    first, second = _raw_nodes(ax_files.get("reference")), _raw_nodes(ax_files.get("candidate"))
+    if first is None or second is None:
+        failures = ["AX tree not recorded on " + " and ".join(n for n, v in (("reference", first), ("candidate", second)) if v is None)]
+        record.update(failures=failures, verdict="fail", allAXNodesEqual=None)
+    else:
+        diff = capture_mod.compare_identifiers(first, second, spec["ax_identifier_match"])
+        record["identifierDiff"] = diff
+        failures = [f"{label}: {', '.join(diff[key])}" for key, label in
+                    (("onlyFirst", "only in the reference"), ("onlySecond", "only in the candidate"), ("changed", "label or value differs")) if diff[key]]
+        if not diff["matched"] and not failures:
+            failures = ["no node matches the identifier pattern on either half"]
+        record.update(failures=failures, verdict="fail" if failures else "pass", allAXNodesEqual=not failures)
     (out_dir / f"{spec['id']}.json").write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
     return record
 
@@ -542,6 +598,13 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
             return _refuse(record, problems, out_dir, spec)
     if want_drift and not ref2_png:
         return _refuse(record, ["--drift needs a second reference shot (reference2_png)"], out_dir, spec)
+    wrong = wrong_page(spec.get("landing_title"), ax_files)
+    if wrong:  # a different page: pixels and rows would only describe two unrelated screens, so neither is compared
+        record.update(verdict="wrong-page", failures=wrong, landingTitles=landing_titles(spec.get("landing_title"), ax_files))
+        (out_dir / f"{spec['id']}.json").write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
+        return record
+    if spec.get("ax_identifier_match"):
+        return judge_identifiers(record, spec, ax_files, out_dir)
     if not ref_png or not Path(ref_png).is_file():
         failures.append("reference screenshot not found")
     if not cand_png or not Path(cand_png).is_file():
@@ -552,12 +615,19 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
     status_pt = args.status_bar_pt if status is None else status
     regions = list(spec["live_regions"]) + load_regions(spec.get("mask_files", []))
     verdict_hint = ""
+    status_failure = ""
     if not failures and regions:
         size = png_size(Path(ref_png))
         record["maskedPercent"] = round(masked_percent(tuple(size), spec["density"], regions), 3) if size else None
         limit = getattr(args, "max_mask_percent", MAX_MASK_PERCENT)
         if record["maskedPercent"] is not None and record["maskedPercent"] > limit:
             return _refuse(record, [f"masks cover {record['maskedPercent']:.1f}% of the image (limit {limit:g}%)"], out_dir, spec)
+    if not failures and getattr(args, "status_bar_equal", False) and (size := png_size(Path(ref_png))):
+        # The status items are judged by the status-bar check alone: left in the pixel compare, a clock difference would read as a
+        # content failure and the verdict could never say which of the two it was.
+        regions += [{"label": f"status-{name}", "x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0, "unit": "px"}
+                    for name, (x0, y0, x1, y1) in status_bar_rects(spec.get("device") or "duo", tuple(size), spec["density"],
+                                                                   getattr(args, "status_bar_rects", None))]
     if not failures:
         options = dict(density=spec["density"], status_bar_pt=status_pt, live_regions=regions, home_indicator_pt=args.home_indicator_pt,
                        tolerance=args.tolerance, max_diff_percent=args.max_diff_percent, max_block_percent=args.max_block_percent,
@@ -581,8 +651,7 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
                                             args.tolerance, getattr(args, "status_bar_rects", None))
             record["statusBarDifferencePercent"] = percent
             if percent is None or percent > getattr(args, "status_bar_max_percent", 0.5):
-                failures.append("status bar differs between the halves (normalisation failed)")
-                verdict_hint = verdict_hint or "statusbar"
+                status_failure = "status bar differs between the halves (normalisation failed)"
     equal, ax_failures = compare_ax(spec["reference_ax"], spec["candidate_ax"])
     if getattr(args, "require_ax", False):
         first, second = ax_sequence(ax_files.get("reference")), ax_sequence(ax_files.get("candidate"))
@@ -605,8 +674,12 @@ def judge(spec: Dict[str, Any], out_dir: Path, args: argparse.Namespace) -> Dict
                 ax_failures.append("drift: the reference AX tree changed between its two shots")
     record["allAXNodesEqual"] = equal
     failures.extend(ax_failures)
+    # The status bar names the verdict only when it is the sole fault: a content difference is never hidden behind it.
+    content_failed = bool(failures)
+    if status_failure:
+        failures.append(status_failure)
     record["failures"] = failures
-    record["verdict"] = (verdict_hint or "fail") if failures else "pass"
+    record["verdict"] = ("fail" if content_failed and verdict_hint == "" else verdict_hint or "statusbar") if failures else "pass"
     (out_dir / f"{spec['id']}.json").write_text(json.dumps(record, indent=2, default=str) + "\n", encoding="utf-8")
     return record
 
@@ -686,7 +759,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print(table)
     if any(r["verdict"] == "refused" for r in records):
         return 2
-    return 1 if any(r["verdict"] in ("fail", "drift", "statusbar") for r in records) else 0
+    return 1 if any(r["verdict"] in ("fail", "drift", "statusbar", "wrong-page") for r in records) else 0
 
 
 if __name__ == "__main__":

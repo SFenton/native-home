@@ -123,7 +123,7 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(bad["verdict"], "statusbar")
         self.assertEqual([n for n, _ in epc.status_bar_rects("duo", size, 1.0)], ["clock"])  # the ring is masked, not compared
         self.assertEqual(epc.status_bar_rects("duo", size, 2.0)[0][1][0], 322)  # (466 px / 2 - 72 pt) * 2
-        self.assertEqual([n for n, _ in epc.status_bar_rects("iphone", size, 1.0)], ["clock", "indicators"])
+        self.assertEqual([n for n, _ in epc.status_bar_rects("iphone", size, 1.0)], ["clock"])
         override = {"only": [0, 0, 10, 10]}
         self.assertEqual(epc.status_bar_rects("duo", size, 1.0, override), [("only", (0, 0, 10, 10))])
 

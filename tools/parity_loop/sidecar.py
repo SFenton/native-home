@@ -85,6 +85,26 @@ def app_facts(runner: Runner, udid: str, bundle_id: str = BUNDLE_ID) -> Dict[str
     return facts
 
 
+def publication_facts(preview: Path) -> Optional[Dict[str, Any]]:
+    """What the candidate's preview folder holds: the sha256 of ``publication.json``, its revision and the bootstrap's ``gallery``
+    flags, so a reader can tell which layout and viewer a round used. ``None`` when there is no publication. A flag whose name
+    ends ``UserID`` is recorded as the first 12 characters of its sha256, never the id."""
+    folder = Path(preview)
+    try:
+        raw = (folder / "publication.json").read_bytes()
+        revision = json.loads(raw).get("revision")
+    except (OSError, ValueError, AttributeError):
+        return None
+    gallery: Dict[str, Any] = {}
+    try:
+        flags = json.loads((folder / "bootstrap.json").read_text(encoding="utf-8")).get("gallery")
+    except (OSError, ValueError, AttributeError):
+        flags = None
+    for name, value in sorted((flags or {}).items()) if isinstance(flags, dict) else []:
+        gallery[name] = hashlib.sha256(str(value).encode("utf-8")).hexdigest()[:12] if name.endswith("UserID") else value
+    return {"sha256": hashlib.sha256(raw).hexdigest(), "revision": revision if isinstance(revision, int) else None, "gallery": gallery}
+
+
 def collect(udid: str, side: str, *, png: Optional[Path] = None, scale: int = 3, appearance: Optional[str] = None,
             pose: str = "folded", source: str = "fixture", launch_args: Sequence[str] = (), env_names: Sequence[str] = (),
             house: bool = False, status_bar_normalized: bool = True, bundle_hash: Optional[str] = None, runner: Runner = run, now: Optional[datetime] = None,
