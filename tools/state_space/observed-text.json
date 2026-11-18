@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "note": "Generic placeholders only. Observed values of a free-text helper are house data: keep the real file under build/state-space/observed-text.json (git-ignored) and pass it with --observed. Strings only: no entity ids, no times.",
+  "helpers": {
+    "demo_power_status": {"values": ["demo ready", "Demo Busy...", "demo_snake_case", "Demo 50%"], "include_empty": true},
+    "demo_cycle_status": {"values": ["demo idle", "Demo Running"], "include_empty": true},
+    "demo_alarm_status": {"values": ["demo scheduled", "Demo Off"], "include_empty": true}
+  }
+}

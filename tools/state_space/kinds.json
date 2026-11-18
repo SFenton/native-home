@@ -1,0 +1,611 @@
+{
+ "schema": 1,
+ "note": "Hand-kept registry: one entry per tile kind whose words, glyph or tone depend on state. Reviewed; tests/state_space check it against the Studio schema node list and the generated space.",
+ "kinds": [
+  {
+   "id": "room-air",
+   "family": "room-card",
+   "room_kind": "air",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "sensor",
+   "state_sets": [
+    "numeric"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {
+      "unit_of_measurement": "µg/m³"
+     }
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-appliance",
+   "family": "room-card",
+   "room_kind": "appliance",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "switch",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-climate",
+   "family": "room-card",
+   "room_kind": "climate",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "climate",
+   "state_sets": [
+    "climate"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-contact",
+   "family": "room-card",
+   "room_kind": "contact",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "binary_sensor",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {
+      "device_class": "door"
+     }
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-fan",
+   "family": "room-card",
+   "room_kind": "fan",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "fan",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-grill",
+   "family": "room-card",
+   "room_kind": "grill",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "switch",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-humidifier",
+   "family": "room-card",
+   "room_kind": "humidifier",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "humidifier",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-laundry",
+   "family": "room-card",
+   "room_kind": "laundry",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "sensor",
+   "state_sets": [],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": "demo_cycle_status",
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-light",
+   "family": "room-card",
+   "room_kind": "light",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "light",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-media",
+   "family": "room-card",
+   "room_kind": "media",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "media_player",
+   "state_sets": [
+    "media_player"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-occupancy",
+   "family": "room-card",
+   "room_kind": "occupancy",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "binary_sensor",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {
+      "device_class": "occupancy"
+     }
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-power",
+   "family": "room-card",
+   "room_kind": "power",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "input_boolean",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": "demo_power_status",
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-vacuum",
+   "family": "room-card",
+   "room_kind": "vacuum",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "vacuum",
+   "state_sets": [
+    "vacuum"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-vent",
+   "family": "room-card",
+   "room_kind": "vent",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "cover",
+   "state_sets": [
+    "cover"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "room-wake-light",
+   "family": "room-card",
+   "room_kind": "wake-light",
+   "node_types": [
+    "room-card"
+   ],
+   "domain": "sensor",
+   "state_sets": [],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": "demo_alarm_status",
+   "evaluator": "room-text",
+   "old": "RoomFormat"
+  },
+  {
+   "id": "style-lock",
+   "family": "state-style",
+   "style": "lock",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "lock",
+   "state_sets": [
+    "lock"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": "LockActions"
+  },
+  {
+   "id": "style-garage-door",
+   "family": "state-style",
+   "style": "garage-door",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "cover",
+   "state_sets": [
+    "cover"
+   ],
+   "variants": [
+    {
+     "selector": "features-0",
+     "attributes": {
+      "supported_features": 0
+     }
+    },
+    {
+     "selector": "features-8",
+     "attributes": {
+      "supported_features": 8
+     }
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": "CoverActions"
+  },
+  {
+   "id": "style-blind",
+   "family": "state-style",
+   "style": "blind",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "cover",
+   "state_sets": [
+    "cover"
+   ],
+   "variants": [
+    {
+     "selector": "features-0",
+     "attributes": {
+      "supported_features": 0
+     }
+    },
+    {
+     "selector": "features-8",
+     "attributes": {
+      "supported_features": 8
+     }
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": null
+  },
+  {
+   "id": "style-alarm",
+   "family": "state-style",
+   "style": "alarm",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "alarm_control_panel",
+   "state_sets": [
+    "alarm_control_panel"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": "AlarmModeActions"
+  },
+  {
+   "id": "style-robot",
+   "family": "state-style",
+   "style": "robot",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "vacuum",
+   "state_sets": [
+    "vacuum"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": "VacuumActions"
+  },
+  {
+   "id": "style-detector",
+   "family": "state-style",
+   "style": "detector",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "binary_sensor",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": null
+  },
+  {
+   "id": "style-notice",
+   "family": "state-style",
+   "style": "notice",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "binary_sensor",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": null
+  },
+  {
+   "id": "style-switch",
+   "family": "state-style",
+   "style": "switch",
+   "node_types": [
+    "state-tile"
+   ],
+   "domain": "switch",
+   "state_sets": [
+    "binary"
+   ],
+   "variants": [
+    {
+     "selector": "default",
+     "attributes": {}
+    }
+   ],
+   "free_text": null,
+   "evaluator": "style",
+   "old": null
+  },
+  {
+   "id": "remote-device",
+   "family": "remote",
+   "node_types": [
+    "remote-control"
+   ],
+   "domain": "input_boolean",
+   "state_sets": [
+    "binary",
+    "media_player"
+   ],
+   "variants": [
+    {
+     "selector": "options-none",
+     "attributes": {},
+     "options": []
+    },
+    {
+     "selector": "options-on-off",
+     "attributes": {},
+     "options": [
+      {
+       "value": "on",
+       "label": "Demo On"
+      },
+      {
+       "value": "off",
+       "label": "Demo Off"
+      }
+     ]
+    }
+   ],
+   "free_text": null,
+   "evaluator": "remote-device",
+   "old": "MediaRemoteState"
+  },
+  {
+   "id": "remote-card",
+   "family": "remote",
+   "node_types": [
+    "remote-control"
+   ],
+   "domain": "input_boolean",
+   "state_sets": [
+    "binary",
+    "media_player"
+   ],
+   "variants": [
+    {
+     "selector": "options-none",
+     "attributes": {},
+     "options": []
+    },
+    {
+     "selector": "options-on-off",
+     "attributes": {},
+     "options": [
+      {
+       "value": "on",
+       "label": "Demo On"
+      },
+      {
+       "value": "off",
+       "label": "Demo Off"
+      }
+     ]
+    }
+   ],
+   "free_text": null,
+   "evaluator": "remote-device",
+   "old": "MediaRemoteState"
+  }
+ ],
+ "node_types_unregistered": [
+  "account-header",
+  "action-tile",
+  "alarm-panel",
+  "bedroom-control",
+  "bootstrap-message",
+  "camera-controls",
+  "camera-tile",
+  "camera-video",
+  "camera-viewer",
+  "climate-control",
+  "door-tile",
+  "info-box",
+  "light-group-tile",
+  "navigation-tile",
+  "notification-permission-banner",
+  "paged-row",
+  "room-chip",
+  "room-navigation-grid",
+  "room-overview-tile",
+  "room-section",
+  "settings-control",
+  "settings-link",
+  "status-chip",
+  "status-pill",
+  "status-rail",
+  "text",
+  "tile-grid",
+  "vacuum-control",
+  "weather-panel"
+ ],
+ "node_types_unregistered_note": "Native composition node types with no registered kind yet (state-to-words logic not covered by a golden row). Listed so a new node type fails tools/tests/test_state_space_registry.py instead of slipping in; moving one into a kind is later-tranche work."
+}
