@@ -37,7 +37,11 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
     }
 
     /// Counter movement across `work` and the run loop draining after it.
+    ///
+    /// `logic.runs` is process-global, so a hop an earlier test or scene left pending would land in this window. The loop drains first, so the
+    /// baseline is taken with no authored logic still in flight, and drains again after `work`, so every run it caused is counted.
     private func counts(_ work: () -> Void) -> Counts {
+        LogicDriver(scenario: "counters").drain()
         let before = Telemetry.log.counters
         work()
         LogicDriver(scenario: "counters").drain()
