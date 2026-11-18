@@ -6,10 +6,10 @@ import Testing
 struct EntityIDCacheTests {
     /// Ids and near-misses: every one must get the verdict the uncached pattern gives.
     private static let corpus: [String] = [
-        "light.demo_kitchen", "switch.a", "sensor.demo_power_2", "input_boolean.demo_x", "a.b", "a1.b1", "x_y.z_9",
-        "", ".", "light.", ".kitchen", "light", "Light.kitchen", "light.Kitchen", "light.kit-chen", "light.kit chen", "light .kitchen",
-        "1light.kitchen", "_light.kitchen", "light.kitchen\n", "light.kitchen ", " light.kitchen", "light.demo.kitchen",
-        "light..kitchen", "light.kitchen.", "lïght.kitchen", "light.kitchén", "light.\u{0663}", "person.demo_a\u{0}",
+        "light.demo.demo_lamp", "switch.demo_a", "sensor.demo_power_2", "input_boolean.demo_x", "a.b", "a1.b1", "x_y.z_9",
+        "", ".", "light.", ".lamp", "light", "Light.demo_lamp", "light.Demo_lamp", "light.demo_la-mp", "light.demo_la mp", "light .lamp",
+        "1light.demo_lamp", "_light.demo_lamp", "light.demo_lamp\n", "light.demo_lamp ", " light.demo_lamp", "light.demo.demo_lamp",
+        "light..demo_lamp", "light.demo_lamp.", "lïght.demo_lamp", "light.demo_lampé", "light.\u{0663}", "person.demo_a\u{0}",
         "light." + String(repeating: "a", count: 154), "light." + String(repeating: "a", count: 155),
         "light." + String(repeating: "a", count: 160),
     ]
@@ -25,19 +25,19 @@ struct EntityIDCacheTests {
     }
 
     @Test func thePatternAcceptsAndRejectsWhatItDid() {
-        #expect(EntityIDCache.matchesPattern("light.demo_kitchen"))
+        #expect(EntityIDCache.matchesPattern("light.demo.demo_lamp"))
         #expect(EntityIDCache.matchesPattern("light." + String(repeating: "a", count: 154)), "160 units is the limit")
         #expect(!EntityIDCache.matchesPattern("light." + String(repeating: "a", count: 155)))
-        #expect(!EntityIDCache.matchesPattern("Light.kitchen"))
-        #expect(!EntityIDCache.matchesPattern("light.kitchen\n"), "a trailing newline is not part of an id")
+        #expect(!EntityIDCache.matchesPattern("Light.demo_lamp"))
+        #expect(!EntityIDCache.matchesPattern("light.demo_lamp\n"), "a trailing newline is not part of an id")
         #expect(!EntityIDCache.matchesPattern("light"))
     }
 
     @Test func aRepeatedIDIsMatchedOnce() {
         var cache = EntityIDCache()
         var verdicts: [Bool] = []
-        for _ in 0..<100 { verdicts.append(cache.isValid("light.demo_kitchen")) }
-        for _ in 0..<100 { verdicts.append(cache.isValid("light.Kitchen")) }
+        for _ in 0..<100 { verdicts.append(cache.isValid("light.demo.demo_lamp")) }
+        for _ in 0..<100 { verdicts.append(cache.isValid("light.Demo_lamp")) }
         #expect(verdicts == Array(repeating: true, count: 100) + Array(repeating: false, count: 100))
         #expect(cache.matches == 2, "a rejected id is remembered too")
     }

@@ -1,6 +1,6 @@
 {
   "id": "context.patterns",
-  "version": 17,
+  "version": 18,
   "type": "noul-set",
   "mode": "active",
   "description": "Context pre-selection: which registered patterns does this task touch? Criteria are generated from contracts/patterns.json (`python3 tools/jev_ask.py sync`). A ranked hint, never a gate.",
@@ -62,7 +62,8 @@
     "server-ui-badges": "Badges: a count or short text on the top trailing corner of a tile or chip. (components: UKServerUIBadgeViews)",
     "server-ui-data-flow": "Data flow session: a document data source that asks Home Assistant, runs a closed list of steps and gives rows. (components: ServerUIFlowSession)",
     "server-ui-chart-gauge": "Chart and linear gauge: the document-driven chart and linear gauge, with the weather chart and rail as the second consumer to converge. (components: UKChartView, UKLinearGaugeView)",
-    "dial": "Dial and arc track: the one generic circular gauge and arc with a marker (sh.dial, sh.arc-track), with the weather compass, barometer and sun arc drawn through them and a pure layout type an interactive dial builds on. (components: UKDialView, UKArcTrackView)"
+    "dial": "Dial and arc track: the one generic circular gauge and arc with a marker (sh.dial, sh.arc-track), with the weather compass, barometer and sun arc drawn through them and a pure layout type an interactive dial builds on. (components: UKDialView, UKArcTrackView)",
+    "derived-value": "Derived value: logic over several entities used in more than one place is evaluated once for the session and wakes its readers only when its result changes. (components: DerivedValue)"
   },
   "state": {
     "fields": [
