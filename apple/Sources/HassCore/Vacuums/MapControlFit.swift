@@ -15,7 +15,7 @@ public enum MapControlCorner: String, CaseIterable, Sendable {
 /// The way a group runs: a row reads leading to trailing, a column top to bottom.
 public enum MapControlAxis: String, Sendable { case row, column }
 
-/// The fit rule for corner button groups (`build/design/vacuum-map-ctl.md`, "Fit"), as a pure function over points.
+/// The fit rule for corner button groups (`.agents/patterns/map-controls.md`, "Fit"), as a pure function over points.
 ///
 /// The Studio holds the same rule in `surface-controls-fit.ts`; both are tested with the same inputs and must give the same counts. The rule
 /// never reads a device: a card is a width and a height, so an iPhone, a folded Duo and an iPad are one rule.

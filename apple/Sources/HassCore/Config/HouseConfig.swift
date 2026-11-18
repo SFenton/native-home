@@ -3,7 +3,7 @@ import Foundation
 /// Everything the app knows about one house, as a single document (schema 2).
 ///
 /// House data (entity ids, room lists, people, titles, icons, colours, order) lives on the server, which serves this
-/// document (`build/decisions/house-config-runtime.md`); the app holds none of it. A change to the house is a
+/// document (`.agents/platforms/apple/connection-lifecycle.md`, "House config"); the app holds none of it. A change to the house is a
 /// server-side edit of the document, not an app change.
 ///
 /// The types are generic: no house names appear in a type or property name. Each section reuses the value types the

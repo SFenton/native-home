@@ -22,7 +22,7 @@ final class ScriptedSwipePan: UIPanGestureRecognizer {
 
 // MARK: - Swipe to adjust, UX and accessibility
 
-/// Hosted UX and accessibility checks for swipe to adjust (`sh.tile-swipe@1`, `build/design/tile-swipe.md`), the state words
+/// Hosted UX and accessibility checks for swipe to adjust (`sh.tile-swipe@1`, `.agents/patterns/tile-swipe.md`), the state words
 /// (`sh.state-words@1`) and the default tile ink (`sh.tile-ink-default@1`) on a tile.
 ///
 /// Each test runs at the tile widths of the three families: the folded iPhone Duo (170 pt), the iPhone (179 pt) and the iPad (192 pt), the
@@ -352,7 +352,7 @@ final class UKHostedTileSwipeTests: XCTestCase {
         XCTAssertEqual(tile.face.content.subtitle, "Unavailable")
     }
 
-    // MARK: What a release draws (`build/design/tile-swipe-release.md`)
+    // MARK: What a release draws (`.agents/patterns/tile-swipe.md`)
 
     /// The controller's order on a release, with a fake host: a release that sends the value commits first, drops the held configure unrun and
     /// keeps the frame; a release that sends nothing, and a cancel, clear the frame and run the held configure once.
