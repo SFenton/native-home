@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "name": "count-operand-raw-state-loading-and-missing-is-loading",
+  "note": "One loading and one missing, none answered: loading.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "raw": {
+      "a": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

@@ -25,6 +25,7 @@ public extension ServerUIOperand {
         case .read, .rawState, .lastChanged, .listCount: return 1
         case .literal, .control, .viewer, .item, .index, .param, .clock: return 0
         case .listIncludes(_, _, let value): return 1 + value.readSites(upTo: cap)
+        case .count(let entries): for entry in entries where total < cap { total += entry.test.readSites(upTo: cap - total) }
         case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): add(from); add(to)
         case .choose(let cases, let otherwise):
             for item in cases where total < cap { total += item.when.readSites(upTo: cap - total); add(item.then) }
@@ -49,6 +50,7 @@ public extension ServerUIOperand {
         case .item, .index, .param, .control: false
         case .literal, .read, .viewer, .clock, .rawState, .lastChanged, .listCount: true
         case .listIncludes(_, _, let value): value.isScopeFree
+        case .count(let entries): entries.allSatisfy { $0.test.isScopeFree }
         case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.isScopeFree && to.isScopeFree
         case .choose(let cases, let otherwise): otherwise.isScopeFree && cases.allSatisfy { $0.when.isScopeFree && $0.then.isScopeFree }
         case .format(_, let args, _): args.values.allSatisfy(\.isScopeFree)

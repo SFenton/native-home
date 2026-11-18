@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "count-operand-every-entry-loading-is-loading",
+  "note": "When every entry is still loading the count is loading, so a slot keeps what it showed rather than drawing 0.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "loading"
+      },
+      "b/state": {
+        "status": "loading"
+      },
+      "c/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

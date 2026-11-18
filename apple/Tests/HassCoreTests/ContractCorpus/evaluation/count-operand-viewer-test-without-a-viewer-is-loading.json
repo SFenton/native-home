@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-test-without-a-viewer-is-loading",
+  "note": "A viewer test before the connection knows the viewer cannot answer: loading.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer",
+            "isAdmin": true
+          }
+        },
+        {
+          "test": {
+            "type": "viewer",
+            "userIds": [
+              "u1"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

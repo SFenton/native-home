@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "name": "count-operand-loading-and-missing-is-loading",
+  "note": "A mix of loading and missing, none answered: loading, because a state is still on its way.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "loading"
+      },
+      "c/state": {
+        "status": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

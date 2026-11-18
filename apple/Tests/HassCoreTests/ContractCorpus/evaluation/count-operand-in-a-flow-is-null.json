@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "count-operand-in-a-flow-is-null",
+  "note": "A flow reads no document source: the count is a gap there, null.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "on"
+      }
+    },
+    "flow": true
+  },
+  "expected": {
+    "status": "value",
+    "value": null
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "format": 1,
+  "name": "count-operand-numeric-below",
+  "note": "Batteries below 20: 15 and 19.5 hold, 80 does not, and a state that is text (\"unavailable\") cannot be answered and is not counted.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "below": {
+              "type": "literal",
+              "value": 20
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "below": {
+              "type": "literal",
+              "value": 20
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "below": {
+              "type": "literal",
+              "value": 20
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "d",
+            "path": [
+              "state"
+            ],
+            "below": {
+              "type": "literal",
+              "value": 20
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "15"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "80"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "19.5"
+      },
+      "d/state": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

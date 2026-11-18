@@ -68,6 +68,9 @@ public enum ServerUIIngestedCapabilities {
     /// second (`seconds-between`, `now-second`), a duration drawn as `30m`, `05:00`, `4:30` or `3 days`, and a number truncated toward zero.
     public static let edgeOperands: [String] = ["sh.entity-time@1", "sh.countdown@1", "sh.duration-format@1", "sh.math-truncate@1"]
 
+    /// Counting many entities (lane `native-count`): the `count` operand, how many of up to 32 conditions hold, each optionally for some people only.
+    public static let counting: [String] = ["sh.count@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts + edgeOperands }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts + edgeOperands + counting }
 }

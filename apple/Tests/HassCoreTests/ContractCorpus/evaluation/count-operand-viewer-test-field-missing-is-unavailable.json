@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-test-field-missing-is-unavailable",
+  "note": "A viewer is known but has no facts on it: the tests cannot be answered, and nothing is loading, so unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer",
+            "isAdmin": true
+          }
+        },
+        {
+          "test": {
+            "type": "viewer",
+            "userIds": [
+              "u1"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewer": {}
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

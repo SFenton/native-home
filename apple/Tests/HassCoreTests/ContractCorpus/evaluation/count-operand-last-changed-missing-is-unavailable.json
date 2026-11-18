@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "name": "count-operand-last-changed-missing-is-unavailable",
+  "note": "No last-change time at all: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "after",
+            "left": {
+              "type": "last-changed",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "2026-01-01T00:00:00Z"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "after",
+            "left": {
+              "type": "last-changed",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "2026-01-01T00:00:00Z"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

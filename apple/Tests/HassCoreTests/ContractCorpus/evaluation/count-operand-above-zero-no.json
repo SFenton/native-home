@@ -1,0 +1,75 @@
+{
+  "format": 1,
+  "name": "count-operand-above-zero-no",
+  "note": "None are open.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "count",
+        "of": [
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "a",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          },
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "b",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          },
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "c",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          }
+        ]
+      },
+      "right": {
+        "type": "literal",
+        "value": 0
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "off"
+      }
+    }
+  },
+  "expected": {
+    "tri": "no"
+  }
+}

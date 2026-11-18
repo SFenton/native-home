@@ -1,0 +1,532 @@
+{
+  "format": 1,
+  "name": "count-operand-thirty-two",
+  "note": "The most entries: 20 of 32 hold.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e1",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e2",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e3",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e4",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e5",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e6",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e7",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e8",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e9",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e10",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e11",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e12",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e13",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e14",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e15",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e16",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e17",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e18",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e19",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e20",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e21",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e22",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e23",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e24",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e25",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e26",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e27",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e28",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e29",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e30",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e31",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "e32",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "e1/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e2/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e3/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e4/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e5/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e6/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e7/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e8/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e9/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e10/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e11/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e12/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e13/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e14/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e15/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e16/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e17/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e18/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e19/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e20/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "e21/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e22/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e23/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e24/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e25/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e26/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e27/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e28/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e29/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e30/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e31/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "e32/state": {
+        "status": "value",
+        "value": "off"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 20
+  }
+}

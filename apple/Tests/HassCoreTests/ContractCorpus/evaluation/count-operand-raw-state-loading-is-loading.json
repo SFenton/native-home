@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "name": "count-operand-raw-state-loading-is-loading",
+  "note": "Raw states still loading, nothing answered: loading, as for a plain read.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "raw": {
+      "a": {
+        "status": "loading"
+      },
+      "b": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

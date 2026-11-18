@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "count-operand-badge-nothing-to-say-draws-nothing",
+  "note": "A count that cannot be read and waits on nothing draws no badge.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "count",
+        "of": [
+          {
+            "test": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "raw-state",
+                "sourceId": "a"
+              },
+              "right": {
+                "type": "literal",
+                "value": "on"
+              }
+            }
+          },
+          {
+            "test": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "raw-state",
+                "sourceId": "b"
+              },
+              "right": {
+                "type": "literal",
+                "value": "on"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

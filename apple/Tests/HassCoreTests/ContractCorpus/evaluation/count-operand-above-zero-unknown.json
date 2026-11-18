@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "name": "count-operand-above-zero-unknown",
+  "note": "A count with nothing to say makes the condition unknown.",
+  "subject": {
+    "condition": {
+      "type": "compare",
+      "op": "above",
+      "left": {
+        "type": "count",
+        "of": [
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "a",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          },
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "b",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          },
+          {
+            "test": {
+              "type": "state",
+              "sourceId": "c",
+              "path": [
+                "state"
+              ],
+              "in": [
+                "on"
+              ]
+            }
+          }
+        ]
+      },
+      "right": {
+        "type": "literal",
+        "value": 0
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "tri": "unknown"
+  }
+}

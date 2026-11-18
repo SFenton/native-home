@@ -52,6 +52,9 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
     case listCount(sourceId: String, path: [String])
     /// Whether some scalar item of the list attribute `path` of an `ha-entity` source equals `value` (`sh.list-read@1`).
     case listIncludes(sourceId: String, path: [String], value: ServerUIOperand)
+    /// How many of the entries' conditions hold, from 0 to the number of entries (`sh.count@1`). An entry that cannot be answered is not counted;
+    /// the count is `loading` or `unavailable` only when every entry in play cannot be answered (``ServerUIOperand/evaluateCount(_:_:)``).
+    case count([ServerUICountEntry])
 
     /// A viewer fact.
     public enum ViewerField: String, Sendable, CaseIterable { case userId, isAdmin, personEntityId }
@@ -107,6 +110,7 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
         case .literal, .control, .viewer, .item, .index, .param, .clock: []
         case .read(let id, _, _), .rawState(let id), .lastChanged(let id), .listCount(let id, _): [id]
         case .listIncludes(let id, _, let value): value.sourceIds.union([id])
+        case .count(let entries): entries.reduce(into: Set<String>()) { $0.formUnion($1.test.sourceIds) }
         case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.sourceIds.union(to.sourceIds)
         case .choose(let cases, let otherwise):
             cases.reduce(otherwise.sourceIds) { $0.union($1.when.sourceIds).union($1.then.sourceIds) }
@@ -123,6 +127,7 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
         switch self {
         case .viewer: true
         case .literal, .read, .control, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount: false
+        case .count(let entries): entries.contains { $0.personEntityIds != nil || $0.test.readsViewer }
         case .listIncludes(_, _, let value): value.readsViewer
         case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.readsViewer || to.readsViewer
         case .choose(let cases, let otherwise):
@@ -138,7 +143,7 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
     public var usesControl: Bool {
         switch self {
         case .control: true
-        case .literal, .read, .viewer, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount: false
+        case .literal, .read, .viewer, .item, .index, .param, .clock, .rawState, .lastChanged, .listCount, .count: false
         case .listIncludes(_, _, let value): value.usesControl
         case .date(let from, let to), .progress(let from, let to), .secondsBetween(let from, let to): from.usesControl || to.usesControl
         case .choose(let cases, let otherwise): otherwise.usesControl || cases.contains { $0.then.usesControl }
@@ -155,6 +160,7 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
         case .clock: true
         case .literal, .read, .control, .viewer, .item, .index, .param, .rawState, .lastChanged, .listCount: false
         case .listIncludes(_, _, let value): value.readsClock
+        case .count(let entries): entries.contains { $0.test.readsClock }
         case .format(_, let args, let formats):
             formats.values.contains { if case .date(let style) = $0 { style.needsClock } else { false } }
                 || args.values.contains { $0.readsClock }
@@ -182,6 +188,7 @@ public indirect enum ServerUIOperand: Hashable, Sendable {
         switch self {
         case .literal(let value): return .value(value)
         case .rawState, .lastChanged, .listCount, .listIncludes: return evaluateEntityRead(environment)
+        case .count(let entries): return evaluateCount(entries, environment)
         case .control: return environment.controlValue.map { .value($0) } ?? .unavailable
         case .viewer(let field):
             guard let viewer = environment.viewer else { return .loading }

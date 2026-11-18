@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "count-operand-badge-raw-state-loading-keeps",
+  "note": "The same for raw states.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "count",
+        "of": [
+          {
+            "test": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "raw-state",
+                "sourceId": "a"
+              },
+              "right": {
+                "type": "literal",
+                "value": "on"
+              }
+            }
+          },
+          {
+            "test": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "raw-state",
+                "sourceId": "b"
+              },
+              "right": {
+                "type": "literal",
+                "value": "on"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "env": {
+    "raw": {
+      "a": {
+        "status": "loading"
+      },
+      "b": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

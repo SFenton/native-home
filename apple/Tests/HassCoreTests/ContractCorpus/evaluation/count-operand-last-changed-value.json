@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "count-operand-last-changed-value",
+  "note": "A test over when a state last changed counts when it holds: one after the date, one before.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "after",
+            "left": {
+              "type": "last-changed",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "2026-01-01T00:00:00Z"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "after",
+            "left": {
+              "type": "last-changed",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "2026-01-01T00:00:00Z"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "changed": {
+      "a": {
+        "status": "value",
+        "value": "2026-11-17T21:30:00.000Z"
+      },
+      "b": {
+        "status": "value",
+        "value": "2025-05-01T00:00:00.000Z"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

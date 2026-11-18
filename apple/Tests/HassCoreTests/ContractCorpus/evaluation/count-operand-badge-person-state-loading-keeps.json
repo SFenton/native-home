@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "name": "count-operand-badge-person-state-loading-keeps",
+  "note": "The same for the viewer's person state.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "count",
+        "of": [
+          {
+            "test": {
+              "type": "viewer-person",
+              "in": [
+                "home"
+              ]
+            }
+          },
+          {
+            "test": {
+              "type": "viewer-person",
+              "in": [
+                "home",
+                "work"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "env": {
+    "viewerPerson": {
+      "status": "loading"
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

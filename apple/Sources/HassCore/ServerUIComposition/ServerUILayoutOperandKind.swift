@@ -22,7 +22,7 @@ extension ServerUIOperand {
         case .read(_, _, let kind): kind == .number ? .number : kind == .boolean ? .boolean : .string
         case .viewer(let field): field == .isAdmin ? .boolean : .string
         case .format, .rawState, .lastChanged: .string
-        case .listCount: .number
+        case .listCount, .count: .number
         case .listIncludes: .boolean
         case .math: .number
         case .object, .list: .structure

@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "count-operand-numeric-boundary-is-not-below",
+  "note": "Below is strict: 20 is not below 20.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "below": {
+              "type": "literal",
+              "value": 20
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "20"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}
