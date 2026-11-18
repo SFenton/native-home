@@ -140,7 +140,8 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
                               to: count.scene.store)
         }
         scene = count.scene
-        finish(measured, expectingRuns: 5 * 10)
+        // One shared evaluation of the sum per delivery; the ten readers redraw only when the sum differs.
+        finish(measured, expectingRuns: 5)
     }
 
     /// (e) Viewer predicates: 13 `visibleWhen` rules that each ask a state and the viewer (`all` evaluates every child) in a 4,700-entity house
@@ -265,7 +266,8 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
             LogicDriver.apply((0..<entities).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: store)
         }
-        finish(measured, expectingRuns: 10 * copies)
+        // One shared evaluation per burst; the ten copies redraw only when the count differs.
+        finish(measured, expectingRuns: 10)
     }
 
     // MARK: Helpers

@@ -13,26 +13,40 @@ import Foundation
 /// Observations are told apart by their ``DerivedReaders``; a read outside any observation (a one-off) is evaluated plainly.
 @MainActor
 public final class SharedLogic<Key: Hashable, Value: Equatable> {
-    private struct First { weak var readers: DerivedReaders? }
+    /// What is known about a key: which observation read it first, the shared value once there is one, and whether it is ever worth sharing.
+    private struct Slot {
+        weak var first: DerivedReaders?
+        weak var shared: DerivedValue<Value>?
+        var never = false
+    }
 
     private let values = DerivedValues<Key, Value>()
-    private var firsts: [Key: First] = [:]
+    private var slots: [Key: Slot] = [:]
 
     /// Creates an empty set.
     public init() {}
 
-    /// The answer for `key`.
+    /// The answer for `key`. A read that has been seen before costs one dictionary lookup.
     /// - Parameters:
     ///   - key: What the logic is.
+    ///   - eligible: Whether the logic is worth sharing at all (asked once per key; `false` is remembered).
     ///   - read: The logic; it runs inside the reader's run (tracked there) or, once shared, inside the derived value.
-    public func value(for key: Key, read: @escaping @MainActor () -> Value) -> Value {
+    public func value(for key: Key, eligible: @autoclosure () -> Bool = true, read: @escaping @MainActor () -> Value) -> Value {
         guard let reader = DerivedReaders.current else { return read() }
-        if let shared = values.existing(for: key) { return shared.current }
-        if let first = firsts[key]?.readers, first !== reader { return values.value(for: key, read: read).current }
-        if firsts[key]?.readers == nil {
-            if firsts.count >= Self.sweepAt { firsts = firsts.filter { $0.value.readers != nil } }
-            firsts[key] = First(readers: reader)
+        guard var slot = slots[key] else {
+            if slots.count >= Self.sweepAt { slots = slots.filter { $0.value.first != nil || $0.value.shared != nil || $0.value.never } }
+            slots[key] = eligible() ? Slot(first: reader) : Slot(never: true)
+            return read()
         }
+        if slot.never { return read() }
+        if let shared = slot.shared { return shared.current }
+        if let first = slot.first, first !== reader {
+            let made = values.value(for: key, read: read)
+            slot.shared = made
+            slots[key] = slot
+            return made.current
+        }
+        if slot.first == nil { slot.first = reader; slots[key] = slot }
         return read()
     }
 
