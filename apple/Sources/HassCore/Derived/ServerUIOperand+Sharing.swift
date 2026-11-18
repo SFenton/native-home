@@ -11,13 +11,14 @@ public extension ServerUIOperand {
     /// reads one of those is evaluated where it is used.
     var isShareable: Bool { !readsClock && isScopeFree }
 
-    /// Whether sharing pays: the tree is shareable and does some work of its own. A literal or a single read costs one box lookup
-    /// wherever it is used; a derived value for it would cost more than it saves.
+    /// The fewest distinct sources a tree reads for sharing it to pay.
+    static let sharingThreshold = 3
+
+    /// Whether sharing pays: the tree is shareable and reads several sources. A derived value is an extra run, so it saves only
+    /// what the many reads of one evaluation cost: a literal, a single read or a rule over one or two entities is cheaper
+    /// evaluated where it is used, and its readers redraw whenever it changes anyway.
     var isWorthSharing: Bool {
-        switch self {
-        case .literal, .read, .viewer, .clock, .rawState, .lastChanged, .listCount, .control, .item, .index, .param: false
-        default: isShareable
-        }
+        isShareable && sourceIds.count >= Self.sharingThreshold
     }
 
     fileprivate var isScopeFree: Bool {

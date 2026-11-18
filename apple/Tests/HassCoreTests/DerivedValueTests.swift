@@ -201,6 +201,14 @@ struct DerivedValuesTests {
         #expect(Set([sum, same, other]).count == 2)
     }
 
+    @Test func onlyTreesOverSeveralSourcesAreWorthSharing() {
+        func read(_ id: String) -> ServerUIOperand { .read(sourceId: id, path: ["state"], as: .number) }
+        #expect(!read("a").isWorthSharing)
+        #expect(!ServerUIOperand.math(.add, [read("a"), read("b")]).isWorthSharing)
+        #expect(ServerUIOperand.math(.add, [read("a"), read("b"), read("c")]).isWorthSharing)
+        #expect(!ServerUIOperand.math(.add, [read("a"), read("b"), .item(path: ["n"])]).isWorthSharing, "a scoped child spoils it")
+    }
+
     @Test func onlyScopeFreeOperandsAreShareable() {
         let read = ServerUIOperand.read(sourceId: "a", path: ["state"], as: .string)
         #expect(read.isShareable)

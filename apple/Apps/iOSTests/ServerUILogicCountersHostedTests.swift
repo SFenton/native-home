@@ -167,7 +167,7 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
     func testACopyThatReadsItsCellIsNotShared() {
         let sum = ServerUIOperand.math(.add, [.item(path: ["n"]), .literal(.number(1))])
         XCTAssertFalse(sum.isWorthSharing)
-        let plain = ServerUIOperand.math(.add, [.read(sourceId: "a", path: ["state"], as: .number), .literal(.number(1))])
+        let plain = ServerUIOperand.math(.add, ["a", "b", "c"].map { .read(sourceId: $0, path: ["state"], as: .number) })
         XCTAssertTrue(plain.isWorthSharing)
         XCTAssertFalse(ServerUIOperand.read(sourceId: "a", path: ["state"], as: .string).isWorthSharing, "a single read costs one box lookup")
     }
