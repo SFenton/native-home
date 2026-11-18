@@ -12,6 +12,9 @@ import Foundation
 @MainActor
 public final class DerivedReaders {
     private static var active: DerivedReaders?
+
+    /// The collector of the observation run in progress, `nil` outside one: who is reading right now.
+    static var current: DerivedReaders? { active }
     private var held: [ObjectIdentifier: AnyObject] = [:]
 
     /// Creates an empty collector, one per observation.

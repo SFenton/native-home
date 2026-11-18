@@ -142,7 +142,10 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         document.tabs = [.init(id: "home", nodes: (0..<10).map { LogicDocument.text("c\($0)", value: LogicDocument.format("{n}", ["n": sum])) })]
         let scene = try host(document, watched: 4)
         XCTAssertEqual(scene.renderer.bindings.sharedOperandCount, 1, "ten copies of one tree are one value")
-        // The fixture's entities alternate on and off, so w0 and w2 are on and w1 and w3 are off: the sum is 2.
+        // The fixture's entities alternate on and off, so w0 and w2 are on and w1 and w3 are off: the sum is 2. The first copy moves
+        // over to the shared value on its next run, so one change settles that before the counts below.
+        _ = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(3), state: "on")]) }
+        _ = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(3), state: "off")]) }
         let swap = counts {
             _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(0), state: "off"), EntityState(entityId: LogicHouse.watched(1), state: "on")])
         }
@@ -150,6 +153,15 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         let real = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(2), state: "off")]) }
         XCTAssertEqual(real.runs, 11, "one evaluation of the sum and ten nodes that redraw")
         XCTAssertEqual(real.skipped, 0)
+    }
+
+    func testAnExpressionOnlyOneNodeReadsIsNotMadeIntoASharedValue() throws {
+        var document = LogicDocument()
+        document.sources = (0..<4).map { ("w\($0)", LogicHouse.watched($0)) }
+        document.tabs = [.init(id: "home", nodes: (0..<4).map { LogicDocument.stateText("n\($0)", source: "w\($0)") })]
+        let scene = try host(document, watched: 4)
+        XCTAssertEqual(scene.renderer.bindings.sharedOperandCount, 0, "four different expressions, one reader each")
+        XCTAssertEqual(counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(1), state: "on")]) }.runs, 1, "no second layer to run")
     }
 
     func testACopyThatReadsItsCellIsNotShared() {

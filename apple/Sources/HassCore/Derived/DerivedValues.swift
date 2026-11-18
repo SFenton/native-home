@@ -33,6 +33,9 @@ public final class DerivedValues<Key: Hashable, Value: Equatable> {
         return made
     }
 
+    /// The live value for `key`, if there is one.
+    public func existing(for key: Key) -> DerivedValue<Value>? { entries[key]?.value }
+
     /// How many values are alive.
     public var liveCount: Int { entries.values.reduce(0) { $0 + ($1.value == nil ? 0 : 1) } }
 

@@ -219,3 +219,61 @@ struct DerivedValuesTests {
         #expect(plain.isShareable)
     }
 }
+
+// MARK: - SharedLogic
+
+@MainActor
+struct SharedLogicTests {
+    private func store() -> EntityStore {
+        let store = EntityStore()
+        store.replaceAll([EntityState(entityId: "light.demo_a", state: "on")])
+        return store
+    }
+
+    @Test func oneReaderEvaluatesInPlaceAndMakesNoDerivedValue() {
+        let store = store()
+        let logic = SharedLogic<String, Int>()
+        let reader = DerivedReaders()
+        var runs = 0
+        let read: @MainActor () -> Int = { runs += 1; return store.entity("light.demo_a").state?.state == "on" ? 1 : 0 }
+        for _ in 0..<3 { reader.run { #expect(logic.value(for: "k", read: read) == 1) } }
+        #expect(runs == 3, "the same observation re-running evaluates where it is")
+        #expect(logic.sharedCount == 0)
+    }
+
+    @Test func aSecondReaderMakesItOneSharedValue() {
+        let store = store()
+        let logic = SharedLogic<String, Int>()
+        let first = DerivedReaders(), second = DerivedReaders(), third = DerivedReaders()
+        var runs = 0
+        let read: @MainActor () -> Int = { runs += 1; return store.entity("light.demo_a").state?.state == "on" ? 1 : 0 }
+        first.run { _ = logic.value(for: "k", read: read) }
+        #expect(runs == 1)
+        second.run { #expect(logic.value(for: "k", read: read) == 1) }
+        #expect(logic.sharedCount == 1)
+        #expect(runs == 2, "the promotion runs the logic once, inside the derived value")
+        third.run { #expect(logic.value(for: "k", read: read) == 1) }
+        first.run { #expect(logic.value(for: "k", read: read) == 1) }
+        #expect(runs == 2, "readers after that read the shared value")
+        #expect(second.count == 1 && third.count == 1 && first.count == 1, "each holds the value it read")
+    }
+
+    @Test func aReadOutsideAnyObservationIsPlain() {
+        let logic = SharedLogic<String, Int>()
+        var runs = 0
+        for _ in 0..<3 { #expect(logic.value(for: "k") { runs += 1; return 7 } == 7) }
+        #expect(runs == 3)
+        #expect(logic.sharedCount == 0)
+    }
+
+    @Test func theValueEndsWhenItsReadersLetGo() {
+        let logic = SharedLogic<String, Int>()
+        var first: DerivedReaders? = DerivedReaders(), second: DerivedReaders? = DerivedReaders()
+        first?.run { _ = logic.value(for: "k") { 1 } }
+        second?.run { _ = logic.value(for: "k") { 1 } }
+        #expect(logic.sharedCount == 1)
+        second = nil
+        #expect(logic.sharedCount == 0, "nothing holds it: the shared value ended")
+        first = nil
+    }
+}

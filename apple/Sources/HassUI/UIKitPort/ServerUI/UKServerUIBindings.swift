@@ -227,12 +227,12 @@ final class UKServerUIBindings {
     /// The projected status of a source; `words` are a room overview tile's own (`sh.state-words@1`).
     ///
     /// Without `words` the projection sums every member of the source, and every chip, tile and expression that reads the source would
-    /// run that sum alone, so it is one ``DerivedValue`` per source (``SharedKey``): it runs once per change however many read it, and wakes
-    /// them only when the projection differs.
+    /// run that sum alone, so once a second observation reads it it is one ``DerivedValue`` per source (``SharedKey``, ``SharedLogic``): it
+    /// runs once per change however many read it, and wakes them only when the projection differs.
     func status(_ sourceId: String, words: ServerUIStateWords? = nil) -> ServerUIHomeStatus.Value? {
         guard words == nil else { return projectStatus(sourceId, words: words) }
         let key = SharedKey(sourceId: sourceId, generation: sourceGeneration, redacted: ScreenshotPrivacy.isRedacting)
-        return sharedStatuses.value(for: key) { [weak self] in self?.projectStatus(sourceId, words: nil) }.current
+        return sharedStatuses.value(for: key) { [weak self] in self?.projectStatus(sourceId, words: nil) }
     }
 
     private func projectStatus(_ sourceId: String, words: ServerUIStateWords?) -> ServerUIHomeStatus.Value? {
@@ -258,9 +258,9 @@ final class UKServerUIBindings {
 
     /// Counts the changes of the document's sources, so a derived value built from one set of sources is not shared with the next.
     private var sourceGeneration = 0
-    private let sharedStatuses = DerivedValues<SharedKey, ServerUIHomeStatus.Value?>()
-    private let sharedTodoWords = DerivedValues<SharedKey, TodoWords>()
-    private let sharedOperands = DerivedValues<ServerUIOperand, ServerUIReadResult>()
+    private let sharedStatuses = SharedLogic<SharedKey, ServerUIHomeStatus.Value?>()
+    private let sharedTodoWords = SharedLogic<SharedKey, TodoWords>()
+    private let sharedOperands = SharedLogic<ServerUIOperand, ServerUIReadResult>()
 
     /// The answer of an authored operand. A tree that does real work and reads nothing of the place it sits in (``ServerUIOperand/isWorthSharing``)
     /// is one ``DerivedValue`` for every use of it, so ten copies of one count run once; anything else is evaluated where it is used.
@@ -269,7 +269,7 @@ final class UKServerUIBindings {
         return sharedOperands.value(for: operand) { [weak self] in
             guard let reader = self?.readerProvider?() else { return .unavailable }
             return operand.evaluate(reader)
-        }.current
+        }
     }
 
     /// Shell binds navigation copy over exactly the sources its overview tiles use.
@@ -351,7 +351,7 @@ final class UKServerUIBindings {
     var entityIDMatches: Int { validIDs.matches }
 
     /// How many authored operands are shared right now; tests read it to prove identical copies are one value.
-    var sharedOperandCount: Int { sharedOperands.liveCount }
+    var sharedOperandCount: Int { sharedOperands.sharedCount }
 
     func entityID(for sourceID: String) -> UKServerUIValue<String> {
         guard let source = definitions[sourceID], let entityId = source.entityId else { return .unavailable }
@@ -404,7 +404,7 @@ final class UKServerUIBindings {
                     return TodoWords(text: result, phase: "ready")
                 }
                 return TodoWords(text: configuration.unavailableText, phase: "unavailable")
-            }.current
+            }
             switch read.path {
             case ["stateText"]: return .ready(.string(words.text))
             case ["phase"]: return .ready(.string(words.phase))
