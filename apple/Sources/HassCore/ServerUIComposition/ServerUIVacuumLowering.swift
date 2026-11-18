@@ -46,6 +46,7 @@ enum ServerUIVacuumLowering {
         var result = document
         result.pages = document.pages.map { var page = $0; page.surface = lowered(page.surface); return page }
         result.modals = document.modals.map { var modal = $0; modal.surface = lowered(modal.surface); return modal }
+        result.levels = document.levels.map { var level = $0; level.surface = lowered(level.surface); return level }
         result.dataSources += context.added
         if !context.styles.isEmpty {
             result.stateStyles = ServerUIStateStyleLibrary(entries: (document.stateStyles?.entries ?? []) + context.styles)
