@@ -17,7 +17,6 @@ struct Row: Decodable {
 
 struct Space: Decodable {
     var rows: [Row]
-    var kinds: [String: String]?
 }
 
 /// The registry facts the probe needs per kind, passed in a second file so the probe holds no kind list of its own.
