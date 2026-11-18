@@ -146,6 +146,7 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         // over to the shared value on its next run, so one change settles that before the counts below.
         _ = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(3), state: "on")]) }
         _ = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(3), state: "off")]) }
+        HostedPage.wait(0.2)
         let swap = counts {
             _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(0), state: "off"), EntityState(entityId: LogicHouse.watched(1), state: "on")])
         }
