@@ -204,6 +204,15 @@ struct DerivedValuesTests {
     @Test func onlyTreesOverSeveralSourcesAreWorthSharing() {
         func read(_ id: String) -> ServerUIOperand { .read(sourceId: id, path: ["state"], as: .number) }
         #expect(!read("a").isWorthSharing)
+        #expect(!read("a").hasManyReads)
+        let wide = ServerUIOperand.format(pattern: "{n}", args: ["n": .math(.add, [read("a"), read("b"), read("c")])], formats: [:])
+        #expect(wide.hasManyReads && wide.isWorthSharing, "the reads can sit anywhere in the tree")
+        let predicates = ServerUIOperand.choose(cases: [.init(when: .all([.state(sourceId: "a", path: ["state"], values: ["on"]),
+                                                                      .state(sourceId: "b", path: ["state"], values: ["on"])]), then: read("c"))],
+                                               otherwise: .literal(.number(0)))
+        #expect(predicates.hasManyReads, "a condition's reads count")
+        #expect(!ServerUIOperand.choose(cases: [.init(when: .state(sourceId: "a", path: ["state"], values: ["on"]), then: .literal(.string("x")))],
+                                        otherwise: .literal(.string("y"))).hasManyReads)
         #expect(!ServerUIOperand.math(.add, [read("a"), read("b")]).isWorthSharing)
         #expect(ServerUIOperand.math(.add, [read("a"), read("b"), read("c")]).isWorthSharing)
         #expect(!ServerUIOperand.math(.add, [read("a"), read("b"), .item(path: ["n"])]).isWorthSharing, "a scoped child spoils it")

@@ -265,7 +265,7 @@ final class UKServerUIBindings {
     /// The answer of an authored operand. A tree that does real work and reads nothing of the place it sits in (``ServerUIOperand/isWorthSharing``)
     /// is one ``DerivedValue`` for every use of it, so ten copies of one count run once; anything else is evaluated where it is used.
     func result(of operand: ServerUIOperand, in reader: UKServerUIReader) -> ServerUIReadResult {
-        guard readerProvider != nil else { return operand.evaluate(reader) }
+        guard readerProvider != nil, operand.hasManyReads else { return operand.evaluate(reader) }
         return sharedOperands.value(for: operand, eligible: operand.isWorthSharing) { [weak self] in
             guard let reader = self?.readerProvider?() else { return .unavailable }
             return operand.evaluate(reader)
