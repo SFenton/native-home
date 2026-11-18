@@ -24,15 +24,12 @@ import XCTest
 final class LogicWorstCasePerformanceTests: XCTestCase {
     /// The scenarios whose budget `main` misses, with the reason; filled from the baseline run.
     static let knownBreaches: [String: String] = [
-        "LW-a-replay": "one delivery applies 1,880 changed entities (about 10 ms on the phones) and wakes 150 evaluations in the same stretch of turns: p95 9 to 17 ms",
-        "LW-e-viewer13": "the viewer scan is gone (p95 43 to 7.1 to 8.3 ms) but sits on the line: one run at 8.3 ms on iPhone, and one 16 to 22 ms turn on iPad in some runs",
-        "LW-f-every-tab": "hidden pages keep evaluating: one burst of 30 shared entities runs 150 evaluations plus 3 badges: p95 10 to 12 ms",
-        "LW-h-minute-tick": "40 clock readers and 40 entity readers wake in the same turn: p95 9 ms on every family",
-        "LW-i-template10": "iPad only: one 22 to 27 ms turn in every run, the same turn before the shared value (phones pass at p95 1 ms)",
-        "LW-b-burst": "borderline: p95 6.8 to 8.5 ms between runs; a 50-box burst peaks at 9 to 14 ms on every family",
-        "LW-d1-count32-single": "p95 is 1 to 2 ms everywhere; iPad has one 20 to 22 ms turn in some runs, as it does in scenarios that evaluate nothing shared",
-        "LW-g-flip-storm": "borderline: iPad p95 5 to 7.7 ms and one turn of 14 to 22 ms between runs",
+        "LW-a-replay": "one delivery applies 1,880 changed entities and wakes 100 evaluations in the same stretch of turns: p95 8.2 to 9.4 ms on Duo and iPad, one 16 ms turn on iPad in an earlier run",
+        "LW-h-minute-tick": "40 clock readers and 40 entity readers wake in one turn; the evaluations are about 2 ms of it and the rest is the labels' layout: iPad 12 to 17 ms turns",
     ]
+
+    /// What a listed breach may not exceed: p95 and the longest turn, in milliseconds.
+    static let breachCeilingP95Ms = 10.0, breachCeilingTurnMs = 20.0
 
     private var wasTelemetryEnabled = false
     private var scene: LogicScene?
@@ -45,7 +42,24 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         if load >= 40 { Self.note("LOAD OVER 40: 1-minute load \(String(format: "%.1f", load)) at start; these numbers are not a baseline") }
         wasTelemetryEnabled = Telemetry.isEnabled
         Telemetry.isEnabled = true
+        warmUpTheProcess()
     }
+
+    /// The first scene a freshly launched app draws pays for the app's own first frame, its backdrop and the first layout: hundreds of
+    /// milliseconds in one turn that belong to no scenario. The first test of the process builds and closes one small scene before it meters.
+    private func warmUpTheProcess() {
+        guard !Self.processWarmed else { return }
+        Self.processWarmed = true
+        var document = LogicDocument()
+        document.sources = [("w0", LogicHouse.watched(0))]
+        document.tabs = [.init(id: "home", nodes: [LogicDocument.stateText("n0", source: "w0")])]
+        guard let warm = try? LogicScene(document: document, house: LogicHouse.entities(watched: 1)) else { return }
+        HostedPage.wait(1)
+        warm.close()
+        HostedPage.hideTracked()
+    }
+
+    private static var processWarmed = false
 
     override func tearDown() async throws {
         scene?.close()
@@ -75,7 +89,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         _ = try scene.page("more")
         HostedPage.wait(0.3)
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-a-replay").measure(iterations: 5) { iteration in
+        let measured = driver("LW-a-replay").measure(iterations: 5) { iteration in
             let generation = iteration + 1
             var changes = (0..<watched).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: generation)) }
             changes += (0..<LogicHouse.people).map { EntityState(entityId: LogicHouse.person($0), state: generation % 2 == 0 ? "home" : "away",
@@ -83,7 +97,8 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
             changes += LogicHouse.bulkChanges(count: 1_880 - changes.count, generation: generation)
             return LogicDriver.apply(changes, to: store)
         }
-        finish(measured, expectingRuns: 5 * watched)
+        // The first page is on screen and the second is loaded and away: only the first evaluates (the viewer nodes read nothing that changes).
+        finish(measured, expectingRuns: 5 * 100, atMostRuns: 5 * 100 + 50)
     }
 
     /// (b) Burst: 50 changed boxes feeding 50 tiles on one page ("all lights off"). Expected evaluations: 50 per burst.
@@ -94,7 +109,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         document.tabs = [.init(id: "home", nodes: (0..<count).map { LogicDocument.stateText("n\($0)", source: "w\($0)") })]
         let scene = try show(document, house: LogicHouse.entities(watched: count))
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-b-burst").measure(iterations: 10) { iteration in
+        let measured = driver("LW-b-burst").measure(iterations: 10) { iteration in
             LogicDriver.apply((0..<count).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: store)
         }
@@ -122,11 +137,11 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
     /// Expected evaluations: 10 per change, 32 reads in each.
     func testLargeCountOneEntityAtATime() throws {
         let count = try LargeCount(sites: 10)
-        let measured = LogicDriver(scenario: "LW-d1-count32-single").measure(iterations: 32) { iteration in
+        scene = count.scene
+        let measured = driver("LW-d1-count32-single").measure(iterations: 32) { iteration in
             LogicDriver.apply([EntityState(entityId: LogicHouse.watched(iteration), state: LogicHouse.state(iteration, generation: 1))],
                               to: count.scene.store)
         }
-        scene = count.scene
         finish(measured, expectingRuns: 32 * 10)
         XCTAssertEqual(count.shown(), Array(repeating: "16", count: 10), "the ten copies agree: half the entities are on")
     }
@@ -158,11 +173,11 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
     /// (d2) Large count: all 32 counted entities change in one delivery. One run per place, not one per entity.
     func testLargeCountAllAtOnce() throws {
         let count = try LargeCount(sites: 10)
-        let measured = LogicDriver(scenario: "LW-d2-count32-all").measure(iterations: 5) { iteration in
+        scene = count.scene
+        let measured = driver("LW-d2-count32-all").measure(iterations: 5) { iteration in
             LogicDriver.apply((0..<32).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: count.scene.store)
         }
-        scene = count.scene
         // One shared evaluation of the sum per delivery; the ten readers redraw only when the sum differs.
         finish(measured, expectingRuns: 5)
     }
@@ -186,7 +201,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         })]
         let scene = try show(document, house: LogicHouse.entities(watched: nodes))
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-e-viewer13").measure(iterations: 20) { iteration in
+        let measured = driver("LW-e-viewer13").measure(iterations: 20) { iteration in
             var changes = (0..<nodes).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) }
             changes.append(EntityState(entityId: "person.demo_lw_new\(iteration)", state: "home", attributes: ["user_id": .string("lw-new-\(iteration)")]))
             return LogicDriver.apply(changes, to: store)
@@ -194,8 +209,9 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         finish(measured, expectingRuns: 20 * nodes)
     }
 
-    /// (f) Every tab visited: five tabs (six need an extended-tabs capability the app does not ship), all loaded, each page reading the same 30 shared entities plus its own; three tabs carry a badge.
-    /// A hidden page keeps evaluating, so one shared change costs five runs.
+    /// (f) Every tab visited: five tabs (six need an extended-tabs capability the app does not ship), each shown once and left for the first, each page
+    /// reading the same 30 shared entities plus its own; three tabs carry a badge. Only the page on screen evaluates: one shared change costs one
+    /// page's 30 runs and the three badges, which belong to the renderer, not four more pages' 120 runs.
     func testEveryTabVisited() throws {
         let tabs = 5, shared = 30
         var document = LogicDocument()
@@ -207,15 +223,17 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
             return .init(id: "tab\(tab)", nodes: nodes, badge: badge)
         }
         let scene = try show(document, house: LogicHouse.entities(watched: shared + tabs))
-        for tab in 0..<tabs { _ = try scene.page("tab\(tab)") }
+        // Visit every tab, then come back to the first: four pages are built, shown once and left.
+        for tab in 1..<tabs { try scene.renderer.perform(.selectTab(tabId: "tab\(tab)"), from: scene.page("tab\(tab - 1)")) }
+        try scene.renderer.perform(.selectTab(tabId: "tab0"), from: scene.page("tab\(tabs - 1)"))
         HostedPage.wait(0.3)
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-f-every-tab").measure(iterations: 10) { iteration in
+        let measured = driver("LW-f-every-tab").measure(iterations: 10) { iteration in
             LogicDriver.apply((0..<shared).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: store)
         }
-        // Each page reads each shared entity once; the three badges read the first.
-        finish(measured, expectingRuns: 10 * (tabs * shared + 3))
+        // The page on screen reads each shared entity once; the three badges read the first. The four hidden pages run nothing.
+        finish(measured, expectingRuns: 10 * (shared + 3), atMostRuns: 10 * (shared + 3) + shared)
     }
 
     /// (g) Flip storm: 24 nodes each `choose` a branch by one entity and read the other entities of that branch; every update flips every branch,
@@ -233,7 +251,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         })]
         let scene = try show(document, house: LogicHouse.entities(watched: 3 * nodes))
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-g-flip-storm").measure(iterations: 40) { iteration in
+        let measured = driver("LW-g-flip-storm").measure(iterations: 40) { iteration in
             let generation = iteration + 1
             var changes: [EntityState] = []
             for index in 0..<nodes {
@@ -263,7 +281,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         let store = scene.store
         let appState = scene.renderer.bindings.appState
         let start = Date()
-        let measured = LogicDriver(scenario: "LW-h-minute-tick").measure(iterations: 20) { iteration in
+        let measured = driver("LW-h-minute-tick").measure(iterations: 20) { iteration in
             appState.publishClock(now: start.addingTimeInterval(Double(iteration + 1) * 60))
             return LogicDriver.apply((0..<count).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                                      to: store)
@@ -285,7 +303,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         })]
         let scene = try show(document, house: LogicHouse.entities(watched: entities))
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-i-template10").measure(iterations: 10) { iteration in
+        let measured = driver("LW-i-template10").measure(iterations: 10) { iteration in
             LogicDriver.apply((0..<entities).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: store)
         }
@@ -294,6 +312,13 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
     }
 
     // MARK: Helpers
+
+    /// A driver that counts the scene's own runs (`LogicCost.Tally`), not the process's.
+    private func driver(_ scenario: String) -> LogicDriver {
+        var driver = LogicDriver(scenario: scenario)
+        driver.tally = scene?.renderer.bindings.logicTally
+        return driver
+    }
 
     private func show(_ document: LogicDocument, house: [EntityState]) throws -> LogicScene {
         let made = try LogicScene(document: document, house: house)
@@ -313,7 +338,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         })]
         let scene = try show(document, house: LogicHouse.entities(watched: 0, extra: [EntityState(entityId: entity, state: baseState)]))
         let store = scene.store
-        let measured = LogicDriver(scenario: scenario).measure(iterations: 8, interval: 0.5) { tick in
+        let measured = driver( scenario).measure(iterations: 8, interval: 0.5) { tick in
             LogicDriver.apply([update(tick + 1)], to: store)
         }
         finish(measured, expectingRuns: 8 * readers, standingStill: true)
@@ -321,10 +346,13 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
     }
 
     /// Reports the measurement, checks that the scenario did evaluate what it models, and holds it to the budgets.
-    private func finish(_ measured: LogicMeasurement, expectingRuns: Int, standingStill: Bool = false,
+    private func finish(_ measured: LogicMeasurement, expectingRuns: Int, atMostRuns: Int? = nil, standingStill: Bool = false,
                         file: StaticString = #filePath, line: UInt = #line) {
         report(measured)
         XCTAssertGreaterThanOrEqual(measured.runs, expectingRuns, "\(measured.scenario): fewer evaluations than the model expects", file: file, line: line)
+        if let atMostRuns {
+            XCTAssertLessThanOrEqual(measured.runs, atMostRuns, "\(measured.scenario): more evaluations than the model allows", file: file, line: line)
+        }
         let key = measured.scenario
         let assertBudgets = {
             XCTAssertLessThanOrEqual(measured.p95Ms, 8, "\(key) \(measured.family): p95 run-loop turn over 8 ms", file: file, line: line)
@@ -338,6 +366,9 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
             Self.note("UNDER BUDGET on \(measured.family): knownBreaches[\"\(key)\"] is a prune candidate if every family stays inside on two runs (p95 \(measured.p95Ms) ms, worst \(measured.worstMs) ms)")
         }
         if let reason = Self.knownBreaches[key] {
+            // A listed breach has a ceiling, so a regression still fails: p95 at most 10 ms and no turn over 20 ms on every family.
+            XCTAssertLessThanOrEqual(measured.p95Ms, Self.breachCeilingP95Ms, "\(key) \(measured.family): over the ceiling of a known breach (p95)", file: file, line: line)
+            XCTAssertLessThanOrEqual(measured.worstMs, Self.breachCeilingTurnMs, "\(key) \(measured.family): a turn over the ceiling of a known breach (\(measured.worstMs) ms)", file: file, line: line)
             let options = XCTExpectedFailure.Options()
             options.isStrict = false
             XCTExpectFailure("\(key): \(reason)", options: options, failingBlock: assertBudgets)
@@ -352,6 +383,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         var text = ""
         if !Self.wroteHeader { text += LogicMeasurement.header + "\n"; Self.wroteHeader = true }
         text += measured.row + "\n"
+        if !measured.turnTrace.isEmpty { text += "LOGICPERF_TURNS\t\(measured.family.rawValue)\t\(measured.scenario)\t\(measured.turnTrace)\n" }
         let add = XCTAttachment(string: measured.row)
         add.name = measured.scenario
         add.lifetime = .keepAlways
@@ -406,6 +438,7 @@ final class LargeCount {
             ? ServerUIOperand.count((0..<entries).map { .init(test: .state(sourceId: "w\($0)", path: ["state"], values: ["on"]), personEntityIds: nil) })
             : ServerUIOperand.math(.add, groups)
         bag.evaluatesAuthoredLogic = true
+        bag.logicTally = scene.renderer.bindings.logicTally
         let renderer = scene.renderer
         labels = (0..<sites).map { _ in UILabel() }
         for label in labels {

@@ -1,4 +1,5 @@
 import Foundation
+import HassTelemetry
 
 // MARK: - Shared once a second reader asks
 
@@ -23,14 +24,15 @@ public final class SharedLogic<Key: Hashable, Value: Equatable> {
         var never = false
     }
 
-    private let values = DerivedValues<Key, Value>()
+    private let values: DerivedValues<Key, Value>
     private var slots: [Key: Slot] = [:]
-    /// Values made in a hop that no reader holds yet; a reader's read hands the value over.
+    /// Values made in a hop that no reader holds yet; a reader's read hands the value over, and the first reader's end lets go of it.
     private var unclaimed: [Key: DerivedValue<Value>] = [:]
     private var sinceSweep = 0
 
     /// Creates an empty set.
-    public init() {}
+    /// - Parameter tally: The owner's tally, handed to every shared value (``DerivedValue/init(tally:_:)``).
+    public init(tally: LogicCost.Tally? = nil) { values = DerivedValues(tally: tally) }
 
     /// The answer for `key`. A read that has been seen before costs one dictionary lookup.
     /// - Parameters:
@@ -70,9 +72,24 @@ public final class SharedLogic<Key: Hashable, Value: Equatable> {
         slot.shared = made
         slot.madeOnce = true
         slots[key] = slot
+        // Nobody left to read it: let it end. Otherwise hold it until a reader's next run claims it, or the first reader goes: a page that
+        // closes before it ever runs again must not leave a value evaluating on every change.
+        guard let first = slot.first else { return }
         if unclaimed.count >= Self.sweepAt { unclaimed.removeAll() }
         unclaimed[key] = made
+        first.whenEnded(token: [ObjectIdentifier(self) as AnyHashable, key as AnyHashable] as [AnyHashable]) { [weak self, weak made] in
+            self?.release(key, ifStill: made)
+        }
     }
+
+    /// Lets go of the unclaimed value for `key`, if it is still this one.
+    private func release(_ key: Key, ifStill value: DerivedValue<Value>?) {
+        guard let value, unclaimed[key] === value else { return }
+        unclaimed[key] = nil
+    }
+
+    /// How many shared values wait for a reader to take them over; tests read it to prove a closed page leaves none.
+    public var unclaimedCount: Int { unclaimed.count }
 
     /// How many keys are shared right now.
     public var sharedCount: Int { values.liveCount }

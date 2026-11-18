@@ -60,6 +60,7 @@ let package = Package(
             dependencies: [
                 "HassCore",
                 "HassDesign",
+                "HassTelemetry",
                 "FentonActivityModel",
                 "HassTestSupport",
                 .product(name: "HAKit+Mocks", package: "HAKit"),

@@ -268,6 +268,8 @@ struct LogicMeasurement {
     var seconds = 0.0
     /// The 1-minute load average when the suite started; a baseline wants it under 40.
     var load1 = 0.0
+    /// The slowest turns and the step each fell in (``LogicDriver/trace(_:stepStarts:)``); empty when no turn passed 8 ms.
+    var turnTrace = ""
 
     /// Logic and apply time together, in milliseconds: the "update work" a standing-still page is budgeted.
     var updateWorkMs: Double { Double(runUs + applyUs) / 1000 }
@@ -287,39 +289,66 @@ struct LogicMeasurement {
 struct LogicDriver {
     var scenario: String
     var family = LogicFamily.current
+    /// The renderer's own count (`LogicCost.Tally`), which the runs and the quiet check read instead of the process-wide counters, so a run in
+    /// another scene or a hop left over from an earlier test is not in the number. `nil` reads the process-wide counters.
+    var tally: LogicCost.Tally?
     /// How long one run-loop pass waits; a pass with nothing to do is one idle turn.
     var pass: TimeInterval = 0.1
 
     /// Runs `step` `iterations` times, each followed by a drain, and reports the measured window. `step` returns the CPU microseconds its
     /// own store writes took.
     func measure(iterations: Int, interval: TimeInterval = 0, _ step: @escaping @MainActor (Int) -> Int) -> LogicMeasurement {
+        // Warm up, then measure: the window has been laid out and drawn once, and the run loop has gone quiet, so the first frame of the
+        // hosted window, a lazily built view and the first display-link commit are not charged to the scenario. A step that is slow the
+        // first time because it builds something (a shared value, a cache) still is: that is in the measured window and in `turnTrace`.
+        HostedPage.layoutTracked()
+        RunLoop.main.run(until: Date().addingTimeInterval(pass * 3))
         let counters = Telemetry.log.counters
+        let tallyBefore = (runs: tally?.runs ?? 0, us: tally?.runMicroseconds ?? 0, skipped: tally?.skippedEqual ?? 0)
         let meter = MainThreadCostMeter()
         var result = LogicMeasurement(scenario: scenario, family: family, iterations: iterations)
         let started = ContinuousClock.now
         meter.begin()
+        var stepStarts: [Int] = []
         for iteration in 0..<iterations {
             let applied = Applied()
+            stepStarts.append(meter.turnCount)
             DispatchQueue.main.async { MainActor.assumeIsolated { applied.microseconds = step(iteration) } }
-            drain()
+            drain(tally: tally)
             result.applyUs += applied.microseconds
             if interval > 0 { RunLoop.main.run(until: Date().addingTimeInterval(interval)) }
         }
         let report = meter.finish()
+        result.turnTrace = Self.trace(meter.turnCosts, stepStarts: stepStarts)
         let after = Telemetry.log.counters
         func delta(_ key: String) -> Int { (after[key] ?? 0) - (counters[key] ?? 0) }
+        result.runs = delta(LogicCost.runsCounter)
+        result.runUs = delta(LogicCost.runMicrosecondsCounter)
+        result.skippedEqual = delta(LogicCost.skippedEqualCounter)
+        if let tally {
+            result.runs = tally.runs - tallyBefore.runs
+            result.runUs = tally.runMicroseconds - tallyBefore.us
+            result.skippedEqual = tally.skippedEqual - tallyBefore.skipped
+        }
         result.p95Ms = report.p95TurnMs
         result.worstMs = report.worstTurnMs
         result.turns = report.turns
         result.over8 = report.turnsOver8
         result.over16 = report.turnsOver16
-        result.runs = delta(LogicCost.runsCounter)
-        result.runUs = delta(LogicCost.runMicrosecondsCounter)
-        result.skippedEqual = delta(LogicCost.skippedEqualCounter)
         let elapsed = (ContinuousClock.now - started).components
         result.load1 = Self.load1
         result.seconds = Double(elapsed.seconds) + Double(elapsed.attoseconds) / 1e18
         return result
+    }
+
+    /// The turns over 8 ms, each placed in its step as `step.turn=ms` (turn 0 is the turn the step ran in), at most eight, slowest first. It says
+    /// whether a long turn is the first step (cold) or every step (steady), which a p95 alone cannot.
+    static func trace(_ costs: [Double], stepStarts: [Int]) -> String {
+        let slow = costs.enumerated().filter { $0.element > 8 }.sorted { $0.element > $1.element }.prefix(8)
+        return slow.map { index, ms in
+            let step = stepStarts.lastIndex { $0 <= index } ?? 0
+            return "\(step).\(index - stepStarts[step])=\(String(format: "%.1f", ms))"
+        }.joined(separator: ",")
     }
 
     /// The 1-minute load average now.
@@ -331,13 +360,15 @@ struct LogicDriver {
     private final class Applied { var microseconds = 0 }
 
     /// Runs the main run loop until two passes in a row ran no authored logic.
-    func drain() {
+    /// - Parameter tally: Watch one renderer's runs (`LogicCost.Tally`) instead of the process-wide counter.
+    func drain(tally: LogicCost.Tally? = nil) {
+        func runs() -> Int { tally?.runs ?? (Telemetry.log.counters[LogicCost.runsCounter] ?? 0) }
         var quiet = 0
-        var last = Telemetry.log.counters[LogicCost.runsCounter] ?? 0
+        var last = runs()
         var passes = 0
         while quiet < 2, passes < 60 {
             RunLoop.main.run(until: Date().addingTimeInterval(pass))
-            let now = Telemetry.log.counters[LogicCost.runsCounter] ?? 0
+            let now = runs()
             quiet = now == last ? quiet + 1 : 0
             last = now
             passes += 1

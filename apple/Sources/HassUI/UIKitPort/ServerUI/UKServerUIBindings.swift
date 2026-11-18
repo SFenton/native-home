@@ -1,5 +1,6 @@
 #if os(iOS)
 import HassCore
+import HassTelemetry
 import Observation
 import UIKit
 
@@ -57,6 +58,11 @@ final class UKServerUIBindings {
          cameraPool: CameraStreamPool = .shared,
          weatherReader: ServerUIWeatherReader? = nil, cameraReader: UKCameraReadProvider? = nil) {
         self.context = context
+        let tally = LogicCost.Tally()
+        logicTally = tally
+        sharedStatuses = SharedLogic(tally: tally)
+        sharedTodoWords = SharedLogic(tally: tally)
+        sharedOperands = SharedLogic(tally: tally)
         appState = context.appState ?? UKServerUIAppStateSource(push: context.push)
         self.weatherReader = weatherReader
         self.cameraReader = cameraReader
@@ -258,9 +264,12 @@ final class UKServerUIBindings {
 
     /// Counts the changes of the document's sources, so a derived value built from one set of sources is not shared with the next.
     private var sourceGeneration = 0
-    private let sharedStatuses = SharedLogic<SharedKey, ServerUIHomeStatus.Value?>()
-    private let sharedTodoWords = SharedLogic<SharedKey, TodoWords>()
-    private let sharedOperands = SharedLogic<OperandKey, ServerUIReadResult>()
+    /// What this document's evaluations cost, counted apart from every other renderer's: its nodes' and tabs' observations and the shared
+    /// values below (`LogicCost.Tally`). A hosted test reads it, so a stray observer in another scene is never in its number.
+    let logicTally: LogicCost.Tally
+    private let sharedStatuses: SharedLogic<SharedKey, ServerUIHomeStatus.Value?>
+    private let sharedTodoWords: SharedLogic<SharedKey, TodoWords>
+    private let sharedOperands: SharedLogic<OperandKey, ServerUIReadResult>
 
     /// What names a shared authored operand: the tree, the publication's sources it reads through (a changed source is a new value, so a
     /// rebuilt reader never gets the old answer) and whether screenshots redact (read outside Observation, so it is part of the name).

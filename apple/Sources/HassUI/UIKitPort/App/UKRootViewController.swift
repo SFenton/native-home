@@ -31,6 +31,9 @@ final class UKRootViewController: UIViewController {
     private var probes: [AnyObject] = []
     nonisolated(unsafe) private var observers: [NSObjectProtocol] = []
     private var activatedOnce = false
+    /// How many times the children were matched to the session: once at start and once per change of phase or remembered account. A test reads
+    /// it to prove that nothing built in the sync (the session's providers, the Profile count) makes the observation follow what it reads.
+    private(set) var phaseSyncs = 0
     #if DEBUG
     private var reuseWatcher: Task<Void, Never>?
     #endif
@@ -211,17 +214,23 @@ final class UKRootViewController: UIViewController {
     // MARK: Session
 
     private func bindSession() {
-        bag.observe { [weak self] in
+        // The observation follows the session's phase and the remembered account, and nothing else. The sync itself runs in the apply half,
+        // outside the tracking scope: it builds the tabs, the session's runtime and its providers (the Profile attention value reads the
+        // chores, vacation mode and expired-food entities), and Observation merges anything read in an open scope into it. Run inside the
+        // scope, this would re-run, and rebuild the tabs' bookkeeping, for every change to those entities.
+        bag.observe(track: { [weak self] in
             guard let self else { return }
-            // Read inside the observation so a change to any of them runs this again.
+            _ = self.session.phase
             _ = self.session.isSignedIn
             _ = self.session.expiredAccount
-            self.syncPhase()
-        }
+        }, apply: { [weak self] in
+            self?.syncPhase()
+        })
     }
 
     /// Makes the children match the session: the tabs while signed in, the sign-in layer while signed out and while it lifts away.
     private func syncPhase() {
+        phaseSyncs += 1
         let signedIn = session.isSignedIn
         if case let .signedIn(connection, _) = session.phase {
             if product == nil {

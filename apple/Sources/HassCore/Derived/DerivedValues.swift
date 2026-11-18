@@ -1,4 +1,5 @@
 import Foundation
+import HassTelemetry
 
 // MARK: - One derived value per distinct logic
 
@@ -13,12 +14,14 @@ public final class DerivedValues<Key: Hashable, Value: Equatable> {
 
     private var entries: [Key: Entry] = [:]
     private var sinceSweep = 0
+    private let tally: LogicCost.Tally?
 
     /// How many entries are asked for between sweeps of the ones whose value has ended.
     private static var sweepInterval: Int { 64 }
 
     /// Creates an empty set.
-    public init() {}
+    /// - Parameter tally: The owner's tally, handed to every value made here (``DerivedValue/init(tally:_:)``).
+    public init(tally: LogicCost.Tally? = nil) { self.tally = tally }
 
     /// The value for `key`: the live one, or a new one that runs `read` now.
     /// - Parameters:
@@ -26,7 +29,7 @@ public final class DerivedValues<Key: Hashable, Value: Equatable> {
     ///   - read: The logic, used only when no live value exists for `key`.
     public func value(for key: Key, read: @escaping @MainActor () -> Value) -> DerivedValue<Value> {
         if let live = entries[key]?.value { return live }
-        let made = DerivedValue(read)
+        let made = DerivedValue(tally: tally, read)
         entries[key] = Entry(value: made)
         sinceSweep += 1
         if sinceSweep >= Self.sweepInterval { sweep() }

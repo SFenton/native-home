@@ -13,6 +13,13 @@
     - A worthwhile tree reads three or more sources (below that the extra run costs more than it saves) and nothing of where it sits.
     - A repeat cell's `item` and `index`, a flow's `param`, an action's `control` and the clock are evaluated where they are used (the clock's tick starts and stops with the node and its page).
 - **Lifetime:** `DerivedValues` holds its entries weakly. `UKObservationBag` runs each observation inside a `DerivedReaders`, which holds what that run read until the observation's next run, so a value ends with its last reader and a closed page's expression stops running. A value an owner stores (the attention count) lives as long as the owner.
+  - `SharedLogic` holds a value it made for readers that have not run again until one reads it or the reader it was made for ends, so a page that closes first leaves nothing evaluating.
+- **Resting while away:**
+  - A page that is not on screen has its node observations paused (`UKObservationBag.pause`). A change to what a node read is noted once and costs nothing more. A `DerivedValue` or `SharedLogic` value that a paused node holds still settles on each change; only the node's own run waits.
+  - `wakeNodes()` runs each noted node once in `viewWillAppear`, before the page's first frame: no blank, re-fade, reorder or stale frame.
+  - A page in a window is never paused, and a new observation on a paused bag still runs once so its views are drawn.
+  - Tab badges and rules are renderer-scope observations and are not paused.
+- **Root scope:** a value an owner makes in its `init` is made outside any observation. The root builds the session's runtime in the apply half of its observation (`UKObservation.init(track:apply:)`), never in the tracked half.
 - **Reading, never scanning:** an input is a box (`store.entity(id).state`), the people revision or another derived value, never `store.allValues`. The viewer's person is found once per user and people revision (`PersonLookup`); the entity id grammar is matched once per string (`EntityIDCache`).
 - **Rules:** a new shared count or sum is a `DerivedValue`, not a copy in each view. Do not read the clock or `.now` inside one unless the clock is tracked. Counters: a derived run counts in `logic.runs` and `logic.runUs`, an equal result in `logic.skippedEqual` ([logic evaluation](../testing/apple/logic-evaluation.md)).
-- **Tests:** `Tests/HassCoreTests/DerivedValueTests.swift`, `PersonLookupTests.swift`, `EntityIDCacheTests.swift`; hosted `ServerUILogicCountersHostedTests` and `LogicWorstCasePerformanceTests` (apple/Apps/iOSTests).
+- **Tests:** `Tests/HassCoreTests/DerivedValueTests.swift`, `PersonLookupTests.swift`, `EntityIDCacheTests.swift`; hosted `ServerUILogicCountersHostedTests`, `ServerUIHiddenTabHostedTests` and `LogicWorstCasePerformanceTests` (apple/Apps/iOSTests).

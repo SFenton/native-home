@@ -9,6 +9,8 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
   - `logic.runUs`: their wall time in microseconds; each also has a `LogicRun` signpost.
   - `logic.skippedEqual`: evaluations whose result equalled the one shown, so no view was written (a node's `visibleWhen`, a node badge, a tab badge and a tab rule).
   - An idle page runs nothing, so the counters cost nothing there. A bag of observations counts only with `UKObservationBag.evaluatesAuthoredLogic` set; set it on any new bag that evaluates authored logic.
+  - The counters are process-wide. A renderer also keeps its own `LogicCost.Tally` (`bindings.logicTally`), which only its nodes, tab observations and shared values add to.
+  - A hosted test that asserts an exact count reads the tally. A bag that evaluates authored logic gets `logicTally` set; a `DerivedValue` or `SharedLogic` made for a renderer takes its tally.
 - **Scenarios** (`LogicWorstCasePerformanceTests`, each on iPhone, iPhone Duo and iPad, fixtures with invented ids):
   - whole-house replay;
   - a 50-box burst;
@@ -31,8 +33,14 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
 - **Pruning:** a run that finds a listed scenario inside budget prints `UNDER BUDGET on <family>` and writes it to the rows file. Delete the entry only when every family stays inside budget on two runs.
 - **Run it:** the suite skips unless `TEST_RUNNER_FENTON_PERF_ON_SIMULATOR=1` and wants a 1-minute load under 40: each row records the load at start, and a run above 40 prints `LOAD OVER 40` and is not a baseline. One hosted run per family with `FENTON_HOSTED_FILTER=LogicWorstCasePerformanceTests`; `TEST_RUNNER_FENTON_LOGICPERF_FILE` collects the rows.
 - **Correctness tests** (`ServerUILogicEvaluationTests`, `ServerUILogicCountersHostedTests`) run everywhere: an entity no evaluation reads runs nothing, an equal result writes no view, a `choose` that flips reads the new branch, and a sum runs once per turn.
+- **Harness:**
+  - The driver lays out the window and lets the run loop idle before it meters, so a hosted window's first frame is not charged to a scenario.
+  - Each row prints `turns`, `over8` and `over16`; `LOGICPERF_TURNS` names the step and turn of each turn over 8 ms.
+  - p95 is over every turn in the window, idle ones included, so read it with `turns`. The longest turn and `over16` are the stricter check.
+  - A step slow only the first time is a cold cost, not noise.
 - **Rules:**
   - A change to one entity runs only the evaluations that read it.
+  - A page that is away rests: see [resting while away](../../patterns/derived-value.md).
   - A burst is one run per evaluation per turn.
   - No evaluation scans the house; a read costs what it names, not the entity count.
   - A new scenario or counter extends this suite under the same budgets.
