@@ -254,6 +254,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         notificationSource = UKServerUINotificationSource(push: context.push)
         callRunner = UKServerUICallRunner(context: pageContext)
         super.init(nibName: nil, bundle: nil)
+        tabBag.logicTally = bindings.logicTally
         bindings.readerProvider = { [unowned self] in self.reader() }
         nativeExitGate = .init(blocksExit: { [weak self] page in
             guard let self else { return true }

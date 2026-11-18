@@ -129,14 +129,20 @@ public final class EntityStore {
     public func apply(_ changes: [EntityState]) -> [EntityState] {
         var displaced: [EntityState] = []
         var peopleChanged = false
-        for state in changes where values[state.entityId] != state {
-            if let old = values.updateValue(state, forKey: state.entityId) {
-                displaced.append(old)
-                if Self.changesWho(old, state) { peopleChanged = true }
-            } else if state.entityId.hasPrefix(Self.personPrefix) {
-                peopleChanged = true
+        // One hash of the id finds the slot, compares and replaces in place (a lookup, then `updateValue`, hashed it three times), and
+        // the box is looked up once in `publish`: a whole-house replay is about 1,900 of these on the main thread.
+        for state in changes {
+            let id = state.entityId
+            if let slot = values.index(forKey: id) {
+                guard values.values[slot] != state else { continue }
+                displaced.append(values.values[slot])
+                if Self.changesWho(values.values[slot], state) { peopleChanged = true }
+                values.values[slot] = state
+            } else {
+                values[id] = state
+                if Self.isPerson(id) { peopleChanged = true }
             }
-            publish(state.entityId, state)
+            publish(id, state)
         }
         if peopleChanged { peopleRevision += 1 }
         return displaced
@@ -179,7 +185,12 @@ public final class EntityStore {
     /// Whether `new` replaces a person with one for another Home Assistant user. Plain `String` prefix work only, so an ordinary
     /// entity costs a prefix test.
     private static func changesWho(_ old: EntityState, _ new: EntityState) -> Bool {
-        new.entityId.hasPrefix(personPrefix) && old.attributes["user_id"] != new.attributes["user_id"]
+        isPerson(new.entityId) && old.attributes["user_id"] != new.attributes["user_id"]
+    }
+
+    /// Whether `id` is a `person.*` entity. A first-byte test settles almost every id before the prefix compare is made.
+    private static func isPerson(_ id: String) -> Bool {
+        id.utf8.first == 0x70 && id.hasPrefix(personPrefix)
     }
 
     private func publish(_ id: String, _ state: EntityState?) {

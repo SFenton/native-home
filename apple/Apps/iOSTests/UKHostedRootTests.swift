@@ -183,3 +183,30 @@ final class UKHostedRootTests: DemoHouseTestCase {
         XCTAssertNil(weakRoot)
     }
 }
+
+// MARK: - What the session observation follows
+
+/// The root's observation follows the session's phase and the remembered account, and nothing the sync builds.
+@MainActor
+final class UKHostedRootObservationTests: DemoHouseTestCase {
+    func testBuildingTheShellMakesTheSessionObservationFollowNoEntity() throws {
+        let server = HassServer(baseURL: URL(string: "http://127.0.0.1:9")!)
+        let session = AppSession(tokenStore: InMemoryTokenStore(), snapshotCache: EntitySnapshotCache(
+            fileURL: FileManager.default.temporaryDirectory.appending(path: "uk-hosted-root-obs-\(UUID().uuidString).json")))
+        session.motion.markPlayed(.signInArrival)
+        try session.didSignIn(server: server, tokens: AuthTokens(accessToken: "test", expiresAt: .distantFuture, refreshToken: "test"))
+        guard case .signedIn(let connection, _) = session.phase else { return XCTFail("signed in") }
+        // A known resident, so the Profile attention value reads the vacation, chores and expired-food entities when the providers make it.
+        session.setPublicationUser("demo-user-alex", connection: connection)
+        let root = UKRootViewController(session: session)
+        let window = HostedPage.show(root)
+        defer { window.isHidden = true }
+        HostedPage.wait(0.3)
+        XCTAssertTrue(root.children.contains { $0 is UKServerUIProductionHost }, "the shell was built from the observation's first run")
+        let syncs = root.phaseSyncs
+        _ = connection.store.apply([EntityState(entityId: ChoresConfig.vacationModeEntityId, state: "on")])
+        _ = connection.store.apply([EntityState(entityId: ProfileSummary.expiredFoodEntityId, state: "2")])
+        HostedPage.wait(0.3)
+        XCTAssertEqual(root.phaseSyncs, syncs, "a change to the entities the attention count reads does not run the root's session sync again")
+    }
+}

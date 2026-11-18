@@ -36,18 +36,18 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         var skipped = 0
     }
 
-    /// Counter movement across `work` and the run loop draining after it.
+    /// Counter movement across `work` and the run loop draining after it, in the renderer of the scene under test.
     ///
-    /// `logic.runs` is process-global, so a hop an earlier test or scene left pending would land in this window. The loop drains first, so the
-    /// baseline is taken with no authored logic still in flight, and drains again after `work`, so every run it caused is counted.
+    /// The count is the renderer's own (`LogicCost.Tally`, kept by its bindings): a hop an earlier test or another scene left pending, or any
+    /// observer outside this scene, is not in it, so the numbers below are exact. The loop drains first, so no run of this scene is still in
+    /// flight when the window opens, and drains again after `work`, so every run it caused is counted.
     private func counts(_ work: () -> Void) -> Counts {
-        LogicDriver(scenario: "counters").drain()
-        let before = Telemetry.log.counters
+        let tally = scene?.renderer.bindings.logicTally
+        LogicDriver(scenario: "counters").drain(tally: tally)
+        let before = Counts(runs: tally?.runs ?? 0, skipped: tally?.skippedEqual ?? 0)
         work()
-        LogicDriver(scenario: "counters").drain()
-        let after = Telemetry.log.counters
-        return Counts(runs: (after[LogicCost.runsCounter] ?? 0) - (before[LogicCost.runsCounter] ?? 0),
-                      skipped: (after[LogicCost.skippedEqualCounter] ?? 0) - (before[LogicCost.skippedEqualCounter] ?? 0))
+        LogicDriver(scenario: "counters").drain(tally: tally)
+        return Counts(runs: (tally?.runs ?? 0) - before.runs, skipped: (tally?.skippedEqual ?? 0) - before.skipped)
     }
 
     private func host(_ document: LogicDocument, watched: Int) throws -> LogicScene {
@@ -77,6 +77,26 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         let scene = try host(document, watched: 20)
         let one = counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(3), state: LogicHouse.state(3, generation: 1))]) }
         XCTAssertEqual(one.runs, 1, "one box update re-runs the one node that read it")
+    }
+
+    // MARK: One renderer's count
+
+    func testTheCountBelongsToTheRendererThatRanTheLogic() throws {
+        var document = LogicDocument()
+        document.sources = (0..<5).map { ("w\($0)", LogicHouse.watched($0)) }
+        document.tabs = [.init(id: "home", nodes: (0..<5).map { LogicDocument.stateText("n\($0)", source: "w\($0)") })]
+        let mine = try host(document, watched: 5)
+        let theirs = try LogicScene(document: document, house: LogicHouse.entities(watched: 5))
+        defer { theirs.close() }
+        let ours = mine.renderer.bindings.logicTally, others = theirs.renderer.bindings.logicTally
+        LogicDriver(scenario: "counters").drain(tally: ours)
+        let globalBefore = Telemetry.log.counters[LogicCost.runsCounter] ?? 0
+        let ourBefore = ours.runs, otherBefore = others.runs
+        _ = theirs.store.apply((0..<5).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: 1)) })
+        LogicDriver(scenario: "counters").drain(tally: others)
+        XCTAssertEqual(others.runs - otherBefore, 5, "the other renderer's five nodes ran")
+        XCTAssertEqual(ours.runs - ourBefore, 0, "none of them is counted here, whatever ran elsewhere in the process")
+        XCTAssertGreaterThanOrEqual((Telemetry.log.counters[LogicCost.runsCounter] ?? 0) - globalBefore, 5, "the process-wide counter still sees every run")
     }
 
     // MARK: Equal results
@@ -251,7 +271,9 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         document.tabs = [.init(id: "home", nodes: (0..<10).map { LogicDocument.stateText("n\($0)", source: "w\($0)") })]
         let scene = try host(document, watched: 10)
         let store = scene.store
-        let measured = LogicDriver(scenario: "LW-test").measure(iterations: 2) { iteration in
+        var driver = LogicDriver(scenario: "LW-test")
+        driver.tally = scene.renderer.bindings.logicTally
+        let measured = driver.measure(iterations: 2) { iteration in
             LogicDriver.apply((0..<10).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) }, to: store)
         }
         XCTAssertEqual(measured.runs, 20, "ten nodes, two bursts")

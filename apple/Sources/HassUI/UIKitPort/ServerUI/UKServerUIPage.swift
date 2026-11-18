@@ -21,6 +21,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     weak var renderer: UKServerUIRenderer?
     /// Whether this page is on screen, read by the nodes that tick every second (``UKServerUIScreenPresence``).
     let presence = UKServerUIScreenPresence()
+    /// Whether the nodes' observations rest because the page is away (``restNodes()``).
+    private var nodesRest = false
     private let column = UKColumnView()
     private(set) var body: UKPageScrollView?
     /// The one view the page's scroller sits in: the ``body`` column, or a record collection's own scroller.
@@ -100,6 +102,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// Re-measures the body and the column bar after a layout pass.
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
+        if nodesRest, view.window != nil { wakeNodes() }
         nodes.values.compactMap { $0.view as? UKServerUIPinnedActions }.forEach { $0.layoutChanged() }
         nodes.values.compactMap { $0.view as? UKServerUILocalTabs }.forEach { $0.layoutChanged() }
     }
@@ -239,6 +242,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         presence.isOnScreen = true
+        wakeNodes()
         formView?.reopenIfNeeded()
     }
 
@@ -246,6 +250,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
         presence.isOnScreen = false
+        restNodes()
         nodes.values.compactMap { $0.view as? UKServerUILocalTabs }.forEach { $0.departed() }
     }
 
@@ -359,6 +364,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             let entry = nodes[id].flatMap { $0.matches(component) ? $0 : nil } ?? UKServerUINode(component, surface: context.surface)
             retained[id] = entry
             entry.bag.removeAll()
+            entry.bag.logicTally = renderer.bindings.logicTally
+            if nodesRest { entry.bag.pause() } else { entry.bag.resume() }
             // Every run of the node's observations: in its repeat cell, and gated by whether this page is on screen, so a read of the second clock
             // (`now-second`, `sh.countdown@1`) on a page in another tab or under a pushed page keeps no tick running. A node that read the second
             // clock draws a value that changes every second: it carries `updatesFrequently`, so VoiceOver does not announce each change.
@@ -1098,6 +1105,34 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         }
         body.contentChanged(animated: false)
         refreshChrome()
+        restNodes()
+    }
+
+    // MARK: - Resting while away
+
+    /// Rests the node observations of a page that is not on screen, so a change to what its nodes read re-runs nothing there.
+    ///
+    /// A page keeps its views and its nodes when another tab is selected or another page is pushed over it. Their observations used to keep
+    /// running for every change to every entity they read, for views nobody sees. Now an observation notes the change once and waits;
+    /// ``wakeNodes()`` runs each one that was changed, once, before the page is drawn again. Tab badges and tab rules are not here: they
+    /// belong to the renderer and are on screen all the time.
+    ///
+    /// A page that is in a window is never rested (a container that forgot an appearance call must not freeze what it shows).
+    private func restNodes() {
+        guard isViewLoaded, !presence.isOnScreen, view.window == nil else { return }
+        nodesRest = true
+        for node in nodes.values { node.bag.pause() }
+    }
+
+    /// Ends the rest: each node whose inputs changed while the page was away runs once, here, before the page is drawn.
+    ///
+    /// Called from `viewWillAppear`, which UIKit sends before the first frame of the page, so the first frame already shows the current values:
+    /// no blank, no re-fade, no reorder, and no stale frame ([connection-lifecycle](.agents/platforms/apple/connection-lifecycle.md)).
+    /// - Returns: How many nodes caught up.
+    @discardableResult
+    func wakeNodes() -> Int {
+        nodesRest = false
+        return nodes.values.reduce(0) { $0 + $1.bag.resume() }
     }
 
     /// The id of the collection that is the page's whole body (pinned actions aside), when it is a Todo, Inventory or Recipes

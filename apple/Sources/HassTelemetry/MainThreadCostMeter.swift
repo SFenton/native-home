@@ -83,6 +83,13 @@ public final class MainThreadCostMeter {
         self.observer = observer
     }
 
+    /// The turns recorded since ``begin()``, in order, in milliseconds of main-thread CPU. It outlives ``finish()`` until the next ``begin()``,
+    /// so a driver that must say *which* turn was slow (the first after a change, the one after a layout) can read it after the report.
+    public var turnCosts: [Double] { turns.map(\.cpuMs) }
+
+    /// How many turns have been recorded so far (a driver notes it between steps to place a slow turn in its step).
+    public var turnCount: Int { turns.count }
+
     /// Stops measuring and reports.
     public func finish() -> Report {
         if let observer {

@@ -54,7 +54,9 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         self.recordCacheRoot = recordCacheRoot
         self.preferencesDefaults = preferencesDefaults
         caller = UKServerUISessionCaller(session: session, connection: connection)
-        // Made here, where no observation is running: made inside a header's run it would make that header follow every input.
+        // Made here, not on the first read: a value made inside a header's run would make that header follow every input. The root builds
+        // the providers from `syncPhase`, which `UKRootViewController` runs in the apply half of its observation, outside any tracking
+        // scope, so this creation is followed by nothing.
         _ = attention
     }
 

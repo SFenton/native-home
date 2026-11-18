@@ -16,9 +16,21 @@ public final class DerivedReaders {
     /// The collector of the observation run in progress, `nil` outside one: who is reading right now.
     static var current: DerivedReaders? { active }
     private var held: [ObjectIdentifier: AnyObject] = [:]
+    private var endActions: [AnyHashable: @MainActor () -> Void] = [:]
 
     /// Creates an empty collector, one per observation.
     public init() {}
+
+    isolated deinit {
+        for action in endActions.values { action() }
+    }
+
+    /// Runs `action` when this collector ends, which is when the observation it belongs to has gone (its page closed). A second call with
+    /// the same `token` replaces the first, so one owner asking again for one thing leaves one action.
+    /// - Parameters:
+    ///   - token: Names the action; the same token replaces.
+    ///   - action: Runs on the main actor from the collector's deinitialiser: it must not keep the collector.
+    public func whenEnded(token: AnyHashable, _ action: @escaping @MainActor () -> Void) { endActions[token] = action }
 
     /// How many values the last run read.
     public var count: Int { held.count }

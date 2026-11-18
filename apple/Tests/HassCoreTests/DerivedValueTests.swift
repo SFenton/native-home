@@ -1,5 +1,6 @@
 import Foundation
 @testable import HassCore
+import HassTelemetry
 import Observation
 import Testing
 
@@ -387,5 +388,84 @@ struct SharedLogicTests {
         let reader = DerivedReaders()
         reader.run { for key in 0..<1000 { _ = logic.value(for: key, eligible: false) { key } } }
         #expect(logic.slotCount < 300, "the memory of what is not worth sharing is bounded")
+    }
+
+    // MARK: A closed page's unclaimed value
+
+    @Test func aClosedPagesUnclaimedValueEnds() async {
+        let logic = SharedLogic<String, Int>()
+        var first: DerivedReaders? = DerivedReaders(), second: DerivedReaders? = DerivedReaders()
+        first?.run { _ = logic.value(for: "k") { 1 } }
+        second?.run { _ = logic.value(for: "k") { 1 } }
+        await settle()
+        #expect(logic.unclaimedCount == 1, "made in the hop and held for a reader to take over")
+        #expect(logic.sharedCount == 1)
+        // Both readers' page closes before either runs again: nothing will ever claim the value.
+        first = nil
+        second = nil
+        #expect(logic.unclaimedCount == 0)
+        #expect(logic.sharedCount == 0, "it stopped evaluating with the page, it did not wait for 256 others to pile up")
+    }
+
+    @Test func theFirstReadersEndLetsGoOfAValueNobodyClaimed() async {
+        let logic = SharedLogic<String, Int>()
+        var first: DerivedReaders? = DerivedReaders()
+        let second = DerivedReaders()
+        first?.run { _ = logic.value(for: "k") { 1 } }
+        second.run { _ = logic.value(for: "k") { 1 } }
+        await settle()
+        first = nil
+        #expect(logic.sharedCount == 0, "the reader it was made for has gone")
+        // Left alone, the second reader evaluates in place: one reader needs no shared value.
+        second.run { #expect(logic.value(for: "k") { 1 } == 1) }
+        await settle()
+        #expect(logic.sharedCount == 0, "a reader on its own is not given one")
+        // A new reader asks again and is served in the hop after, and the second moves over on its next run.
+        let third = DerivedReaders()
+        third.run { _ = logic.value(for: "k") { 1 } }
+        await settle()
+        #expect(logic.sharedCount == 1, "two readers are served again")
+        second.run { #expect(logic.value(for: "k") { 1 } == 1) }
+        #expect(second.count == 1, "and the one that was left takes it on its next run")
+        #expect(logic.unclaimedCount == 0, "a reader's read is a claim")
+        third.run { #expect(logic.value(for: "k") { 1 } == 1) }
+        #expect(third.count == 1)
+    }
+
+    @Test func aClaimedValueOutlivesTheReaderItWasMadeFor() async {
+        let logic = SharedLogic<String, Int>()
+        var first: DerivedReaders? = DerivedReaders()
+        let second = DerivedReaders()
+        first?.run { _ = logic.value(for: "k") { 1 } }
+        second.run { _ = logic.value(for: "k") { 1 } }
+        await settle()
+        second.run { _ = logic.value(for: "k") { 1 } }
+        #expect(logic.unclaimedCount == 0, "claimed")
+        first = nil
+        #expect(logic.sharedCount == 1, "the one reader still reading it keeps it")
+    }
+
+    // MARK: Counted for one owner
+
+    @Test func theSharedValuesRunsAreCountedInTheOwnersTally() async {
+        let wasEnabled = Telemetry.isEnabled
+        defer { Telemetry.isEnabled = wasEnabled }
+        Telemetry.isEnabled = true
+        let store = store()
+        let mine = LogicCost.Tally(), other = LogicCost.Tally()
+        let logic = SharedLogic<String, Int>(tally: mine)
+        let first = DerivedReaders(), second = DerivedReaders()
+        let read: @MainActor () -> Int = { store.entity("light.demo_a").state?.state == "on" ? 1 : 0 }
+        first.run { _ = logic.value(for: "k", read: read) }
+        second.run { _ = logic.value(for: "k", read: read) }
+        await settle()
+        #expect(mine.runs == 1, "the shared value's first run")
+        store.apply([EntityState(entityId: "light.demo_a", state: "off")])
+        await settle()
+        #expect(mine.runs == 2)
+        store.apply([EntityState(entityId: "light.demo_a", state: "off", attributes: ["x": .number(1)])])
+        await settle()
+        #expect(mine.runs == 3 && mine.skippedEqual == 1, "an input that moves and leaves the answer equal is a skipped-equal run")
+        #expect(other.runs == 0, "another owner's tally never hears of it")
     }
 }

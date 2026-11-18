@@ -50,4 +50,19 @@ struct MainThreadCostMeterTests {
         #expect(report.turns >= 1)
         #expect(report.seconds > 0.03)
     }
+
+    @Test func theTurnsAreReadableInOrderAfterTheReport() async {
+        let meter = MainThreadCostMeter()
+        meter.begin()
+        try? await Task.sleep(for: .milliseconds(20))
+        var total = 0.0
+        for index in 0..<3_000_000 { total += Double(index).squareRoot() }
+        try? await Task.sleep(for: .milliseconds(20))
+        let seen = meter.turnCount
+        let report = meter.finish()
+        #expect(total > 0)
+        #expect(meter.turnCosts.count == report.turns, "the list and the report describe the same turns")
+        #expect(meter.turnCosts.count == seen)
+        #expect(meter.turnCosts.max() == report.worstTurnMs, "the worst turn in the list is the report's worst")
+    }
 }

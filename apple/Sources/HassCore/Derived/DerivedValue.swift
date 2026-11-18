@@ -31,15 +31,20 @@ public final class DerivedValue<Value: Equatable>: Observable {
     private let readers = DerivedReaders()
     private var stored: Value?
     private var isCancelled = false
+    /// The owner whose counts this value's runs belong to (``LogicCost/Tally``), or `nil` for the process-wide counters only.
+    private let tally: LogicCost.Tally?
 
     /// How many times `read` ran, the first run included. Tests and the logic counters read it.
     public private(set) var evaluations = 0
 
     /// Computes the value now and starts following what `read` reads. Call it where no observation is running, or that observation
     /// follows every input too (Observation merges the scopes).
-    /// - Parameter read: Reads observable state and answers. It runs on the main actor, now and after any input it read changed.
-    public init(_ read: @escaping @MainActor () -> Value) {
+    /// - Parameters:
+    ///   - tally: The owner's tally, so a test or a renderer counts the runs of its own values apart from every other owner's.
+    ///   - read: Reads observable state and answers. It runs on the main actor, now and after any input it read changed.
+    public init(tally: LogicCost.Tally? = nil, _ read: @escaping @MainActor () -> Value) {
         self.read = read
+        self.tally = tally
         stored = refresh()
     }
 
@@ -60,7 +65,7 @@ public final class DerivedValue<Value: Equatable>: Observable {
         dirty.clear()
         var result: Value?
         let flag = dirty
-        LogicCost.measure {
+        LogicCost.measure(in: tally) {
             withObservationTracking { readers.run { result = read() } } onChange: { [weak self] in
                 // Fires in the input's `willSet`, on whatever thread wrote it, once: mark now, run on the main actor next turn.
                 flag.set()
@@ -74,7 +79,7 @@ public final class DerivedValue<Value: Equatable>: Observable {
     /// Runs the dirty value and writes ``current`` only when the result is different.
     private func settle() {
         let next = refresh()
-        guard stored != next else { return LogicCost.skippedEqual() }
+        guard stored != next else { return LogicCost.skippedEqual(in: tally) }
         registrar.withMutation(of: self, keyPath: \.current) { stored = next }
     }
 
