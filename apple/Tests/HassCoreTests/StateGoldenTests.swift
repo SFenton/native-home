@@ -195,12 +195,12 @@ struct StateGoldenTests {
 
     @Test func theManifestIsWellFormed() {
         var seen = Set<String>()
-        for group in Self.expected {
-            #expect(Self.classes.contains(group.class), "unknown class \(group.class)")
-            #expect(!group.reason.isEmpty)
-            #expect(!group.ids.isEmpty)
-            for id in group.ids {
-                #expect(seen.insert("\(id)#\(group.field)").inserted, "\(id) \(group.field) is listed twice")
+        for item in Self.expected {
+            #expect(Self.classes.contains(item.class), "unknown class \(item.class)")
+            #expect(!item.reason.isEmpty)
+            #expect(!item.ids.isEmpty)
+            for id in item.ids {
+                #expect(seen.insert("\(id)#\(item.field)").inserted, "\(id) \(item.field) is listed twice")
                 #expect(Self.golden.rows[id] != nil, "\(id) is not a golden row")
             }
         }
@@ -213,7 +213,7 @@ struct StateGoldenTests {
             let lines = actual.map { "\($0.key)\t\($0.old)\t\($0.new)" }.joined(separator: "\n")
             try? lines.write(toFile: path, atomically: true, encoding: .utf8)
         }
-        let listed = Set(Self.expected.flatMap { group in group.ids.map { "\($0)#\(group.field)" } })
+        let listed = Set(Self.expected.flatMap { item in item.ids.map { "\($0)#\(item.field)" } })
         let unlisted = actual.filter { !listed.contains($0.key) }
         let stale = listed.subtracting(actual.map(\.key))
         #expect(unlisted.isEmpty, "differences from the old app not in expected-failures.json: \(unlisted.map { "\($0.key) old=\($0.old) new=\($0.new)" })")
@@ -224,9 +224,9 @@ struct StateGoldenTests {
     @Test func theManifestCountsByClassAndByFix() {
         var byClass: [String: Int] = [:]
         var fixed = 0
-        for group in Self.expected {
-            byClass[group.class, default: 0] += group.ids.count
-            if group.fixedBy != nil { fixed += group.ids.count }
+        for item in Self.expected {
+            byClass[item.class, default: 0] += item.ids.count
+            if item.fixedBy != nil { fixed += item.ids.count }
         }
         #expect(byClass.values.reduce(0, +) == Self.expected.reduce(0) { $0 + $1.ids.count })
         #expect(fixed <= Self.expected.reduce(0) { $0 + $1.ids.count })

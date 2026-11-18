@@ -90,8 +90,8 @@ class ReportTests(unittest.TestCase):
     def test_the_report_names_no_node_page_or_entity(self):
         node = device("secret-node-id", [], extra={"title": "Private Title"})
         data = publication([node], [{"id": "orphan-source", "kind": "model"}])
-        text = lint.report(lint.lint(data, helpers=["input_text.private_helper"]), lint.count_nodes(data))
-        for private in ("secret-node-id", "Private Title", "orphan-source", "private_helper"):
+        text = lint.report(lint.lint(data, helpers=["input_text.demo_private_helper"]), lint.count_nodes(data))
+        for private in ("secret-node-id", "Private Title", "orphan-source", "demo_private_helper"):
             self.assertNotIn(private, text)
         self.assertIn("| empty-map | high | 1 |", text)
         self.assertIn("| empty-map | remote-control | device | 1 |", text)
