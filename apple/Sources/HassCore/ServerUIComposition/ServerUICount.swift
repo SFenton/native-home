@@ -34,9 +34,13 @@ extension ServerUIOperand {
         return withUnsafeMutablePointer(to: &waiting) { flag in
             let watched = ServerUIWatchedReader(base: environment, waiting: flag)
             var held = 0, considered = 0, unknown = 0
+            // The viewer is asked for once, on the first filtered entry: it is a lookup the app has cached, but 32 filtered entries ask once, not 32 times.
+            var viewer: ServerUIViewer?
+            var askedForViewer = false
             for entry in entries {
                 if let people = entry.personEntityIds {
-                    guard let viewer = environment.viewer else { return .loading }
+                    if !askedForViewer { viewer = environment.viewer; askedForViewer = true }
+                    guard let viewer else { return .loading }
                     guard let person = viewer.personEntityId, people.contains(person) else { continue }
                 }
                 considered += 1

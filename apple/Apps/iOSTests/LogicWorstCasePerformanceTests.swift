@@ -131,6 +131,30 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         XCTAssertEqual(count.shown(), Array(repeating: "16", count: 10), "the ten copies agree: half the entities are on")
     }
 
+    /// (d3) The same 32-entry count as one `count` operand (`sh.count@1`), used in 10 places, one counted entity changing at a time. One node and 32
+    /// tracked reads in each evaluation, no pattern match; the answer is the same "16" as (d1), and the runs are the same 10 per change.
+    func testCountOperandOneEntityAtATime() throws {
+        let count = try LargeCount(sites: 10, operand: .count)
+        let measured = LogicDriver(scenario: "LW-d3-count-operand-single").measure(iterations: 32) { iteration in
+            LogicDriver.apply([EntityState(entityId: LogicHouse.watched(iteration), state: LogicHouse.state(iteration, generation: 1))],
+                              to: count.scene.store)
+        }
+        scene = count.scene
+        finish(measured, expectingRuns: 32 * 10)
+        XCTAssertEqual(count.shown(), Array(repeating: "16", count: 10), "the ten copies agree: half the entities are on")
+    }
+
+    /// (d4) The `count` operand with all 32 counted entities changing in one delivery: one shared evaluation, ten redraws only when the answer differs.
+    func testCountOperandAllAtOnce() throws {
+        let count = try LargeCount(sites: 10, operand: .count)
+        let measured = LogicDriver(scenario: "LW-d4-count-operand-all").measure(iterations: 5) { iteration in
+            LogicDriver.apply((0..<32).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
+                              to: count.scene.store)
+        }
+        scene = count.scene
+        finish(measured, expectingRuns: 5)
+    }
+
     /// (d2) Large count: all 32 counted entities change in one delivery. One run per place, not one per entity.
     func testLargeCountAllAtOnce() throws {
         let count = try LargeCount(sites: 10)
@@ -353,15 +377,20 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
 
 // MARK: - A count too large for one published expression
 
-/// A 32-entry count (`math add` over 32 `choose`) read from ten places. A published expression holds 64 operands and a 32-entry count needs 129,
-/// so it is built here as an operand tree, and each place evaluates it in an observation the way a node does.
+/// A 32-entry count read from ten places, written as `math add` over 32 `choose` (scenarios d1 and d2) or as the one `count` operand (d3 and d4).
+/// A published expression holds 64 operands and the expanded count needs 129, so it is built here as an operand tree, and each place evaluates it
+/// in an observation the way a node does.
 @MainActor
 final class LargeCount {
     let scene: LogicScene
     private let bag = UKObservationBag()
     private var labels: [UILabel] = []
 
-    init(sites: Int, entries: Int = 32) throws {
+    /// How the count is written: `math add` over `choose` (a published expression holds 64 operands, so only a tree built here can), or the one
+    /// `count` operand a published document uses (`sh.count@1`).
+    enum Operand { case expanded, count }
+
+    init(sites: Int, entries: Int = 32, operand style: Operand = .expanded) throws {
         var document = LogicDocument()
         document.sources = (0..<entries).map { ("w\($0)", LogicHouse.watched($0)) }
         document.tabs = [.init(id: "home", nodes: [LogicDocument.text("n", value: LogicDocument.literal("count"))])]
@@ -373,7 +402,9 @@ final class LargeCount {
         let groups = stride(from: 0, to: entries, by: 8).map { start in
             ServerUIOperand.math(.add, (start..<min(start + 8, entries)).map(entry))
         }
-        let operand = ServerUIOperand.math(.add, groups)
+        let operand = style == .count
+            ? ServerUIOperand.count((0..<entries).map { .init(test: .state(sourceId: "w\($0)", path: ["state"], values: ["on"]), personEntityIds: nil) })
+            : ServerUIOperand.math(.add, groups)
         bag.evaluatesAuthoredLogic = true
         let renderer = scene.renderer
         labels = (0..<sites).map { _ in UILabel() }

@@ -101,6 +101,11 @@ struct LogicDocument {
         ["type": "state", "sourceId": source, "path": ["state"], "in": values]
     }
 
+    /// How many of `sources` have a state in `values` (`sh.count@1`): one entry for each.
+    static func count(_ sources: [String], in values: [String] = ["on"]) -> [String: Any] {
+        ["type": "count", "of": sources.map { ["test": isState($0, in: values)] }]
+    }
+
     /// `pattern` with each `{name}` filled from `args`.
     static func format(_ pattern: String, _ args: [String: [String: Any]]) -> [String: Any] {
         ["type": "format", "pattern": pattern, "args": args]
@@ -156,6 +161,8 @@ struct LogicDocument {
         if nodes.contains(where: computed) || tabs.contains(where: { $0.badge.map { contains("choose", in: $0) } ?? false }) { ids.append("sh.rules@1") }
         if nodes.contains(where: { $0["visibleWhen"] != nil }) { ids.append("sh.visible-when@1") }
         if tabs.contains(where: { $0.badge != nil }) { ids.append("sh.badges@1") }
+        // A count of several entities (`sh.count@1`), in a node or in a tab's badge.
+        if nodes.contains(where: { contains("count", in: $0) }) || tabs.contains(where: { $0.badge.map { contains("count", in: $0) } ?? false }) { ids.append("sh.count@1") }
         if !models.isEmpty { ids.append("sh.app-state@1") }
         return ids
     }

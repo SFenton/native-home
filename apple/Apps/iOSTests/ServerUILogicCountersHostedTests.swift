@@ -277,7 +277,14 @@ final class LogicDocumentCapabilityTests: XCTestCase {
         var clock = LogicDocument()
         clock.models = [LogicDocument.clockSource]
         clock.tabs = [.init(id: "a", nodes: [LogicDocument.text("t", value: LogicDocument.format("{m}", ["m": LogicDocument.read("clock", path: ["minute"], as: "number")]))])]
-        return [plain, rules, clock]
+        // A count in a text and another in a tab's badge: the manifest names `sh.count@1`, and a count in a badge alone needs no rules.
+        var counting = LogicDocument()
+        counting.sources = [("a", LogicHouse.watched(0)), ("b", LogicHouse.watched(1))]
+        counting.tabs = [.init(id: "a", nodes: [LogicDocument.text("t", value: LogicDocument.count(["a", "b"]))], badge: LogicDocument.count(["a", "b"]))]
+        var countingBadge = LogicDocument()
+        countingBadge.sources = [("a", LogicHouse.watched(0))]
+        countingBadge.tabs = [.init(id: "a", nodes: [LogicDocument.text("t", value: LogicDocument.literal("x"))], badge: LogicDocument.count(["a"]))]
+        return [plain, rules, clock, counting, countingBadge]
     }
 
     func testTheManifestMatchesTheDocumentExactly() throws {
