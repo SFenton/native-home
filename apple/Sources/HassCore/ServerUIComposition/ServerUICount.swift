@@ -69,7 +69,9 @@ struct ServerUIWatchedReader<Base: ServerUIReading>: ServerUIReading {
         return result
     }
 
-    func read(sourceId: String, path: [String]) -> ServerUIReadResult { seen(base.read(sourceId: sourceId, path: path)) }
+    /// A count's entries read an entity whose state is `unavailable` as that text, so a test can ask for it and a house of them is a known 0.
+    func read(sourceId: String, path: [String]) -> ServerUIReadResult { seen(base.readStateText(sourceId: sourceId, path: path)) }
+    func readStateText(sourceId: String, path: [String]) -> ServerUIReadResult { seen(base.readStateText(sourceId: sourceId, path: path)) }
     func readRaw(sourceId: String) -> ServerUIReadResult { seen(base.readRaw(sourceId: sourceId)) }
     func readChanged(sourceId: String) -> ServerUIReadResult { seen(base.readChanged(sourceId: sourceId)) }
     func viewerPersonState() -> ServerUIReadResult { seen(base.viewerPersonState()) }

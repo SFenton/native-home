@@ -112,6 +112,27 @@ final class ServerUICountHostedTests: XCTestCase {
         }
     }
 
+    /// A count's own reads give an unavailable entity as its text, as the Studio does: a test for `unavailable` counts it, and a house of unavailable
+    /// doors counted for `on` is a known 0 (no badge) rather than a count that cannot be told.
+    func testACountReadsAnUnavailableEntityAsItsTextAtEveryFamilyWidth() throws {
+        var json = try badgeJSON(countOperand())
+        json = try ServerUIRendererFixture.changing(json, path: "document/navigation/tabs/0/badge", to: .object(["type": .string("value"), "value":
+            .object(["type": .string("count"), "of": .array((0..<4).map { index in
+                .object(["test": .object(["type": .string("state"), "sourceId": .string("count-\(index)"), "path": .array([.string("state")]),
+                                          "in": .array([.string("unavailable")])])])
+            })])]))
+        for size in Self.sizes {
+            let store = EntityStore()
+            store.replaceAll(states([2], unavailable: [0, 1, 3]))
+            let (renderer, window) = try badgeHost(json, size: size, store: store)
+            defer { window.isHidden = true }
+            XCTAssertTrue(waitForBadge(renderer, "3"), "\(size): three doors are unavailable: \(String(describing: try? shown(renderer)))")
+            store.apply(states([0, 1, 2, 3]))
+            XCTAssertTrue(waitForBadge(renderer, nil), "\(size): none unavailable: 0, no badge")
+            HostedPage.hideTracked()
+        }
+    }
+
     /// An entry marked for a person counts only while that person is looking; the count waits, keeping its badge, until the viewer is known.
     func testACountThatFollowsWhoIsLookingWaitsForTheViewerAtEveryFamilyWidth() throws {
         let json = try badgeJSON(countOperand(entries: 3, people: [0: ["person.demo_sam"], 1: ["person.demo_alex"]]))

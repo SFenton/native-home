@@ -117,6 +117,28 @@ struct ServerUICountTests {
         #expect(reader.reads == 0)
     }
 
+    // MARK: Unavailable is text
+
+    /// A host whose ordinary read calls an unavailable entity unavailable, as the app's does for every other rule.
+    private final class Host: ServerUIReading, @unchecked Sendable {
+        var viewer: ServerUIViewer?
+        func read(sourceId: String, path: [String]) -> ServerUIReadResult { .unavailable }
+        func readStateText(sourceId: String, path: [String]) -> ServerUIReadResult { .value(.string("unavailable")) }
+        func viewerPersonState() -> ServerUIReadResult { .unavailable }
+    }
+
+    /// Inside a count the state `unavailable` is the word the Studio's evaluator gives a test: `in: ["unavailable"]` counts it, and `in: ["on"]`
+    /// does not, so a house of them is a known 0. Outside a count the same host still reads it as unavailable.
+    @Test func insideACountAnUnavailableStateIsItsText() throws {
+        let asking = try operand([state("a", "unavailable"), state("b", "unavailable", "unknown")])
+        let notAsking = try operand([state("a", "on"), state("b", "on")])
+        let host = Host()
+        #expect(asking.evaluate(host) == .value(.number(2)))
+        #expect(notAsking.evaluate(host) == .value(.number(0)))
+        #expect(ServerUIOperand.read(sourceId: "a", path: ["state"], as: .string).evaluate(host) == .unavailable, "every other read is unchanged")
+        #expect(ServerUIPredicate.state(sourceId: "a", path: ["state"], values: ["unavailable"]).evaluate(host) == .unknown)
+    }
+
     // MARK: The typed form
 
     @Test func theTypedFormReportsWhatItReads() throws {
