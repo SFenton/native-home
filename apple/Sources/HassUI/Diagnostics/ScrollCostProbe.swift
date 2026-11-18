@@ -142,7 +142,7 @@ final class ScrollCostDriver {
     /// and the entities they carried, how many of those the main thread compared against how many boxes really changed,
     /// deliveries carrying most of the house, socket transitions, subscriptions started, full sets received, network path updates
     /// against the ones that counted as a new network, route moves to the home and public addresses, and the main thread's
-    /// CPU time inside the deliveries (including releasing what they replaced).
+    /// CPU time inside the deliveries (including releasing what they replaced), then the authored-logic runs, their time and the runs that changed nothing.
     static func deliveryNote(from before: [String: Int], to after: [String: Int]) -> String {
         func delta(_ key: String) -> Int { (after[key] ?? 0) - (before[key] ?? 0) }
         return "deliveries=\(delta("entity.deliveries")) changed=\(delta("entity.changed")) received=\(delta("entity.received"))"
@@ -151,6 +151,9 @@ final class ScrollCostDriver {
             + " path_updates=\(delta("connection.pathUpdates")) net_changes=\(delta("connection.networkChanges"))"
             + " route_local=\(delta("connection.route.local")) route_public=\(delta("connection.route.public"))"
             + " delivery_ms=\(String(format: "%.1f", Double(delta("entity.mainUs")) / 1000))"
+            // The authored-logic evaluations those deliveries caused (`LogicCost`): runs, their time, and the ones that changed no view.
+            + " logic_runs=\(delta(LogicCost.runsCounter)) logic_run_ms=\(String(format: "%.1f", Double(delta(LogicCost.runMicrosecondsCounter)) / 1000))"
+            + " logic_skipped=\(delta(LogicCost.skippedEqualCounter))"
     }
 
     /// The cold launch as one line: the counters since process start, and when the first live set was applied.

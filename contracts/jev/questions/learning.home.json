@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 27,
+  "version": 29,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -176,6 +176,7 @@
     ".agents/testing/apple/devices.md": "Device matrix: the simulators every journey runs on and how to run them. (read when: running UI or accessibility tests.)",
     ".agents/testing/apple/ha-companion.md": "Home Assistant companion app: the official Home Assistant iOS app built from source onto our simulators, for side-by-side comparison of pages and modals. (read when: checking a native page against how Home Assistant's own app presents the same entities.)",
     ".agents/testing/apple/journey-expectations.md": "Journey expectations",
+    ".agents/testing/apple/logic-evaluation.md": "Logic evaluation: what authored logic (a node's `visibleWhen`, rules, badges and text expressions, a tab's badge and visibility) costs the main thread: the counters, the worst-case scenarios and the budgets. (read when: changing how logic is evaluated, observed or cached, or the live-update path. Th...",
     ".agents/testing/apple/performance.md": "Performance tests: how scroll, navigation, launch and layout-change cost are measured, the budgets, and the rules that follow. Dated measurements and fix write-ups are in the [performance log](../../archive/performance-log.md) (why only). (read when: a page stutters, or after changing a page's layou...",
     ".agents/testing/apple/strategy.md": "Test strategy and phases: which tests to write at which maturity, and what certification requires. (read when: deciding what to test for your change.)",
     ".agents/testing/apple/suites.md": "Test suites: composing journeys",

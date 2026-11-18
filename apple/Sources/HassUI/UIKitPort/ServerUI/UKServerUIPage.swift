@@ -1185,7 +1185,11 @@ final class UKServerUINode {
     /// The node's view, built once and kept for the node's lifetime.
     let view: UIView
     /// The observations tied to the node's lifetime.
-    let bag = UKObservationBag()
+    let bag: UKObservationBag = {
+        let bag = UKObservationBag()
+        bag.evaluatesAuthoredLogic = true
+        return bag
+    }()
     /// A grid's grouping by state, kept for the node's lifetime (`sh.grid-state-groups@1`).
     var grouping: UKServerUIGridGrouping?
     /// The views the node last placed inside itself, to detect a changed arrangement.

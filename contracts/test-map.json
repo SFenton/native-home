@@ -2430,7 +2430,8 @@
     "ServerUIHomeHostedTests",
     "ServerUIRoomsRendererTests",
     "UKHostedShellTests",
-    "UKHostedRootTests"
+    "UKHostedRootTests",
+    "ServerUILogicCountersHostedTests"
    ]
   },
   {
@@ -2468,7 +2469,8 @@
     "ServerUIHomeHostedTests",
     "ServerUIRoomsRendererTests",
     "UKHostedShellTests",
-    "UKHostedRootTests"
+    "UKHostedRootTests",
+    "ServerUILogicCountersHostedTests"
    ]
   },
   {
@@ -2631,6 +2633,50 @@
    "hosted": [
     "ServerUITileInkHostedTests",
     "ServerUIStateStyleHostedTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/LogicWorstCase",
+   "swift": [],
+   "hosted": [
+    "LogicWorstCasePerformanceTests",
+    "ServerUILogicCountersHostedTests",
+    "LogicDocumentCapabilityTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/ServerUILogicCounters",
+   "swift": [],
+   "hosted": [
+    "ServerUILogicCountersHostedTests",
+    "LogicDocumentCapabilityTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Sources/HassTelemetry/LogicCost",
+   "swift": [
+    "LogicCostTests"
+   ],
+   "hosted": [
+    "ServerUILogicCountersHostedTests",
+    "LogicDocumentCapabilityTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Tests/HassTelemetryTests/LogicCost",
+   "swift": [
+    "LogicCostTests"
+   ],
+   "journeys": []
+  },
+  {
+   "prefix": "apple/Tests/HassCoreTests/ServerUILogicEvaluation",
+   "swift": [
+    "ServerUILogicEvaluationTests"
    ],
    "journeys": []
   }

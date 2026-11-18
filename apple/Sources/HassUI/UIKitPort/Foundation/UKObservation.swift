@@ -1,4 +1,5 @@
 #if os(iOS)
+import HassTelemetry
 import Observation
 import UIKit
 
@@ -71,6 +72,9 @@ public final class UKObservationBag {
     /// Wraps every run of an observation made after it is set, the first and each re-run: a repeat's cell sets the item and index its
     /// expressions read here, so the same closure reads the same cell each time it runs. `nil` runs the closure as it is.
     public var around: (@MainActor (@MainActor () -> Void) -> Void)?
+    /// Whether the closures observed through this bag evaluate authored logic (a node's rules, badges and expressions). Each of their runs, the
+    /// first and every re-run, is counted, timed and signposted (`HassTelemetry.LogicCost`); a bag that draws no authored logic leaves it off.
+    public var evaluatesAuthoredLogic = false
 
     public init() {}
 
@@ -81,12 +85,15 @@ public final class UKObservationBag {
 
     /// Observes what `track` reads and runs `apply` after it, outside the tracking scope (``UKObservation/init(track:apply:)``).
     public func observe(track: @escaping @MainActor () -> Void, apply: @escaping @MainActor () -> Void) {
-        observations.append(UKObservation(track: wrapped(track), apply: wrapped(apply)))
+        observations.append(UKObservation(track: wrapped(track), apply: wrapped(apply, measured: false)))
     }
 
-    private func wrapped(_ run: @escaping @MainActor () -> Void) -> @MainActor () -> Void {
-        guard let around else { return run }
-        return { around(run) }
+    /// `run` inside the cell's scope; and, for the closure that evaluates (not the one that applies), inside the logic meter.
+    private func wrapped(_ run: @escaping @MainActor () -> Void, measured: Bool = true) -> @MainActor () -> Void {
+        let inner: @MainActor () -> Void
+        if let around { inner = { around(run) } } else { inner = run }
+        guard measured, evaluatesAuthoredLogic else { return inner }
+        return { LogicCost.measure(inner) }
     }
 
     /// Ends every observation, for a reused cell before it binds to another model.

@@ -1,6 +1,7 @@
 #if os(iOS)
 import HassCore
 import HassDesign
+import HassTelemetry
 import UIKit
 
 // MARK: - Per-node rules and bound controls
@@ -22,7 +23,7 @@ extension UKServerUIPage {
             var shown = rule.isShown(renderer.reader(), previous: entry.shown)
             if !shown, guarded.contains(where: { renderer.callRunner.isBusy(node: $0) }) { shown = true }
             entry.shown = shown
-            guard entry.view.isHidden == shown else { return }
+            guard entry.view.isHidden == shown else { return LogicCost.skippedEqual() }
             entry.view.isHidden = !shown
             entry.view.ukRemeasureContainers()
             self.body?.contentChanged(animated: false)

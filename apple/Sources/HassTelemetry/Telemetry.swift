@@ -75,6 +75,8 @@ public enum Telemetry {
         public static let layoutChange: StaticString = "LayoutChange"
         /// One publication of the second clock (`now-second`, `sh.countdown@1`), from the tick firing to the value written; the 1 Hz path.
         public static let secondTick: StaticString = "SecondTick"
+        /// One evaluation of authored logic (``LogicCost``): a node's rule, badge or expression re-run after an entity it read changed.
+        public static let logicRun: StaticString = "LogicRun"
     }
 
     /// The part of a transition a record measures, stored in the record's `detail` (``TelemetryLog/phaseStats``).

@@ -2,6 +2,7 @@
 import Accessibility
 import HassCore
 import HassDesign
+import HassTelemetry
 import UIKit
 
 // MARK: - Badges
@@ -52,7 +53,7 @@ enum UKServerUIBadgeViews {
             switch ServerUILayoutRules.badge(value, in: renderer.reader()) {
             case .loading: return
             case .text(let text):
-                guard text != last else { return }
+                guard text != last else { return LogicCost.skippedEqual() }
                 last = text
                 show(text, on: view)
             }
