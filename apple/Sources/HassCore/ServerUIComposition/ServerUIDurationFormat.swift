@@ -14,7 +14,7 @@ import Foundation
 /// | ``Style/clock`` | `05:00`, `01:00:00` | whole seconds rounded down, never below `00:00`; hours only from one hour (`BathroomFanController.formatRemaining`) |
 /// | ``Style/minutesSeconds`` | `4:30`, `75:00` | seconds rounded **up**, never below `0:00`; unbounded minutes (`BedFormat.countdown`) |
 /// | ``Style/span`` | `1 hour`, `3 days`, `3 weeks`, `2 months` | the size of the number: under a day in hours, under 21 days in days, under 60 days in weeks, else months of 30 days; the amount rounded (a tie away from zero), at least 1 (`TodoItem.dueLabel`) |
-public struct ServerUIDurationFormat: Equatable, Sendable {
+public struct ServerUIDurationFormat: Hashable, Sendable {
     /// The four drawings.
     public enum Style: String, Sendable, CaseIterable {
         case compact

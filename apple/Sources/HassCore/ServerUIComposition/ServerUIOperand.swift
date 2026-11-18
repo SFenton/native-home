@@ -7,7 +7,7 @@ import Foundation
 ///
 /// Evaluation is total (see ``ServerUIReadResult``) and reads only through ``ServerUIReading``, so the set of entities an
 /// evaluation touches is the set ``sourceIds`` reports.
-public indirect enum ServerUIOperand: Equatable, Sendable {
+public indirect enum ServerUIOperand: Hashable, Sendable {
     /// A fixed JSON value.
     case literal(JSONValue)
     /// The value at `path` of a declared source, as one kind.
@@ -57,7 +57,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     public enum ViewerField: String, Sendable, CaseIterable { case userId, isAdmin, personEntityId }
 
     /// One branch of a ``map(of:cases:otherwise:)``.
-    public struct MapCase: Equatable, Sendable {
+    public struct MapCase: Hashable, Sendable {
         public let equals: JSONValue
         public let then: ServerUIOperand
         init(equals: JSONValue, then: ServerUIOperand) {
@@ -74,7 +74,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
     }
 
     /// One branch of a ``choose(cases:otherwise:)``.
-    public struct ChooseCase: Equatable, Sendable {
+    public struct ChooseCase: Hashable, Sendable {
         public let when: ServerUIPredicate
         public let then: ServerUIOperand
         init(when: ServerUIPredicate, then: ServerUIOperand) {
@@ -369,7 +369,7 @@ public indirect enum ServerUIOperand: Equatable, Sendable {
 
 /// How a number fills a `format` hole. Locale independent on purpose: authored copy is English and a published document must
 /// read the same on every phone.
-public struct ServerUINumberFormat: Equatable, Sendable {
+public struct ServerUINumberFormat: Hashable, Sendable {
     /// The most digits after the decimal point, 0 to 6. Trailing zeros are dropped down to ``minimumFractionDigits``, so 2.50 shows as 2.5.
     public let maximumFractionDigits: Int
     /// The fewest digits after the decimal point, 0 to ``maximumFractionDigits`` (`sh.pipeline-operands@1`): 1 keeps `72` as `72.0`.

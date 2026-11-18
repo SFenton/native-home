@@ -20,7 +20,7 @@ public enum ServerUIDateStyle: String, Sendable, CaseIterable {
 
 /// How one argument of a `format` operand is drawn: a number with at most six fraction digits, a date in one of the closed styles, or
 /// text in a letter case.
-public enum ServerUIFormatSpec: Equatable, Sendable {
+public enum ServerUIFormatSpec: Hashable, Sendable {
     case number(ServerUINumberFormat)
     case date(ServerUIDateStyle)
     /// `{ text: { case } }` (`sh.pipeline-operands@1`).
