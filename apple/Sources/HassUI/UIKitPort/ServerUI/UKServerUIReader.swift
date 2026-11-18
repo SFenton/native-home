@@ -39,6 +39,9 @@ final class UKServerUIViewerSource {
                               personEntityId: lookup.personID(forUser: id, revision: revision, in: store))
     }
 
+    /// How many times the house was scanned for the viewer's person; tests read it to prove a read costs no scan.
+    var personScans: Int { lookup.scans }
+
     /// The last person lookup, kept off Observation: writing it during a read must not wake the readers.
     @ObservationIgnored private var lookup = PersonLookup()
 }

@@ -26,6 +26,8 @@ public final class DerivedValue<Value: Equatable>: Observable {
     private let registrar = ObservationRegistrar()
     private let read: @MainActor () -> Value
     private let dirty = DirtyFlag()
+    /// What this value's own runs read, so a derived value built on another keeps it alive.
+    private let readers = DerivedReaders()
     private var stored: Value?
     private var isScheduled = false
     private var isCancelled = false
@@ -43,6 +45,7 @@ public final class DerivedValue<Value: Equatable>: Observable {
     /// The result, tracked by the observation that reads it. Runs first when an input changed since the last run.
     public var current: Value {
         if dirty.isSet, !isCancelled { settle() }
+        DerivedReaders.note(self)
         registrar.access(self, keyPath: \.current)
         return stored!
     }
@@ -58,7 +61,7 @@ public final class DerivedValue<Value: Equatable>: Observable {
         var result: Value?
         let flag = dirty
         LogicCost.measure {
-            withObservationTracking { result = read() } onChange: { [weak self] in
+            withObservationTracking { readers.run { result = read() } } onChange: { [weak self] in
                 // Fires in the input's `willSet`, on whatever thread wrote it, once: mark now, run on the main actor next turn.
                 flag.set()
                 Task { @MainActor [weak self] in self?.schedule() }

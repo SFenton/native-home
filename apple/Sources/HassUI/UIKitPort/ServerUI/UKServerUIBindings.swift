@@ -190,6 +190,7 @@ final class UKServerUIBindings {
             return (source.id, retained ?? ServerUIClimateAdapter(configuration: configuration, store: context.store, caller: context.caller,
                                                                  controller: climateController))
         })
+        if definitions != next { sourceGeneration &+= 1 }
         definitions = next
     }
 
@@ -224,11 +225,51 @@ final class UKServerUIBindings {
     }
 
     /// The projected status of a source; `words` are a room overview tile's own (`sh.state-words@1`).
+    ///
+    /// Without `words` the projection sums every member of the source, and every chip, tile and expression that reads the source would
+    /// run that sum alone, so it is one ``DerivedValue`` per source (``SharedKey``): it runs once per change however many read it, and wakes
+    /// them only when the projection differs.
     func status(_ sourceId: String, words: ServerUIStateWords? = nil) -> ServerUIHomeStatus.Value? {
+        guard words == nil else { return projectStatus(sourceId, words: words) }
+        let key = SharedKey(sourceId: sourceId, generation: sourceGeneration, redacted: ScreenshotPrivacy.isRedacting)
+        return sharedStatuses.value(for: key) { [weak self] in self?.projectStatus(sourceId, words: nil) }.current
+    }
+
+    private func projectStatus(_ sourceId: String, words: ServerUIStateWords?) -> ServerUIHomeStatus.Value? {
         guard case .homeStatus(_, let configuration) = definitions[sourceId] else { return nil }
         return ServerUIHomeStatus.project(configuration, pending: context.valuesPending,
                                           redacted: ScreenshotPrivacy.isRedacting && [.occupancy, .entity].contains(configuration.projection),
                                           words: words, read: homeEntity)
+    }
+
+    /// What names a shared model-source value: the source, the publication's sources it was built from (a changed source is a new
+    /// value, so a rebuilt node never reads the old one) and whether screenshots redact (read outside Observation, so it is part of the name).
+    private struct SharedKey: Hashable {
+        let sourceId: String
+        let generation: Int
+        let redacted: Bool
+    }
+
+    /// The words of a `todo-counts` source and the phase they belong to.
+    private struct TodoWords: Equatable {
+        let text: String
+        let phase: String
+    }
+
+    /// Counts the changes of the document's sources, so a derived value built from one set of sources is not shared with the next.
+    private var sourceGeneration = 0
+    private let sharedStatuses = DerivedValues<SharedKey, ServerUIHomeStatus.Value?>()
+    private let sharedTodoWords = DerivedValues<SharedKey, TodoWords>()
+    private let sharedOperands = DerivedValues<ServerUIOperand, ServerUIReadResult>()
+
+    /// The answer of an authored operand. A tree that does real work and reads nothing of the place it sits in (``ServerUIOperand/isWorthSharing``)
+    /// is one ``DerivedValue`` for every use of it, so ten copies of one count run once; anything else is evaluated where it is used.
+    func result(of operand: ServerUIOperand, in reader: UKServerUIReader) -> ServerUIReadResult {
+        guard operand.isWorthSharing, readerProvider != nil else { return operand.evaluate(reader) }
+        return sharedOperands.value(for: operand) { [weak self] in
+            guard let reader = self?.readerProvider?() else { return .unavailable }
+            return operand.evaluate(reader)
+        }.current
     }
 
     /// Shell binds navigation copy over exactly the sources its overview tiles use.
@@ -276,7 +317,11 @@ final class UKServerUIBindings {
         let readValue: (D.Read) -> ServerUIReadResult = { self.textResult($0) }
         let result: ServerUIReadResult
         if let environment = readerProvider?() {
-            result = ServerUIStringResolver.resolve(value, read: readValue, in: environment)
+            if case .expression(let operand, let fallback) = value {
+                result = ServerUIStringResolver.text(of: self.result(of: operand, in: environment), fallback: fallback)
+            } else {
+                result = ServerUIStringResolver.resolve(value, read: readValue, in: environment)
+            }
         } else if case .expression = value {
             return .unavailable
         } else {
@@ -301,6 +346,12 @@ final class UKServerUIBindings {
 
     /// The ids already matched against the entity id grammar, so a literal id costs a dictionary hit.
     private var validIDs = EntityIDCache()
+
+    /// How many ids were matched against the grammar; tests read it to prove a repeat read matches nothing.
+    var entityIDMatches: Int { validIDs.matches }
+
+    /// How many authored operands are shared right now; tests read it to prove identical copies are one value.
+    var sharedOperandCount: Int { sharedOperands.liveCount }
 
     func entityID(for sourceID: String) -> UKServerUIValue<String> {
         guard let source = definitions[sourceID], let entityId = source.entityId else { return .unavailable }
@@ -345,23 +396,18 @@ final class UKServerUIBindings {
             }
         }
         if case .todoCounts(_, let configuration) = source {
-            let text: String
-            let phase: String
-            if context.valuesPending {
-                text = configuration.loadingText
-                phase = "loading"
-            } else if let result = ServerUITodoCounts.text(configuration: configuration, state: {
-                self.context.store.entity($0).state?.state
-            }) {
-                text = result
-                phase = "ready"
-            } else {
-                text = configuration.unavailableText
-                phase = "unavailable"
-            }
+            let key = SharedKey(sourceId: read.sourceId, generation: sourceGeneration, redacted: false)
+            let words = sharedTodoWords.value(for: key) { [weak self] in
+                guard let self else { return TodoWords(text: configuration.unavailableText, phase: "unavailable") }
+                if self.context.valuesPending { return TodoWords(text: configuration.loadingText, phase: "loading") }
+                if let result = ServerUITodoCounts.text(configuration: configuration, state: { self.context.store.entity($0).state?.state }) {
+                    return TodoWords(text: result, phase: "ready")
+                }
+                return TodoWords(text: configuration.unavailableText, phase: "unavailable")
+            }.current
             switch read.path {
-            case ["stateText"]: return .ready(.string(text))
-            case ["phase"]: return .ready(.string(phase))
+            case ["stateText"]: return .ready(.string(words.text))
+            case ["phase"]: return .ready(.string(words.phase))
             default: return .unavailable
             }
         }

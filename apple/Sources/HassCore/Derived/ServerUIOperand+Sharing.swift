@@ -11,6 +11,15 @@ public extension ServerUIOperand {
     /// reads one of those is evaluated where it is used.
     var isShareable: Bool { !readsClock && isScopeFree }
 
+    /// Whether sharing pays: the tree is shareable and does some work of its own. A literal or a single read costs one box lookup
+    /// wherever it is used; a derived value for it would cost more than it saves.
+    var isWorthSharing: Bool {
+        switch self {
+        case .literal, .read, .viewer, .clock, .rawState, .lastChanged, .listCount, .control, .item, .index, .param: false
+        default: isShareable
+        }
+    }
+
     fileprivate var isScopeFree: Bool {
         switch self {
         case .item, .index, .param, .control: false

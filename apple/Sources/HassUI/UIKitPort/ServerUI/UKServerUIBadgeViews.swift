@@ -50,7 +50,7 @@ enum UKServerUIBadgeViews {
         var last: String?
         entry.bag.observe { [weak view = entry.view, weak renderer] in
             guard let view, let renderer else { return }
-            switch ServerUILayoutRules.badge(value, in: renderer.reader()) {
+            switch ServerUILayoutRules.badge(result: renderer.bindings.result(of: value, in: renderer.reader())) {
             case .loading: return
             case .text(let text):
                 guard text != last else { return LogicCost.skippedEqual() }

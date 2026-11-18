@@ -380,7 +380,8 @@ final class LargeCount {
             bag.observe { [weak label, weak renderer] in
                 guard let label, let renderer else { return }
                 let text: String
-                if case .value(.number(let value)) = operand.evaluate(renderer.reader()) { text = String(Int(value)) } else { text = "?" }
+                // The path a text expression takes in the app (`UKServerUIBindings.string`): identical copies share one evaluation.
+                if case .ready(let value) = renderer.bindings.string(.expression(operand, fallback: nil)) { text = value } else { text = "?" }
                 if label.text == text { LogicCost.skippedEqual() } else { label.text = text }
             }
         }
