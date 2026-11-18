@@ -33,6 +33,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterator
 
+ROOT = Path(__file__).resolve().parents[2]
 ERROR_WORDS = {"unknown", "unavailable", "error", "n/a", "--", "-", "?"}
 BINARY = ("on", "off")
 DEVICE_KINDS = {"device", "card"}
@@ -155,6 +156,10 @@ def main(argv: list[str] | None = None) -> int:
     findings = lint(data, helpers)
     text = report(findings, count_nodes(data), args.note)
     if args.report:
+        build = (ROOT / "build").resolve()
+        if build not in args.report.resolve().parents:
+            print(f"lint: --report must be under {build} (git-ignored); got {args.report}", file=sys.stderr)
+            return 2
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(text, encoding="utf-8")
     if args.json:

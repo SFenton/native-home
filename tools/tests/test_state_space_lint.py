@@ -3,6 +3,7 @@
 import contextlib
 import io
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -100,7 +101,11 @@ class ReportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "pub.json"
             path.write_text(json.dumps(publication([device("d1", []), device("d2", ["on"])])))
-            out = Path(tmp) / "report.md"
+            out = lint.ROOT / "build/state-lint-test/report.md"
+            self.addCleanup(lambda: shutil.rmtree(out.parent, ignore_errors=True))
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(lint.main([str(path), "--report", str(Path(tmp) / "elsewhere.md")]), 2)
+            self.assertFalse((Path(tmp) / "elsewhere.md").exists())
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(lint.main([str(path), "--report", str(out), "--json"]), 1)
             self.assertIn("partial-map", out.read_text())

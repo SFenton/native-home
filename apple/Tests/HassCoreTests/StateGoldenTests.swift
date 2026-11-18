@@ -51,7 +51,7 @@ struct StateGoldenTests {
         let `class`: String
         let reason: String
         let fixedBy: String?
-        let ids: [String]
+        let ids: [String: String]
     }
 
     /// A difference between the old answer and the new one.
@@ -64,19 +64,19 @@ struct StateGoldenTests {
         var key: String { "\(id)#\(field)" }
     }
 
-    private struct Space: Decodable { let rows: [Row] }
-    private struct Registry: Decodable { let kinds: [Kind] }
-    private struct Golden: Decodable { let pin: String; let hassCoreTree: String; let rowCount: Int; let rows: [String: JSONValue] }
+    private struct Space: Decodable, Sendable { let rows: [Row] }
+    private struct Registry: Decodable, Sendable { let kinds: [Kind] }
+    private struct Golden: Decodable, Sendable { let pin: String; let hassCoreTree: String; let rowCount: Int; let rows: [String: JSONValue] }
 
     private static func load<T: Decodable>(_ type: T.Type, _ name: String) -> T {
         do { return try JSONDecoder().decode(T.self, from: Data(contentsOf: directory.appendingPathComponent(name))) }
         catch { fatalError("StateGolden/\(name): \(error)") }
     }
 
-    nonisolated(unsafe) static let rows: [Row] = load(Space.self, "state-space.json").rows
-    nonisolated(unsafe) private static let golden = load(Golden.self, "state-golden.json")
-    nonisolated(unsafe) static let expected: [Expected] = load([Expected].self, "expected-failures.json")
-    nonisolated(unsafe) static let kinds: [String: Kind] = {
+    static let rows: [Row] = load(Space.self, "state-space.json").rows
+    private static let golden = load(Golden.self, "state-golden.json")
+    static let expected: [Expected] = load([Expected].self, "expected-failures.json")
+    static let kinds: [String: Kind] = {
         let url = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("tools/state_space/kinds.json")
         guard let registry = try? JSONDecoder().decode(Registry.self, from: Data(contentsOf: url)) else { fatalError("kinds.json") }
@@ -85,7 +85,7 @@ struct StateGoldenTests {
 
     // MARK: Evaluation
 
-    /// The line a remote device or card draws today (`UKServerUIRemoteAtoms.swift`, `states.first { $0.value == display.state }?.label ?? fallback`),
+    /// A test-local mirror, not production code: the remote rows compare the old app with this copy until `state-text-core` lands. The line a remote device or card draws today (`UKServerUIRemoteAtoms.swift`, `states.first { $0.value == display.state }?.label ?? fallback`),
     /// kept in the shape of `ServerUIRemoteDeviceText.line` so the swap is one call.
     enum CurrentRemoteLine {
         static func line(isUnavailable: Bool, unavailable: String, state: String, options: [Row.Option], controllerText: String?,
@@ -199,7 +199,7 @@ struct StateGoldenTests {
             #expect(Self.classes.contains(item.class), "unknown class \(item.class)")
             #expect(!item.reason.isEmpty)
             #expect(!item.ids.isEmpty)
-            for id in item.ids {
+            for id in item.ids.keys {
                 #expect(seen.insert("\(id)#\(item.field)").inserted, "\(id) \(item.field) is listed twice")
                 #expect(Self.golden.rows[id] != nil, "\(id) is not a golden row")
             }
@@ -213,10 +213,13 @@ struct StateGoldenTests {
             let lines = actual.map { "\($0.key)\t\($0.old)\t\($0.new)" }.joined(separator: "\n")
             try? lines.write(toFile: path, atomically: true, encoding: .utf8)
         }
-        let listed = Set(Self.expected.flatMap { item in item.ids.map { "\($0)#\(item.field)" } })
-        let unlisted = actual.filter { !listed.contains($0.key) }
-        let stale = listed.subtracting(actual.map(\.key))
+        var listed: [String: String] = [:]
+        for item in Self.expected { for (id, new) in item.ids { listed["\(id)#\(item.field)"] = new } }
+        let unlisted = actual.filter { listed[$0.key] == nil }
+        let changed = actual.filter { listed[$0.key] != nil && listed[$0.key] != $0.new }
+        let stale = Set(listed.keys).subtracting(actual.map(\.key))
         #expect(unlisted.isEmpty, "differences from the old app not in expected-failures.json: \(unlisted.map { "\($0.key) old=\($0.old) new=\($0.new)" })")
+        #expect(changed.isEmpty, "a listed cell now shows a different value than the manifest pins: \(changed.map { "\($0.key) pinned=\(listed[$0.key] ?? "") now=\($0.new)" })")
         #expect(stale.isEmpty, "manifest entries the code no longer produces (flip them out): \(stale.sorted())")
     }
 
@@ -228,8 +231,9 @@ struct StateGoldenTests {
             byClass[item.class, default: 0] += item.ids.count
             if item.fixedBy != nil { fixed += item.ids.count }
         }
-        #expect(byClass.values.reduce(0, +) == Self.expected.reduce(0) { $0 + $1.ids.count })
-        #expect(fixed <= Self.expected.reduce(0) { $0 + $1.ids.count })
+        // The counts the PR reports; a flipped or added entry changes them and this fails until the numbers are restated.
+        #expect(byClass == ["native": 31, "fixture": 7])
+        #expect(fixed == 24)
         #expect(Self.expected.allSatisfy { $0.fixedBy == nil || $0.fixedBy == "state-text-core" })
     }
 
@@ -250,6 +254,6 @@ struct StateGoldenTests {
 
     @Test func theCurrentDeviceLineDropsTheControllerText() {
         let none = CurrentRemoteLine.line(isUnavailable: false, unavailable: "Unavailable", state: "off", options: [], controllerText: "Off", fallback: "Unknown")
-        #expect(none == "Unknown", "when this reads Off, state-text-core has landed: call ServerUIRemoteDeviceText.line and empty the fixedBy entries")
+        #expect(none == "Unknown", "the test-local mirror changed; it does not see production code. When state-text-core lands, point CurrentRemoteLine at ServerUIRemoteDeviceText.line and empty the fixedBy entries")
     }
 }
