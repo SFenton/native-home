@@ -114,11 +114,16 @@ final class UKRecordCollectionController: NSObject, UICollectionViewDelegate, UI
 
     private var content = UKRecordCollectionContent()
     private var blocks: [Block] = []
-    private var hasApplied = false
     private var prefetching: [String: Task<Void, Never>] = [:]
     private var cardWidth: CGFloat = 160
     private var auxiliarySignatures: [UKRecordCollectionItem: String] = [:]
     private lazy var dataSource: UICollectionViewDiffableDataSource<Int, UKRecordCollectionItem> = makeDataSource()
+    /// The one applier (`.agents/patterns/list-row-removal.md`): removals and insertions on screen animate, a first apply, a reconnect and a
+    /// cold launch never do.
+    private lazy var updater = UKListUpdater<Int, UKRecordCollectionItem>(
+        surface: "Records", collectionView: collectionView, dataSource: dataSource, generation: { [weak self] in self?.generation?() })
+    /// Reads `EntityStore.reapplyGeneration`, inside the observation that renders the list, so a reconnect is not drawn as removals.
+    var generation: (() -> Int?)?
 
     /// - Parameter shape: A module of rows or a grid of cards.
     init(shape: Shape) {
@@ -136,9 +141,10 @@ final class UKRecordCollectionController: NSObject, UICollectionViewDelegate, UI
     ///   - changed: The keys whose record differs from the one last shown. A key not previously shown is configured on dequeue.
     ///   - signatures: What each auxiliary cell shows; a cell whose signature changed reconfigures (and re-measures).
     ///   - surface: The surface the module background draws for.
-    ///   - animated: Whether insertions and removals animate once shown (a completed chore animates away).
+    ///   - cause: ``ListUpdateCause/live`` (the default) animates a removal or insertion on screen; ``ListUpdateCause/reset`` replaces the
+    ///     list at once (a search, sort or filter changed the question).
     func apply(_ content: UKRecordCollectionContent, changed: Set<String>, signatures: [UKRecordCollectionItem: String] = [:],
-               surface: TileSurface, animated: Bool = false) {
+               surface: TileSurface, cause: ListUpdateCause = .live) {
         let before = self.content
         let restyled = self.surface != surface
         self.surface = surface
@@ -172,12 +178,16 @@ final class UKRecordCollectionController: NSObject, UICollectionViewDelegate, UI
         let density = Dictionary(content.groups.flatMap { group in group.keys.map { ($0, group.dense) } }, uniquingKeysWith: { first, _ in first })
         let previousDensity = Dictionary(before.groups.flatMap { group in group.keys.map { ($0, group.dense) } }, uniquingKeysWith: { first, _ in first })
         var reconfigured: [UKRecordCollectionItem] = []
+        // Rows whose only change is a new place on the module (a neighbour left): redrawn in the same update, so the card's corners
+        // animate with the removal.
+        var cornerNeighbours: [UKRecordCollectionItem] = []
         for group in content.groups {
             for key in group.keys {
                 let item = UKRecordCollectionItem.record(key)
                 guard existing.contains(item) else { continue }
                 if restyled || changed.contains(key) || previousCorners[key] != corners[key] || previousDensity[key] != density[key] {
                     reconfigured.append(item)
+                    if !restyled, !changed.contains(key), previousCorners[key] != corners[key] { cornerNeighbours.append(item) }
                 }
             }
         }
@@ -189,10 +199,21 @@ final class UKRecordCollectionController: NSObject, UICollectionViewDelegate, UI
         }
         auxiliarySignatures = signatures
         snapshot.reconfigureItems(reconfigured)
-        dataSource.apply(snapshot, animatingDifferences: animated && hasApplied && collectionView.window != nil)
-        hasApplied = true
+        updater.apply(snapshot, cause: cause, cornerNeighbours: cornerNeighbours)
         collectionView.collectionViewLayout.invalidateLayout()
     }
+
+    /// What the last apply decided (tests).
+    var lastPlan: ListUpdateLedger<UKRecordCollectionItem>.Plan? { updater.lastPlan }
+
+    /// A person is removing the records `keys` (they confirmed): the rows leave with the system animation, "<title> deleted" is
+    /// announced and VoiceOver focus moves to the row that took the place. Call it where the person commits, before the list changes.
+    func expectRemoval(of keys: [String], title: String? = nil) {
+        updater.expectRemoval(of: keys.map { .record($0) }, title: title)
+    }
+
+    /// The removal failed and the rows stay: no motion, no announcement.
+    func cancelExpectation(of keys: [String]) { updater.cancelExpectation(of: keys.map { .record($0) }) }
 
     /// Each key's place in its module (first and last), the corners a row's background rounds.
     private static func corners(_ content: UKRecordCollectionContent) -> [String: [Bool]] {
@@ -237,7 +258,7 @@ final class UKRecordCollectionController: NSObject, UICollectionViewDelegate, UI
             cell.key = key
             let view = self.owner?.recordView(for: key, reusing: cell.hosted)
             cell.configure(view, first: path.item == 0, last: path.item == (group?.keys.count ?? 0) - 1, surface: self.surface,
-                           density: group?.dense == true ? .dense : .thin)
+                           density: group?.dense == true ? .dense : .thin, animatedCorners: self.updater.isAnimating)
             self.configured?(key)
         }
         let card = UICollectionView.CellRegistration<UKRecordCardCell, UKRecordCollectionItem> { [weak self] cell, _, item in
@@ -436,8 +457,8 @@ final class UKRecordRowCell: UICollectionViewListCell {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func configure(_ view: UIView?, first: Bool, last: Bool, surface: TileSurface, density: ModuleDensity) {
-        background.configure(density: density, surface: surface, isFirst: first, isLast: last, selected: false)
+    func configure(_ view: UIView?, first: Bool, last: Bool, surface: TileSurface, density: ModuleDensity, animatedCorners: Bool = false) {
+        background.configure(density: density, surface: surface, isFirst: first, isLast: last, selected: false, animated: animatedCorners)
         guard let view, hosted !== view else { return }
         hosted?.removeFromSuperview()
         hosted = view

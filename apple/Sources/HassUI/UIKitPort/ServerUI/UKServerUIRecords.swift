@@ -22,6 +22,9 @@ protocol UKServerUICollectionSource: AnyObject {
     /// Whether the next page is loading, which shows the footer spinner.
     var loadingMore: Bool { get }
     var searchText: String { get set }
+    /// What the list is currently asked, besides ``searchText`` (a sort or filter): when it changes the rows are replaced, never animated
+    /// as removals and insertions (`ListUpdateCause.reset`).
+    var listQuestion: String { get }
     var showsSearch: Bool { get }
     func actionState(_ role: ServerUICompositionDocument.PinnedActions.Role) -> UKServerUIActionState
     func load() async throws
@@ -45,6 +48,7 @@ struct UKServerUIActionState: Equatable {
 }
 
 extension UKServerUICollectionSource {
+    var listQuestion: String { "" }
     var sections: [UKServerUIRecordSection] { [.init(id: "rows", title: nil, records: records)] }
     var emptyState: (title: String, message: String, symbol: String)? { nil }
     var summary: String? { nil }
@@ -324,6 +328,7 @@ final class UKServerUIInventoryCollection: UKServerUICollectionSource {
         get { provider.model.searchQuery }
         set { provider.model.searchQuery = newValue }
     }
+    var listQuestion: String { "\(provider.model.sortMode)|\(provider.model.sortDirection)|\(provider.model.filterMode)|\(provider.model.phase)" }
     var records: [UKServerUIRecord] { summaryEmpty == nil ? provider.items.map { .inventory($0, provider) } : [] }
     var sections: [UKServerUIRecordSection] {
         if provider.query == .expiredFoodSummary { return [.init(id: "expired-food", title: SummaryTab.expiredFood.title, records: records)] }

@@ -48,6 +48,9 @@ public final class InventoryListModel {
     public private(set) var shopping: [String: ShoppingState] = [:]
     /// Cards with a delete in flight.
     public private(set) var deleting: Set<String> = []
+    /// Cards a confirmed delete has hidden while the server call is out, by card id with the name for the announcement. A failure brings
+    /// them back (optimistic removal for immediate feedback; the answer reconciles it, as ``TodoListController`` does for chores).
+    public private(set) var pendingRemoval: [String: String] = [:]
     /// Per-card action errors, by card id.
     public private(set) var rowErrors: [String: String] = [:]
 
@@ -81,6 +84,7 @@ public final class InventoryListModel {
     /// Cards after filter and sort.
     public var visibleItems: [InventoryDisplayItem] {
         InventoryCatalog.visible(displayItems, sort: sortMode, direction: sortDirection, filter: filterMode, calendar: calendar)
+            .filter { pendingRemoval[$0.id] == nil }
     }
 
     /// A non-default sort is applied.
@@ -224,18 +228,30 @@ public final class InventoryListModel {
     }
 
     /// Deletes a card's stock: all of it, or `quantity` spread smallest row first.
-    public func delete(_ item: InventoryDisplayItem, quantity: Double? = nil) async {
-        guard let rows = deletableRows(of: item), !deleting.contains(item.id) else { return }
+    ///
+    /// Deleting all of it hides the card at once (``pendingRemoval``) and restores it with an error if the call fails; a partial delete
+    /// only changes the card's quantity when the call succeeds.
+    /// - Parameter accepted: called once the delete is accepted, before the call, with whether the card leaves the list (a swiped row
+    ///   that waited for the answer completes or closes on it). Called with `false` when nothing is deleted.
+    public func delete(_ item: InventoryDisplayItem, quantity: Double? = nil, accepted: ((Bool) -> Void)? = nil) async {
+        guard let rows = deletableRows(of: item), !deleting.contains(item.id) else { accepted?(false); return }
         let stocked = rows.reduce(0) { $0 + $1.quantity }
+        let partial = quantity.map { $0 < stocked } ?? false
         let steps = quantity.flatMap { $0 < stocked ? InventoryCatalog.decreaseSteps(rows, amount: $0).steps : nil }
             ?? rows.map { InventoryDeleteStep(inventoryId: $0.inventoryId) }
         deleting.insert(item.id)
         rowErrors[item.id] = nil
+        if !partial {
+            pendingRemoval[item.id] = item.name
+        }
+        accepted?(!partial)
         defer { deleting.remove(item.id) }
         do {
             try await client.delete(steps)
             items = InventoryCatalog.items(items, after: steps)
+            pendingRemoval[item.id] = nil
         } catch {
+            pendingRemoval[item.id] = nil
             rowErrors[item.id] = ServiceErrorText.message(for: error, fallback: "Unable to delete item")
         }
     }

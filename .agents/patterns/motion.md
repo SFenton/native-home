@@ -2,7 +2,7 @@
 
 > **What:** the shared components that apply the app-wide motion rules. **Read when:** you add any animation, navigation path, sheet, loading state or transition. The rules and their reasons live in [design/motion.md](../design/motion.md). Read that first.
 
-Status: built 2026-10-18 on `claude/motion-system` (see PROGRESS.md). The sign-in lane (`claude/signin-motion`) builds the intro and the arrival on top of `MotionPolicy`, `.arrivalMotion` and `MotionTokens`.
+Status: built 2026-10-18 on `claude/motion-system`. The sign-in lane (`claude/signin-motion`) builds the intro and the arrival on top of `MotionPolicy`, `.arrivalMotion` and `MotionTokens`.
 
 ## Canonical components
 
@@ -12,7 +12,7 @@ Status: built 2026-10-18 on `claude/motion-system` (see PROGRESS.md). The sign-i
 | `.stateColorTransition(value:)` | `HassDesign/Motion/StateColorTransition.swift` | The only way a state-driven background, fill, tint, rim or ink colour animates: `MotionTokens.state`, scoped to the colour layer, Reduce Motion aware. Records itself in `MotionAudit` (debug and test) so tests can prove each component uses it. Every component and its status: [design/motion-components.md](../design/motion-components.md). |
 | `quickTransition(_:value:)`, `stateColor`, `stateForeground`, `MotionAudit` | `HassDesign/Motion/StateColorTransition.swift` | The scoped forms of the same helper (an opacity on `quick`; ink; closure-scoped colour) and the debug-and-test registry the per-component tests read (`MotionAudit.capture`) |
 | `MotionGallery` | `HassUI/Features/Gallery/MotionGallery.swift` | Every component with a state, with Toggle state and Toggle all, for visual checks and UX tests |
-| `motionSafeAnimation(_:reduced:value:)` | `HassDesign/MotionSafeAnimation.swift` (exists) | Every implicit animation; Reduce Motion aware |
+| `motionSafeAnimation(_:reduced:value:)` | `HassDesign/MotionSafeAnimation.swift` | Every implicit animation; Reduce Motion aware |
 | `MotionPolicy` | `HassUI/App/Motion/MotionPolicy.swift` (`@Observable`, one per session, in the environment) | Remembers which moments have played this session (`hasPlayed(.signInArrival)`, `markPlayed`), and resets on sign-out. Exposes `reduceMotion`. Wraps measurement (`measure(.push(page))`). |
 | `.arrivalMotion(_:index:)` | `HassUI/App/Motion/ArrivalMotion.swift` | Plays a moment's entrance for one view (fade and rise, staggered by `index`), only if the moment hasn't played this session and Reduce Motion is off. Otherwise it renders at once, or cross-fades under Reduce Motion. |
 | `.zoomSource(id:in:)` / `.zoomDestination(id:in:)` | `HassUI/App/Motion/ZoomTransition.swift` | The iOS 18 zoom (`matchedTransitionSource` and `navigationTransition(.zoom)`); does nothing on iOS 17 |
@@ -79,4 +79,4 @@ It owns Login, the intro and the arrival choreography and wrote its own first ve
 
 Any further exception (a page that should re-animate on revisit, a custom transition) needs the owner's approval and a line here, and in the design doc §3.
 
-- **Owned files** (also in `contracts/patterns.json`): `AnimationsPaused.swift`, `ArcProgressViewStyle.swift`, `PrimaryButton.swift`, `PrimaryButtonStyle.swift`, `ReduceMotionOverride.swift`, `SmoothContentSwap.swift`.
+- **Owned files** (also in `contracts/patterns.json`): `AnimationsPaused.swift`, `ArcProgressViewStyle.swift`, `PrimaryButton.swift`, `PrimaryButtonStyle.swift`, `ReduceMotionOverride.swift`, `SmoothContentSwap.swift`, `ListUpdateCause`, `ListUpdateLedger`, `ListUpdateTransition`.
