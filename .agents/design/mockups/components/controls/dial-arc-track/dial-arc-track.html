@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dial and arc track · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h;
+  var W = function (a) { return 'rgba(255,255,255,' + a + ')'; }, AMBER = 'rgb(255,209,77)', SUN = 'rgb(255,217,77)';
+  function pt(cx, cy, r, deg) { var t = deg * Math.PI / 180; return [cx + Math.cos(t) * r, cy + Math.sin(t) * r]; }
+  function line(a, b, ink, w, cap) { return '<line x1="' + a[0].toFixed(2) + '" y1="' + a[1].toFixed(2) + '" x2="' + b[0].toFixed(2) + '" y2="' + b[1].toFixed(2) + '" stroke="' + ink + '" stroke-width="' + w + '"' + (cap ? ' stroke-linecap="round"' : '') + '/>'; }
+  /** A dial as the shared layout draws it: width, aspect, centerY, a sweep, a ring of ticks, a pointer, letters and centre lines. */
+  function dial(o) {
+    var w = o.width, hgt = w / (o.aspect || 1), cx = w / 2, cy = hgt * (o.centerY || .5), r = w / 2, s = '';
+    for (var i = 0; i < o.count; i++) {
+      if (o.skip && o.skip.indexOf(i) >= 0) continue;
+      var deg = o.start + o.length * (o.count === 48 ? i / 48 : i / (o.count - 1)), inner = (o.alt && i % 2 ? o.alt : o.inner);
+      s += line(pt(cx, cy, r * o.outer, deg), pt(cx, cy, r * inner, deg), W(o.tickAlpha), o.tickWidth);
+    }
+    if (o.lit != null) { var d = o.start + o.length * o.lit; s += line(pt(cx, cy, r * .7, d), pt(cx, cy, r * .98, d), AMBER, 3, true); }
+    if (o.needle != null) {
+      var n = o.needle - 90, tip = pt(cx, cy, r * .62, n), tail = pt(cx, cy, r * .3, n + 180);
+      s += line(cx === 0 ? tip : [cx, cy], tip, AMBER, 3, true) + line([cx, cy], tail, W(.55), 3, true) + '<circle cx="' + cx + '" cy="' + cy + '" r="3" fill="#fff"/>';
+      [['N', 0], ['E', 90], ['S', 180], ['W', 270]].forEach(function (l) { var p = pt(cx, cy, r * .66, l[1] - 90); s += '<text x="' + p[0].toFixed(1) + '" y="' + (p[1] + r * .07).toFixed(1) + '" fill="#fff" font-size="' + (r * .2).toFixed(1) + '" font-weight="600" font-family="ui-rounded,system-ui" text-anchor="middle">' + l[0] + '</text>'; });
+      s += '<path d="M' + cx + ' ' + (cy - r * .94) + 'L' + (cx + r * .06) + ' ' + (cy - r * .84) + 'L' + (cx - r * .06) + ' ' + (cy - r * .84) + 'Z" fill="#fff"/>';
+    }
+    (o.lines || []).forEach(function (l, i) { s += '<text x="' + cx + '" y="' + (cy + (i - (o.lines.length - 1) / 2) * l.size + l.size * .35).toFixed(1) + '" fill="' + l.ink + '" font-size="' + l.size + '" font-weight="' + (l.bold ? 700 : 400) + '" text-anchor="middle" font-family="system-ui">' + l.text + '</text>'; });
+    return '<svg width="' + w + '" height="' + hgt.toFixed(1) + '" viewBox="0 0 ' + w + ' ' + hgt.toFixed(1) + '" role="img" aria-label="' + (o.label || 'dial') + '">' + s + '</svg>';
+  }
+  /** An arc track: the quadratic curve over a horizon, with the marker at a share of it. */
+  function arc(width, p, mirror, rtl) {
+    var k = Math.min(width, 200) / 100, f = function (x, y) { return [x * k, y * k]; }, a = f(8, 40), c = f(50, 4), b = f(92, 40);
+    var t = p == null ? null : p, s = '', ml = rtl && mirror;
+    s += line(f(4, 40), f(96, 40), W(.35), 1);
+    s += '<path d="M' + a + 'Q' + c + ' ' + b + '" fill="none" stroke="' + W(.6) + '" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round"' + (ml ? ' transform="translate(' + (100 * k) + ' 0) scale(-1 1)"' : '') + '/>';
+    if (t != null) { var x = (1 - t) * (1 - t) * 8 + 2 * (1 - t) * t * 50 + t * t * 92, y = (1 - t) * (1 - t) * 40 + 2 * (1 - t) * t * 4 + t * t * 40; if (ml) x = 100 - x; s += '<circle cx="' + (x * k).toFixed(1) + '" cy="' + (y * k).toFixed(1) + '" r="' + 5 * k + '" fill="' + SUN + '"/>'; }
+    return '<svg width="' + 100 * k + '" height="' + 48 * k + '" viewBox="0 0 ' + 100 * k + ' ' + 48 * k + '" role="img" aria-label="arc track">' + s + '</svg>';
+  }
+  var COMPASS = function (deg, w) { return dial({ width: w || 104, count: 48, skip: [0], start: -90, length: 360, inner: .8, alt: .85, outer: .92, tickAlpha: .55, tickWidth: 1.2, needle: deg, label: 'compass' }); };
+  var BARO = function (pct, w) { return dial({ width: w || 140, aspect: 1.4, centerY: .56, count: 49, start: 145, length: 250, inner: .78, outer: .92, tickAlpha: .5, tickWidth: 1.4, lit: pct / 100, label: 'barometer',
+    lines: [{ text: '1013', size: 17, bold: true, ink: '#fff' }, { text: 'hPa', size: 12, ink: W(.85) }] }); };
+  function row(caption, items) {
+    return function () {
+      var box = h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '28px', padding: '20px', borderRadius: '20px', background: '#27394b', alignItems: 'flex-end' } });
+      box.innerHTML = items.map(function (i) { return '<figure style="margin:0;color:#fff;font:12px system-ui">' + i[0] + '<figcaption style="margin-top:8px;opacity:.75">' + i[1] + '</figcaption></figure>'; }).join('');
+      var wrap = h('div'); wrap.appendChild(h('p', { style: { margin: '0 0 8px' } }, caption)); wrap.appendChild(box); return wrap;
+    };
+  }
+  function state(title, note, caption, items) { return { title: title, note: note, render: function () { return row(caption, items)(); } }; }
+
+  Mock.mount({
+    kind: 'component', id: 'dial-arc-track', title: 'Dial and arc track', area: 'design', status: 'shipped', frame: false,
+    summary: 'The one circular gauge and the one arc with a marker (sh.dial@1, sh.arc-track@1). An author sets a sweep, ticks, letters, a flag, a pointer and up to three centre lines; the weather panel\'s compass, barometer and sun arc are written as these and draw through them. Always dark in the weather panel.',
+    source: ['apple/Sources/HassUI/UIKitPort/Design/UKDialView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKDialFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKDialNeedleView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKArcTrackView.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIDialLayout.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIArcLayout.swift', 'apple/Sources/HassCore/Weather/WeatherDialSpecs.swift'],
+    spec: ['.agents/patterns/dial.md', '.agents/patterns/weather.md'],
+    patterns: ['dial', 'weather', 'motion'],
+    hig: ['Gauges', 'Accessibility: VoiceOver', 'Motion'],
+    entities: [],
+    kitComponents: [],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'compass': state('Compass: a needle and four letters', 'the weather wind tile; the dial is 104 pt at the default text size and scales with the footnote size to 160 pt; E and W are drawn only with a bearing', 'bearing 90, 250 and none', [[COMPASS(90), 'east'], [COMPASS(250), 'west-southwest'], [dial({ width: 104, count: 48, skip: [0], start: -90, length: 360, inner: .8, alt: .85, outer: .92, tickAlpha: .55, tickWidth: 1.2, label: 'compass without a bearing' }), 'no bearing: no needle']]),
+      'barometer': state('Barometer: one lit tick and a value', 'the weather pressure tile; 49 ticks over 250 degrees from 145, 1.4 wide to 1 tall with the centre 0.56 down; one or two centre lines, the value shrinking to 0.6 before it is cut', 'low, middle and high pressure', [[BARO(10), 'low'], [BARO(50), 'middle'], [BARO(95), 'high']]),
+      'sun-arc': state('Arc track: the sun along its curve', 'the weather sun tile; 100 by 48 box, 200 pt at most, dashed curve over a horizon, marker 10 pt; with no progress the marker is hidden', 'morning, midday, evening, night', [[arc(200, .15), 'morning'], [arc(200, .5), 'midday'], [arc(200, .85), 'evening'], [arc(200, null), 'night: no marker']]),
+      'rtl': state('Right to left', 'a dial keeps its places unless it mirrors; an arc that does not mirror stands and curves as in a left-to-right layout (the weather arc does not mirror), one that mirrors sits at the leading edge and flips', 'weather arc, then an arc that mirrors', [[arc(200, .15, false, true), 'mirrors: false, left to right places'], [arc(200, .15, true, true), 'mirrors: true, flipped']]),
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the compass grows with the footnote size to its 160 pt cap; the barometer\'s lines scale and the value shrinks to 0.6 of its size before it is cut', render: function () { return row('compass at 160 pt, barometer at 200 pt', [[COMPASS(250, 160), 'capped at 160 pt'], [BARO(40, 200), 'larger text']])(); } },
+    },
+    motion: [
+      { id: 'needle-turn', what: 'A new bearing turns the needle the short way round (350 to 10 turns 20 degrees, not 340)', token: 'standard 0.3 s spring, no bounce, rotation only', state: 'compass',
+        source: 'UKDialView.placeNeedle UKMotion.animate(.standard)', reduce: 'the needle jumps',
+        play: function (stage) { return Mock.sleep(Mock.settings.reduceMotion ? 250 : 650); } },
+    ],
+    a11y: [
+      { rule: 'Hidden unless named', note: 'A dial or an arc is decoration (hidden) unless its a11y names it; then it is one element whose value is its text or the percent. The weather tile speaks the series instead, so the compass, barometer and sun arc stay hidden.' },
+      { rule: 'Dynamic Type', note: 'A dial\'s size can scale with a text style up to a cap; centre lines use Dynamic Type and a single line shrinks to 0.6 before it is cut (the weather panel opts out and cuts).' },
+      { rule: 'Reduce Motion', note: 'The needle jumps to the new bearing instead of turning.' },
+      { rule: 'Contrast', note: 'Ticks and the horizon are white at 50 to 55% and 35% on the dark weather ground: decoration, not text; the value and unit are white and white at 85%.' },
+    ],
+    reviews: { date: '2026-11-17',
+      hig: [{ rule: 'Gauges: a custom gauge shows its value as text or to assistive technology too', verdict: 'pass', note: 'The weather tile speaks the reading; an authored dial names itself in its a11y.', by: 'apple-hig skill' }],
+      swiftui: [{ rule: 'UIKit app: no SwiftUI in this component', verdict: 'n/a', note: 'The dial and arc are UIKit; the weather specs are plain values in HassCore.', by: 'swiftui-pro skill' }] },
+    notes: ['The drawings here are SVG stand-ins built from the same numbers (ServerUIDialLayout, ServerUIArcLayout); the pair stills against the app are the Verifier\'s.', 'A future interactive dial reuses ServerUIDialLayout (dialShare, shortestTurn, layoutDial); no interaction exists yet.'],
+    changelog: [{ date: '2026-11-17', note: 'Added: the dial and arc track the weather compass, barometer and sun arc now draw through.' }],
+  });
+})();
+</script></body></html>

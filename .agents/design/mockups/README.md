@@ -29,7 +29,7 @@
 |---|---|---|
 | Pages | [pages/](pages/README.md) | 33 |
 | Modals | [modals/](modals/README.md) | 71 |
-| Components | [components/](components/README.md) | 95 |
+| Components | [components/](components/README.md) | 96 |
 | Flows | [flows/](flows/README.md) | 13 |
 
 In flight (decided, not on `main` yet): none

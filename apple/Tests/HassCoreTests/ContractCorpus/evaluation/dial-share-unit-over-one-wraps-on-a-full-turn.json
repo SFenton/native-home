@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-unit-over-one-wraps-on-a-full-turn",
+  "note": "A unit value of 1.25 on a full turn is 0.25.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": 1.25,
+      "scale": "unit",
+      "sweep": {
+        "start": -90,
+        "length": 360
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0.25
+    }
+  }
+}

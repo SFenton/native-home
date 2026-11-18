@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "arc-track-box-height-capped",
+  "note": "At 300 points of room: 200 wide, 96 tall.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 300,
+        "progress": null
+      },
+      "pick": [
+        "width",
+        "height"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "width": 200,
+      "height": 96
+    }
+  }
+}

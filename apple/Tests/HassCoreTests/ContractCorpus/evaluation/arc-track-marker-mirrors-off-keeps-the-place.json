@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-mirrors-off-keeps-the-place",
+  "note": "An arc that says it does not mirror keeps its place: 0 is at 8 in a right-to-left layout.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 0,
+        "rtl": true,
+        "mirrors": false
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 8,
+        "y": 40,
+        "t": 0
+      }
+    }
+  }
+}

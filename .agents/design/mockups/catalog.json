@@ -4698,14 +4698,17 @@
       "path": "components/weather/weather-highlights-tiles",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherSheet.swift",
-        "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift"
+        "apple/Sources/HassUI/UIKitPort/Features/Home/UKWeatherViews.swift",
+        "apple/Sources/HassCore/Weather/WeatherDialSpecs.swift"
       ],
       "docs": [
-        ".agents/patterns/weather.md"
+        ".agents/patterns/weather.md",
+        ".agents/patterns/dial.md"
       ],
       "patterns": [
         "weather",
-        "dynamic-grid"
+        "dynamic-grid",
+        "dial"
       ],
       "presentedFrom": [],
       "presents": [],
@@ -4729,6 +4732,50 @@
       "inFlight": null,
       "owner": "home-weather",
       "mockup": "components/weather/weather-highlights-tiles/weather-highlights-tiles.html",
+      "status": "shipped",
+      "weight": 1
+    },
+    {
+      "id": "dial-arc-track",
+      "kind": "component",
+      "area": "design",
+      "title": "Dial and arc track",
+      "path": "components/controls/dial-arc-track",
+      "sources": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKDialView.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKArcTrackView.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIDialLayout.swift",
+        "apple/Sources/HassCore/Weather/WeatherDialSpecs.swift"
+      ],
+      "docs": [
+        ".agents/patterns/dial.md"
+      ],
+      "patterns": [
+        "dial",
+        "weather",
+        "motion"
+      ],
+      "presentedFrom": [],
+      "presents": [],
+      "devices": [
+        "iphone",
+        "duo",
+        "ipad"
+      ],
+      "appearance": "always-dark",
+      "statesHint": [
+        "compass",
+        "barometer",
+        "sun arc",
+        "right to left",
+        "ax5"
+      ],
+      "motionHint": [
+        "needle turn (standard 0.3 s)"
+      ],
+      "inFlight": null,
+      "owner": "home-weather",
+      "mockup": "components/controls/dial-arc-track/dial-arc-track.html",
       "status": "shipped",
       "weight": 1
     },
@@ -6235,7 +6282,7 @@
       "id": "login-form-parts",
       "kind": "component",
       "area": "login",
-      "title": "Sign-in form parts (fields module, failure card, inline error)",
+      "title": "Sign-in form parts",
       "path": "components/login/login-form-parts",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift"
@@ -7796,7 +7843,7 @@
       "id": "push-notification-banner",
       "kind": "component",
       "area": "widgets",
-      "title": "S+H Home Integration notification banner (system UI, with actions)",
+      "title": "S+H Home Integration notification banner",
       "path": "components/widgets/push-notification-banner",
       "sources": [
         "apple/Apps/NotificationService/NotificationService.swift",
@@ -8664,7 +8711,7 @@
       "id": "scroll-fit",
       "kind": "component",
       "area": "shell",
-      "title": "Scroll fit (scroll only when there is something to scroll)",
+      "title": "Scroll fit (only when needed)",
       "path": "components/shell/scroll-fit",
       "sources": [
         "apple/Sources/HassDesign/HassModal.swift",

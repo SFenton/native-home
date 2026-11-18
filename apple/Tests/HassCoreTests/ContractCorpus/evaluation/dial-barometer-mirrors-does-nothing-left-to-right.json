@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "name": "dial-barometer-mirrors-does-nothing-left-to-right",
+  "note": "Mirrors flips only a right-to-left layout.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0
+        },
+        "mirrors": true
+      },
+      "pick": [
+        "lit"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "lit": {
+        "x1": 29.8615,
+        "y1": 84.1052,
+        "x2": 13.8062,
+        "y2": 95.3473
+      }
+    }
+  }
+}

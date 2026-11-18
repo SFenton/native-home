@@ -1,0 +1,77 @@
+{
+  "format": 1,
+  "name": "arc-track-curve-mirrored",
+  "note": "Mirrored, the curve and the horizon swap sides: from (92, 40) to (8, 40) at 100 wide.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": null,
+        "rtl": true
+      },
+      "pick": [
+        "curve",
+        "horizon"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "curve": {
+        "from": [
+          92,
+          40
+        ],
+        "control": [
+          50,
+          4
+        ],
+        "to": [
+          8,
+          40
+        ]
+      },
+      "horizon": {
+        "from": [
+          96,
+          40
+        ],
+        "to": [
+          4,
+          40
+        ]
+      }
+    }
+  }
+}

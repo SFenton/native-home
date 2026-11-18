@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-next-turn-10-to-350-goes-back",
+  "note": "From 10 to 350 it goes back to -10.",
+  "subject": {
+    "dial": {
+      "op": "next",
+      "previous": 10,
+      "target": 350
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "angle": -10
+    }
+  }
+}

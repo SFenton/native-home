@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "dial-needle-on-a-partial-sweep",
+  "note": "On a sweep short of a turn the needle follows the sweep and is held at its ends: a share of 1.5 on 145 to 395 points at 395 degrees, turned 485.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 100,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "pointer": {
+          "kind": "needle",
+          "value": 1.5
+        }
+      },
+      "pick": [
+        "needle"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "needle": {
+        "rotation": 485,
+        "angle": 395
+      }
+    }
+  }
+}

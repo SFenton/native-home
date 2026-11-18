@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-at-noon",
+  "note": "Progress 0.5 is the top of the arc: (50, 22) (:150). x = 8 + 84t, y = 40 - 72 t (1 - t).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 0.5
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 50,
+        "y": 22,
+        "t": 0.5
+      }
+    }
+  }
+}

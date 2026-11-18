@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "dial-barometer-lit-tick-between",
+  "note": "1013 hPa is (1013 - 970) / 80 = 0.5375 of the sweep: 145 + 134.375 = 279.375 degrees (WeatherPresentation.swift:209).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0.5375
+        }
+      },
+      "pick": [
+        "lit"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "lit": {
+        "x1": 77.9819,
+        "y1": 7.6545,
+        "x2": 81.1746,
+        "y2": -11.6837
+      }
+    }
+  }
+}

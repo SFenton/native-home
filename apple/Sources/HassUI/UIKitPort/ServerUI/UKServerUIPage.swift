@@ -775,6 +775,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let view = entry.view as? UKChartView { UKServerUIDataParts.bind(chart, view: view, entry: entry, renderer: renderer) }
             case .linearGauge(let gauge):
                 if let view = entry.view as? UKLinearGaugeView { UKServerUIDataParts.bind(gauge, view: view, entry: entry, renderer: renderer) }
+            case .dial(let dial):
+                if let view = entry.view as? UKDialView { UKServerUIDataParts.bind(dial, view: view, entry: entry, renderer: renderer) }
+            case .arcTrack(let arc):
+                if let view = entry.view as? UKArcTrackView { UKServerUIDataParts.bind(arc, view: view, entry: entry, renderer: renderer) }
             case .localTabs(let tabs):
                 if let view = entry.view as? UKServerUILocalTabs {
                     let scope = tabs.scopeProviderId.flatMap { renderer.records.tabScopes[$0] }
@@ -1166,7 +1170,7 @@ final class UKServerUINode {
         case statusChip, statusRail, roomOverviewTile, homeLightTile, weatherPanel
         case alarmPanel, stateTile, climate, roomCard, roomChip, roomSection, roomNavigationGrid
         case roomDeviceControl, deviceControl, bedroom, vacuum, cameraTile, cameraVideo, cameraControls, cameraViewer
-        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode, chart, linearGauge
+        case bootstrapMessage, notificationBanner, overlay, stack, shape, symbol, repeatNode, chart, linearGauge, dial, arcTrack
     }
 
     /// The node's view, built once and kept for the node's lifetime.
@@ -1229,6 +1233,8 @@ final class UKServerUINode {
         case .symbol: view = UKSymbolPartView()
         case .chart: view = UKChartView()
         case .linearGauge: view = UKLinearGaugeView()
+        case .dial: view = UKDialView()
+        case .arcTrack: view = UKArcTrackView()
         case .text: view = UKServerUIText()
         case .grid: view = UKDynamicGridView()
         case .section: view = UKServerUISection()
@@ -1289,6 +1295,8 @@ final class UKServerUINode {
         case .symbol: .symbol
         case .chart: .chart
         case .linearGauge: .linearGauge
+        case .dial: .dial
+        case .arcTrack: .arcTrack
         case .bootstrapMessage: .bootstrapMessage
         case .text: .text
         case .grid: .grid
@@ -1381,8 +1389,12 @@ final class UKServerUIText: UIView, UKGridMeasuring {
     }
     /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
     var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }
+    /// Whether a single line shrinks to 0.6 of its size before it is cut, so it stays inside what holds it (a dial's centre). Off for a plain text.
+    var shrinksToFit = false { didSet { if shrinksToFit != oldValue { restyle() } } }
     /// The sliding line of a ticker, present only while the look asks for one.
     private(set) var ticker: UKTickerLabel?
+    /// Whether the line is set to shrink, for tests.
+    var drawnShrinks: Bool { label.adjustsFontSizeToFitWidth }
     /// The ink and the font the text is drawn with now, for tests of the look.
     var drawnInk: UIColor { label.textColor }
     var drawnFont: UIFont { label.font }
@@ -1438,6 +1450,8 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         label.textColor = ink
         label.numberOfLines = look.lines ?? 0
         label.lineBreakMode = look.shrinks || (look.lines ?? 0) > 0 ? .byTruncatingTail : .byWordWrapping
+        label.adjustsFontSizeToFitWidth = shrinksToFit
+        label.minimumScaleFactor = shrinksToFit ? 0.6 : 0
         label.textAlignment = UKStyledText.alignment(look.align, rightToLeft: effectiveUserInterfaceLayoutDirection == .rightToLeft)
         if look.isTicker {
             let ticker = self.ticker ?? UKTickerLabel(label.text ?? "", truncatesWhenStill: true)

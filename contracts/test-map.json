@@ -40,6 +40,14 @@
  ],
  "rules": [
   {
+   "prefix": "apple/Tests/HassCoreTests/ServerUIDialCorpusAnswers",
+   "swift": [
+    "ServerUIExpressionCorpusTests",
+    "ServerUIDialTests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Sources/HassDesign/HeaderEdgeFade",
    "swift": [
     "HeaderEdgeFade"

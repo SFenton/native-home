@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-partial-sweep-is-held-above",
+  "note": "On a partial sweep a share is held between 0 and 1: 1.25 is 1.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": 1.25,
+      "scale": "unit",
+      "sweep": {
+        "start": 145,
+        "length": 250
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 1
+    }
+  }
+}

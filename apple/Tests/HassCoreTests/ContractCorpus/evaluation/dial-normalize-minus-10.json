@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "dial-normalize-minus-10",
+  "note": "-10 degrees is 350 (WeatherPresentationTests.swift:86).",
+  "subject": {
+    "dial": {
+      "op": "normalize",
+      "value": -10
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "degrees": 350
+    }
+  }
+}

@@ -739,7 +739,7 @@ enum ServerUICompositionShape {
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
             "content-panes": .unsupported("sh.content-panes@1")
-        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs }.merging(chartNodes(base: base)) { _, rhs in rhs })
+        ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs }.merging(chartNodes(base: base)) { _, rhs in rhs }.merging(dialNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
         object([

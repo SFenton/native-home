@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-unit-one-on-a-full-turn-is-the-start",
+  "note": "A full turn of 1 is back at the start.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": 1,
+      "scale": "unit",
+      "sweep": {
+        "start": -90,
+        "length": 360
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0
+    }
+  }
+}

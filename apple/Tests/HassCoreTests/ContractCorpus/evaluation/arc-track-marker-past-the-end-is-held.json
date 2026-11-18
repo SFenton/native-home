@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "arc-track-marker-past-the-end-is-held",
+  "note": "Progress 2 (200 percent) is held at the end: (92, 40) (:152).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 100,
+        "progress": 2
+      },
+      "pick": [
+        "marker"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "marker": {
+        "x": 92,
+        "y": 40,
+        "t": 1
+      }
+    }
+  }
+}

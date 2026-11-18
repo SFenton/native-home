@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "arc-track-progress-percent",
+  "note": "On the percent scale 7 is 0.07.",
+  "subject": {
+    "arc": {
+      "op": "progress",
+      "value": 7,
+      "scale": "percent"
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "t": 0.07
+    }
+  }
+}

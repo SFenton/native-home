@@ -37,7 +37,7 @@
 |---|---|---|---|---|
 | [Brightness tile (drag dragger)](tiles/brightness-tile/brightness-tile.html) | `brightness-tile` | shipped | iphone, duo, ipad |  |
 
-## design (31)
+## design (32)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
@@ -47,6 +47,7 @@
 | [ChipRail (scroll, wrap)](chips/chip-rail/chip-rail.html) | `chip-rail` | shipped | iphone, duo, ipad |  |
 | [Colour families and palettes (tokens)](tokens/color-families/color-families.html) | `color-families` | shipped | iphone, duo, ipad |  |
 | [ContentGate (loading gate)](loading/content-gate/content-gate.html) | `content-gate` | shipped | iphone, duo, ipad |  |
+| [Dial and arc track](controls/dial-arc-track/dial-arc-track.html) | `dial-arc-track` | shipped | iphone, duo, ipad |  |
 | [DynamicGridLayout (equal heights, spans, grid headers)](grids/dynamic-grid-layout/dynamic-grid-layout.html) | `dynamic-grid-layout` | shipped | iphone, duo, ipad |  |
 | [Empty and error states (ContentUnavailable usage)](forms/content-unavailable/content-unavailable.html) | `content-unavailable` | shipped | iphone, duo, ipad |  |
 | [FilterSheet, FilterSection, FilterOptionRow](modals/filter-sheet/filter-sheet.html) | `filter-sheet` | shipped | iphone, duo, ipad |  |
@@ -122,7 +123,7 @@
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
-| [Sign-in form parts (fields module, failure card, inline error)](login/login-form-parts/login-form-parts.html) | `login-form-parts` | shipped | iphone, duo, ipad |  |
+| [Sign-in form parts](login/login-form-parts/login-form-parts.html) | `login-form-parts` | shipped | iphone, duo, ipad |  |
 | [Sign-in header: house-and-heart mark, name, line](login/login-header-mark/login-header-mark.html) | `login-header-mark` | shipped | iphone, duo, ipad |  |
 
 ## media (3)
@@ -176,7 +177,7 @@
 | [Navigation flyout drawer](navigation/navigation-flyout/navigation-flyout.html) | `navigation-flyout` | shipped | iphone, duo, ipad |  |
 | [Profile button (monogram, attention badge, offline badge)](navigation/profile-button/profile-button.html) | `profile-button` | shipped | iphone, duo, ipad |  |
 | [Reconnecting arc and offline chip](navigation/reconnecting-arc/reconnecting-arc.html) | `reconnecting-arc` | shipped | iphone, duo, ipad |  |
-| [Scroll fit (scroll only when there is something to scroll)](shell/scroll-fit/scroll-fit.html) | `scroll-fit` | shipped | iphone, duo, ipad |  |
+| [Scroll fit (only when needed)](shell/scroll-fit/scroll-fit.html) | `scroll-fit` | shipped | iphone, duo, ipad |  |
 
 ## sprinklers (1)
 
@@ -204,7 +205,7 @@
 |---|---|---|---|---|
 | [Camera notification expanded view](widgets/camera-notification-content/camera-notification-content.html) | `camera-notification-content` | shipped | iphone, duo |  |
 | [Home Live Activity widget configuration](widgets/home-live-activity-widget/home-live-activity-widget.html) | `home-live-activity-widget` | shipped | iphone, duo |  |
-| [S+H Home Integration notification banner (system UI, with actions)](widgets/push-notification-banner/push-notification-banner.html) | `push-notification-banner` | shipped | iphone, duo |  |
+| [S+H Home Integration notification banner](widgets/push-notification-banner/push-notification-banner.html) | `push-notification-banner` | shipped | iphone, duo |  |
 | [Spotlight results and App Shortcuts](widgets/spotlight-and-shortcuts/spotlight-and-shortcuts.html) | `spotlight-and-shortcuts` | shipped | iphone, duo |  |
 
 Open any file in a browser (`python3 -m http.server --directory .agents/design/mockups`). How to author or update one: [_kit/AUTHORING.md](../_kit/AUTHORING.md).

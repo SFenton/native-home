@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "name": "dial-compass-flag",
+  "note": "The flag at north: its tip 0.94 up the radius, its base 0.84 up and 0.06 of the radius either side (:426-431).",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 104,
+        "sweep": {
+          "start": -90,
+          "length": 360
+        },
+        "scale": "degrees",
+        "ticks": {
+          "count": 48,
+          "inner": 0.8,
+          "outer": 0.92,
+          "width": 1.2,
+          "alternate": {
+            "inner": 0.85
+          },
+          "skip": [
+            0
+          ]
+        },
+        "pointer": {
+          "kind": "needle",
+          "value": 0
+        },
+        "flag": {
+          "at": 0
+        },
+        "labels": [
+          {
+            "at": 0,
+            "text": "N"
+          },
+          {
+            "at": 0.25,
+            "text": "E",
+            "needsValue": true
+          },
+          {
+            "at": 0.5,
+            "text": "S"
+          },
+          {
+            "at": 0.75,
+            "text": "W",
+            "needsValue": true
+          }
+        ]
+      },
+      "pick": [
+        "flag"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "flag": [
+        {
+          "x": 52,
+          "y": 3.12
+        },
+        {
+          "x": 55.12,
+          "y": 8.32
+        },
+        {
+          "x": 48.88,
+          "y": 8.32
+        }
+      ]
+    }
+  }
+}

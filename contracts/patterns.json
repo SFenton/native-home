@@ -2668,6 +2668,55 @@
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "dial",
+      "title": "Dial and arc track",
+      "status": "current",
+      "doc": ".agents/patterns/dial.md",
+      "summary": "the one generic circular gauge and arc with a marker (sh.dial, sh.arc-track), with the weather compass, barometer and sun arc drawn through them and a pure layout type an interactive dial builds on.",
+      "keywords": [
+        "dial",
+        "compass",
+        "barometer",
+        "gauge",
+        "arc",
+        "sun arc",
+        "needle",
+        "sh.dial",
+        "sh.arc-track",
+        "ticks"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKDialView.swift",
+            "symbol": "UKDialView"
+          },
+          {
+            "path": "apple/Sources/HassUI/UIKitPort/Design/UKArcTrackView.swift",
+            "symbol": "UKArcTrackView"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIDial*.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIArc*.swift",
+        "apple/Sources/HassCore/Weather/WeatherDialSpecs.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKDial*.swift",
+        "apple/Sources/HassUI/UIKitPort/Design/UKArcTrackView.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": [
+          "weather",
+          "server-ui-chart-gauge",
+          "thermostat-dial"
+        ]
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

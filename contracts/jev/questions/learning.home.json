@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 25,
+  "version": 27,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -82,6 +82,7 @@
     ".agents/patterns/content-gate.md": "Content gate: how a page waits for its content before showing it. (read when: a page or sheet loads data asynchronously (a service response, a REST fetch, images), not when it reads `EntityStore`.)",
     ".agents/patterns/copy.md": "Copy: how the app words itself: voice, terms, case, length, string ids, and which text the house can override. (read when: you add, move or reword text a person sees or hears, or touch the strings table.)",
     ".agents/patterns/design-tokens.md": "Design tokens: the one set of spacing, radius, colour, ink, surface and type values every screen draws from. (read when: you need a colour, a gap, a corner radius or a text ink, or you are about to write a literal one.)",
+    ".agents/patterns/dial.md": "Dial and arc track: the document-driven dial (`sh.dial@1`) and arc track (`sh.arc-track@1`), and the weather compass, barometer and sun arc that draw through them. (read when: you change `UKDialView`, `UKArcTrackView`, `ServerUIDial*`, `WeatherDialSpecs`, or build a control that draws a dial and tak...",
     ".agents/patterns/dynamic-grid.md": "Dynamic grid: the responsive tile grid. (read when: laying out tiles, cameras or quick links.)",
     ".agents/patterns/entity-tile.md": "Entity tile: the glass tile used for entity controls. (read when: showing an entity as a tappable tile.)",
     ".agents/patterns/floating-actions.md": "Floating actions and filter sheets: page-level floating buttons (Add Task, Add Groceries, Scan Item, recipe/inventory Search, Sort, Filter) and the sort/filter sheets they open. (read when: a page has a web `DashboardFloatingAction` or a sort/filter modal.)",

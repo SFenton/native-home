@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dial-share-percent",
+  "note": "The percent scale: 7 is 0.07.",
+  "subject": {
+    "dial": {
+      "op": "share",
+      "value": 7,
+      "scale": "percent",
+      "sweep": {
+        "start": 145,
+        "length": 250
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "share": 0.07
+    }
+  }
+}

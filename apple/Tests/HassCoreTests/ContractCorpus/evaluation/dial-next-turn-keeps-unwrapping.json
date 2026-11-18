@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-next-turn-keeps-unwrapping",
+  "note": "Having gone on to 730, a bearing of 10 is 0 degrees on.",
+  "subject": {
+    "dial": {
+      "op": "next",
+      "previous": 730,
+      "target": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "angle": 730
+    }
+  }
+}

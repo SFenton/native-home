@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "dial-turn-1-to-359",
+  "note": "From 1 to 359 is -2 degrees (apple/Tests/HassCoreTests/WeatherPresentationTests.swift:88).",
+  "subject": {
+    "dial": {
+      "op": "delta",
+      "from": 1,
+      "to": 359
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "delta": -2
+    }
+  }
+}

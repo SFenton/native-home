@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "arc-track-no-horizon",
+  "note": "An arc without a horizon draws none.",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "width": 100,
+        "progress": null
+      },
+      "pick": [
+        "horizon"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "horizon": null
+    }
+  }
+}

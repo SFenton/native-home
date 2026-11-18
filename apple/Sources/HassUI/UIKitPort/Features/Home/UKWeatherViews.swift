@@ -303,279 +303,112 @@ final class UKWeatherBarChartView: UIView, UKGridMeasuring {
 
 // MARK: - Compass
 
-/// The arrow drawn at 0 degrees: the head points down (the wind blows toward 180) and the dot sits on top (the source)
-/// (`WindNeedle`).
-final class UKWindNeedleView: UIView {
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .clear
-        isOpaque = false
-        isUserInteractionEnabled = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func draw(_ rect: CGRect) {
-        let size = min(bounds.width, bounds.height)
-        let x = (bounds.width - size) / 2, y = (bounds.height - size) / 2
-        func point(_ px: CGFloat, _ py: CGFloat) -> CGPoint { CGPoint(x: x + size * px, y: y + size * py) }
-        let head = UIBezierPath()
-        head.move(to: point(0.45, 0.50))
-        head.addLine(to: point(0.55, 0.50))
-        head.addLine(to: point(0.50, 0.74))
-        head.close()
-        UKWeatherInk.amber.setFill()
-        head.fill()
-        let tail = UIBezierPath()
-        tail.move(to: point(0.45, 0.50))
-        tail.addLine(to: point(0.55, 0.50))
-        tail.addLine(to: point(0.52, 0.32))
-        tail.addLine(to: point(0.48, 0.32))
-        tail.close()
-        UKWeatherInk.onDark.withAlphaComponent(0.55).setFill()
-        tail.fill()
-        UKWeatherInk.onDark.setFill()
-        let dot = size * 0.07
-        UIBezierPath(ovalIn: CGRect(x: point(0.5, 0.29).x - dot / 2, y: point(0.5, 0.29).y - dot / 2, width: dot, height: dot)).fill()
-    }
-}
-
-/// The wind compass: 48 ticks, a north marker, cardinal letters and, when the wind has a direction, an arrow that points where the
-/// wind blows to with a dot at the side it comes from (`WeatherCompass`). Decorative. The needle turns the short way round and does
-/// not animate when Reduce Motion is on.
+/// The wind compass: 48 ticks, a north marker, cardinal letters and, when the wind has a direction, an arrow that points where the wind blows to
+/// with a dot at the side it comes from (`WeatherCompass`). Decorative. It is a `dial` (``WeatherDialSpecs/compass()``) drawn by ``UKDialView``, the
+/// app's one dial: the needle turns the short way round and does not animate when Reduce Motion is on.
 @MainActor
 final class UKWeatherCompassView: UIView {
-    private let ticks = UKCompassTicksView()
-    private let needle = UKWindNeedleView()
-    private var letters: [(UILabel, CGFloat, CGFloat)] = []
+    private let dial = UKDialView()
     private var sourceDegrees: Double?
-    private var angle: Double?
 
     init(sourceDegrees: Double?) {
         self.sourceDegrees = sourceDegrees
         super.init(frame: .zero)
         isAccessibilityElement = false
-        addSubview(ticks)
-        for (text, x, y) in [("N", 0.0, -0.58), ("E", 0.58, 0.0), ("W", -0.58, 0.0), ("S", 0.0, 0.58)] {
-            if sourceDegrees == nil, text == "E" || text == "W" { continue }
-            let label = UILabel()
-            label.text = text
-            label.textColor = UKWeatherInk.onDark
-            label.textAlignment = .center
-            addSubview(label)
-            letters.append((label, CGFloat(x), CGFloat(y)))
-        }
-        addSubview(needle)
-        needle.isHidden = sourceDegrees == nil
-        angle = sourceDegrees
-        needle.transform = CGAffineTransform(rotationAngle: CGFloat((angle ?? 0) * .pi / 180))
+        addSubview(dial)
+        show()
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKWeatherCompassView, _) in view.invalidateIntrinsicContentSize() }
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// The dial this compass draws through.
+    var face: UKDialView { dial }
 
     /// Turns the needle to a new source bearing.
     func update(sourceDegrees new: Double?) {
         guard new != sourceDegrees else { return }
         sourceDegrees = new
-        guard let new else {
-            angle = nil
-            needle.isHidden = true
-            return
-        }
-        needle.isHidden = false
-        // Unwrap so a 350 to 10 change turns 20 degrees, not 340.
-        let from = angle ?? new
-        let target = from + WeatherPresentation.shortestBearingDelta(from: from, to: new)
-        angle = target
-        let apply = { self.needle.transform = CGAffineTransform(rotationAngle: CGFloat(target * .pi / 180)) }
-        if window != nil, !UKMotion.reduceMotion {
-            UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: apply)
-        } else {
-            apply()
-        }
+        show()
     }
+
+    private func show() {
+        dial.apply(WeatherDialSpecs.compass(), reading: UKDialReading(value: sourceDegrees), speech: .hidden)
+    }
+
+    /// 104 pt, scaled with the footnote size up to 160.
+    override var intrinsicContentSize: CGSize { dial.intrinsicContentSize }
+    override func sizeThatFits(_ size: CGSize) -> CGSize { dial.sizeThatFits(size) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let side = min(bounds.width, bounds.height)
-        let box = CGRect(x: (bounds.width - side) / 2, y: (bounds.height - side) / 2, width: side, height: side)
-        let radius = side / 2
-        ticks.frame = box
-        let transform = needle.transform
-        needle.transform = .identity
-        needle.frame = box
-        needle.transform = transform
-        let font = UIFont.systemFont(ofSize: max(10, radius * 0.2), weight: .semibold).rounded()
-        for (label, x, y) in letters {
-            label.font = font
-            label.sizeToFit()
-            label.center = CGPoint(x: box.midX + radius * x, y: box.midY + radius * y)
-        }
-    }
-}
-
-private extension UIFont {
-    /// The rounded design of this font (`design: .rounded`).
-    func rounded() -> UIFont {
-        guard let descriptor = fontDescriptor.withDesign(.rounded) else { return self }
-        return UIFont(descriptor: descriptor, size: pointSize)
-    }
-}
-
-/// The compass's ticks and north marker.
-private final class UKCompassTicksView: UIView {
-    override init(frame: CGRect) {
-        super.init(frame: frame)
-        backgroundColor = .clear
-        isOpaque = false
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func draw(_ rect: CGRect) {
-        let radius = min(bounds.width, bounds.height) / 2
-        let center = CGPoint(x: bounds.midX, y: bounds.midY)
-        let path = UIBezierPath()
-        for index in 1..<48 {
-            let long = index % 2 == 0
-            let theta = Double(index) * (.pi * 2 / 48) - .pi / 2
-            let inner = radius * (long ? 0.80 : 0.85)
-            path.move(to: CGPoint(x: center.x + cos(theta) * radius * 0.92, y: center.y + sin(theta) * radius * 0.92))
-            path.addLine(to: CGPoint(x: center.x + cos(theta) * inner, y: center.y + sin(theta) * inner))
-        }
-        path.lineWidth = 1.2
-        UIColor.white.withAlphaComponent(0.55).setStroke()
-        path.stroke()
-        let north = UIBezierPath()
-        north.move(to: CGPoint(x: center.x, y: center.y - radius * 0.94))
-        north.addLine(to: CGPoint(x: center.x + radius * 0.06, y: center.y - radius * 0.84))
-        north.addLine(to: CGPoint(x: center.x - radius * 0.06, y: center.y - radius * 0.84))
-        north.close()
-        UIColor.white.setFill()
-        north.fill()
+        dial.frame = bounds
     }
 }
 
 // MARK: - Pressure gauge
 
-/// The barometer: 49 ticks over a 250 degree arc with the current reading's tick lit (`WeatherPressureGauge`). The value and unit
-/// are real text centred in the dial so they scale with Dynamic Type.
+/// The barometer: 49 ticks over a 250 degree arc with the current reading's tick lit (`WeatherPressureGauge`). The value and unit are real text
+/// centred in the dial so they scale with Dynamic Type. It is a `dial` (``WeatherDialSpecs/barometer(hasUnit:)``) drawn by ``UKDialView``.
 @MainActor
 final class UKWeatherPressureGaugeView: UIView, UKGridMeasuring {
-    private let percent: Double
-    private let valueLabel = UILabel.uk(.title3, weight: .bold, monospacedDigit: true, ink: UKWeatherInk.onDark, lines: 1, alignment: .center)
-    private let unitLabel = UILabel.uk(.caption1, ink: UKWeatherInk.onDarkSecondary, lines: 1, alignment: .center)
+    private let dial = UKDialView()
 
     init(percent: Double, value: String, unit: String?) {
-        self.percent = percent
         super.init(frame: .zero)
         isAccessibilityElement = false
         backgroundColor = .clear
-        valueLabel.text = value
-        valueLabel.minimumScaleFactor = 0.6
-        valueLabel.adjustsFontSizeToFitWidth = true
-        unitLabel.text = unit
-        unitLabel.isHidden = unit == nil
-        addSubview(valueLabel)
-        addSubview(unitLabel)
+        addSubview(dial)
+        dial.apply(WeatherDialSpecs.barometer(hasUnit: unit != nil), reading: UKDialReading(value: percent, lines: [.text(value)] + (unit.map { [.text($0)] } ?? [])),
+                   speech: .hidden)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    func gridHeight(forWidth width: CGFloat) -> CGFloat { width / 1.4 }
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: size.width / 1.4) }
+    /// The dial this gauge draws through.
+    var face: UKDialView { dial }
 
-    private func tick(_ percent: Double, inner: Double, outer: Double, center: CGPoint, radius: CGFloat) -> UIBezierPath {
-        let angle = (145 + min(100, max(0, percent)) / 100 * 250) * .pi / 180
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: center.x + cos(angle) * radius * inner, y: center.y + sin(angle) * radius * inner))
-        path.addLine(to: CGPoint(x: center.x + cos(angle) * radius * outer, y: center.y + sin(angle) * radius * outer))
-        return path
-    }
-
-    override func draw(_ rect: CGRect) {
-        let center = CGPoint(x: bounds.width / 2, y: bounds.height * 0.56)
-        let radius = min(bounds.width, bounds.height * 1.4) / 2
-        let ticks = UIBezierPath()
-        for index in 0..<49 {
-            ticks.append(tick(Double(index) / 48 * 100, inner: 0.78, outer: 0.92, center: center, radius: radius))
-        }
-        ticks.lineWidth = 1.4
-        UIColor.white.withAlphaComponent(0.5).setStroke()
-        ticks.stroke()
-        let lit = tick(percent, inner: 0.70, outer: 0.98, center: center, radius: radius)
-        lit.lineWidth = 3
-        lit.lineCapStyle = .round
-        UKWeatherInk.amber.setStroke()
-        lit.stroke()
-    }
+    func gridHeight(forWidth width: CGFloat) -> CGFloat { dial.gridHeight(forWidth: width) }
+    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        let value = valueLabel.sizeThatFits(CGSize(width: bounds.width, height: 200))
-        let unit = unitLabel.isHidden ? CGSize.zero : unitLabel.sizeThatFits(CGSize(width: bounds.width, height: 200))
-        let total = ceil(value.height) + ceil(unit.height)
-        let top = (bounds.height - total) / 2 + 4
-        valueLabel.frame = CGRect(x: 0, y: top, width: bounds.width, height: ceil(value.height))
-        unitLabel.frame = CGRect(x: 0, y: top + ceil(value.height), width: bounds.width, height: ceil(unit.height))
-        setNeedsDisplay()
+        dial.frame = bounds
     }
 }
 
 // MARK: - Sun arc
 
-/// The daylight arc with the sun at its progress (`WeatherSunArc`).
+/// The daylight arc with the sun at its progress (`WeatherSunArc`). It is an `arc-track` (``WeatherDialSpecs/sunArc()``) drawn by
+/// ``UKArcTrackView``.
+@MainActor
 final class UKWeatherSunArcView: UIView, UKGridMeasuring {
-    private let percent: Double?
+    private let arc = UKArcTrackView()
 
     init(percent: Double?) {
-        self.percent = percent
         super.init(frame: .zero)
         backgroundColor = .clear
         isOpaque = false
         isAccessibilityElement = false
+        addSubview(arc)
+        arc.apply(WeatherDialSpecs.sunArc(), progress: percent, speech: .hidden)
     }
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
-    /// The arc is as wide as the tile allows, up to 200 pt, and 100:48.
-    func gridHeight(forWidth width: CGFloat) -> CGFloat { min(width, 200) * 48 / 100 }
-    override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: min(size.width, 200), height: gridHeight(forWidth: size.width)) }
+    /// The arc this view draws through.
+    var track: UKArcTrackView { arc }
 
-    override func draw(_ rect: CGRect) {
-        let drawWidth = min(bounds.width, 200)
-        let scaleX = drawWidth / 100, scaleY = drawWidth * 48 / 100 / 48
-        func point(_ x: Double, _ y: Double) -> CGPoint { CGPoint(x: x * scaleX, y: y * scaleY) }
-        let horizon = UIBezierPath()
-        horizon.move(to: point(4, 40))
-        horizon.addLine(to: point(96, 40))
-        horizon.lineWidth = 1
-        UIColor.white.withAlphaComponent(0.35).setStroke()
-        horizon.stroke()
-        let arc = UIBezierPath()
-        arc.move(to: point(8, 40))
-        arc.addQuadCurve(to: point(92, 40), controlPoint: point(50, 4))
-        arc.lineWidth = 2
-        arc.lineCapStyle = .round
-        arc.setLineDash([3, 4], count: 2, phase: 0)
-        UIColor.white.withAlphaComponent(0.6).setStroke()
-        arc.stroke()
-        if let percent {
-            let marker = WeatherPresentation.sunArcMarker(percent: percent)
-            let center = point(marker.x, marker.y)
-            UIColor(red: 1.0, green: 0.85, blue: 0.30, alpha: 1).setFill()
-            UIBezierPath(ovalIn: CGRect(x: center.x - 5, y: center.y - 5, width: 10, height: 10)).fill()
-        }
-    }
+    /// The arc is as wide as the tile allows, up to 200 pt, and 100:48.
+    func gridHeight(forWidth width: CGFloat) -> CGFloat { arc.gridHeight(forWidth: width) }
+    override func sizeThatFits(_ size: CGSize) -> CGSize { arc.sizeThatFits(CGSize(width: size.width, height: size.height)) }
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        setNeedsDisplay()
+        arc.frame = bounds
     }
 }
 

@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "dial-barometer-right-to-left-mirrors-when-asked",
+  "note": "With mirrors the sweep is flipped about the vertical axis: a share of 0 lights the tick at 180 - 145 = 35 degrees, the place of the last in a left-to-right layout.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "ticks": {
+          "count": 49,
+          "inner": 0.78,
+          "outer": 0.92,
+          "width": 1.4
+        },
+        "pointer": {
+          "kind": "tick",
+          "inner": 0.7,
+          "outer": 0.98,
+          "width": 3,
+          "value": 0
+        },
+        "rtl": true,
+        "mirrors": true
+      },
+      "pick": [
+        "lit"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "lit": {
+        "x1": 110.1385,
+        "y1": 84.1052,
+        "x2": 126.1938,
+        "y2": 95.3473
+      }
+    }
+  }
+}

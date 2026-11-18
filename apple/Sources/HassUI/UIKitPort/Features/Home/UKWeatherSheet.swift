@@ -736,17 +736,14 @@ enum UKWeatherTiles {
             return column([name, text], spacing: 0)
         }
         let readout = column([row(wind.speedLabel, wind.speedValue), row(wind.gustLabel, wind.gustValue), row(wind.directionLabel, wind.directionValue)])
-        let side = min(UIFontMetrics(forTextStyle: .footnote).scaledValue(for: 104, compatibleWith: traits), 160)
         let compass = UKWeatherCompassView(sourceDegrees: wind.showVector ? wind.bearingDegrees : nil)
         compass.translatesAutoresizingMaskIntoConstraints = false
-        compass.widthAnchor.constraint(equalToConstant: side).isActive = true
-        compass.heightAnchor.constraint(equalToConstant: side).isActive = true
         let compassBox = UIView()
         compassBox.addSubview(compass)
         compass.topAnchor.constraint(equalTo: compassBox.topAnchor).isActive = true
         compass.bottomAnchor.constraint(equalTo: compassBox.bottomAnchor).isActive = true
         compass.trailingAnchor.constraint(equalTo: compassBox.trailingAnchor).isActive = true
-        compassBox.widthAnchor.constraint(equalToConstant: side).isActive = true
+        compassBox.widthAnchor.constraint(equalTo: compass.widthAnchor).isActive = true
         let content: UIStackView
         if traits.ukIsAccessibilitySize {
             let box = UIView()

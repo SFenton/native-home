@@ -3,11 +3,11 @@ import Foundation
 import HassCore
 import UIKit
 
-// MARK: - Data parts (`sh.chart@1`, `sh.linear-gauge@1`)
+// MARK: - Data parts (`sh.chart@1`, `sh.linear-gauge@1`, `sh.dial@1`, `sh.arc-track@1`)
 
-/// Binds the `chart` and `linear-gauge` nodes to their views: what each reads from state, and the values it hands the view.
+/// Binds the `chart`, `linear-gauge`, `dial` and `arc-track` nodes to their views: what each reads from state, and the values it hands the view.
 ///
-/// The views (``UKChartView``, ``UKLinearGaugeView``) hold values only; every read of an entity or a flow happens here, in one observation that
+/// The views (``UKChartView``, ``UKLinearGaugeView``, ``UKDialView``, ``UKArcTrackView``) hold values only; every read of an entity or a flow happens here, in one observation that
 /// touches exactly what the node's operands and series name, so one entity change is one update of the view that reads it, and a records flow
 /// that gives a new record is one update of the chart over it. A value that is still loading keeps what the view showed.
 @MainActor
@@ -106,6 +106,43 @@ enum UKServerUIDataParts {
                 speech = .value(label: words(label, in: renderer, fallback: gauge.node.title) ?? gauge.node.title, value: words(value, in: renderer, fallback: nil))
             }
             view.apply(gauge, reading: reading, speech: speech)
+        }
+    }
+
+    // MARK: Dial and arc track
+
+    /// What a gauge part tells an assistive technology.
+    private static func speech(_ spoken: (label: D.StringValue, value: D.StringValue?)?, title: String, in renderer: UKServerUIRenderer) -> UKGaugeSpeech {
+        guard let spoken else { return .hidden }
+        return .value(label: words(spoken.label, in: renderer, fallback: title) ?? title, value: words(spoken.value, in: renderer, fallback: nil))
+    }
+
+    /// Binds a dial: the pointer's number, the words of each line in the middle, and the name and value it tells a screen reader.
+    static func bind(_ dial: ServerUIDial, view: UKDialView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        entry.bag.observe { [weak view, weak renderer] in
+            guard let view, let renderer else { return }
+            let reader = renderer.reader()
+            let lines = dial.center.map { line -> UKDialLineValue in
+                switch renderer.bindings.string(line.value) {
+                case .ready(let text): .text(text)
+                case .unavailable: .unavailable
+                case .loading: .loading
+                }
+            }
+            var spoken: (label: D.StringValue, value: D.StringValue?)?
+            if case .value(let label, let value) = dial.accessibility { spoken = (label, value) }
+            view.apply(dial, reading: UKDialReading(value: number(dial.pointer?.value, in: reader), lines: lines),
+                       speech: speech(spoken, title: dial.node.title, in: renderer))
+        }
+    }
+
+    /// Binds an arc: the progress its operand gives now, and the name and value it tells a screen reader.
+    static func bind(_ arc: ServerUIArcTrack, view: UKArcTrackView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        entry.bag.observe { [weak view, weak renderer] in
+            guard let view, let renderer else { return }
+            var spoken: (label: D.StringValue, value: D.StringValue?)?
+            if case .value(let label, let value) = arc.accessibility { spoken = (label, value) }
+            view.apply(arc, progress: number(arc.progress, in: renderer.reader()), speech: speech(spoken, title: arc.node.title, in: renderer))
         }
     }
 }

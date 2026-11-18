@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "name": "arc-track-curve-and-horizon-scale",
+  "note": "The curve and the horizon are the box scaled by 1.5 at 150 wide: (12, 60), (75, 6), (138, 60); the horizon (6, 60) to (144, 60) (:565-573).",
+  "subject": {
+    "arc": {
+      "op": "layout",
+      "input": {
+        "curve": {
+          "from": [
+            8,
+            40
+          ],
+          "control": [
+            50,
+            4
+          ],
+          "to": [
+            92,
+            40
+          ]
+        },
+        "box": [
+          100,
+          48
+        ],
+        "maxWidth": 200,
+        "horizon": {
+          "from": [
+            4,
+            40
+          ],
+          "to": [
+            96,
+            40
+          ]
+        },
+        "width": 150,
+        "progress": null
+      },
+      "pick": [
+        "curve",
+        "horizon"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "arc": {
+      "curve": {
+        "from": [
+          12,
+          60
+        ],
+        "control": [
+          75,
+          6
+        ],
+        "to": [
+          138,
+          60
+        ]
+      },
+      "horizon": {
+        "from": [
+          6,
+          60
+        ],
+        "to": [
+          144,
+          60
+        ]
+      }
+    }
+  }
+}

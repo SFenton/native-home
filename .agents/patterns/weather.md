@@ -34,6 +34,7 @@ Web source: `ha-sfenton-react-dash@f5a7bf9` `src/components/hass/WeatherSummary.
 - The Today briefing is stored in the disk snapshot instead of `localStorage`.
 - No navigation subtitle: the bar subtitle measured 4.1:1 over the gradient (iPhone audit, 2026-10-13), and the hero already shows "72°" and the condition. The title stays the system "Weather".
 - Charts are plain bars (HIG: Charting data), not Swift Charts, so every axis label can scale with Dynamic Type.
+- The wind compass, the pressure gauge and the sun arc are not drawn by weather code: they are `WeatherDialSpecs` documents drawn by the one dial and arc ([dial](dial.md)), which lists where they differ from the Studio's preview.
 
 ## House config
 
