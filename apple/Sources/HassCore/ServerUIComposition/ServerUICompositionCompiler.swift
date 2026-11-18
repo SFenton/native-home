@@ -13,6 +13,11 @@ struct ServerUICompositionCompiler {
     private var pageRefs: [(String, String)] = []
     private var modalRefs: [(String, String)] = []
     private var tabRefs: [(String, String)] = []
+    /// What kind of surface the walk is inside: a push to a level of a sheet is valid only from a modal or a level (`sh.sheet-levels@1`).
+    private enum SurfaceKind { case page, modal, level, leavingSheet, library }
+    private var surfaceKind = SurfaceKind.page
+    /// Every `push`: the page or level it names, where, and the kind of surface it sits in.
+    private var pushRefs: [(String, String, SurfaceKind)] = []
     private var reads: [(D.Read, String)] = []
     private var powerRefs: [(String, String, Issue.Code)] = []
     private var alarmRefs: [(String, String)] = []
@@ -121,6 +126,7 @@ struct ServerUICompositionCompiler {
         if let updated, let published, updated > published { add(.invalidValue, "/updatedAt") }
         validateReferences(document)
         validateChromeContexts(document)
+        validateHides(document)
         // The tap check reads the document as written, so it joins after the expansion's issues are moved back.
         if let first = ServerUICompositionShape.first(components.remapped(issues) + stackTapIssues) { throw first }
         document.dataSources = components.published(document.dataSources)
@@ -147,18 +153,23 @@ struct ServerUICompositionCompiler {
     private mutating func compileComponents() {
         if components.usesComponents { require("component-ref") }
         issues += components.issues
+        // A library body has no surface of its own: the push check runs where it is used.
+        surfaceKind = .library
+        defer { surfaceKind = .page }
         for body in components.bodies {
             let outside = nodeCount
             nodeCount = 0
             do { _ = try component(Cursor(body.value, body.pointer), depth: 1, gridChild: false) } catch let issue as Issue { issues.append(issue) } catch {}
             nodeCount = outside
         }
-        for argument in components.argumentReferences where catalogs[argument.catalog]?[argument.id] == nil { add(.invalidReference, argument.pointer) }
+        // A `page-id` argument may also name a level of a sheet; the push it fills carries the context check where the component is used.
+        for argument in components.argumentReferences where catalogs[argument.catalog]?[argument.id] == nil
+            && !(argument.catalog == "page" && catalogs["level"]?[argument.id] != nil) { add(.invalidReference, argument.pointer) }
     }
 
     /// Throws the first `unsupported_capability` issue, in declaration order, among the declared capabilities, ignoring malformed ones.
     private static func refuseUnshippedCapabilities(_ capabilities: [String]) throws {
-        let known = Set(ServerUICompositionPublication.supportedCapabilities)
+        let known = Set(ServerUICompositionPublication.acceptedCapabilities)
         for (index, capability) in capabilities.enumerated() where !known.contains(capability) {
             guard ServerUICompositionShape.matches(capability, "^[a-z][a-z0-9]*(\\.[a-z][a-z0-9-]*)+@[1-9][0-9]*$") else { continue }
             // Declaration order, so the lowest index is first (the Studio's order; a string sort would put 10 before 6).
@@ -167,7 +178,7 @@ struct ServerUICompositionCompiler {
     }
 
     private static func checkKnownCapabilities(_ capabilities: [String]) throws {
-        let known = Set(ServerUICompositionPublication.supportedCapabilities)
+        let known = Set(ServerUICompositionPublication.acceptedCapabilities)
         var issues: [Issue] = []
         for (index, capability) in capabilities.enumerated() {
             let pointer = "/capabilities/\(index)"
@@ -198,6 +209,7 @@ struct ServerUICompositionCompiler {
         }
         let pages = try c.field("pages").array().map { p -> D.Page in
             let surface = try surface(p)
+            let chrome = try pageChrome(p)
             register(surface.id, catalog: "surface", at: p.path("id"))
             register(surface.id, catalog: "page", at: p.path("id"))
             let route: D.RouteLayout = try p.field("navigation").e("type")
@@ -205,8 +217,10 @@ struct ServerUICompositionCompiler {
             return D.Page(surface: surface, navigation: route,
                 columnPlaceholder: try p.field("navigation").optionalString("placeholder"),
                 standaloneColumns: try route == .columns ? p.field("navigation").b("standalone") : false,
-                columnsOnDemand: p.value["navigation"]?["onDemand"]?.bool ?? false)
+                columnsOnDemand: p.value["navigation"]?["onDemand"]?.bool ?? false,
+                hides: chrome.hides, wideOpen: chrome.wideOpen)
         }
+        surfaceKind = .modal
         let modals = try c.field("modals").array().map { m -> D.Modal in
             let surface = try surface(m)
             register(surface.id, catalog: "surface", at: m.path("id"))
@@ -214,7 +228,20 @@ struct ServerUICompositionCompiler {
             if case .inherit = surface.toolbar { add(.invalidCombination, m.path("toolbar")) }
             return D.Modal(surface: surface, presentation: try sheet(m.field("presentation")))
         }
-        if pages.count + modals.count > 512 { add(.limitExceeded, c.path("pages")) }
+        var levels: [D.Level] = []
+        if c.value["levels"] != nil {
+            require("sheet-levels")
+            surfaceKind = .level
+            levels = try c.field("levels").array().map { l -> D.Level in
+                let surface = try surface(l)
+                register(surface.id, catalog: "surface", at: l.path("id"))
+                register(surface.id, catalog: "level", at: l.path("id"))
+                if case .inherit = surface.toolbar { add(.invalidCombination, l.path("toolbar")) }
+                return D.Level(surface: surface)
+            }
+        }
+        surfaceKind = .page
+        if pages.count + modals.count + levels.count > 512 { add(.limitExceeded, c.path("pages")) }
         let sources = try c.field("dataSources").array().map { try source($0) }
         let assets = try c.field("assets").array().map { try asset($0) }
         if assets.map(\.id) != assets.map(\.id).sorted() { add(.invalidValue, c.path("assets")) }
@@ -264,7 +291,8 @@ struct ServerUICompositionCompiler {
             assets: assets, liveActivities: activities, localState: localFields,
             bootstrap: c.value["bootstrap"].map { try bootstrap(Cursor($0, c.path("bootstrap"))) },
             extensions: extensions,
-            stateStyles: loweredStyles.isEmpty ? stateLibrary : ServerUIStateStyleLibrary(entries: (stateLibrary?.entries ?? []) + loweredStyles)
+            stateStyles: loweredStyles.isEmpty ? stateLibrary : ServerUIStateStyleLibrary(entries: (stateLibrary?.entries ?? []) + loweredStyles),
+            levels: levels
         )
     }
 
@@ -369,12 +397,18 @@ struct ServerUICompositionCompiler {
             }
         }
         let policy = try c.field("policy")
+        var visibility: D.TabsVisibility?
+        if c.value["tabsVisibility"] != nil {
+            require("tabs-visibility")
+            visibility = try c.e("tabsVisibility")
+        }
         return try D.Navigation(
             initialPageId: pageId, initialTabId: tabId, initialArguments: .init(), tabs: tabs,
             policy: .init(type: policy.e("type"), tabSwitch: policy.e("tabSwitch"), reselect: policy.e("reselect"),
                           stackMotion: policy.e("stackMotion"), restoration: policy.e("restoration"),
                           selectionWhileModal: policy.e("selectionWhileModal")),
-            chrome: .init(groups: groups(c.field("chrome").field("groups")))
+            chrome: .init(groups: groups(c.field("chrome").field("groups"))),
+            tabsVisibility: visibility
         )
     }
     private mutating func groups(_ c: Cursor) throws -> [D.ChromeGroup] {
@@ -1088,7 +1122,7 @@ struct ServerUICompositionCompiler {
         case "dismiss": require("actions.navigation"); return try .dismiss(scope: c.e("scope"))
         case "dismiss-then-push":
             require("actions.navigation")
-            return try .dismissThenPush(push(c.field("destination")))
+            return try .dismissThenPush(push(c.field("destination"), leavesSheet: true))
         default: throw Issue(.unknownVariant, c.path("type"))
         }
     }
@@ -1238,9 +1272,10 @@ struct ServerUICompositionCompiler {
         }
     }
 
-    private mutating func push(_ c: Cursor) throws -> D.Push {
+    /// Reads a `push`. A page it names must exist; a level it names must exist and be reached from a modal or a level, never from a page or a `dismiss-then-push`.
+    private mutating func push(_ c: Cursor, leavesSheet: Bool = false) throws -> D.Push {
         let id = try c.s("pageId")
-        pageRefs.append((id, c.path("pageId")))
+        pushRefs.append((id, c.path("pageId"), leavesSheet ? .leavingSheet : surfaceKind))
         return try .init(pageId: id, arguments: .init(), origin: c.e("origin"), duplicate: c.e("duplicate"))
     }
     private func confirmation(_ c: Cursor) throws -> D.Confirmation {
@@ -2198,6 +2233,11 @@ struct ServerUICompositionCompiler {
             } else { add(.invalidReference, pointer + "/stateId") }
         }
         for (id, pointer) in pageRefs where catalogs["page"]?[id] == nil { add(.invalidReference, pointer) }
+        for (id, pointer, kind) in pushRefs where catalogs["page"]?[id] == nil {
+            if catalogs["level"]?[id] != nil {
+                if kind == .page || kind == .leavingSheet { add(.invalidCombination, pointer) }
+            } else { add(.invalidReference, pointer) }
+        }
         for (id, pointer) in modalRefs where catalogs["modal"]?[id] == nil { add(.invalidReference, pointer) }
         for (id, pointer) in tabRefs where catalogs["tab"]?[id] == nil { add(.invalidReference, pointer) }
         // Duplicate IDs are diagnosed before using the first definition as a lookup.
@@ -2545,6 +2585,7 @@ struct ServerUICompositionCompiler {
                 add(.invalidCombination, "/document/pages/\(index)/toolbar")
             }
         }
+        let levelIndices = Dictionary(document.levels.enumerated().map { ($0.element.id, $0.offset) }, uniquingKeysWith: { first, _ in first })
         var modalExits: [String: Set<String>] = [:]
         for (index, modal) in document.modals.enumerated() {
             let groups = effective(modal.surface.toolbar, inherited: [])
@@ -2555,12 +2596,18 @@ struct ServerUICompositionCompiler {
                 if case .dismissThenPush(let push) = intent {
                     modalExits[modal.id, default: []].insert(push.pageId)
                 }
-                guard case .push(let push) = intent, seen.insert(push.pageId).inserted,
-                      let surface = pageMap[push.pageId], let pageIndex = pageIndices[push.pageId] else { continue }
+                guard case .push(let push) = intent, seen.insert(push.pageId).inserted else { continue }
+                let reached: (surface: D.Surface, toolbar: String)
+                if let surface = pageMap[push.pageId], let pageIndex = pageIndices[push.pageId] {
+                    reached = (surface, "/document/pages/\(pageIndex)/toolbar")
+                } else if let level = levelIndices[push.pageId] {
+                    reached = (document.levels[level].surface, "/document/levels/\(level)/toolbar")
+                } else { continue }
+                let surface = reached.surface
                 let pageGroups = effective(surface.toolbar, inherited: groups)
                 let hostItems = modal.presentation.close.visibility == .allDepths ? 2 : 1
                 if count(pageGroups, root: false, shell: false) + hostItems > 12 {
-                    add(.limitExceeded, "/document/pages/\(pageIndex)/toolbar")
+                    add(.limitExceeded, reached.toolbar)
                 }
                 pending += actions(surface.components) + chromeActions(pageGroups, root: false)
             }

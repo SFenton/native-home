@@ -120,6 +120,12 @@ public struct ServerUICompositionPublication: Equatable, Sendable {
         serverUIStateStyleCapability,
     ] + ServerUIBedroomControl.capabilities + ServerUIIngestedCapabilities.all
 
+    /// Every capability the compiler accepts in a manifest: the published ``supportedCapabilities``, plus the unpublished global-chrome ids while
+    /// ``ServerUIGlobalChrome/understood`` is set (a test scope; production never sets it, so a shipped build refuses those ids as unsupported).
+    static var acceptedCapabilities: [String] {
+        ServerUIGlobalChrome.understood ? supportedCapabilities + ServerUIGlobalChrome.all : supportedCapabilities
+    }
+
     /// Parses bounded, duplicate-key-aware JSON and compiles every definition, including hidden
     /// and unreachable ones. All failures are sanitized ``ServerUICompositionError`` values.
     /// Schema 2 allows a 2 MiB document, 64 KiB envelope overhead, 100,000 JSON values,

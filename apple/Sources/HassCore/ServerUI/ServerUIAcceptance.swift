@@ -61,6 +61,9 @@ public enum ServerUIAcceptance {
         for (index, modal) in document.modals.enumerated() {
             if let found = surface(modal.surface, at: "/document/modals/\(index)") { return found }
         }
+        for (index, level) in document.levels.enumerated() {
+            if let found = surface(level.surface, at: "/document/levels/\(index)") { return found }
+        }
         return nil
     }
 

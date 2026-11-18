@@ -75,6 +75,7 @@ enum ServerUICompositionShape {
             "navigation": navigation,
             "pages": array(surface(modal: false), 256, minimum: 1),
             "modals": array(surface(modal: true), 256),
+            "levels": .optional(array(surface(level: true), 256)),
             "dataSources": array(source, 1_000),
             "variables": .emptyObject("sh.local-state@1", 100),
             "localState": .optional(array(localField, 100)),
@@ -179,7 +180,8 @@ enum ServerUICompositionShape {
                 "reselect": fixed("pop-root-then-scroll@1"), "stackMotion": fixed("canonical-stack@1"),
                 "restoration": fixed("scene@1"), "selectionWhileModal": fixed("reject")
             ]),
-            "chrome": object(["groups": groups])
+            "chrome": object(["groups": groups]),
+            "tabsVisibility": .optional(.choice(["always", "root-only"]))
         ])
     }()
     static let groups: Shape = {
@@ -224,7 +226,8 @@ enum ServerUICompositionShape {
             "scroll": fixed("content-fit@1"), "chrome": fixed("canonical-page@1"), "ground": fixed("host")
         ])
     }()
-    static func surface(modal: Bool) -> Shape {
+    /// A surface's shape: a page by default, a modal with `modal`, a level of a sheet with `level` (no route style, no presentation, no page-only fields).
+    static func surface(modal: Bool = false, level: Bool = false) -> Shape {
         var fields: [String: Shape] = [
             "id": id, "title": title, "icon": symbol, "parameters": arguments,
             "layout": body, "toolbar": toolbar, "components": array(.component, 100),
@@ -232,7 +235,9 @@ enum ServerUICompositionShape {
         ]
         if modal {
             fields["presentation"] = sheet
-        } else {
+        } else if !level {
+            fields["hides"] = .optional(object(["tabs": .optional(.bool), "items": .optional(array(id, 32))]))
+            fields["wideOpen"] = .optional(.choice(["automatic", "full", "beside"]))
             fields["navigation"] = .variant("type", [
                 "stack": object(["type": fixed("stack")]),
                 "navigation-columns": object(["type": fixed("navigation-columns"), "placeholder": title, "standalone": .bool, "onDemand": .optional(.bool)])

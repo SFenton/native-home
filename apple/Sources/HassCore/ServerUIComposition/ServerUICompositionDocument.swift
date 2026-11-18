@@ -24,6 +24,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public var extensions: NativeExtensionPresentation? = nil
     /// The saved state styles `state-tile` nodes apply by id (`sh.state-style@1`); nil when the document carries none.
     public var stateStyles: ServerUIStateStyleLibrary? = nil
+    /// The surfaces a sheet's `push` reaches inside the sheet (`sh.sheet-levels@1`); empty when the document carries none.
+    public internal(set) var levels: [Level] = []
 
     /// An explicitly authored empty object; parameterized routes and legacy `variables` remain unsupported.
     public struct EmptyObject: Equatable, Sendable {}
@@ -175,6 +177,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let tabs: [Tab]
         public let policy: ShellPolicy
         public let chrome: Chrome
+        /// Whether the tab bar shows on every page or on a root page only (`sh.tabs-visibility@1`); `nil` when the document wrote nothing, which is `always`.
+        public var tabsVisibility: TabsVisibility? = nil
     }
     /// The shell's navigation policies: its type, tab switching and tab reselection.
     public struct ShellPolicy: Equatable, Sendable {
@@ -286,6 +290,10 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public var columnPlaceholder: String? = nil
         public var standaloneColumns = false
         public var columnsOnDemand = false
+        /// The chrome the page hides for itself (`sh.page-chrome-hide@1`); `nil` when it hides none.
+        public var hides: PageHides? = nil
+        /// How the page opens in a wide window (`sh.page-wide-open@1`); `nil` when the document wrote nothing, which keeps the rule that a plain `stack` page opens full width.
+        public var wideOpen: WideOpen? = nil
         public var id: String { surface.id }
     }
     /// A modal: a surface presented as a sheet.
