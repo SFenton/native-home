@@ -216,8 +216,8 @@ struct StateGoldenTests {
         let listed = Set(Self.expected.flatMap { group in group.ids.map { "\($0)#\(group.field)" } })
         let unlisted = actual.filter { !listed.contains($0.key) }
         let stale = listed.subtracting(actual.map(\.key))
-        #expect(unlisted.isEmpty, "differences from the old app not in expected-failures.json: \(unlisted.prefix(8).map { "\($0.key) old=\($0.old) new=\($0.new)" })")
-        #expect(stale.isEmpty, "manifest entries the code no longer produces (flip them out): \(stale.sorted().prefix(8))")
+        #expect(unlisted.isEmpty, "differences from the old app not in expected-failures.json: \(unlisted.map { "\($0.key) old=\($0.old) new=\($0.new)" })")
+        #expect(stale.isEmpty, "manifest entries the code no longer produces (flip them out): \(stale.sorted())")
     }
 
     /// The counts the lane reports, kept in step with the manifest so a drift shows as a test failure and not a stale note.

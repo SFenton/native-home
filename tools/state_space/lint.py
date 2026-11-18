@@ -20,7 +20,7 @@ Rules:
 
 Usage::
 
-    lint.py PUBLICATION.json [--helpers FILE] [--details] [--report PATH] [--json]
+    lint.py PUBLICATION.json [--helpers FILE] [--details] [--report PATH] [--note TEXT] [--json]
 
 Exit status 1 when any finding has severity ``high``; 0 otherwise. Standard library only.
 """
@@ -96,7 +96,7 @@ def lint(data: dict, helpers: list[str] | None = None) -> list[dict]:
         closed = set(BINARY) if kind in DEVICE_KINDS and (node or {}).get("type") == "remote-control" else None
         if not obj["states"] and fallback:
             add("empty-map", path, node, "no state maps to a word; every state reads the constant fallback")
-        elif closed and closed - values:
+        elif obj["states"] and closed and closed - values:
             add("partial-map", path, node, f"{len(closed - values)} of {len(closed)} ordinary states unmapped: {sorted(closed - values)}")
         elif fallback.strip().lower() in ERROR_WORDS:
             add("reachable-fallback", path, node, "failure word as a constant fallback; the ordinary states it can see are not provable")
@@ -126,8 +126,8 @@ def table(findings: list[dict]) -> list[tuple[str, str, str, int]]:
     return [(*key, n) for key, n in sorted(tally.items())]
 
 
-def report(findings: list[dict], nodes: int) -> str:
-    lines = ["# State lint", "", f"Counts only; no layout detail. Nodes scanned: {nodes}.", "", "| Rule | Severity | Findings |", "|---|---|---|"]
+def report(findings: list[dict], nodes: int, note: str = "") -> str:
+    lines = ["# State lint", "", f"Counts only; no layout detail. Nodes scanned: {nodes}." + (f" {note}" if note else ""), "", "| Rule | Severity | Findings |", "|---|---|---|"]
     for rule, n in counts(findings).items():
         lines.append(f"| {rule} | {SEVERITY[rule]} | {n} |")
     if not findings:
@@ -147,12 +147,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--helpers", type=Path, help="JSON list of entity ids the old layout read")
     parser.add_argument("--details", action="store_true", help="print node ids and paths (house data: do not commit)")
     parser.add_argument("--report", type=Path, help="write the counts-only markdown report here")
+    parser.add_argument("--note", default="", help="one generic line for the report (what was scanned, no house detail)")
     parser.add_argument("--json", action="store_true", help="print the counts as JSON")
     args = parser.parse_args(argv)
     data = json.loads(args.publication.read_text(encoding="utf-8"))
     helpers = json.loads(args.helpers.read_text(encoding="utf-8")) if args.helpers else None
     findings = lint(data, helpers)
-    text = report(findings, count_nodes(data))
+    text = report(findings, count_nodes(data), args.note)
     if args.report:
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(text, encoding="utf-8")
