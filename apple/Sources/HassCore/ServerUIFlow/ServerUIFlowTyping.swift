@@ -235,7 +235,7 @@ public struct ServerUIFlowTyping {
                 shapes[name] = sub(fields[name]!, "fields", name, facts: &facts, budget: &budget)
             }
             return .record(shapes)
-        case .control, .rawState, .lastChanged, .listCount, .listIncludes:
+        case .control, .rawState, .lastChanged, .listCount, .listIncludes, .count:
             report(&facts, .invalidCombination, at)
             return .any
         case .choose(let cases, let otherwise):

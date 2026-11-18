@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "name": "count-operand-every-entry-without-state-is-unavailable",
+  "note": "When no entry can be answered the count has nothing to say: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

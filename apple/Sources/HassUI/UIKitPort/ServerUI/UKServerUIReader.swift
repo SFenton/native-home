@@ -124,7 +124,12 @@ struct UKServerUIReader: ServerUIReading {
         }
     }
 
-    func read(sourceId: String, path: [String]) -> ServerUIReadResult {
+    func read(sourceId: String, path: [String]) -> ServerUIReadResult { read(sourceId: sourceId, path: path, unavailableIsText: false) }
+
+    /// A state Home Assistant reports as `unavailable` is that text, the way the Studio's evaluator gives it to a count's `state` test (`sh.count@1`).
+    func readStateText(sourceId: String, path: [String]) -> ServerUIReadResult { read(sourceId: sourceId, path: path, unavailableIsText: true) }
+
+    private func read(sourceId: String, path: [String], unavailableIsText: Bool) -> ServerUIReadResult {
         MainActor.assumeIsolated {
             guard let source = bindings.definitions[sourceId] else { return .unavailable }
             guard case .haEntity = source else {
@@ -141,7 +146,7 @@ struct UKServerUIReader: ServerUIReading {
                 return .unavailable
             }
             if bindings.context.valuesPending { return .loading }
-            guard let state = bindings.context.store.entity(id).state, !state.isUnavailable else { return .unavailable }
+            guard let state = bindings.context.store.entity(id).state, unavailableIsText || !state.isUnavailable else { return .unavailable }
             if path == ["state"] { return .value(.string(runner?.pendingState(id) ?? state.state)) }
             guard path.first == "attributes" else { return .unavailable }
             var value: JSONValue? = .object(state.attributes)

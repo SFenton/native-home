@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-test-value",
+  "note": "Known viewer: an administrator who is u1 counts both.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer",
+            "isAdmin": true
+          }
+        },
+        {
+          "test": {
+            "type": "viewer",
+            "userIds": [
+              "u1"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewer": {
+      "userId": "u1",
+      "isAdmin": true
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

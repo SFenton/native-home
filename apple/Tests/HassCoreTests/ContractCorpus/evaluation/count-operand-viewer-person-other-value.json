@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-person-other-value",
+  "note": "A person state that is not listed counts neither.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home",
+              "work"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewerPerson": {
+      "status": "value",
+      "value": "away"
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

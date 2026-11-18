@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "count-operand-all-test-with-a-no",
+  "note": "An `all` with a no is a no even when another test cannot be answered: counted as not holding, so the count is a value.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "all",
+            "of": [
+              {
+                "type": "state",
+                "sourceId": "a",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              },
+              {
+                "type": "numeric",
+                "sourceId": "b",
+                "path": [
+                  "state"
+                ],
+                "above": {
+                  "type": "literal",
+                  "value": 70
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "format": 1,
+  "name": "count-operand-test-for-the-unavailable-state",
+  "note": "A test can ask for the word itself: how many entities are unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "unavailable"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "unavailable"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "unavailable"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "unavailable"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "unavailable"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

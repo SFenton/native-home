@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-person-value",
+  "note": "The state of the viewer's person entity: home counts both entries.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home",
+              "work"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewerPerson": {
+      "status": "value",
+      "value": "home"
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 2
+  }
+}

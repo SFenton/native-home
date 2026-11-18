@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-person-missing-is-unavailable",
+  "note": "A host with no person state: unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home",
+              "work"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

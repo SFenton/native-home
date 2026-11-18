@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "name": "count-operand-raw-state-one-loading-one-answered-is-a-value",
+  "note": "One answered is enough for a number: the loading one is not counted.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "raw": {
+      "a": {
+        "status": "value",
+        "value": "on"
+      },
+      "b": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

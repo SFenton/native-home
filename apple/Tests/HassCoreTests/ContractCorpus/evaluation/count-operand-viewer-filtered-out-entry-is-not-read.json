@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-filtered-out-entry-is-not-read",
+  "note": "An entry the viewer is not in is not in play: its entity is never asked, so a missing state there does not matter.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_sam"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewer": {
+      "personEntityId": "person.demo_alex"
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

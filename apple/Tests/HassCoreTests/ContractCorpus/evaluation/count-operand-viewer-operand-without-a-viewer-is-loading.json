@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-operand-without-a-viewer-is-loading",
+  "note": "A comparison with the viewer's id before the viewer is known: loading.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "viewer",
+              "field": "userId"
+            },
+            "right": {
+              "type": "literal",
+              "value": "u1"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

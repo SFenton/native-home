@@ -1,0 +1,95 @@
+{
+  "format": 1,
+  "name": "count-operand-sum-of-counts",
+  "note": "Two counts add: 2 of one list and 1 of the other make 3.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "add",
+      "args": [
+        {
+          "type": "count",
+          "of": [
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "a",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            },
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "b",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "count",
+          "of": [
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "c",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            },
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "d",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "off"
+      },
+      "d/state": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 3
+  }
+}

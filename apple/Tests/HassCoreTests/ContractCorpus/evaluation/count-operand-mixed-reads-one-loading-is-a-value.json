@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "count-operand-mixed-reads-one-loading-is-a-value",
+  "note": "Entries over a plain read, a raw state and a person state: the unanswered ones are not counted while one is answered.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "on"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      }
+    },
+    "raw": {
+      "b": {
+        "status": "loading"
+      }
+    },
+    "viewerPerson": {
+      "status": "loading"
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

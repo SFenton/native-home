@@ -1,0 +1,67 @@
+{
+  "format": 1,
+  "name": "count-operand-entity-without-state-is-skipped",
+  "note": "An entry whose entity has no state at all cannot be answered: it is not counted, and the others are.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "b/state": {
+        "status": "unavailable"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "off"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

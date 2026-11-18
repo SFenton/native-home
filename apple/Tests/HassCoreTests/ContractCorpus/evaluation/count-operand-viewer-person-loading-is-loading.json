@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-person-loading-is-loading",
+  "note": "The person entity still loading, nothing answered: loading.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "viewer-person",
+            "in": [
+              "home",
+              "work"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewerPerson": {
+      "status": "loading"
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

@@ -262,6 +262,8 @@ struct ServerUIExpressionParser {
             return .lastChanged(sourceId: sourceId)
         case "list-count", "list-includes":
             return listRead(json, pointer, depth: depth, includes: type == "list-includes")
+        case "count":
+            return count(json, pointer, depth: depth)
         case "math":
             guard let object = fields(json, pointer, ["type", "op", "args"]) else { return nil }
             guard case .string(let raw)? = object["op"], let op = ServerUIOperand.MathOp(rawValue: raw) else {
@@ -416,6 +418,50 @@ struct ServerUIExpressionParser {
         return .listIncludes(sourceId: sourceId, path: path, value: value)
     }
 
+    /// `count`: one to ``ServerUICountEntry/maximumEntries`` entries, each a condition and an optional list of people (`sh.count@1`).
+    ///
+    /// Each test is a condition of a rule's case, so it has its own 32 nodes and 6 levels inside the expression's 64 nodes. Every entry is
+    /// walked, so each problem is reported where it stands; the count is built only when every entry is.
+    private mutating func count(_ json: JSONValue, _ pointer: String, depth: Int) -> ServerUIOperand? {
+        needs.insert("count")
+        guard let object = fields(json, pointer, ["type", "of"]) else { return nil }
+        // The tests read the document's sources, which a flow does not have: its reads are its own.
+        if flow { add(.invalidCombination, pointer) }
+        guard case .array(let items)? = object["of"] else { add(.invalidValue, pointer + "/of"); return nil }
+        let allowed = 1...ServerUICountEntry.maximumEntries
+        if !allowed.contains(items.count) { add(.limitExceeded, pointer + "/of") }
+        let outer = conditionBudget
+        defer { conditionBudget = outer }
+        var entries: [ServerUICountEntry] = []
+        for (index, item) in items.enumerated() {
+            let at = pointer + "/of/\(index)"
+            let shaped = fields(item, at, ["test"], ["viewer"]) != nil
+            guard case .object(let raw) = item else { continue }
+            conditionBudget = Self.maximumConditionNodes
+            let test = raw["test"].flatMap { predicate($0, at + "/test", depth: depth + 1, conditionDepth: 1) }
+            let filter = raw["viewer"].map { personFilter($0, at + "/viewer") }
+            if shaped, let test, filter != .some(nil) { entries.append(.init(test: test, personEntityIds: filter ?? nil)) }
+        }
+        guard entries.count == items.count, allowed.contains(items.count) else { return nil }
+        return .count(entries)
+    }
+
+    /// A count entry's viewer filter: `personEntityIds`, one to 32 `person.<name>` ids.
+    private mutating func personFilter(_ json: JSONValue, _ pointer: String) -> [String]? {
+        guard let object = fields(json, pointer, ["personEntityIds"]) else { return nil }
+        guard case .array(let items)? = object["personEntityIds"] else { add(.invalidValue, pointer + "/personEntityIds"); return nil }
+        if items.isEmpty || items.count > ServerUICountEntry.maximumEntries { add(.limitExceeded, pointer + "/personEntityIds"); return nil }
+        var ids: [String] = []
+        for (slot, item) in items.enumerated() {
+            guard case .string(let id) = item, ServerUICompositionShape.matches(id, "^person\\.[a-z0-9_]+$") else {
+                add(.invalidValue, pointer + "/personEntityIds/\(slot)")
+                continue
+            }
+            ids.append(id)
+        }
+        return ids.count == items.count ? ids : nil
+    }
+
     private mutating func map(_ json: JSONValue, _ pointer: String, depth: Int) -> ServerUIOperand? {
         guard let object = fields(json, pointer, ["type", "of", "cases", "otherwise"]) else { return nil }
         let subject = operand(object["of"] ?? .null, pointer + "/of", depth: depth + 1)
@@ -484,7 +530,7 @@ struct ServerUIExpressionParser {
             }
         case .viewer(let field): field == .isAdmin ? .boolean : .string
         case .format, .clock, .rawState, .lastChanged: .string
-        case .math, .date, .progress, .secondsBetween, .index, .listCount: .number
+        case .math, .date, .progress, .secondsBetween, .index, .listCount, .count: .number
         case .listIncludes: .boolean
         case .object, .list: .structure
         case .map(_, _, let otherwise), .choose(_, let otherwise): kind(otherwise)

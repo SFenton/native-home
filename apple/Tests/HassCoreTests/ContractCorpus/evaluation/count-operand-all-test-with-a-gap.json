@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "count-operand-all-test-with-a-gap",
+  "note": "An entry that is an `all` of a yes and an unanswerable test is unanswerable: not counted. The other entry holds.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "all",
+            "of": [
+              {
+                "type": "state",
+                "sourceId": "a",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              },
+              {
+                "type": "numeric",
+                "sourceId": "b",
+                "path": [
+                  "state"
+                ],
+                "above": {
+                  "type": "literal",
+                  "value": 70
+                }
+              }
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "unavailable"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

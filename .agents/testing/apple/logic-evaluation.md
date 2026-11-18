@@ -13,12 +13,20 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
   - whole-house replay;
   - a 50-box burst;
   - attribute churn on an entity many nodes read for `state`;
-  - a large count read in many places;
+  - a large count read in many places, written as `math add` over `choose` and as the one `count` operand;
   - viewer predicates in a large house;
   - every tab loaded;
   - a `choose` that flips on every update;
   - a minute tick inside a burst;
   - one template expanded ten times.
+- **Counting many entities (`sh.count@1`):**
+  - `ServerUIOperand.count` is one node whatever the number of entities: up to 32 entries, each a condition (`ServerUIPredicate`) and an optional list of `person.*` ids the entry counts for.
+  - Entries are read in order, **one tracked read per entry**, with no pattern match. The person filter compares strings and asks for the viewer once. A tree that reads three or more sources is one shared value (`isWorthSharing`).
+  - An entry whose answer is unknown (no state, loading, text where a number is wanted) is skipped, and the count goes on.
+  - Only when every entry in play is unknown is the count `loading` (any read of any kind was "not yet") or `unavailable`.
+  - An entry the viewer is not in is never read. A count with none in play is 0.
+  - Never in a flow (`invalid_combination`); evaluated there it is a gap. The Studio's answers are the `count-operand-*` evaluation corpus; the native tests are `ServerUICountTests` and `ServerUICountHostedTests`.
+  - Scenarios `LW-d3-count-operand-single` and `LW-d4-count-operand-all` run the real operand beside the expanded `math add` over `choose` of `LW-d1` and `LW-d2`.
 - **Budgets:** p95 run-loop turn at most 8 ms and none over 16 ms in every scenario; a standing-still page's update work (logic plus store apply) at most 25 ms in 8 s. A scenario `main` misses is an expected failure naming it (`knownBreaches`); never loosen a budget.
 - **Pruning:** a run that finds a listed scenario inside budget prints `UNDER BUDGET on <family>` and writes it to the rows file. Delete the entry only when every family stays inside budget on two runs.
 - **Run it:** the suite skips unless `TEST_RUNNER_FENTON_PERF_ON_SIMULATOR=1` and wants a 1-minute load under 40: each row records the load at start, and a run above 40 prints `LOAD OVER 40` and is not a baseline. One hosted run per family with `FENTON_HOSTED_FILTER=LogicWorstCasePerformanceTests`; `TEST_RUNNER_FENTON_LOGICPERF_FILE` collects the rows.

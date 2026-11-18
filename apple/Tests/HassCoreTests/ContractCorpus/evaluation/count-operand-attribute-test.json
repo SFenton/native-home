@@ -1,0 +1,54 @@
+{
+  "format": 1,
+  "name": "count-operand-attribute-test",
+  "note": "An entry may test an attribute: how many fans are in their auto preset.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "attributes",
+              "preset_mode"
+            ],
+            "in": [
+              "auto"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "attributes",
+              "preset_mode"
+            ],
+            "in": [
+              "auto"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/attributes/preset_mode": {
+        "status": "value",
+        "value": "auto"
+      },
+      "b/attributes/preset_mode": {
+        "status": "value",
+        "value": "low"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

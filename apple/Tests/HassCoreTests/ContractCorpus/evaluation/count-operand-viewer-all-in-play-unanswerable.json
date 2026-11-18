@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-all-in-play-unanswerable",
+  "note": "The entries in play decide: when the only entry the viewer is in cannot be answered, the count is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_sam"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_alex"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "viewer": {
+      "personEntityId": "person.demo_sam"
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

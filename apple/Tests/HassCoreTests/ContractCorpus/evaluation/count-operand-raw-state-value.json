@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "name": "count-operand-raw-state-value",
+  "note": "A test over the raw state counts when it holds: \"unavailable\" is a word it can ask for.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "a"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          }
+        },
+        {
+          "test": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "raw-state",
+              "sourceId": "b"
+            },
+            "right": {
+              "type": "literal",
+              "value": "unavailable"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "raw": {
+      "a": {
+        "status": "value",
+        "value": "unavailable"
+      },
+      "b": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 1
+  }
+}

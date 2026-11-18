@@ -1,0 +1,103 @@
+{
+  "format": 1,
+  "name": "count-operand-viewer-not-known-yet",
+  "note": "Before the connection knows the viewer a filtered count is loading: \"whose\" cannot be said yet.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_sam"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_alex"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "viewer": {
+            "personEntityIds": [
+              "person.demo_sam",
+              "person.demo_alex"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "numeric",
+            "sourceId": "d",
+            "path": [
+              "state"
+            ],
+            "above": {
+              "type": "literal",
+              "value": 0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "2"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "5"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "1"
+      },
+      "d/state": {
+        "status": "value",
+        "value": "1"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

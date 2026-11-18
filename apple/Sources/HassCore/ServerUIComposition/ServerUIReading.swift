@@ -52,6 +52,10 @@ public struct ServerUIViewer: Equatable, Sendable {
 public protocol ServerUIReading {
     /// The value at `path` of a declared source (`["state"]` or `["attributes", ...]` for a Home Assistant entity).
     func read(sourceId: String, path: [String]) -> ServerUIReadResult
+    /// As ``read(sourceId:path:)``, but a Home Assistant entity whose state is `unavailable` reads as that text, as `unknown` does (`sh.count@1`: a
+    /// `state` test over an entry may ask for the words `unavailable` and `unknown`). Only the entries of a count read this way; every other rule
+    /// keeps ``read(sourceId:path:)``, which calls such an entity unavailable. The default is ``read(sourceId:path:)``.
+    func readStateText(sourceId: String, path: [String]) -> ServerUIReadResult
     /// The signed-in person; `nil` before the connection knows them.
     var viewer: ServerUIViewer? { get }
     /// The state text of an `ha-entity` source exactly as Home Assistant reports it: `unknown` and `unavailable` are values
@@ -86,6 +90,7 @@ public protocol ServerUIReading {
 }
 
 public extension ServerUIReading {
+    func readStateText(sourceId: String, path: [String]) -> ServerUIReadResult { read(sourceId: sourceId, path: path) }
     func readRaw(sourceId: String) -> ServerUIReadResult { .unavailable }
     func readChanged(sourceId: String) -> ServerUIReadResult { .unavailable }
     var controlValue: JSONValue? { nil }

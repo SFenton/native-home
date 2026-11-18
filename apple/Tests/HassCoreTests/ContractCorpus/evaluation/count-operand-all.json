@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "count-operand-all",
+  "note": "All four hold: the count is the number of entries.",
+  "subject": {
+    "operand": {
+      "type": "count",
+      "of": [
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "a",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "b",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "c",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        },
+        {
+          "test": {
+            "type": "state",
+            "sourceId": "d",
+            "path": [
+              "state"
+            ],
+            "in": [
+              "on"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "b/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "c/state": {
+        "status": "value",
+        "value": "on"
+      },
+      "d/state": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 4
+  }
+}

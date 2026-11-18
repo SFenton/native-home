@@ -22,6 +22,9 @@ enum ServerUICompositionShape {
         case closedVariant(String, [String: Shape])
         case emptyObject(String, Int)
         case unsupported(String?)
+        /// As ``unsupported``, but the node that holds the tag is blamed, not the tag: the Studio's pointer for a node whose type names a
+        /// capability the app does not ship, where the same word is also something else (the profile's `count` node and the `count` operand).
+        case unsupportedNode(String)
         /// A text or an object, each checked by its own shape (a tone that is one word or a rule).
         case either(text: Shape, object: Shape)
         /// A rule that reports as one: any failure inside it is the slot not matching (`unknown_variant` at the slot), except an empty
@@ -738,7 +741,9 @@ enum ServerUICompositionShape {
             "custom-light-control": deviceControlNode(base: base, domain: .lights),
             "sprinkler-control": deviceControlNode(base: base, domain: .sprinkler),
             "section-sides": .unsupported("sh.section-sides@1"),
-            "content-panes": .unsupported("sh.content-panes@1")
+            "content-panes": .unsupported("sh.content-panes@1"),
+            // The profile's count of things, a node with an id. The `count` operand (`sh.count@1`) is an expression with `of`, not a node.
+            "count": .unsupportedNode("sh.profile-count@1")
         ]).merging(styleNodes(base: base)) { _, rhs in rhs }.merging(repeatNodes(base: base)) { _, rhs in rhs }.merging(chartNodes(base: base)) { _, rhs in rhs }.merging(dialNodes(base: base)) { _, rhs in rhs })
     }()
     static let asset: Shape = {
@@ -846,6 +851,8 @@ enum ServerUICompositionShape {
             guard let variant = variants[text] else { issue(.unknownVariant, path); return }
             if case .unsupported(let capability) = variant {
                 unsupported.append(Issue(.unsupportedCapability, path, capability: capability))
+            } else if case .unsupportedNode(let capability) = variant {
+                unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability))
             } else {
                 walk(value, shape: variant, pointer: pointer, issues: &issues, unsupported: &unsupported)
             }
@@ -862,6 +869,8 @@ enum ServerUICompositionShape {
             for key in object.keys where !validID(key) { issue(.invalidValue, ServerUICompositionJSON.pointer(pointer, key)) }
             if !object.isEmpty { unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability)) }
         case .unsupported(let capability):
+            unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability))
+        case .unsupportedNode(let capability):
             unsupported.append(Issue(.unsupportedCapability, pointer, capability: capability))
         case .collapsed(let inner):
             var inside: [Issue] = []

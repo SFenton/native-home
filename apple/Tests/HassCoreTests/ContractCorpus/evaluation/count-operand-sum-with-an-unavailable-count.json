@@ -1,0 +1,58 @@
+{
+  "format": 1,
+  "name": "count-operand-sum-with-an-unavailable-count",
+  "note": "A sum with a count that has nothing to say is unavailable: the number of an icon is not guessed.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "add",
+      "args": [
+        {
+          "type": "count",
+          "of": [
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "a",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "type": "count",
+          "of": [
+            {
+              "test": {
+                "type": "state",
+                "sourceId": "b",
+                "path": [
+                  "state"
+                ],
+                "in": [
+                  "on"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "env": {
+    "reads": {
+      "a/state": {
+        "status": "value",
+        "value": "on"
+      }
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}
