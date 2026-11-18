@@ -22,3 +22,12 @@ A row whose control is a switch is a `ModuleToggleRow` (`HassDesign/ModuleToggle
 - **Owned files** (also in `contracts/patterns.json`): `ModuleRowParts.swift`.
 
 - **UIKit port (2026-11-01):** every list row is the one `UKRowView` ([rows](rows.md)); `UKModuleRowView` is its module style.
+
+## Rows in a stack need a height
+
+- A module list is a `UIStackView`, so every row has an Auto Layout height.
+- A row that only measures by width (`UKGridMeasuring`) goes through `ukStackRow(_:)`, which hosts it in `UKMeasuredView`.
+- `UKMeasuredView` is the one mechanism; add no other. A bare row is 0 pt tall or a hairline and draws over its neighbours.
+- A fitting container calls `ukPrepareMeasuredViews(in:width:)`, lays out once at its width, then fits once.
+- A row's padding lives in its constraints, set when its kind changes, not in `layoutSubviews`: a fit before layout counts it.
+- A settings row in a module list carries the 16 pt side inset; a form-style 0 is for a cell that supplies the margin.

@@ -61,37 +61,6 @@ func ukVStack(_ views: [UIView], spacing: CGFloat = 0) -> UIStackView {
     return stack
 }
 
-/// Hosts a hand-laid view that measures itself by width (`UKGridMeasuring`) and gives it an Auto Layout height, so grids, flows and
-/// section headers can sit in a stack view.
-@MainActor
-final class UKMeasuredView<Content: UIView & UKGridMeasuring>: UIView {
-    let content: Content
-    private var heightConstraint: NSLayoutConstraint!
-
-    init(_ content: Content) {
-        self.content = content
-        super.init(frame: .zero)
-        heightConstraint = heightAnchor.constraint(equalToConstant: 1)
-        heightConstraint.priority = .required
-        heightConstraint.isActive = true
-        addSubview(content)
-        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UKMeasuredView<Content>, _) in view.invalidate() }
-    }
-
-    @available(*, unavailable)
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    /// Measures again at the current width.
-    func invalidate() { setNeedsLayout() }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let height = ceil(content.gridHeight(forWidth: bounds.width))
-        if abs(heightConstraint.constant - height) > 0.5 { heightConstraint.constant = height }
-        content.frame = CGRect(x: 0, y: 0, width: bounds.width, height: height)
-    }
-}
-
 // MARK: - Section
 
 /// A titled block in the vacuum sheet (`VacuumSection`): a 15 pt Semibold secondary header over the group it names and an optional

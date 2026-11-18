@@ -27,6 +27,7 @@ final class UKServerUIScheduleFields: UKServerUIFittingView {
             let native = UKScheduleDateFields(fields: fields)
             self.native = native
             addSubview(native); native.ukPin(to: self)
+            ukRemeasureContainers(includingSelf: true)
         }
         native?.update(fields: fields, enabled: values.map { enabled && $0.enabled })
     }

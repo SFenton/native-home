@@ -34,12 +34,16 @@ final class UKPercentSliderRow: UKRowView {
     private let slider = UISlider()
     private let feedback = UISelectionFeedbackGenerator()
 
-    init(_ title: String, value: Double, identifier: String, onChange: @escaping (Double) -> Void) {
+    /// - Parameter horizontalPadding: The side inset when the row sits on a card of its own (a module list); nil keeps the form style's
+    ///   0, because a form cell supplies the margin.
+    init(_ title: String, value: Double, identifier: String, horizontalPadding: CGFloat? = nil, onChange: @escaping (Double) -> Void) {
         self.title = title
         self.value = value
         self.identifier = identifier
         self.onChange = onChange
-        super.init(UKRowContent(title, value: "\(Int(value))%", style: .form))
+        var content = UKRowContent(title, value: "\(Int(value))%", style: .form)
+        content.horizontalPadding = horizontalPadding
+        super.init(content)
         slider.minimumValue = 0
         slider.maximumValue = 100
         slider.value = Float(value)

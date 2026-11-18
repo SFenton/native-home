@@ -17,7 +17,12 @@ extension UKRowView {
     /// The Version row (``VersionRow``): icon and title with the build text on the trailing edge, or under the title once it no longer
     /// fits beside it (long text sizes; the text wraps rather than truncates).
     static func version(text: String) -> UKRowView {
-        UKRowView(.init("Version", value: text, symbol: "info.circle", style: .grouped))
+        UKRowView(versionContent(title: "Version", text: text))
+    }
+
+    /// The Version row's content under `title`, with the build text once there is some (``version(text:)``).
+    static func versionContent(title: String, text: String?) -> UKRowContent {
+        .init(title, value: text, symbol: "info.circle", style: .grouped)
     }
 }
 

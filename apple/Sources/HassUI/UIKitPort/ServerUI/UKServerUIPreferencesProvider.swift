@@ -50,7 +50,8 @@ final class UKServerUIPreferencesProvider: UKServerUISettingsProvider {
         guard accepts(control) else { throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources") }
         switch control.kind {
         case .blur:
-            let slider = UKPercentSliderRow(control.node.title, value: blur.sliderValue, identifier: control.node.id) { [weak self, weak host, weak page] value in
+            let slider = UKPercentSliderRow(control.node.title, value: blur.sliderValue, identifier: control.node.id,
+                                        horizontalPadding: HassTokens.Spacing.l) { [weak self, weak host, weak page] value in
                 guard let self, let host, let page else { return }
                 host.perform(from: page) { try self.setBlur(Int(value.rounded())) }
             }
@@ -102,18 +103,27 @@ final class UKServerUIPreferencesProvider: UKServerUISettingsProvider {
             }
             return row
         default:
-            let row = UKGroupedRowButton(title: control.node.title, symbol: control.icon.drawn, identifier: control.node.id)
+            // Reset is a text button and Version the canonical Version row: neither pushes, so neither draws a chevron, and the node's
+            // authored icon is ignored.
+            let row = UKServerUIPreferenceRow(title: control.node.title, kind: control.kind == .version ? .value : .textButton,
+                                              identifier: control.node.id)
             row.onTap = { [weak self, weak host, weak page] in
                 guard let self, let host, let page else { return }
                 host.perform(from: page) {
                     try self.requireCurrent()
-                    if control.kind == .resetBlur { try self.setBlur(BackdropBlur.defaultPercent) } else { self.about.copy() }
+                    if control.kind == .resetBlur {
+                        try self.setBlur(BackdropBlur.defaultPercent)
+                    } else {
+                        self.about.copy()
+                        UKTapFeedback.confirmation()
+                    }
                 }
             }
             host.bag.observe { [weak self, weak row, weak host] in
                 guard let self, let row else { return }
                 row.value = control.kind == .version ? self.about.text : ""
-                row.hint = control.kind == .version ? self.about.footer : control.subtitle
+                row.spokenValue = control.kind == .version ? self.about.spokenText : nil
+                row.hint = control.kind == .version ? AboutSettingsModel.copyHint : control.subtitle
                 row.isEnabled = self.isCurrentSession && (control.kind != .resetBlur || !self.blur.isDefault)
                 host?.ukRemeasureContainers(includingSelf: true)
             }

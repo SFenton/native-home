@@ -10,8 +10,8 @@ import UIKit
 @MainActor
 final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     var style: UKSettingsListDriver.Style = .wallpaper { didSet { restyle() } }
-    var kind: UKSettingsRowKind = .link { didSet { setNeedsLayout() } }
-    var isTransparent = false { didSet { restyle() } }
+    var kind: UKSettingsRowKind = .link { didSet { applyPadding() } }
+    var isTransparent = false { didSet { restyle(); applyPadding() } }
     /// Whether the row above is a glyph row (its hairline starts at the text).
     var aboveIsLink = false { didSet { updateSeparator() } }
     var isFirst = true { didSet { restyle(); updateSeparator() } }
@@ -89,6 +89,7 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
             separator.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -InsetGroupedMetrics.separatorTrailing),
         ])
         host.addArrangedSubview(trailing)
+        applyPadding()
         addAction(UIAction { [weak self] _ in self?.onTap?() }, for: .touchUpInside)
         restyle()
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (cell: UKSettingsStackCell, _) in cell.updateSeparator() }
@@ -108,9 +109,6 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     }
 
     override func layoutSubviews() {
-        let vertical = kind == .control ? InsetGroupedMetrics.controlPadding : InsetGroupedMetrics.rowPadding
-        topPadding.constant = isTransparent ? 0 : vertical
-        bottomPadding.constant = isTransparent ? 0 : -vertical
         super.layoutSubviews()
         // A system list content view keeps the wrap it measured at the width it first had. A cell laid out while its column was still
         // taking its width (the split opening, a fold) would keep a title one word a line in a column 420 pt wide
@@ -124,6 +122,15 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     }
 
     private var measuredWidth: CGFloat = 0
+
+    /// The row's vertical padding, written to its constraints when the kind or transparency changes, never during layout: a fit taken
+    /// before the first layout (the column measuring its holder) then already counts it. Set in `layoutSubviews`, a link measured 30 pt
+    /// short and the stack squashed its rows.
+    private func applyPadding() {
+        let vertical = kind == .control ? InsetGroupedMetrics.controlPadding : InsetGroupedMetrics.rowPadding
+        topPadding.constant = isTransparent ? 0 : vertical
+        bottomPadding.constant = isTransparent ? 0 : -vertical
+    }
 
     private func restyle() {
         let radius = HassTokens.Radius.module

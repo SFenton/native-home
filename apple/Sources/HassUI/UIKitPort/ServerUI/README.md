@@ -327,6 +327,8 @@ date editors, media, status blocks and nested containers are not module rows.
 `settings-link` row eligibility is implemented directly and negotiates
 `sh.module-settings-rows@1`.
 
+Row heights in a `module-list` section are in [module-list](../../../../../.agents/patterns/module-list.md); the Reset and Version row kinds are in [settings-section](../../../../../.agents/patterns/settings-section.md).
+
 **Native exits.** The renderer installs `nativeExitGate` before view loading,
 using the attached Settings providers' `blocksExit`/`canDiscard` and
 `requestSettingsExit(from:completion:)`. Weak captures fail closed if the renderer

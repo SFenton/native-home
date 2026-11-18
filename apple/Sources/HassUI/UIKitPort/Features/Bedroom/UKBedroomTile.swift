@@ -3,7 +3,7 @@ import HassCore
 import HassDesign
 import UIKit
 
-/// A room tile for a bedroom device, bound to its controller (`BedSideTile`, `WakeLightTile`). The Rooms page places it in its grid.
+/// A room tile for a bedroom device, bound to its controller (`BedSideTile`, `WakeLightTile`). The Rooms page places it in its grid; a stack (the server-UI bedroom control) hosts it in a `UKMeasuredView`.
 @MainActor
 final class UKBedroomTile: UIView, UKGridMeasuring {
     private let tile: UKGlassTileView
@@ -55,6 +55,9 @@ final class UKBedroomTile: UIView, UKGridMeasuring {
     }
 
     func gridHeight(forWidth width: CGFloat) -> CGFloat { tile.gridHeight(forWidth: width) }
+
+    /// The tile's own minimum, so a bed tile takes the tracks it needs as a tile placed directly does.
+    var gridMinimumWidth: CGFloat { tile.gridMinimumWidth }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize { tile.sizeThatFits(size) }
 
