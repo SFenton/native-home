@@ -208,6 +208,10 @@ class ChangedSelectionTests(unittest.TestCase):
                 "import sys\n"
                 "def changed_files():\n"
                 f"    return {changed!r}\n"
+                "def default_base(root):\n"
+                "    return 'HEAD'\n"
+                "def git(*args, root=None):\n"
+                "    return 'HEAD'\n"
                 "if __name__ == '__main__':\n"
                 f"    print({filter_words!r}); sys.exit({status})\n", encoding="utf-8")
             script = f'ROOT={root}; CHANGED=1\n{self.PREAMBLE}\necho "SOURCES=${{CHANGED_SOURCES[*]-}}"\n'

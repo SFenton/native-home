@@ -9,7 +9,8 @@
 #   Default: every suite, every file: the nightly / release gate.
 #   --changed: the per-PR gate. Runs `swift test --filter` for the suites the diff against the lane's base branch (tools/lane_base.py;
 #   FENTON_AFFECTED_BASE overrides) affects (tools/affected_tests.py, contracts/test-map.json) and gates only the changed files the
-#   rules class as `logic` (tools/coverage_gate.py --files; --baseline build/coverage-baseline.json when that file exists). A diff that
+#   rules class as `logic`, minus any file whose diff is only comments, blank lines or re-indentation (it prints `skipped (comment-only): <file>`;
+#   tools/coverage_gate.py drop_comment_only) (tools/coverage_gate.py --files; --baseline build/coverage-baseline.json when that file exists). A diff that
 #   changes no logic file prints `== changed: no logic source changed; nothing to gate` after the suites ran and exits 0. A diff that
 #   maps to no suite runs nothing; one that needs a targeted pick prints the request and exits 3.
 # `swift test` runs under tools/xc_watch.py: 20 minutes without output (FENTON_COVERAGE_SILENCE) kills it (exit 125, INFRA: hung).
@@ -51,7 +52,14 @@ import affected_tests, coverage_gate
 rules = json.loads(coverage_gate.RULES.read_text(encoding="utf-8"))
 categories, _, _ = coverage_gate.classify(coverage_gate.ROOT, rules, "swift")
 logic = categories.get("logic", set())
-print("\n".join(f for f in affected_tests.changed_files() if f in logic))' "$ROOT/tools")
+import contextlib
+base = affected_tests.default_base(coverage_gate.ROOT)
+point = affected_tests.git("merge-base", base, "HEAD", root=coverage_gate.ROOT).strip() or base
+changed = [f for f in affected_tests.changed_files() if f in logic]
+# A file whose diff is only comments, blanks or re-indentation changes no logic: dropped, and named on stderr.
+with contextlib.redirect_stdout(sys.stderr):
+    changed = coverage_gate.drop_comment_only(changed, point, coverage_gate.ROOT)
+print("\n".join(changed))' "$ROOT/tools")
   echo "== changed: swift test ${FILTER[*]}; gating ${#CHANGED_SOURCES[@]} changed logic source file(s)"
 fi
 # Every file under apple/Sources must be classified in contracts/coverage-rules.json. Check before taking a
