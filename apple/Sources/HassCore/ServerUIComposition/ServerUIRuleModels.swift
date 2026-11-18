@@ -241,12 +241,14 @@ public enum ServerUIStringResolver {
                                in environment: some ServerUIReading) -> ServerUIReadResult {
         switch value {
         case .literal(let text): return .value(.string(text))
-        case .read(let source, let fallback): return text(read(source), fallback: fallback)
-        case .expression(let operand, let fallback): return text(operand.evaluate(environment), fallback: fallback)
+        case .read(let source, let fallback): return text(of: read(source), fallback: fallback)
+        case .expression(let operand, let fallback): return text(of: operand.evaluate(environment), fallback: fallback)
         }
     }
 
-    private static func text(_ result: ServerUIReadResult, fallback: String?) -> ServerUIReadResult {
+    /// The text of an expression's result, for a caller that got the result another way (a shared ``DerivedValue``): the same rules
+    /// as ``resolve(_:read:in:)``.
+    public static func text(of result: ServerUIReadResult, fallback: String?) -> ServerUIReadResult {
         switch result {
         case .loading: return .loading
         case .unavailable: return fallback.map { .value(.string($0)) } ?? .unavailable

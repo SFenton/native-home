@@ -49,6 +49,7 @@
 | [bedroom-devices.md](bedroom-devices.md) | `HassUI/Features/Bedroom/BedSideSheet.swift`, `HassUI/Features/Bedroom/WakeLightSheet.swift` | `src/components/hass/wakeLights/`, Bed in `DashboardViewPage.tsx` |
 | [room-device-sheets.md](room-device-sheets.md) | `HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift`, `HassUI/UIKitPort/Features/RoomDevices/UKRoomDeviceSheets.swift` | `src/components/hass/*ModalContent.tsx` (fan, purifier, humidifier, grill) |
 | [settings-section.md](settings-section.md) | `HassUI/UIKitPort/Design/UKSettingsSection.swift` | `src/components/core/SettingsSection.tsx` |
+| [derived-value.md](derived-value.md) | `HassCore/Derived/DerivedValue.swift` | none (web re-selects per consumer; native has Observation) |
 | [optimistic-actions.md](optimistic-actions.md) | `HassCore/Optimism/OptimisticActions.swift` | `src/hooks/useOptimisticState.ts`, `src/components/hass/optimisticActionState.ts` |
 | [tap-feedback.md](tap-feedback.md) | `HassDesign/TapFeedback.swift`, `HassDesign/TransientFailure.swift` | none (native only) |
 | [content-gate.md](content-gate.md) | `HassUI/UIKitPort/Design/UKContentGate.swift` | `src/components/hass/recipes/useRecipeCollection.ts` (criteria phases) |

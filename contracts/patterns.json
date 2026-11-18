@@ -2717,6 +2717,50 @@
       },
       "supersedes": [],
       "supersededBy": null
+    },
+    {
+      "id": "derived-value",
+      "title": "Derived value",
+      "status": "current",
+      "doc": ".agents/patterns/derived-value.md",
+      "summary": "logic over several entities used in more than one place is evaluated once for the session and wakes its readers only when its result changes.",
+      "keywords": [
+        "derived",
+        "derived value",
+        "shared logic",
+        "count",
+        "sum",
+        "profile count",
+        "attention",
+        "logic",
+        "observation",
+        "viewer",
+        "entity id"
+      ],
+      "web": [],
+      "canonical": {
+        "apple": [
+          {
+            "path": "apple/Sources/HassCore/Derived/DerivedValue.swift",
+            "symbol": "DerivedValue"
+          },
+          {
+            "path": "apple/Sources/HassCore/Derived/SharedLogic.swift",
+            "symbol": "SharedLogic"
+          }
+        ]
+      },
+      "owns": [
+        "apple/Sources/HassCore/Derived/**",
+        "apple/Sources/HassCore/Profile/PersonLookup.swift",
+        "apple/Sources/HassCore/Entities/EntityIDCache.swift"
+      ],
+      "guards": [],
+      "related": {
+        "patterns": []
+      },
+      "supersedes": [],
+      "supersededBy": null
     }
   ]
 }

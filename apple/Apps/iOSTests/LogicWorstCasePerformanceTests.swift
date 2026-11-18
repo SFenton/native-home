@@ -25,13 +25,12 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
     /// The scenarios whose budget `main` misses, with the reason; filled from the baseline run.
     static let knownBreaches: [String: String] = [
         "LW-a-replay": "one delivery applies 1,880 changed entities (about 10 ms on the phones) and wakes 150 evaluations in the same stretch of turns: p95 9 to 17 ms",
-        "LW-e-viewer13": "each viewer read scans all 4,700 entities (about 2 ms a read on the phones): 13 runs a step make a 27 ms p95 turn, 43 ms on iPad",
+        "LW-e-viewer13": "the viewer scan is gone (p95 43 to 7.1 to 8.3 ms) but sits on the line: one run at 8.3 ms on iPhone, and one 16 to 22 ms turn on iPad in some runs",
         "LW-f-every-tab": "hidden pages keep evaluating: one burst of 30 shared entities runs 150 evaluations plus 3 badges: p95 10 to 12 ms",
         "LW-h-minute-tick": "40 clock readers and 40 entity readers wake in the same turn: p95 9 ms on every family",
-        "LW-i-template10": "ten copies of one count: a single 16.9 to 23 ms turn on iPad (phones pass at p95)",
+        "LW-i-template10": "iPad only: one 22 to 27 ms turn in every run, the same turn before the shared value (phones pass at p95 1 ms)",
         "LW-b-burst": "borderline: p95 6.8 to 8.5 ms between runs; a 50-box burst peaks at 9 to 14 ms on every family",
-        "LW-d1-count32-single": "borderline: p95 5.4 to 7.5 ms, iPad worst turn 9 to 12 ms",
-        "LW-d2-count32-all": "borderline: iPad worst turn 8 to 20 ms between runs",
+        "LW-d1-count32-single": "p95 is 1 to 2 ms everywhere; iPad has one 20 to 22 ms turn in some runs, as it does in scenarios that evaluate nothing shared",
         "LW-g-flip-storm": "borderline: iPad p95 5 to 7.7 ms and one turn of 14 to 22 ms between runs",
     ]
 
@@ -140,7 +139,8 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
                               to: count.scene.store)
         }
         scene = count.scene
-        finish(measured, expectingRuns: 5 * 10)
+        // One shared evaluation of the sum per delivery; the ten readers redraw only when the sum differs.
+        finish(measured, expectingRuns: 5)
     }
 
     /// (e) Viewer predicates: 13 `visibleWhen` rules that each ask a state and the viewer (`all` evaluates every child) in a 4,700-entity house
@@ -265,7 +265,8 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
             LogicDriver.apply((0..<entities).map { EntityState(entityId: LogicHouse.watched($0), state: LogicHouse.state($0, generation: iteration + 1)) },
                               to: store)
         }
-        finish(measured, expectingRuns: 10 * copies)
+        // One shared evaluation per burst; the ten copies redraw only when the count differs.
+        finish(measured, expectingRuns: 10)
     }
 
     // MARK: Helpers
@@ -380,7 +381,8 @@ final class LargeCount {
             bag.observe { [weak label, weak renderer] in
                 guard let label, let renderer else { return }
                 let text: String
-                if case .value(.number(let value)) = operand.evaluate(renderer.reader()) { text = String(Int(value)) } else { text = "?" }
+                // The path a text expression takes in the app (`UKServerUIBindings.string`): identical copies share one evaluation.
+                if case .ready(let value) = renderer.bindings.string(.expression(operand, fallback: nil)) { text = value } else { text = "?" }
                 if label.text == text { LogicCost.skippedEqual() } else { label.text = text }
             }
         }

@@ -7,7 +7,7 @@ import Foundation
 ///
 /// One predicate belongs to one node (``ServerUIVisibility``) or one option (`selectedWhen`), and is evaluated inside that
 /// node's own observation, so a change to one entity touches only the nodes that read it (``sourceIds``).
-public indirect enum ServerUIPredicate: Equatable, Sendable {
+public indirect enum ServerUIPredicate: Hashable, Sendable {
     /// The state at `path` is one of `values` (compared as text).
     case state(sourceId: String, path: [String], values: [String])
     /// The number at `path` is above and/or below the given operands (either may read another entity).

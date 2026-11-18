@@ -25,7 +25,12 @@ public enum ServerUILayoutRules {
     ///   - environment: What the operand reads.
     public static func badge(_ badge: ServerUIOperand?, in environment: some ServerUIReading) -> BadgeResult {
         guard let badge else { return .text(nil) }
-        switch badge.evaluate(environment) {
+        return ServerUILayoutRules.badge(result: badge.evaluate(environment))
+    }
+
+    /// What a badge operand's result draws, for a caller that got the result another way (a shared ``DerivedValue``).
+    public static func badge(result: ServerUIReadResult) -> BadgeResult {
+        switch result {
         case .loading: return .loading
         case .unavailable: return .text(nil)
         case .value(let value):

@@ -1897,7 +1897,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             guard let value = tab.badgeValue else { continue }
             tabBag.observe { [weak self] in
                 guard let self else { return }
-                guard case .text(let text) = ServerUILayoutRules.badge(value, in: self.reader()) else { return }
+                guard case .text(let text) = ServerUILayoutRules.badge(result: self.bindings.result(of: value, in: self.reader())) else { return }
                 guard self.tabBadges[tab.id] != text else { return LogicCost.skippedEqual() }
                 self.tabBadges[tab.id] = text
                 if let nav = self.stacks[.tab(tab.id)] { self.applyTabItem(tab, to: nav.tabBarItem) }

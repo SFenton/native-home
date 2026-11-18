@@ -54,6 +54,8 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         self.recordCacheRoot = recordCacheRoot
         self.preferencesDefaults = preferencesDefaults
         caller = UKServerUISessionCaller(session: session, connection: connection)
+        // Made here, where no observation is running: made inside a header's run it would make that header follow every input.
+        _ = attention
     }
 
     /// Only the existing websocket supplies identity, permissions and configuration.
@@ -84,13 +86,21 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         return session.houseConfig?.current?.chores.people.first { $0.haUserId.lowercased() == identity.lowercased() }?.key
     }
 
+    /// The Profile attention count, evaluated once for the session. Every page that draws the header (each loaded tab root and any page
+    /// shown on every depth) reads this one value, so a change to the chores, vacation mode or expired-food entities runs the sum once
+    /// and wakes the headers only when the count differs (pattern: derived-value).
+    @ObservationIgnored private lazy var attention: DerivedValue<Int> = DerivedValue<Int> { [weak self] in
+        guard let self, let session, session.isCurrentConnection(connection) else { return 0 }
+        let identity = user?.id ?? session.cachedPublicationUserID(for: connection)
+        return ShellAttention.count(store: connection.store, viewerUserId: identity)
+    }
+
     var shellHeader: UKServerUIShellHeaderSource {
         .init(state: { [weak self] in
             guard let self, let session, session.isCurrentConnection(connection) else { return .init(profileName: nil) }
-            let identity = user?.id ?? session.cachedPublicationUserID(for: connection)
             let indicator = reconnecting.indicator
             return .init(profileName: ScreenshotPrivacy.isRedacting ? nil : user?.name,
-                attentionCount: ShellAttention.count(store: connection.store, viewerUserId: identity),
+                attentionCount: attention.current,
                 isOffline: connection.isOffline, reconnectingPresent: indicator.isPresent,
                 reconnectingLit: indicator.isLit, isFirstConnect: indicator.isFirstConnect)
         }, avatar: { [weak self] in

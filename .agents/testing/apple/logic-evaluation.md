@@ -28,3 +28,4 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
   - A burst is one run per evaluation per turn.
   - No evaluation scans the house; a read costs what it names, not the entity count.
   - A new scenario or counter extends this suite under the same budgets.
+- **Shared and cached work:** a `DerivedValue` run counts in `logic.runs` and `logic.runUs`, an equal result in `logic.skippedEqual`. The rules (what is shared, when, and the viewer and id caches) are in [derived-value](../../patterns/derived-value.md).

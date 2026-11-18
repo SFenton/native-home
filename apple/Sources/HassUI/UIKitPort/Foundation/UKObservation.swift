@@ -1,4 +1,5 @@
 #if os(iOS)
+import HassCore
 import HassTelemetry
 import Observation
 import UIKit
@@ -80,18 +81,22 @@ public final class UKObservationBag {
 
     /// Observes `apply` (``UKObservation``) for the bag's lifetime.
     public func observe(_ apply: @escaping @MainActor () -> Void) {
-        observations.append(UKObservation(wrapped(apply)))
+        observations.append(UKObservation(wrapped(apply, holding: DerivedReaders())))
     }
 
     /// Observes what `track` reads and runs `apply` after it, outside the tracking scope (``UKObservation/init(track:apply:)``).
     public func observe(track: @escaping @MainActor () -> Void, apply: @escaping @MainActor () -> Void) {
-        observations.append(UKObservation(track: wrapped(track), apply: wrapped(apply, measured: false)))
+        observations.append(UKObservation(track: wrapped(track, holding: DerivedReaders()), apply: wrapped(apply, measured: false)))
     }
 
     /// `run` inside the cell's scope; and, for the closure that evaluates (not the one that applies), inside the logic meter.
-    private func wrapped(_ run: @escaping @MainActor () -> Void, measured: Bool = true) -> @MainActor () -> Void {
+    /// - Parameter holding: Keeps the shared derived values the run reads alive until the observation's next run (``DerivedReaders``).
+    private func wrapped(_ run: @escaping @MainActor () -> Void, measured: Bool = true,
+                         holding readers: DerivedReaders? = nil) -> @MainActor () -> Void {
+        let scoped: @MainActor () -> Void
+        if let around { scoped = { around(run) } } else { scoped = run }
         let inner: @MainActor () -> Void
-        if let around { inner = { around(run) } } else { inner = run }
+        if let readers { inner = { readers.run(scoped) } } else { inner = scoped }
         guard measured, evaluatesAuthoredLogic else { return inner }
         return { LogicCost.measure(inner) }
     }
