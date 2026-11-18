@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "math-truncate-tie-whole",
+  "note": "2.5 is 2 and -2.5 is -2: it cuts.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": -2.5
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": -2
+  }
+}

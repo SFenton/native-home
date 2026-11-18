@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "duration-format-text-is-unavailable",
+  "note": "Text that is not a number has no duration: the whole format is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": "soon"
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

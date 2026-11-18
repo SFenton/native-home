@@ -1,5 +1,6 @@
 #if os(iOS)
 import HassCore
+import HassTelemetry
 import MessageUI
 import Observation
 import UIKit
@@ -27,6 +28,8 @@ import UIKit
 final class UKServerUIAppStateSource {
     private(set) var window: ServerUIAppState.Window?
     private(set) var clock: ServerUIClock?
+    /// The wall time to the second, published once a second while something reads it (`now-second`, `sh.countdown@1`).
+    private(set) var secondClock: ServerUIClock?
     private(set) var os: ServerUIAppState.OS?
     private(set) var showCountOnIcon: Bool?
 
@@ -34,6 +37,14 @@ final class UKServerUIAppStateSource {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private var ticker: Task<Void, Never>?
     @ObservationIgnored private var tick = ServerUIMinuteTick()
+    @ObservationIgnored private var secondTicker: Task<Void, Never>?
+    /// How many times the second clock was published, for the tests of the 1 Hz path.
+    @ObservationIgnored private(set) var secondTicks = 0
+    /// Whether the one-second tick is scheduled: `false` until something reads `now-second`, and again one tick after the last read.
+    var isSecondTicking: Bool { secondTick.isRunning }
+    @ObservationIgnored private var secondReadGate: (@MainActor () -> Bool)?
+    @ObservationIgnored private var secondReadInRun = false
+    @ObservationIgnored private var secondTick = ServerUIMinuteTick()
     @ObservationIgnored private var tokens: [NSObjectProtocol] = []
 
     init(push: PushCoordinator?, defaults: UserDefaults = .standard) {
@@ -57,6 +68,7 @@ final class UKServerUIAppStateSource {
 
     isolated deinit {
         ticker?.cancel()
+        secondTicker?.cancel()
         tokens.forEach(NotificationCenter.default.removeObserver)
     }
 
@@ -89,6 +101,32 @@ final class UKServerUIAppStateSource {
     func clockForReading() -> ServerUIClock? {
         noteClockRead()
         return clock
+    }
+
+    /// The clock for `now-second`. Reading it is a second-clock read: it starts the one-second tick (`sh.countdown@1`).
+    func secondClockForReading() -> ServerUIClock? {
+        secondReadInRun = true
+        // Read from a page that is not on screen: the time now, with no tick started or kept and nothing tracked, so it ticks for nobody.
+        if let gate = secondReadGate, !gate() { return ServerUIAppState.clock(at: Date()) }
+        let starts = secondTick.noteRead()
+        if secondClock == nil || starts { publishSecondClock() }
+        if starts { startSecondTicking() }
+        return secondClock
+    }
+
+    /// Runs `body`, one run of a node's observations, with its second-clock reads gated by `isOnScreen`; `true` when `body` read the second clock.
+    ///
+    /// The gate is read only when the clock is read, inside the observation, so the node tracks the page's presence exactly when it ticks: it runs again
+    /// when the page comes back.
+    func gatingSecondClock(_ isOnScreen: @escaping @MainActor () -> Bool, _ body: @MainActor () -> Void) -> Bool {
+        let outerGate = secondReadGate, outerRead = secondReadInRun
+        secondReadGate = isOnScreen
+        secondReadInRun = false
+        body()
+        let read = secondReadInRun
+        secondReadGate = outerGate
+        secondReadInRun = outerRead || read
+        return read
     }
 
     // MARK: Window
@@ -127,6 +165,27 @@ final class UKServerUIAppStateSource {
                 // Nobody read the clock since the last tick: stop. The next read starts it again.
                 guard self.tick.fire() else { self.ticker = nil; return }
                 self.publishClock()
+            }
+        }
+    }
+
+    /// Publishes the wall time when the second has moved: one write a second, and only while a document reads it.
+    private func publishSecondClock(now: Date = Date()) {
+        let interval = Telemetry.begin(Telemetry.Name.secondTick, page: "SecondClock")
+        let next = ServerUIAppState.clock(at: now)
+        if secondClock != next { secondClock = next }
+        Telemetry.end(interval)
+        secondTicks += 1
+    }
+
+    private func startSecondTicking() {
+        secondTicker = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1 - Date().timeIntervalSince1970.truncatingRemainder(dividingBy: 1) + 0.005))
+                guard let self, !Task.isCancelled else { return }
+                // Nobody read the second clock since the last tick: stop. The next read starts it again.
+                guard self.secondTick.fire() else { self.secondTicker = nil; return }
+                self.publishSecondClock()
             }
         }
     }

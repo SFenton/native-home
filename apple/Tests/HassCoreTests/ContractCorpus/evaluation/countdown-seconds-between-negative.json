@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-negative",
+  "note": "Later to earlier is negative: the sign says it is past.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-17T10:05:00"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": -300
+  }
+}

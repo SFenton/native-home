@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-invalid",
+  "note": "Text that is not a date is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "literal",
+        "value": "soon"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

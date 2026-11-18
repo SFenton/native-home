@@ -120,6 +120,26 @@ public enum ServerUIDates {
         return b.days - a.days
     }
 
+    /// A moment as UTC text with milliseconds, `YYYY-MM-DDTHH:MM:SS.sssZ`, the form the Studio's `last-changed` reads give.
+    public static func instantText(_ date: Date) -> String {
+        let millis = Int((date.timeIntervalSince1970 * 1000).rounded())
+        let seconds = floorDivide(millis, 1000)
+        let days = floorDivide(seconds, 86_400)
+        let inDay = seconds - days * 86_400
+        let (year, month, day) = civil(fromDays: days)
+        func two(_ value: Int) -> String { value < 10 ? "0\(value)" : "\(value)" }
+        let fraction = millis - seconds * 1000
+        let ms = fraction < 10 ? "00\(fraction)" : fraction < 100 ? "0\(fraction)" : "\(fraction)"
+        return "\(String(format: "%04d", year))-\(two(month))-\(two(day))T\(two(inDay / 3_600)):\(two(inDay / 60 % 60)):\(two(inDay % 60)).\(ms)Z"
+    }
+
+    /// Whole seconds from the moment `from` to the moment `to` (`sh.countdown@1`): positive when `to` is later, both moved to the clock's wall like every date.
+    /// `nil` when either is not a date or a date and time. A date is midnight and a fraction of a second is dropped.
+    public static func secondsBetween(_ from: String, _ to: String, utcOffsetMinutes: Int) -> Int? {
+        guard let a = wallTime(from, utcOffsetMinutes: utcOffsetMinutes), let b = wallTime(to, utcOffsetMinutes: utcOffsetMinutes) else { return nil }
+        return b.instant - a.instant
+    }
+
     /// How far the clock has come from the moment `from` to the moment `to` (`sh.flow-extras@1`): 0 at `from`, 1 at `to`, clamped to that range, in
     /// whole seconds on the clock's wall. `nil` when either moment is not a date or a date and time, when the clock does not parse, or when `to` is not
     /// after `from` (there is no span to measure).

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-five-minutes",
+  "note": "The fan's text: 300 seconds is 05:00.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 300
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "05:00"
+  }
+}

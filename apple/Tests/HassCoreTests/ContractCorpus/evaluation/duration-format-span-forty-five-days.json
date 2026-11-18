@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-forty-five-days",
+  "note": "45 days is 6.4 weeks: 6 weeks.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3888000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "6 weeks"
+  }
+}

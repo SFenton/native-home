@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-an-hour-and-a-half-rounds-up",
+  "note": "5400 seconds is 1.5 hours: 2 hours.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 5400
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2 hours"
+  }
+}

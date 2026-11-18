@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-minutes-seconds-minutes-are-unbounded",
+  "note": "4500 seconds is 75:00: there is no hours part.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 4500
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "75:00"
+  }
+}

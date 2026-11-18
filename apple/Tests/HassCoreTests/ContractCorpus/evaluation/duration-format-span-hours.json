@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-hours",
+  "note": "7200 seconds is 2 hours.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 7200
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "2 hours"
+  }
+}

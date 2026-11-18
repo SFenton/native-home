@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-fifty-nine",
+  "note": "59 minutes is 59m: the last before an hour.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 59
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "59m"
+  }
+}

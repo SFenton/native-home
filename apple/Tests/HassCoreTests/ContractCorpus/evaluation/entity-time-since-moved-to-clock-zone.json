@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "entity-time-since-moved-to-clock-zone",
+  "note": "The time is moved to the clock's wall: 02:30 UTC on the 18th is 9:30 PM on the 17th at an offset of -300 minutes, so it is today.",
+  "subject": {
+    "operand": {
+      "type": "choose",
+      "cases": [
+        {
+          "when": {
+            "type": "compare",
+            "op": "eq",
+            "left": {
+              "type": "date",
+              "op": "days-between",
+              "from": {
+                "type": "last-changed",
+                "sourceId": "temp"
+              },
+              "to": {
+                "type": "clock",
+                "part": "today"
+              }
+            },
+            "right": {
+              "type": "literal",
+              "value": 0
+            }
+          },
+          "then": {
+            "type": "format",
+            "pattern": "Since {t}",
+            "args": {
+              "t": {
+                "type": "last-changed",
+                "sourceId": "temp"
+              }
+            },
+            "formats": {
+              "t": {
+                "date": {
+                  "style": "time"
+                }
+              }
+            }
+          }
+        }
+      ],
+      "otherwise": {
+        "type": "format",
+        "pattern": "Since {d}",
+        "args": {
+          "d": {
+            "type": "last-changed",
+            "sourceId": "temp"
+          }
+        },
+        "formats": {
+          "d": {
+            "date": {
+              "style": "short-date"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "changed": {
+      "temp": {
+        "status": "value",
+        "value": "2026-11-18T02:30:00.000Z"
+      }
+    },
+    "clock": {
+      "now": "2026-11-17T22:00:00",
+      "utcOffsetMinutes": -300
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "Since 9:30 PM"
+  }
+}

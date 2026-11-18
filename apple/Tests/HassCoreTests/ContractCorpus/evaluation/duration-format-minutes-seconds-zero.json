@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-minutes-seconds-zero",
+  "note": "Zero seconds is 0:00.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 0
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "minutes-seconds"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "0:00"
+  }
+}

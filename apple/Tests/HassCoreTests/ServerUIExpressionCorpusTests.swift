@@ -56,6 +56,8 @@ struct ServerUIExpressionCorpusTests {
         var reads: [String: ServerUIReadResult] = [:]
         /// What `readRaw` gives per source id; a source not listed has no entity.
         var raw: [String: ServerUIReadResult] = [:]
+        /// What `readChanged` gives per source id; a source not listed has no entity.
+        var changed: [String: ServerUIReadResult] = [:]
         var viewer: ServerUIViewer?
         var clock: ServerUIClock?
         var item: JSONValue?
@@ -69,6 +71,7 @@ struct ServerUIExpressionCorpusTests {
             reads[([sourceId] + path).joined(separator: "/")] ?? .unavailable
         }
         func readRaw(sourceId: String) -> ServerUIReadResult { raw[sourceId] ?? .unavailable }
+        func readChanged(sourceId: String) -> ServerUIReadResult { changed[sourceId] ?? .unavailable }
         func viewerPersonState() -> ServerUIReadResult { .unavailable }
         func parameter(_ name: String) -> JSONValue? { parameters[name] }
         func drawsSymbol(_ name: String) -> Bool { !undrawn.contains(name) }
@@ -85,6 +88,7 @@ struct ServerUIExpressionCorpusTests {
         }
         if case .object(let reads)? = env["reads"] { for (key, entry) in reads { result.reads[key] = status(entry) } }
         if case .object(let raw)? = env["raw"] { for (key, entry) in raw { result.raw[key] = status(entry) } }
+        if case .object(let changed)? = env["changed"] { for (key, entry) in changed { result.changed[key] = status(entry) } }
         if case .object(let viewer)? = env["viewer"] {
             result.viewer = ServerUIViewer(userId: viewer["userId"]?.string, isAdmin: viewer["isAdmin"]?.bool,
                                            personEntityId: viewer["personEntityId"]?.string)

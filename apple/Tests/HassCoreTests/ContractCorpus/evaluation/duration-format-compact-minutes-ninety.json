@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-ninety",
+  "note": "90 minutes is 1h 30m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 90
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1h 30m"
+  }
+}

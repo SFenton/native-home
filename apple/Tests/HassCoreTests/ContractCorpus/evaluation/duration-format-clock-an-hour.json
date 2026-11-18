@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-an-hour",
+  "note": "3600 seconds is 01:00:00: hours only from one hour.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3600
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "01:00:00"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-offsets-moved-to-clock",
+  "note": "10:00 UTC and 12:00 at +02:00 are the same moment: 0 seconds.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00Z"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T12:00:00+02:00"
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-17T10:00:00",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 0
+  }
+}

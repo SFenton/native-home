@@ -33,6 +33,8 @@ struct ServerUIExpressionParser {
             case value
             /// `raw-state`: the entity's state text, on an `ha-entity` only (`sh.raw-state@1`).
             case raw
+            /// `last-changed`: the entity's time of last change, on an `ha-entity` only (`sh.entity-time@1`).
+            case changed
             /// `list-count` and `list-includes`: one attribute, on an `ha-entity` only (`sh.list-read@1`).
             case list
         }
@@ -227,17 +229,23 @@ struct ServerUIExpressionParser {
                 add(object["part"] == nil ? .missingRequired : .unknownVariant, pointer + "/part")
                 return nil
             }
+            if part == .nowSecond {
+                // The second clock is the page's own 1 Hz tick; a flow runs once on the minute clock it is given.
+                needs.insert("countdown")
+                if flow { add(.invalidCombination, pointer) }
+            }
             return .clock(part)
         case "date":
             needs.insert("pipeline-operands")
             guard let object = fields(json, pointer, ["type", "op", "from", "to"]) else { return nil }
-            let progress = object["op"] == .string("progress")
-            if object["op"] != .string("days-between"), !progress { add(.unknownVariant, pointer + "/op") }
+            let progress = object["op"] == .string("progress"), seconds = object["op"] == .string("seconds-between")
+            if object["op"] != .string("days-between"), !progress, !seconds { add(.unknownVariant, pointer + "/op") }
             if progress { needs.insert("flow-extras") }
+            if seconds { needs.insert("countdown") }
             let from = operand(object["from"] ?? .null, pointer + "/from", depth: depth + 1)
             let to = operand(object["to"] ?? .null, pointer + "/to", depth: depth + 1)
-            guard let from, let to, object["op"] == .string("days-between") || progress else { return nil }
-            return progress ? .progress(from: from, to: to) : .date(from: from, to: to)
+            guard let from, let to, object["op"] == .string("days-between") || progress || seconds else { return nil }
+            return progress ? .progress(from: from, to: to) : seconds ? .secondsBetween(from: from, to: to) : .date(from: from, to: to)
         case "raw-state":
             needs.insert("raw-state")
             guard let object = fields(json, pointer, ["type", "sourceId"]) else { return nil }
@@ -245,6 +253,13 @@ struct ServerUIExpressionParser {
             guard let sourceId = sourceIdentifier(object["sourceId"], pointer + "/sourceId") else { return nil }
             references.append(.init(sourceId: sourceId, path: ["state"], pointer: pointer, kind: nil, access: .raw))
             return .rawState(sourceId: sourceId)
+        case "last-changed":
+            needs.insert("entity-time")
+            guard let object = fields(json, pointer, ["type", "sourceId"]) else { return nil }
+            if flow { add(.invalidCombination, pointer) }
+            guard let sourceId = sourceIdentifier(object["sourceId"], pointer + "/sourceId") else { return nil }
+            references.append(.init(sourceId: sourceId, path: ["state"], pointer: pointer, kind: nil, access: .changed))
+            return .lastChanged(sourceId: sourceId)
         case "list-count", "list-includes":
             return listRead(json, pointer, depth: depth, includes: type == "list-includes")
         case "math":
@@ -254,6 +269,7 @@ struct ServerUIExpressionParser {
                 return nil
             }
             guard case .array(let items)? = object["args"] else { add(.invalidValue, pointer + "/args"); return nil }
+            if op == .truncate { needs.insert("math-truncate") }
             if !op.arity.contains(items.count) { add(.invalidCombination, pointer + "/args") }
             let args = items.enumerated().compactMap { operand($0.element, pointer + "/args/\($0.offset)", depth: depth + 1) }
             return args.count == items.count && op.arity.contains(args.count) ? .math(op, args) : nil
@@ -316,7 +332,7 @@ struct ServerUIExpressionParser {
 
     /// One `formats[name]`: exactly one of `number`, `date` and `text`, else `unknown_variant` at the spec.
     private mutating func formatSpec(_ spec: [String: JSONValue], _ at: String, argument: ServerUIOperand?) -> ServerUIFormatSpec? {
-        guard spec.count == 1, let (tag, body) = spec.first, ["number", "date", "text"].contains(tag) else {
+        guard spec.count == 1, let (tag, body) = spec.first, ["number", "date", "text", "duration"].contains(tag) else {
             add(.unknownVariant, at)
             return nil
         }
@@ -333,6 +349,26 @@ struct ServerUIExpressionParser {
             // A date style draws a date or a date and time: text. A kind that is known and is not text cannot be one.
             if let kind, kind != .string { add(.bindingType, at) }
             return .date(style)
+        case "duration":
+            needs.insert("duration-format")
+            guard let wrapper = fields(body, at + "/duration", ["style"], ["unit"]) else { return nil }
+            guard case .string(let rawStyle)? = wrapper["style"], let style = ServerUIDurationFormat.Style(rawValue: rawStyle) else {
+                add(.unknownVariant, at)
+                return nil
+            }
+            var unit: ServerUIDurationFormat.Unit?
+            if let rawUnit = wrapper["unit"] {
+                guard case .string(let name) = rawUnit, let parsed = ServerUIDurationFormat.Unit(rawValue: name) else {
+                    add(.unknownVariant, at)
+                    return nil
+                }
+                // Only a compact duration says its unit: the others are always seconds.
+                if style != .compact { add(.invalidCombination, at + "/duration/unit") }
+                unit = parsed
+            }
+            // A duration draws a number: a kind that is known and is not a number cannot be one.
+            if let kind, kind != .number { add(.bindingType, at) }
+            return .duration(ServerUIDurationFormat(style: style, unit: unit))
         case "text":
             guard let wrapper = fields(body, at + "/text", ["case"]) else { return nil }
             guard case .string(let raw)? = wrapper["case"], let letterCase = ServerUITextCase(rawValue: raw) else {
@@ -447,8 +483,8 @@ struct ServerUIExpressionParser {
             case .boolean: .boolean
             }
         case .viewer(let field): field == .isAdmin ? .boolean : .string
-        case .format, .clock, .rawState: .string
-        case .math, .date, .progress, .index, .listCount: .number
+        case .format, .clock, .rawState, .lastChanged: .string
+        case .math, .date, .progress, .secondsBetween, .index, .listCount: .number
         case .listIncludes: .boolean
         case .object, .list: .structure
         case .map(_, _, let otherwise), .choose(_, let otherwise): kind(otherwise)

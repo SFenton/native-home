@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-seconds-an-hour-and-a-bit-rounds-up",
+  "note": "3601 seconds rounds up to 61 minutes: 1h 1m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3601
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1h 1m"
+  }
+}

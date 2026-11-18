@@ -25,6 +25,8 @@ public enum ServerUIFormatSpec: Equatable, Sendable {
     case date(ServerUIDateStyle)
     /// `{ text: { case } }` (`sh.pipeline-operands@1`).
     case text(ServerUITextCase)
+    /// `{ duration: { style, unit? } }` (`sh.duration-format@1`).
+    case duration(ServerUIDurationFormat)
 }
 
 // MARK: - Drawing a date

@@ -2,15 +2,20 @@ import Foundation
 
 // MARK: - Entity reads beyond the scalar
 
-/// The evaluation of the three operands that read an entity beyond a typed scalar: `raw-state` (`sh.raw-state@1`) and
+/// The evaluation of the operands that read an entity beyond a typed scalar: `raw-state` (`sh.raw-state@1`), `last-changed` (`sh.entity-time@1`) and
 /// `list-count` and `list-includes` (`sh.list-read@1`). A flow reads none of them: the gap is `null` there.
 extension ServerUIOperand {
-    /// Evaluates a `rawState`, `listCount` or `listIncludes`. Total: nothing throws.
+    /// Evaluates a `rawState`, `lastChanged`, `listCount` or `listIncludes`. Total: nothing throws.
     func evaluateEntityRead(_ environment: some ServerUIReading) -> ServerUIReadResult {
         if environment.isFlow { return .unavailable }
         switch self {
         case .rawState(let sourceId):
             let result = environment.readRaw(sourceId: sourceId)
+            guard case .value(let value) = result else { return result }
+            if case .string = value { return result }
+            return .unavailable
+        case .lastChanged(let sourceId):
+            let result = environment.readChanged(sourceId: sourceId)
             guard case .value(let value) = result else { return result }
             if case .string = value { return result }
             return .unavailable
@@ -46,5 +51,13 @@ extension ServerUIReadResult {
         guard statesLoaded else { return .loading }
         guard let entity else { return .unavailable }
         return .value(.string(entity.state))
+    }
+
+    /// What `last-changed` reads from an entity box (`sh.entity-time@1`): the moment the state last changed, as `YYYY-MM-DDTHH:MM:SS.sssZ`.
+    /// States not loaded yet is `loading`; no entity, or a moment the box never learned (`.distantPast`), is `unavailable`.
+    public static func lastChanged(of entity: EntityState?, statesLoaded: Bool) -> ServerUIReadResult {
+        guard statesLoaded else { return .loading }
+        guard let entity, entity.lastChanged > .distantPast else { return .unavailable }
+        return .value(.string(ServerUIDates.instantText(entity.lastChanged)))
     }
 }

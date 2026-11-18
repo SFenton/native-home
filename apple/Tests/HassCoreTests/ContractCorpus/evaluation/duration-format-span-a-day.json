@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-a-day",
+  "note": "86400 seconds is 1 day: days begin at a day.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 86400
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 day"
+  }
+}

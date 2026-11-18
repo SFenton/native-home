@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-just-under-a-minute",
+  "note": "59 seconds is 00:59.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 59
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "00:59"
+  }
+}

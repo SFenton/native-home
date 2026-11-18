@@ -19,6 +19,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// How many pages sit below this one in its stack.
     let depth: Int
     weak var renderer: UKServerUIRenderer?
+    /// Whether this page is on screen, read by the nodes that tick every second (``UKServerUIScreenPresence``).
+    let presence = UKServerUIScreenPresence()
     private let column = UKColumnView()
     private(set) var body: UKPageScrollView?
     /// The one view the page's scroller sits in: the ``body`` column, or a record collection's own scroller.
@@ -236,12 +238,14 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// Re-opens a form that was parked while the page was away.
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        presence.isOnScreen = true
         formView?.reopenIfNeeded()
     }
 
     /// Tells local tabs the page departed, so a reset-on-presentation tab can reset.
     override func viewDidDisappear(_ animated: Bool) {
         super.viewDidDisappear(animated)
+        presence.isOnScreen = false
         nodes.values.compactMap { $0.view as? UKServerUILocalTabs }.forEach { $0.departed() }
     }
 
@@ -355,15 +359,20 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             let entry = nodes[id].flatMap { $0.matches(component) ? $0 : nil } ?? UKServerUINode(component, surface: context.surface)
             retained[id] = entry
             entry.bag.removeAll()
-            if let scope = currentCell {
-                entry.bag.around = { @MainActor [weak renderer] (run: @MainActor () -> Void) in
-                    guard let bindings = renderer?.bindings else { return run() }
-                    let outer = bindings.cell
-                    bindings.cell = scope
-                    run()
-                    bindings.cell = outer
-                }
-            } else { entry.bag.around = nil }
+            // Every run of the node's observations: in its repeat cell, and gated by whether this page is on screen, so a read of the second clock
+            // (`now-second`, `sh.countdown@1`) on a page in another tab or under a pushed page keeps no tick running. A node that read the second
+            // clock draws a value that changes every second: it carries `updatesFrequently`, so VoiceOver does not announce each change.
+            entry.view.accessibilityTraits.remove(.updatesFrequently)
+            let scope = currentCell, presence = presence, view = entry.view
+            entry.bag.around = { @MainActor [weak renderer, weak presence, weak view, weak entry] (run: @MainActor () -> Void) in
+                guard let bindings = renderer?.bindings else { return run() }
+                entry?.runIsVisibility = false
+                let outer = bindings.cell
+                if let scope { bindings.cell = scope }
+                let ticks = bindings.appState.gatingSecondClock({ presence?.isOnScreen ?? true }, run)
+                bindings.cell = outer
+                if ticks, entry?.runIsVisibility != true { view?.accessibilityTraits.insert(.updatesFrequently) }
+            }
             if !cellKey.isEmpty { entry.view.accessibilityIdentifier = component.node.id + "." + cellKey.replacingOccurrences(of: "#", with: ".") }
             switch component {
             case .settingsControl(let control):
@@ -1183,6 +1192,9 @@ final class UKServerUINode {
     var childViews: [UIView] = []
     /// Whether the node's `visibleWhen` last said it is shown; `nil` before its first answer (``ServerUIVisibility/WhenUnknown/keep``).
     var shown: Bool?
+    /// Whether the run in progress is the `visibleWhen` observation: it decides the node's visibility, not the text or value that changes each
+    /// second, so a second-clock read there does not mark the node `updatesFrequently`. Cleared before every run of the node's observations.
+    var runIsVisibility = false
     /// The panel an authored `selectedWhen` last picked, so a rule selects once when it newly matches.
     var automaticMatch: String?
     /// What a tab container's tabs and areas and a state tile's discs last showed, so a rule that cannot be answered keeps its answer.
@@ -1384,8 +1396,14 @@ final class UKServerUIText: UIView, UKGridMeasuring {
     var isSectionTitle = false {
         didSet {
             restyle()
-            accessibilityTraits = isSectionTitle ? .header : .staticText
+            refreshTraits()
         }
+    }
+    private func refreshTraits() {
+        // A reassigned title keeps the trait a node that reads the second clock gave it.
+        var traits: UIAccessibilityTraits = isSectionTitle ? .header : .staticText
+        if accessibilityTraits.contains(.updatesFrequently) { traits.insert(.updatesFrequently) }
+        accessibilityTraits = traits
     }
     /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
     var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }

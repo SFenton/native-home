@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-an-hour",
+  "note": "A chore due in 3600 seconds: 1 hour (TodoItem.dueLabel).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3600
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1 hour"
+  }
+}

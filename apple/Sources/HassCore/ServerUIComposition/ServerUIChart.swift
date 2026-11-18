@@ -196,9 +196,11 @@ public struct ServerUIChart: Equatable, Sendable {
         func read(sourceId: String, path: [String]) -> ServerUIReadResult { base.read(sourceId: sourceId, path: path) }
         var viewer: ServerUIViewer? { base.viewer }
         func readRaw(sourceId: String) -> ServerUIReadResult { base.readRaw(sourceId: sourceId) }
+        func readChanged(sourceId: String) -> ServerUIReadResult { base.readChanged(sourceId: sourceId) }
         func viewerPersonState() -> ServerUIReadResult { base.viewerPersonState() }
         var controlValue: JSONValue? { base.controlValue }
         var clock: ServerUIClock? { base.clock }
+        var secondClock: ServerUIClock? { base.secondClock }
         func parameter(_ name: String) -> JSONValue? { base.parameter(name) }
         var isFlow: Bool { base.isFlow }
         var locale: Locale? { base.locale }

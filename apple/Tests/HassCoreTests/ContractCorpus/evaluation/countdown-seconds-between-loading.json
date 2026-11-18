@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-loading",
+  "note": "A read that is loading makes the whole loading.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "timer",
+          "path": [
+            "attributes",
+            "finishes_at"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "timer/attributes/finishes_at": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

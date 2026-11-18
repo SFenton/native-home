@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "name": "entity-time-no-entity-is-unavailable",
+  "note": "A source with no entity has no time.",
+  "subject": {
+    "operand": {
+      "type": "last-changed",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

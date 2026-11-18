@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "countdown-seconds-between-number-is-unavailable",
+  "note": "A number is not a moment.",
+  "subject": {
+    "operand": {
+      "type": "date",
+      "op": "seconds-between",
+      "from": {
+        "type": "literal",
+        "value": 5
+      },
+      "to": {
+        "type": "literal",
+        "value": "2026-11-17T10:00:00"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

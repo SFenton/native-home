@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-just-under-a-day-is-24-hours",
+  "note": "86399 seconds rounds to 24 hours: the hours bucket ends at a whole day, not at 24 rounded hours.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 86399
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "24 hours"
+  }
+}

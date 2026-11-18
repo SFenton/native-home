@@ -11391,6 +11391,209 @@
         "code": "unknown_field",
         "pointer": "/document/pages/2/components/0/children"
       }
+    },
+    {
+      "file": "accept/entity-time-since-line.json",
+      "outcome": "accept",
+      "note": "The alarm panel's line: \"Since 9:30 PM\" when the state changed today, \"Since Oct 14, 2025\" on an earlier day."
+    },
+    {
+      "file": "accept/entity-time-condition.json",
+      "outcome": "accept",
+      "note": "A node shown while the last change lies after a fixed moment: a date and time compares as an instant."
+    },
+    {
+      "file": "reject/entity-time-model-source.json",
+      "outcome": "reject",
+      "note": "The last change is an entity's: a model source has none.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value/value/sourceId"
+      }
+    },
+    {
+      "file": "reject/entity-time-unknown-source.json",
+      "outcome": "reject",
+      "note": "The source must be declared.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/2/components/0/props/value/value/sourceId"
+      }
+    },
+    {
+      "file": "reject/entity-time-with-path.json",
+      "outcome": "reject",
+      "note": "The operand names a source only: the time is the entity's, not an attribute's.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/pages/2/components/0/props/value/value/path"
+      }
+    },
+    {
+      "file": "reject/entity-time-source-missing.json",
+      "outcome": "reject",
+      "note": "A source id is required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/value/value/sourceId"
+      }
+    },
+    {
+      "file": "accept/countdown-clock-text.json",
+      "outcome": "accept",
+      "note": "A timer's remaining time as the fan draws it: the seconds from now (to the second) to when the timer finishes, as 05:00."
+    },
+    {
+      "file": "accept/countdown-until-attribute.json",
+      "outcome": "accept",
+      "note": "The same timer as a minutes and seconds readout: the seconds from now to the fan's finishes_at attribute, drawn as 4:30."
+    },
+    {
+      "file": "accept/countdown-condition.json",
+      "outcome": "accept",
+      "note": "A node shown while the timer has not finished: now, to the second, before the finish time."
+    },
+    {
+      "file": "accept/countdown-seconds-number.json",
+      "outcome": "accept",
+      "note": "The seconds themselves, as a number."
+    },
+    {
+      "file": "reject/countdown-date-unknown-operation.json",
+      "outcome": "reject",
+      "note": "The date operations are days-between, progress and seconds-between.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/op"
+      }
+    },
+    {
+      "file": "reject/countdown-clock-unknown-part.json",
+      "outcome": "reject",
+      "note": "The clock parts are today, now and now-second.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/part"
+      }
+    },
+    {
+      "file": "reject/countdown-seconds-between-without-to.json",
+      "outcome": "reject",
+      "note": "Both moments are required.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/pages/2/components/0/props/value/value/to"
+      }
+    },
+    {
+      "file": "accept/duration-format-styles.json",
+      "outcome": "accept",
+      "note": "Every style in one sentence: the compact, clock, minutes-seconds and span drawings."
+    },
+    {
+      "file": "accept/duration-format-off-fallback.json",
+      "outcome": "accept",
+      "note": "The humidifier's timer: 30m, 1h 30m, and \"Off\" when there is none (a compact duration of 0 has no text, so the fallback draws)."
+    },
+    {
+      "file": "reject/duration-format-text-argument.json",
+      "outcome": "reject",
+      "note": "A duration draws a number: a text argument is refused.",
+      "issue": {
+        "code": "binding_type",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
+      }
+    },
+    {
+      "file": "reject/duration-format-unit-on-clock.json",
+      "outcome": "reject",
+      "note": "Only a compact duration says its unit: the others are always seconds.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m/duration/unit"
+      }
+    },
+    {
+      "file": "reject/duration-format-unknown-style.json",
+      "outcome": "reject",
+      "note": "The styles are compact, clock, minutes-seconds and span.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
+      }
+    },
+    {
+      "file": "reject/duration-format-unknown-unit.json",
+      "outcome": "reject",
+      "note": "The units are seconds and minutes.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
+      }
+    },
+    {
+      "file": "reject/duration-format-two-formats.json",
+      "outcome": "reject",
+      "note": "One argument has one format.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/2/components/0/props/value/value/formats/m"
+      }
+    },
+    {
+      "file": "accept/math-truncate-one-decimal.json",
+      "outcome": "accept",
+      "note": "The room overview's temperature: truncated toward zero to one decimal and drawn with its zero, 71.99 reads 71.9."
+    },
+    {
+      "file": "accept/math-truncate-whole.json",
+      "outcome": "accept",
+      "note": "One argument truncates to a whole number."
+    },
+    {
+      "file": "reject/math-truncate-three-arguments.json",
+      "outcome": "reject",
+      "note": "Truncate takes a number and, optionally, the places.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value/value/args"
+      }
+    },
+    {
+      "file": "reject/math-truncate-no-arguments.json",
+      "outcome": "reject",
+      "note": "Truncate takes a number.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/props/value/value/args"
+      }
+    },
+    {
+      "file": "reject/entity-time-in-a-flow.json",
+      "outcome": "reject",
+      "note": "A flow reads no entity's last change: it runs on what it was given, so last-changed is refused there.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/request/value"
+      }
+    },
+    {
+      "file": "reject/countdown-now-second-in-a-flow.json",
+      "outcome": "reject",
+      "note": "A flow runs once on the minute clock it is given: there is no second clock for it.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/request/value"
+      }
+    },
+    {
+      "file": "reject/countdown-seconds-between-now-second-in-a-flow.json",
+      "outcome": "reject",
+      "note": "seconds-between is fine in a flow, but the second clock inside it is not.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/dataSources/5/inputs/request/value/from"
+      }
     }
   ]
 }

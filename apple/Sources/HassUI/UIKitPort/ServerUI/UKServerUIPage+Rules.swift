@@ -18,6 +18,7 @@ extension UKServerUIPage {
         let guarded = Self.boundControlIDs(in: component)
         entry.bag.observe { [weak self, weak entry] in
             guard let self, let entry, let renderer = self.renderer else { return }
+            entry.runIsVisibility = true
             var shown = rule.isShown(renderer.reader(), previous: entry.shown)
             if !shown, guarded.contains(where: { renderer.callRunner.isBusy(node: $0) }) { shown = true }
             entry.shown = shown

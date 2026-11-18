@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-just-under-an-hour",
+  "note": "3599 seconds is 59:59.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3599
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "59:59"
+  }
+}

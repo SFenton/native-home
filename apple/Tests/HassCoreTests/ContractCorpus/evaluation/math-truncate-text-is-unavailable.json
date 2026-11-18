@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "math-truncate-text-is-unavailable",
+  "note": "A text that is not a number is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": "hot"
+        },
+        {
+          "type": "literal",
+          "value": 1
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

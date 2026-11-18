@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-twenty-days",
+  "note": "20 days is the last whole number of days: 20 days.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 1728000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "20 days"
+  }
+}

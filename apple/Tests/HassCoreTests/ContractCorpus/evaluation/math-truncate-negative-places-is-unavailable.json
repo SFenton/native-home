@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "math-truncate-negative-places-is-unavailable",
+  "note": "Places are 0 or more.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 1.5
+        },
+        {
+          "type": "literal",
+          "value": -1
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

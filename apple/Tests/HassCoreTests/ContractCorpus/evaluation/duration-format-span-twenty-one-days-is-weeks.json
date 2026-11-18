@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-span-twenty-one-days-is-weeks",
+  "note": "21 days is where weeks begin: 3 weeks.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 1814400
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "span"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "3 weeks"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "name": "math-truncate-seven-places-is-unavailable",
+  "note": "More than six places is refused, as for round.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 1.5
+        },
+        {
+          "type": "literal",
+          "value": 7
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

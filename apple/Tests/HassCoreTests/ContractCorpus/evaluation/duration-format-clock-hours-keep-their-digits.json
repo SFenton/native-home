@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-hours-keep-their-digits",
+  "note": "100 hours draws all its digits: 100:00:00.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 360000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "100:00:00"
+  }
+}

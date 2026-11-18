@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "duration-format-loading",
+  "note": "A number that is loading makes the line loading.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "read",
+          "from": {
+            "type": "source",
+            "sourceId": "timer",
+            "path": [
+              "state"
+            ]
+          },
+          "as": "number",
+          "missing": "unavailable"
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "timer/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

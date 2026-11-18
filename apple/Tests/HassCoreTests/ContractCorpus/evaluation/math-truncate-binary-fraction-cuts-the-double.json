@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-binary-fraction-cuts-the-double",
+  "note": "0.57 to two places is 0.56: 0.57 * 100 is 56.99999999999999 in doubles, which both sides cut (the shipped helper is the same arithmetic).",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 0.57
+        },
+        {
+          "type": "literal",
+          "value": 2
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 0.56
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-minutes-thirty",
+  "note": "30 minutes is 30m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 30
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact",
+            "unit": "minutes"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "30m"
+  }
+}

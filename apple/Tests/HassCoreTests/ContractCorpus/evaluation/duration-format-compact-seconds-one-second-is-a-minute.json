@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-seconds-one-second-is-a-minute",
+  "note": "Seconds round up to whole minutes, at least 1: 1 second is 1m.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 1
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "1m"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-in-a-sentence",
+  "note": "The fan's line: \"Off in 05:00\".",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Off in {n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 300
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "Off in 05:00"
+  }
+}

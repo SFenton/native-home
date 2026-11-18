@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "entity-time-loading",
+  "note": "Before the first states arrive the time is loading.",
+  "subject": {
+    "operand": {
+      "type": "last-changed",
+      "sourceId": "sensor"
+    }
+  },
+  "env": {
+    "changed": {
+      "sensor": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

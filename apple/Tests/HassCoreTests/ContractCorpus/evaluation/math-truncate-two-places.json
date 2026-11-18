@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "math-truncate-two-places",
+  "note": "1.2399 to two places is 1.23.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": 1.2399
+        },
+        {
+          "type": "literal",
+          "value": 2
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": 1.23
+  }
+}

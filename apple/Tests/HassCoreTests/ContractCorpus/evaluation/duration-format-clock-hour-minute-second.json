@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "name": "duration-format-clock-hour-minute-second",
+  "note": "3661 seconds is 01:01:01.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 3661
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": "01:01:01"
+  }
+}

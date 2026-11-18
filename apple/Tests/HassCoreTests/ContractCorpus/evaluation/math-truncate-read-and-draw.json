@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "name": "math-truncate-read-and-draw",
+  "note": "The room overview's line: a state of \"71.99\" truncated to one place and drawn with its zero is 71.9; 72 is 72.0.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{t}°",
+      "args": {
+        "t": {
+          "type": "math",
+          "op": "truncate",
+          "args": [
+            {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            },
+            {
+              "type": "literal",
+              "value": 1
+            }
+          ]
+        }
+      },
+      "formats": {
+        "t": {
+          "number": {
+            "maximumFractionDigits": 1,
+            "minimumFractionDigits": 1
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": "72"
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "72.0°"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "name": "entity-time-absent-format-is-unavailable",
+  "note": "A format with no time has no text.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "Since {t}",
+      "args": {
+        "t": {
+          "type": "last-changed",
+          "sourceId": "temp"
+        }
+      },
+      "formats": {
+        "t": {
+          "date": {
+            "style": "time"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-17T23:10:05",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

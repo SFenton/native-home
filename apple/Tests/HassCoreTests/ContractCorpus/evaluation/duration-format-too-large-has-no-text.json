@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "duration-format-too-large-has-no-text",
+  "note": "1e13 seconds or more has no text (a number that large is not a duration).",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": 10000000000000
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

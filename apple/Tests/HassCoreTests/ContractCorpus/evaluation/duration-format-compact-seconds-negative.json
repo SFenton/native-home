@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "duration-format-compact-seconds-negative",
+  "note": "Less than 0 has no text.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{n}",
+      "args": {
+        "n": {
+          "type": "literal",
+          "value": -5
+        }
+      },
+      "formats": {
+        "n": {
+          "duration": {
+            "style": "compact"
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "unavailable"
+  }
+}

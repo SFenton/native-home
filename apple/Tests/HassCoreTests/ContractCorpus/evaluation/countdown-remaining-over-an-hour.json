@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "countdown-remaining-over-an-hour",
+  "note": "A timer of an hour and a half: the fan draws hours from one hour.",
+  "subject": {
+    "operand": {
+      "type": "format",
+      "pattern": "{s}",
+      "args": {
+        "s": {
+          "type": "date",
+          "op": "seconds-between",
+          "from": {
+            "type": "clock",
+            "part": "now-second"
+          },
+          "to": {
+            "type": "literal",
+            "value": "2026-11-17T11:30:00"
+          }
+        }
+      },
+      "formats": {
+        "s": {
+          "duration": {
+            "style": "clock"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "clock": {
+      "now": "2026-11-17T10:00:07",
+      "utcOffsetMinutes": 0
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": "01:29:53"
+  }
+}

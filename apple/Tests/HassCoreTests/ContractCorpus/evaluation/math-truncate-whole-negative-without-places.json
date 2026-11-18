@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "math-truncate-whole-negative-without-places",
+  "note": "-2.9 is -2.",
+  "subject": {
+    "operand": {
+      "type": "math",
+      "op": "truncate",
+      "args": [
+        {
+          "type": "literal",
+          "value": -2.9
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "value": -2
+  }
+}
