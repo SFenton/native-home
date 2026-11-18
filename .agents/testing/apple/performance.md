@@ -20,7 +20,7 @@ The app measures itself (`HassUI/Diagnostics/ScrollCostProbe.swift`, `HassTeleme
 | `travelled` | points scrolled, to put runs of different length on one footing |
 
 - **Run it:** `tools/ios_scrollcost.sh [--section gallery|live] [--only "Living Room"] [--env shell] [--compare BASE.tsv]`. It builds the app optimized (`-O`: the Release code path, gallery still in), runs every surface in `tools/scrollcost-surfaces.txt` on one simulator inside a devcap hold, and prints `tools/scrollcost_report.py`'s table. About a minute a surface.
-- **Why not an XCUITest swipe.** The first attempt flicked pages with `swipeUp` under `XCTCPUMetric`. Every page read the same 2.6 to 2.9 G instructions, a Grid of 300 tiles included: what it measured was the accessibility snapshot the swipe asks of the app, not the page. The probe's own display link moves the scroll view, and nothing touches the app while it measures.
+- **Never measure with an XCUITest swipe:** it measures the accessibility snapshot the swipe asks of the app, not the page (every page read the same 2.6 to 2.9 G instructions). The probe's own display link moves the scroll view.
 - **Gallery or live.** `[gallery]` surfaces run on fixtures with no connection, so the number is the page alone. `[live]` surfaces sign in with the token and open a page with `FENTON_SCROLLCOST_OPEN=<dashboard path>`: live entity updates and camera streams are in the number, which is how the owner's phone behaves. Compare like with like. Whole-process `minstr` is not comparable between live runs (the camera streams alone retire about 20 G instructions in 8 s on any page); compare `main_ms`, `over8`, `p95_ms` and `update_ms`.
 - **Tile finish A/B** (`--section finish`, not part of `all`): the 300-tile grid with each `TileFinish` (`FENTON_TILE_FINISH=solid|tintedGlass`, tinted glass is the shipped default), and variants with a layer left out (`FENTON_TILE_FINISH_OMIT=sheen,rim`, Debug only). Run it after changing a finish token or layer. Numbers: direction-g.md, Tile finish.
 - **Tests:** `Apps/iOSUITests/ScrollSurfacesPerformanceTests.swift` holds the surfaces that were slow to a budget (`TEST_RUNNER_FENTON_PERF_ON_SIMULATOR=1`, and the token for the `testLive*` ones). Budgets, from the post-fix numbers: p95 turn 6 ms on fixtures and 3.5 ms live, no turn over 8 ms, none over 16 ms in the warm run, 25 ms of live-update work and 100 ms of main-thread time for a standing-still live page in 8 s.
@@ -84,6 +84,10 @@ What the launch intro, a signed-in relaunch and the sign-in arrival cost, measur
 - Unit: `TrackedIntervalsTests`, `LaunchCostProbeTests`, `ReconnectingPolicyTests`, `RememberedAccountTests`; hosted: `LoginTests` (model, screen, flows, root choreography).
 
 **Budgets (simulator, from design/motion.md section 10).** p95 run-loop turn ≤ 8 ms and no turn over 16 ms in any phase; `Intro` ≤ 1500 ms; `SnapshotShown` ≤ 400 ms; `Arrival` ≤ 1000 ms. The measured baselines and today's misses (Arrival over budget on Home's first layout) are in the [performance log](../../archive/performance-log.md). Hitch metrics are device-only and are written but not run.
+
+## Logic evaluation
+
+[Logic evaluation](logic-evaluation.md): the `logic.*` counters, the worst-case scenarios and their budgets.
 
 ## What only a phone can settle
 

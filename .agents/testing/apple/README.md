@@ -7,7 +7,8 @@
 | [strategy.md](strategy.md) | Phases, accessibility tests with every change, certification gates |
 | [accessibility.md](accessibility.md) | Audit rules and evidence |
 | [devices.md](devices.md) | iPhone, iPhone Duo, iPad matrix and how to run it |
-| [performance.md](performance.md) | Scroll cost, fast-scroll tests on a physical device, navigation cost (`tools/ios_navperf.sh`), launch, intro and arrival cost (`tools/ios_launchperf.sh`), layout-change and ticker cost, telemetry and targets |
+| [performance.md](performance.md) | Scroll cost, device fast-scroll tests, navigation cost, launch, intro and arrival cost, layout-change, ticker, telemetry and targets |
+| [logic-evaluation.md](logic-evaluation.md) | Logic cost |
 | [app-reuse.md](app-reuse.md) | One running app per journey class, reset between tests (pilot), and when a test must relaunch |
 | [journey-expectations.md](journey-expectations.md) | The expectations layer: DemoHouse values, the private live file, the template, skips |
 | [ha-companion.md](ha-companion.md) | The official Home Assistant app on our simulators, for comparison |

@@ -1166,7 +1166,7 @@
   ".agents/testing/apple/README.md": {
    "forbidden": 25,
    "long_lines": 24,
-   "over_words": 4098,
+   "over_words": 4097,
    "links": 1
   },
   ".agents/testing/apple/accessibility.md": {
@@ -1196,8 +1196,8 @@
   },
   ".agents/testing/apple/performance.md": {
    "forbidden": 26,
-   "long_lines": 32,
-   "over_words": 8078,
+   "long_lines": 31,
+   "over_words": 8068,
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {

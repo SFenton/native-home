@@ -70,7 +70,12 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     private var pending: Pending?
     private var handoff = false { didSet { if handoff != oldValue { busyState.changed() } } }
     private let bag = UKObservationBag()
-    private let tabBag = UKObservationBag()
+    /// The tab badges' and tab rules' observations, which outlive a page visit; each run is authored logic (`LogicCost`).
+    private let tabBag: UKObservationBag = {
+        let bag = UKObservationBag()
+        bag.evaluatesAuthoredLogic = true
+        return bag
+    }()
     private var tabShown: [String: Bool] = [:]
     /// The text each tab's authored badge (`sh.badges@1`) last resolved to; a tab with none, or a count of 0, has no entry.
     private var tabBadges: [String: String] = [:]
@@ -1892,7 +1897,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             guard let value = tab.badgeValue else { continue }
             tabBag.observe { [weak self] in
                 guard let self else { return }
-                guard case .text(let text) = ServerUILayoutRules.badge(value, in: self.reader()), self.tabBadges[tab.id] != text else { return }
+                guard case .text(let text) = ServerUILayoutRules.badge(value, in: self.reader()) else { return }
+                guard self.tabBadges[tab.id] != text else { return LogicCost.skippedEqual() }
                 self.tabBadges[tab.id] = text
                 if let nav = self.stacks[.tab(tab.id)] { self.applyTabItem(tab, to: nav.tabBarItem) }
                 if self.isViewLoaded { self.updateFlyout() }
@@ -1910,7 +1916,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             tabBag.observe { [weak self] in
                 guard let self else { return }
                 let shown = rule.isShown(self.reader(), previous: self.tabShown[id])
-                guard self.tabShown[id] != shown else { return }
+                guard self.tabShown[id] != shown else { return LogicCost.skippedEqual() }
                 self.tabShown[id] = shown
                 self.refreshTabBar()
             }

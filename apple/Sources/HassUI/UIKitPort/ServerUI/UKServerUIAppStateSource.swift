@@ -150,8 +150,8 @@ final class UKServerUIAppStateSource {
         if starts { startTicking() }
     }
 
-    /// Publishes the clock when the minute has moved: one write a minute, never more.
-    private func publishClock(now: Date = Date()) {
+    /// Publishes the clock when the minute has moved: one write a minute, never more. Not private so a hosted test can move the minute.
+    func publishClock(now: Date = Date()) {
         let next = ServerUIAppState.clock(at: now)
         if let clock, clock.now.prefix(16) == next.now.prefix(16), clock.utcOffsetMinutes == next.utcOffsetMinutes { return }
         clock = next

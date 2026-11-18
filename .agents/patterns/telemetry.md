@@ -5,7 +5,7 @@
 - **Module:** `HassTelemetry` (`Telemetry`, `TelemetryLog`). It has no dependencies; every other module may use it.
   - **Signposts** (`OSSignposter`, subsystem `com.sfenton.home`, category `Performance`) are always on. Instruments and `XCTOSSignpostMetric` read them.
   - **In-app log**: a 4000-sample ring with counters and per-page scroll stats. It records while `Telemetry.isEnabled`: Debug builds, `FENTON_TELEMETRY=1`, or the switch on the Performance screen.
-- **Names** (`Telemetry.Name`; tests depend on them): `EntityUpdate`, `ContentReady`, `ImageFetch`, `ImageDecode`, `ServiceCall`, `OptimisticConfirm`, `Scroll` and `Hitch`. `SnapshotSave` measures the debounced snapshot write. Navigation: `TabSwitch`, `Push`, `Pop`, `SheetPresent`, `SheetDismiss`, `ZoomOpen`, `ZoomClose`; moments: `Intro`, `Arrival`; `HouseConfigRead` (the synchronous cached house document read at session start, ending `hit` or `miss`). A transition records a `firstFrame` and a `settled` sample and its `p95Turn` and `worstTurn` (`Telemetry.Phase`, in the record's `detail`; `TelemetryLog.phaseStats` keys them `Push.settled@Room`).
+- **Names** (`Telemetry.Name`; tests depend on them): `EntityUpdate`, `ContentReady`, `ImageFetch`, `ImageDecode`, `ServiceCall`, `OptimisticConfirm`, `Scroll` and `Hitch`. `SnapshotSave` measures the debounced snapshot write. Navigation: `TabSwitch`, `Push`, `Pop`, `SheetPresent`, `SheetDismiss`, `ZoomOpen`, `ZoomClose`; moments: `Intro`, `Arrival`; `LogicRun` (one authored-logic evaluation, `LogicCost`); `HouseConfigRead` (the synchronous cached house document read at session start, ending `hit` or `miss`). A transition records a `firstFrame` and a `settled` sample and its `p95Turn` and `worstTurn` (`Telemetry.Phase`, in the record's `detail`; `TelemetryLog.phaseStats` keys them `Push.settled@Room`).
 - **Scrolling:**
   - Every page's main `ScrollView` / `List` carries `.scrollTelemetry("<Page>")` (`HassUI/Diagnostics/FrameMonitor.swift`).
   - While it scrolls, a display link times each frame. A frame later than half a budget counts as a hitch, and the page's hitch ratio (ms per s) is recorded.
@@ -20,6 +20,7 @@
   - Settings → Performance (`PerformanceScreen`) shows scrolling per page, navigation per surface, page loading, live updates, actions and images.
   - **Export Telemetry** shares one JSON file containing the log plus the MetricKit payloads.
   - Gallery: `FENTON_GALLERY=performance` (seeded).
+- **Logic counters:** `logic.runs`, `logic.runUs` and `logic.skippedEqual` count authored-logic evaluations; see [logic-evaluation](../testing/apple/logic-evaluation.md).
 - **Privacy:** nothing leaves the device unless the user exports it. Records carry page names and entity ids, never values or credentials.
 
 - **Owned files** (also in `contracts/patterns.json`): `PerfSwitches.swift`.

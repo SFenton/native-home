@@ -138,12 +138,14 @@ final class ScrollCostDriverHostedTests: XCTestCase {
     }
 
     func testTheDeliveryNoteIsTheDifferenceBetweenTwoCounterReadings() {
-        let note = ScrollCostDriver.deliveryNote(from: ["entity.deliveries": 2, "entity.mainUs": 1000],
-                                                 to: ["entity.deliveries": 5, "entity.mainUs": 3500, "connection.pathUpdates": 4])
+        let note = ScrollCostDriver.deliveryNote(from: ["entity.deliveries": 2, "entity.mainUs": 1000, "logic.runs": 10, "logic.runUs": 500],
+                                                 to: ["entity.deliveries": 5, "entity.mainUs": 3500, "connection.pathUpdates": 4,
+                                                      "logic.runs": 60, "logic.runUs": 2_500, "logic.skippedEqual": 7])
         XCTAssertTrue(note.contains("deliveries=3"), note)
         XCTAssertTrue(note.contains("path_updates=4"), note)
         XCTAssertTrue(note.contains("delivery_ms=2.5"), note)
         XCTAssertTrue(note.contains("changed=0"), note)
+        XCTAssertTrue(note.contains("logic_runs=50 logic_run_ms=2.0 logic_skipped=7"), "the logic counters sit on the same line: " + note)
     }
 
     func testTheLaunchSummaryIsOneLineOfProcessAndDeliveryFacts() {
