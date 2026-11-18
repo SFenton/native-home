@@ -310,7 +310,7 @@ final class LogicWorstCasePerformanceTests: XCTestCase {
         }
         let outside = measured.p95Ms > 8 || measured.over16 > 0 || (standingStill && measured.updateWorkMs > 25)
         if Self.knownBreaches[key] != nil, !outside {
-            Self.note("UNDER BUDGET: prune knownBreaches[\"\(key)\"] (\(measured.family): p95 \(measured.p95Ms) ms, worst \(measured.worstMs) ms)")
+            Self.note("UNDER BUDGET on \(measured.family): knownBreaches[\"\(key)\"] is a prune candidate if every family stays inside on two runs (p95 \(measured.p95Ms) ms, worst \(measured.worstMs) ms)")
         }
         if let reason = Self.knownBreaches[key] {
             let options = XCTExpectedFailure.Options()

@@ -20,7 +20,7 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
   - a minute tick inside a burst;
   - one template expanded ten times.
 - **Budgets:** p95 run-loop turn at most 8 ms and none over 16 ms in every scenario; a standing-still page's update work (logic plus store apply) at most 25 ms in 8 s. A scenario `main` misses is an expected failure naming it (`knownBreaches`); never loosen a budget.
-- **Pruning:** a run that finds a listed scenario inside budget prints `UNDER BUDGET: prune knownBreaches[<scenario>]` and writes it to the rows file; delete the entry.
+- **Pruning:** a run that finds a listed scenario inside budget prints `UNDER BUDGET on <family>` and writes it to the rows file. Delete the entry only when every family stays inside budget on two runs.
 - **Run it:** the suite skips unless `TEST_RUNNER_FENTON_PERF_ON_SIMULATOR=1` and wants a 1-minute load under 40: each row records the load at start, and a run above 40 prints `LOAD OVER 40` and is not a baseline. One hosted run per family with `FENTON_HOSTED_FILTER=LogicWorstCasePerformanceTests`; `TEST_RUNNER_FENTON_LOGICPERF_FILE` collects the rows.
 - **Correctness tests** (`ServerUILogicEvaluationTests`, `ServerUILogicCountersHostedTests`) run everywhere: an entity no evaluation reads runs nothing, an equal result writes no view, a `choose` that flips reads the new branch, and a sum runs once per turn.
 - **Rules:**
