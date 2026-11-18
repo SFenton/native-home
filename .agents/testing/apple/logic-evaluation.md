@@ -28,9 +28,4 @@ Every evaluation runs inside an observation of the entity boxes it read, so an u
   - A burst is one run per evaluation per turn.
   - No evaluation scans the house; a read costs what it names, not the entity count.
   - A new scenario or counter extends this suite under the same budgets.
-- **Shared and cached work** (pattern: [derived-value](../../patterns/derived-value.md)):
-  - A `DerivedValue` evaluates cross-entity logic once for the session and wakes its readers only when the result differs.
-  - Shared: the Profile attention count (every page that draws the header), a status source's projection, a todo-counts source's words, and every identical authored text or badge expression that reads three or more sources and no cell, flow or clock, once a second observation reads it (ten copies of one count are one value).
-  - A derived run counts in `logic.runs` and `logic.runUs`; one that finds the same result counts in `logic.skippedEqual` and wakes no node.
-  - The viewer's person is found once per user and people revision (`PersonLookup`, `EntityStore.peopleRevision`, which moves when a person is added, removed or points at another user); a viewer read does not scan the house.
-  - The entity id grammar is matched once per string (`EntityIDCache`): a literal id costs a dictionary hit.
+- **Shared and cached work:** a `DerivedValue` run counts in `logic.runs` and `logic.runUs`, an equal result in `logic.skippedEqual`. The rules (what is shared, when, and the viewer and id caches) are in [derived-value](../../patterns/derived-value.md).

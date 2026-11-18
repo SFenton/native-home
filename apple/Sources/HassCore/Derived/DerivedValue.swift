@@ -14,9 +14,10 @@ import Observation
 ///
 /// - **No work proportional to the house.** An entity nobody's `read` reads costs nothing; a changed input costs one run per turn,
 ///   however many inputs changed or readers there are.
-/// - **Never stale.** A change marks the value dirty at once, and ``current`` runs a dirty value before it answers, so a reader that
-///   is awake for another reason in the same turn still sees the new result. The run the change also schedules finds nothing to do
-///   in that case.
+/// - **Readers follow the output only.** Observation merges what a nested tracking scope reads into the scope around it, so a value
+///   is never evaluated inside a reader's run: make it where no observation is running (an owner's `init`, ``SharedLogic``'s hop), and
+///   it settles on the main actor in the hop after a change, ahead of the readers' own re-run. A reader that runs in between reads the
+///   last result, and is woken again if the settled result differs.
 /// - **Session scope.** It lives as long as its owner holds it (``DerivedValues`` holds it weakly, so the last reader leaving ends it)
 ///   and not as long as any page: a page that goes away takes nothing with it that another page reads.
 ///
@@ -29,22 +30,21 @@ public final class DerivedValue<Value: Equatable>: Observable {
     /// What this value's own runs read, so a derived value built on another keeps it alive.
     private let readers = DerivedReaders()
     private var stored: Value?
-    private var isScheduled = false
     private var isCancelled = false
 
     /// How many times `read` ran, the first run included. Tests and the logic counters read it.
     public private(set) var evaluations = 0
 
-    /// Computes the value now and starts following what `read` reads.
+    /// Computes the value now and starts following what `read` reads. Call it where no observation is running, or that observation
+    /// follows every input too (Observation merges the scopes).
     /// - Parameter read: Reads observable state and answers. It runs on the main actor, now and after any input it read changed.
     public init(_ read: @escaping @MainActor () -> Value) {
         self.read = read
         stored = refresh()
     }
 
-    /// The result, tracked by the observation that reads it. Runs first when an input changed since the last run.
+    /// The result, tracked by the observation that reads it. It never runs `read`: the last settled result, held by the reader's run.
     public var current: Value {
-        if dirty.isSet, !isCancelled { settle() }
         DerivedReaders.note(self)
         registrar.access(self, keyPath: \.current)
         return stored!
@@ -78,17 +78,10 @@ public final class DerivedValue<Value: Equatable>: Observable {
         registrar.withMutation(of: self, keyPath: \.current) { stored = next }
     }
 
-    /// Asks the run loop to settle once for any number of changes in this turn.
+    /// Settles in the main-actor hop after the change, once for any number of changes in the turn, ahead of the readers' re-run.
     private func schedule() {
-        guard !isScheduled, !isCancelled, dirty.isSet else { return }
-        isScheduled = true
-        RunLoop.main.perform { [weak self] in
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.isScheduled = false
-                if self.dirty.isSet, !self.isCancelled { self.settle() }
-            }
-        }
+        guard !isCancelled, dirty.isSet else { return }
+        settle()
     }
 }
 

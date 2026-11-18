@@ -65,11 +65,14 @@ struct DerivedValueTests {
         #expect(derived.evaluations == 1)
     }
 
-    @Test func aChangedInputIsSeenAtOnce() {
+    @Test func aChangedInputIsSettledInTheNextHop() async {
         let store = store(["light.demo_a": "off"])
         let derived = DerivedValue(count(["light.demo_a"], in: store))
         set(store, "light.demo_a", "on")
-        #expect(derived.current == 1, "a reader awake in the same turn never sees the old answer")
+        #expect(derived.current == 0, "reading never runs the logic: a reader would follow its inputs")
+        #expect(derived.evaluations == 1)
+        await settle()
+        #expect(derived.current == 1)
         #expect(derived.evaluations == 2)
     }
 
@@ -117,6 +120,37 @@ struct DerivedValueTests {
         #expect(watchers.allSatisfy { $0.lastSeen == 1 })
     }
 
+    @Test func aReaderThatMadeTheValueIsWokenByItsOutputOnly() async {
+        // The reader makes the value outside its own run (as the app does), reads it, and the inputs change to an equal result again and again.
+        let store = store(["light.demo_a": "on", "light.demo_b": "off"])
+        let derived = DerivedValue(count(["light.demo_a", "light.demo_b"], in: store))
+        let watcher = Watcher { derived.current }
+        for round in 0..<6 {
+            let aOn = round % 2 == 1
+            store.apply([EntityState(entityId: "light.demo_a", state: aOn ? "on" : "off"), EntityState(entityId: "light.demo_b", state: aOn ? "off" : "on")])
+            await settle()
+        }
+        #expect(watcher.wakes == 0, "six input changes with the same sum: the reader follows the output, not the inputs")
+        #expect(derived.evaluations == 7)
+    }
+
+    @Test func readingNeverMakesTheReaderFollowTheInputs() async {
+        // A value that is dirty when a reader reads it: the read must not run the logic inside the reader.
+        let store = store(["light.demo_a": "off", "light.demo_b": "off"])
+        let derived = DerivedValue(count(["light.demo_a", "light.demo_b"], in: store))
+        let watcher = Watcher { derived.current }
+        set(store, "light.demo_a", "on")
+        _ = derived.current
+        await settle()
+        let after = watcher.wakes
+        for round in 0..<4 {
+            store.apply([EntityState(entityId: "light.demo_a", state: round % 2 == 0 ? "off" : "on"),
+                         EntityState(entityId: "light.demo_b", state: round % 2 == 0 ? "on" : "off")])
+            await settle()
+        }
+        #expect(watcher.wakes == after, "an equal sum wakes no one, whatever read it while it was dirty")
+    }
+
     @Test func aBranchThatFlipsFollowsTheNewInputs() async {
         let store = store(["light.demo_switch": "off", "light.demo_a": "on", "light.demo_b": "on"])
         let derived = DerivedValue<Int> {
@@ -128,12 +162,14 @@ struct DerivedValueTests {
         await settle()
         #expect(derived.evaluations == 1, "the other branch is not followed")
         set(store, "light.demo_switch", "on")
+        await settle()
         #expect(derived.current == 3)
         let runs = derived.evaluations
         set(store, "light.demo_a", "off")
         await settle()
         #expect(derived.evaluations == runs, "the branch left behind is no longer followed")
         set(store, "light.demo_b", "on")
+        await settle()
         #expect(derived.current == 2)
     }
 
@@ -239,6 +275,29 @@ struct DerivedValuesTests {
 
 // MARK: - SharedLogic
 
+/// One observation reading a shared key, as a page node does: runs inside its own collector, counts wake-ups and re-arms.
+@MainActor
+private final class SharedWatcher {
+    private let readers = DerivedReaders()
+    private let logic: SharedLogic<String, Int>
+    private let read: @MainActor () -> Int
+    private(set) var wakes = 0
+
+    init(_ logic: SharedLogic<String, Int>, _ read: @escaping @MainActor () -> Int) {
+        self.logic = logic
+        self.read = read
+        arm()
+    }
+
+    private func arm() {
+        withObservationTracking { readers.run { _ = logic.value(for: "k", read: read) } } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                RunLoop.main.perform { MainActor.assumeIsolated { self?.wakes += 1; self?.arm() } }
+            }
+        }
+    }
+}
+
 @MainActor
 struct SharedLogicTests {
     private func store() -> EntityStore {
@@ -247,32 +306,59 @@ struct SharedLogicTests {
         return store
     }
 
-    @Test func oneReaderEvaluatesInPlaceAndMakesNoDerivedValue() {
+    @Test func oneReaderEvaluatesInPlaceAndMakesNoDerivedValue() async {
         let store = store()
         let logic = SharedLogic<String, Int>()
         let reader = DerivedReaders()
         var runs = 0
         let read: @MainActor () -> Int = { runs += 1; return store.entity("light.demo_a").state?.state == "on" ? 1 : 0 }
         for _ in 0..<3 { reader.run { #expect(logic.value(for: "k", read: read) == 1) } }
+        await settle()
         #expect(runs == 3, "the same observation re-running evaluates where it is")
         #expect(logic.sharedCount == 0)
     }
 
-    @Test func aSecondReaderMakesItOneSharedValue() {
+    @Test func aSecondReaderMakesItOneSharedValueInTheNextHop() async {
         let store = store()
         let logic = SharedLogic<String, Int>()
         let first = DerivedReaders(), second = DerivedReaders(), third = DerivedReaders()
         var runs = 0
         let read: @MainActor () -> Int = { runs += 1; return store.entity("light.demo_a").state?.state == "on" ? 1 : 0 }
         first.run { _ = logic.value(for: "k", read: read) }
-        #expect(runs == 1)
         second.run { #expect(logic.value(for: "k", read: read) == 1) }
+        #expect(logic.sharedCount == 0, "not made inside the reader's run")
+        #expect(runs == 2, "both evaluated in place this once")
+        await settle()
         #expect(logic.sharedCount == 1)
-        #expect(runs == 2, "the promotion runs the logic once, inside the derived value")
+        #expect(runs == 3, "the shared value ran once")
         third.run { #expect(logic.value(for: "k", read: read) == 1) }
         first.run { #expect(logic.value(for: "k", read: read) == 1) }
-        #expect(runs == 2, "readers after that read the shared value")
-        #expect(second.count == 1 && third.count == 1 && first.count == 1, "each holds the value it read")
+        second.run { #expect(logic.value(for: "k", read: read) == 1) }
+        #expect(runs == 3, "readers after that read the shared value")
+        #expect(first.count == 1 && second.count == 1 && third.count == 1, "each holds the value it read")
+    }
+
+    @Test func aReaderMovedOverIsNotWokenByAnEqualResult() async {
+        let store = EntityStore()
+        store.replaceAll([EntityState(entityId: "light.demo_a", state: "on"), EntityState(entityId: "light.demo_b", state: "off"),
+                          EntityState(entityId: "light.demo_c", state: "off")])
+        let logic = SharedLogic<String, Int>()
+        let read: @MainActor () -> Int = {
+            ["light.demo_a", "light.demo_b", "light.demo_c"].filter { store.entity($0).state?.state == "on" }.count
+        }
+        let watchers = (0..<3).map { _ in SharedWatcher(logic, read) }
+        await settle()
+        // One real change moves every reader over.
+        store.apply([EntityState(entityId: "light.demo_c", state: "on")])
+        await settle()
+        await settle()
+        let moved = watchers.map(\.wakes)
+        for round in 0..<4 {
+            let aOn = round % 2 == 1  // the sum stays 2: c plus one of a and b
+            store.apply([EntityState(entityId: "light.demo_a", state: aOn ? "on" : "off"), EntityState(entityId: "light.demo_b", state: aOn ? "off" : "on")])
+            await settle()
+        }
+        #expect(watchers.map(\.wakes) == moved, "an input change with the same sum wakes no reader, the first included")
     }
 
     @Test func aReadOutsideAnyObservationIsPlain() {
@@ -283,14 +369,23 @@ struct SharedLogicTests {
         #expect(logic.sharedCount == 0)
     }
 
-    @Test func theValueEndsWhenItsReadersLetGo() {
+    @Test func theValueEndsWhenItsReadersLetGo() async {
         let logic = SharedLogic<String, Int>()
         var first: DerivedReaders? = DerivedReaders(), second: DerivedReaders? = DerivedReaders()
         first?.run { _ = logic.value(for: "k") { 1 } }
+        second?.run { _ = logic.value(for: "k") { 1 } }
+        await settle()
         second?.run { _ = logic.value(for: "k") { 1 } }
         #expect(logic.sharedCount == 1)
         second = nil
         #expect(logic.sharedCount == 0, "nothing holds it: the shared value ended")
         first = nil
+    }
+
+    @Test func keysNotWorthSharingAreForgottenOnASweep() {
+        let logic = SharedLogic<Int, Int>()
+        let reader = DerivedReaders()
+        reader.run { for key in 0..<1000 { _ = logic.value(for: key, eligible: false) { key } } }
+        #expect(logic.slotCount < 300, "the memory of what is not worth sharing is bounded")
     }
 }

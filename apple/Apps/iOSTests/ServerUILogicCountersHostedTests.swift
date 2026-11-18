@@ -165,6 +165,40 @@ final class ServerUILogicCountersHostedTests: XCTestCase {
         XCTAssertEqual(counts { _ = scene.store.apply([EntityState(entityId: LogicHouse.watched(1), state: "on")]) }.runs, 1, "no second layer to run")
     }
 
+    func testARemappedSourceIsNotAnsweredFromTheOldSharedValue() throws {
+        var document = LogicDocument()
+        document.sources = (0..<4).map { ("w\($0)", LogicHouse.watched($0)) }
+        let sum: [String: Any] = ["type": "math", "op": "add", "args": (0..<4).map { index in
+            LogicDocument.choose([(LogicDocument.isState("w\(index)"), LogicDocument.literal(1))], otherwise: LogicDocument.literal(0))
+        }]
+        document.tabs = [.init(id: "home", nodes: (0..<3).map { LogicDocument.text("c\($0)", value: LogicDocument.format("{n}", ["n": sum])) })]
+        let scene = try host(document, watched: 8)
+        let bindings = scene.renderer.bindings
+        XCTAssertEqual(bindings.sharedOperandCount, 1)
+        let operand = ServerUIOperand.math(.add, (0..<4).map { index in
+            .choose(cases: [.init(when: .state(sourceId: "w\(index)", path: ["state"], values: ["on"]), then: .literal(.number(1)))], otherwise: .literal(.number(0)))
+        })
+        let bag = UKObservationBag()
+        func answer() -> ServerUIReadResult {
+            var result: ServerUIReadResult = .unavailable
+            let local = UKObservationBag()
+            local.observe { result = bindings.result(of: operand, in: scene.renderer.reader()) }
+            return result
+        }
+        _ = bag
+        let before = answer()
+        // The publication points w0 at an entity whose state differs from the old one.
+        let old = LogicHouse.watched(0), moved = LogicHouse.watched(1)
+        XCTAssertNotEqual(scene.store.entity(old).state?.state, scene.store.entity(moved).state?.state)
+        var sources = scene.renderer.publication.document.dataSources
+        sources = sources.map { source in
+            if case .haEntity(let id, _) = source, id == "w0" { return .haEntity(id: id, entityId: .literal(moved)) }
+            return source
+        }
+        bindings.apply(sources)
+        XCTAssertNotEqual(answer(), before, "a fresh reader gets the new answer, not the shared value built on the old sources")
+    }
+
     func testACopyThatReadsItsCellIsNotShared() {
         let sum = ServerUIOperand.math(.add, [.item(path: ["n"]), .literal(.number(1))])
         XCTAssertFalse(sum.isWorthSharing)

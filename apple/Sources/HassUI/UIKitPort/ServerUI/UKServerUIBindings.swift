@@ -260,13 +260,22 @@ final class UKServerUIBindings {
     private var sourceGeneration = 0
     private let sharedStatuses = SharedLogic<SharedKey, ServerUIHomeStatus.Value?>()
     private let sharedTodoWords = SharedLogic<SharedKey, TodoWords>()
-    private let sharedOperands = SharedLogic<ServerUIOperand, ServerUIReadResult>()
+    private let sharedOperands = SharedLogic<OperandKey, ServerUIReadResult>()
+
+    /// What names a shared authored operand: the tree, the publication's sources it reads through (a changed source is a new value, so a
+    /// rebuilt reader never gets the old answer) and whether screenshots redact (read outside Observation, so it is part of the name).
+    private struct OperandKey: Hashable {
+        let operand: ServerUIOperand
+        let generation: Int
+        let redacted: Bool
+    }
 
     /// The answer of an authored operand. A tree that does real work and reads nothing of the place it sits in (``ServerUIOperand/isWorthSharing``)
     /// is one ``DerivedValue`` for every use of it, so ten copies of one count run once; anything else is evaluated where it is used.
     func result(of operand: ServerUIOperand, in reader: UKServerUIReader) -> ServerUIReadResult {
         guard readerProvider != nil, operand.hasManyReads else { return operand.evaluate(reader) }
-        return sharedOperands.value(for: operand, eligible: operand.isWorthSharing) { [weak self] in
+        return sharedOperands.value(for: OperandKey(operand: operand, generation: sourceGeneration, redacted: ScreenshotPrivacy.isRedacting),
+                                    eligible: operand.isWorthSharing) { [weak self] in
             guard let reader = self?.readerProvider?() else { return .unavailable }
             return operand.evaluate(reader)
         }

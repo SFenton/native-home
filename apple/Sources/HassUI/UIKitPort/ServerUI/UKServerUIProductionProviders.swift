@@ -54,6 +54,8 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
         self.recordCacheRoot = recordCacheRoot
         self.preferencesDefaults = preferencesDefaults
         caller = UKServerUISessionCaller(session: session, connection: connection)
+        // Made here, where no observation is running: made inside a header's run it would make that header follow every input.
+        _ = attention
     }
 
     /// Only the existing websocket supplies identity, permissions and configuration.
@@ -87,7 +89,7 @@ final class UKServerUIProductionProviders: UKServerUIAccountProvider {
     /// The Profile attention count, evaluated once for the session. Every page that draws the header (each loaded tab root and any page
     /// shown on every depth) reads this one value, so a change to the chores, vacation mode or expired-food entities runs the sum once
     /// and wakes the headers only when the count differs (pattern: derived-value).
-    @ObservationIgnored private lazy var attention = DerivedValue<Int> { [weak self] in
+    @ObservationIgnored private lazy var attention: DerivedValue<Int> = DerivedValue<Int> { [weak self] in
         guard let self, let session, session.isCurrentConnection(connection) else { return 0 }
         let identity = user?.id ?? session.cachedPublicationUserID(for: connection)
         return ShellAttention.count(store: connection.store, viewerUserId: identity)

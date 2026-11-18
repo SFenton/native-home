@@ -2,11 +2,11 @@
 
 > **What:** logic that reads several entities and is used in more than one place is evaluated once for the session and wakes its readers only when its result changes. **Read when:** adding a count, sum or status over many entities, an authored expression that Studio expands into copies, or anything a header, tab and page all show.
 
-- **Component:** `DerivedValue` (`HassCore/Derived/DerivedValue.swift`), `DerivedValues` (the keyed set, `DerivedValues.swift`) and `DerivedReaders` (what holds a value alive, `DerivedReaders.swift`). Observation only, no UI: it sits below `HassUI` and over values. Web source: none (the web re-selects per consumer, `useDailyReportContext`; native has Observation).
+- **Component:** `DerivedValue` (`HassCore/Derived/DerivedValue.swift`), `SharedLogic` (`SharedLogic.swift`: logic that becomes one value when a second observation reads it, made in the next main-actor hop), `DerivedValues` (the keyed set, `DerivedValues.swift`) and `DerivedReaders` (what holds a value alive, `DerivedReaders.swift`). Observation only, no UI: it sits below `HassUI` and over values. Web source: none (the web re-selects per consumer, `useDailyReportContext`; native has Observation).
 - **Behavior:**
   - `DerivedValue(read)` runs `read` now, follows exactly the boxes it reads (re-recorded on every run, so a branch that flips follows the new inputs) and keeps the result in `current`.
   - Readers read `current` inside their own observation. A change to an input runs `read` once per turn, however many inputs moved or readers there are, and writes `current` only when the result differs; an input that leaves the sum equal wakes no one (`logic.skippedEqual`).
-  - A change marks the value dirty at once and `current` runs a dirty value before it answers, so a reader awake in the same turn never sees the old result.
+  - `current` never runs the logic: Observation merges a nested scope into the one around it, so a value made or run inside a reader would make that reader follow every input. A value is made outside any observation (an owner's `init`, `SharedLogic`'s hop) and settles in the hop after a change, ahead of the readers' re-run.
 - **Key and scope:**
   - Native logic is keyed by what it is: the Profile attention count is one value in `UKServerUIProductionProviders`; a status source's projection and a todo-counts source's words are keyed by source, the publication's sources (a changed source is a new key) and whether screenshots redact.
   - Authored logic is keyed by its operand tree, which is `Hashable`: ten copies of one count are one value. `ServerUIOperand.isWorthSharing` says which.

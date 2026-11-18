@@ -2743,6 +2743,10 @@
           {
             "path": "apple/Sources/HassCore/Derived/DerivedValue.swift",
             "symbol": "DerivedValue"
+          },
+          {
+            "path": "apple/Sources/HassCore/Derived/SharedLogic.swift",
+            "symbol": "SharedLogic"
           }
         ]
       },
