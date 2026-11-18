@@ -52,8 +52,10 @@ public final class EntityStore {
     /// connection-lifecycle, "No reload on reopen"). Written once per such moment, so reading it adds nothing to the hot path.
     public private(set) var reapplyGeneration = 0
 
-    /// Counts `person.*` entities appearing or disappearing, so a watcher of the household's people (``PersonAvatars``) notices
-    /// someone new mid-session without observing every entity. It is written only on that rare change, once per delivery.
+    /// Counts `person.*` entities appearing or disappearing, or a known person pointing at another Home Assistant user (its `user_id`
+    /// attribute changing), so a watcher of the household's people (``PersonAvatars``, the viewer's person id) notices
+    /// someone new mid-session without observing every entity. A person's state or picture changing does not move it. It is
+    /// written only on that rare change, once per delivery.
     public private(set) var peopleRevision = 0
 
     @ObservationIgnored private var boxes: [String: EntityBox] = [:]
@@ -105,6 +107,7 @@ public final class EntityStore {
         for (id, state) in incoming where values[id] != state {
             if let old = values.updateValue(state, forKey: id) {
                 displaced.append(old)
+                if Self.changesWho(old, state) { peopleChanged = true }
             } else if id.hasPrefix(Self.personPrefix) {
                 peopleChanged = true
             }
@@ -129,6 +132,7 @@ public final class EntityStore {
         for state in changes where values[state.entityId] != state {
             if let old = values.updateValue(state, forKey: state.entityId) {
                 displaced.append(old)
+                if Self.changesWho(old, state) { peopleChanged = true }
             } else if state.entityId.hasPrefix(Self.personPrefix) {
                 peopleChanged = true
             }
@@ -171,6 +175,12 @@ public final class EntityStore {
     }
 
     private static let personPrefix = "person."
+
+    /// Whether `new` replaces a person with one for another Home Assistant user. Plain `String` prefix work only, so an ordinary
+    /// entity costs a prefix test.
+    private static func changesWho(_ old: EntityState, _ new: EntityState) -> Bool {
+        new.entityId.hasPrefix(personPrefix) && old.attributes["user_id"] != new.attributes["user_id"]
+    }
 
     private func publish(_ id: String, _ state: EntityState?) {
         guard let box = boxes[id] else { return }

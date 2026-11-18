@@ -29,12 +29,18 @@ final class UKServerUIViewerSource {
     }
 
     /// The viewer as an expression sees it. Reads `peopleRevision`, so an observation re-runs when the person list changes.
+    ///
+    /// The person entity is found by scanning the house, so it is found once per user and people revision (``PersonLookup``) and
+    /// every later read is a comparison: a viewer predicate costs what it names, not the entity count.
     func viewer(in store: EntityStore) -> ServerUIViewer? {
         guard let id = user?.id ?? seededUserID else { return nil }
-        _ = store.peopleRevision
+        let revision = store.peopleRevision
         return ServerUIViewer(userId: id, isAdmin: user?.isAdmin,
-                              personEntityId: AvatarSyncPlan.personID(forUser: id, in: store.allValues.values))
+                              personEntityId: lookup.personID(forUser: id, revision: revision, in: store))
     }
+
+    /// The last person lookup, kept off Observation: writing it during a read must not wake the readers.
+    @ObservationIgnored private var lookup = PersonLookup()
 }
 
 // MARK: - Reading entity state for expressions

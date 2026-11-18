@@ -299,6 +299,9 @@ final class UKServerUIBindings {
         }
     }
 
+    /// The ids already matched against the entity id grammar, so a literal id costs a dictionary hit.
+    private var validIDs = EntityIDCache()
+
     func entityID(for sourceID: String) -> UKServerUIValue<String> {
         guard let source = definitions[sourceID], let entityId = source.entityId else { return .unavailable }
         let value: UKServerUIValue<String>
@@ -312,10 +315,7 @@ final class UKServerUIBindings {
             }
         }
         guard case .ready(let id) = value else { return value }
-        guard id.utf16.count <= 160,
-              id.range(of: "^[a-z][a-z0-9_]*\\.[a-z0-9_]+$", options: .regularExpression) == id.startIndex..<id.endIndex else {
-            return .unavailable
-        }
+        guard validIDs.isValid(id) else { return .unavailable }
         if case .powerToggle = source,
            !D.Source.powerEntityDomains.contains(String(id.prefix(while: { $0 != "." }))) { return .unavailable }
         return .ready(id)
