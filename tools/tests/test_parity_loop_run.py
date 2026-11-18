@@ -32,15 +32,15 @@ class SurfacesTests(unittest.TestCase):
     def test_file_is_generic_and_complete(self) -> None:
         text = json.dumps(SURFACES)
         self.assertEqual(SURFACES["schema"], build_surfaces.SCHEMA)
-        self.assertEqual(len(SURFACES["surfaces"]), 118)
+        self.assertEqual(len(SURFACES["surfaces"]), 119)
         self.assertEqual(build_surfaces.ENTITY_ID.findall(text), [])
         self.assertNotIn("required_state", text)
         self.assertNotIn("notes", text)
         self.assertTrue(all(set(s["deep_link"]) <= {"reference", "candidate"} for s in SURFACES["surfaces"]))
 
-    def test_writes_on_reach_marks_the_five_write_paths(self) -> None:
+    def test_writes_on_reach_marks_the_six_write_paths(self) -> None:
         marked = {s["id"] for s in SURFACES["surfaces"] if s["writes_on_reach"]}
-        self.assertEqual(len(marked), 5)
+        self.assertEqual(len(marked), 6)
         self.assertIn("room-kitchen", marked)
 
     def test_convert_rejects_an_entity_id(self) -> None:

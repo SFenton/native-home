@@ -79,10 +79,9 @@ class StatusBarRingTests(Base):
         self.assertGreater(record["statusBarDifferencePercent"], 0.5)
         self.assertIn("status bar differs between the halves (normalisation failed)", record["failures"])
 
-    def test_the_duo_compares_only_the_clock_and_other_profiles_keep_both_items(self) -> None:
-        self.assertEqual([i[0] for i in epc.STATUS_BAR_ITEMS["duo"]], ["clock"])
-        for profile in ("iphone", "ipad"):
-            self.assertEqual([i[0] for i in epc.STATUS_BAR_ITEMS[profile]], ["clock", "indicators"])
+    def test_every_profile_compares_only_the_clock(self) -> None:
+        for profile in ("duo", "iphone", "ipad"):
+            self.assertEqual([i[0] for i in epc.STATUS_BAR_ITEMS[profile]], ["clock"])
         self.assertEqual(epc.rail_mask_rects("iphone", DUO, 1.0), [])
         self.assertEqual(epc.rail_mask_rects(None, DUO, 1.0), [])
 

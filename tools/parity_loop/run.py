@@ -84,6 +84,8 @@ class Context:
     #: ``--status-bar-equal`` (default on). A page-region compare turns it off: the status bar sits outside the page, and over two
     #: different backdrops its pixels differ for reasons the page compare reports.
     status_bar_equal: bool = True
+    #: What the candidate's preview folder held this run (:func:`sidecar.publication_facts`); written into every candidate sidecar.
+    publication: Optional[Dict[str, Any]] = None
 
     @property
     def family(self) -> Dict[str, Any]:
@@ -95,7 +97,7 @@ def default_launcher(half: Half, surface: Mapping[str, Any], plan: ReachPlan, ct
     if ctx.mode == "live":
         half.agent.open_app(BUNDLE_ID, relaunch=False)
         return
-    launch_mod.launch_gallery(half.side, half.agent, half.udid, plan.page or None, ctx.runner)
+    launch_mod.launch_gallery(half.side, half.agent, half.udid, plan.page or None, ctx.runner, surface.get("gallery_variables"))
 
 
 # MARK: - One surface
@@ -110,7 +112,10 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
     folder = ctx.run_dir / sid
     entry: Dict[str, Any] = {"id": sid, "capture": sid, "state": ",".join(surface.get("state_tags") or []), "surface": sid,
                              "density": ctx.family["scale"], "pose": ctx.family["pose"], "device": ctx.device}
-    plans = {side: plan_reach(surface, side, ctx.mode, ctx.guarded) for side in APPS}
+    for key in ("landing_title", "ax_identifier_match"):  # the compare's wrong-page check and its pairing by identifier
+        if surface.get(key):
+            entry[key] = surface[key]
+    plans = {side: plan_reach(surface, side, ctx.mode, ctx.guarded, ctx.device) for side in APPS}
     skipped = [f"{side}: {p.reason}" for side, p in plans.items() if p.method == "skip"]
     if skipped:
         entry["skipped"] = "; ".join(skipped)
@@ -141,7 +146,8 @@ def run_surface(surface: Mapping[str, Any], ctx: Context) -> Dict[str, Any]:
             half.udid, side, png=shot.png, scale=ctx.family["scale"], pose=ctx.family["pose"],  # appearance: measured, not requested
             source="live" if ctx.mode == "live" else "fixture", launch_args=launch_args, env_names=env_names,
             house=ctx.mode == "live", status_bar_normalized=shot.screenshot_ok, bundle_hash=ctx.bundle_hashes.get(side), runner=ctx.runner,
-            tool_sha=ctx.tool_sha, extra={"surface": sid, "shot": stem, "reachMethod": plan.method, "userIdHash": ctx.user_id_hashes.get(side)})
+            tool_sha=ctx.tool_sha, extra={"surface": sid, "shot": stem, "reachMethod": plan.method, "userIdHash": ctx.user_id_hashes.get(side),
+                   **({"publication": ctx.publication} if side == CANDIDATE else {})})
         write_json(folder / f"{stem}.sidecar.json", car)
         entry[f"{stem}_png"] = f"{sid}/{stem}.png"
         entry[f"{stem}_sidecar"] = f"{sid}/{stem}.sidecar.json"
@@ -163,6 +169,14 @@ def verify_pin(ctx: Context, pin_hash: Optional[str]) -> Optional[str]:
     if pin_hash and ctx.bundle_hashes[REFERENCE] != pin_hash:
         return "the reference bundle does not match its pin"
     return None
+
+
+def candidate_publication(ctx: Context) -> Optional[Dict[str, Any]]:
+    """The publication the candidate will read: its preview folder's facts, or ``None`` when the folder cannot be found."""
+    try:
+        return sidecar_mod.publication_facts(launch_mod.container(ctx.runner, ctx.halves[CANDIDATE].udid, "data") / launch_mod.PREVIEW_SUBPATH)
+    except (launch_mod.Refused, OSError):
+        return None
 
 
 def annotate_floating(records: Sequence[Dict[str, Any]], entries: Sequence[Mapping[str, Any]]) -> None:
@@ -223,7 +237,10 @@ def run_all(ctx: Context, surfaces: Sequence[Mapping[str, Any]], pin_hash: Optio
             if side not in ctx.user_id_hashes:
                 ctx.user_id_hashes[side] = launch_mod.resolve_identity(ctx.proxy_url, ctx.proxy_cert, ctx.runner, environment, side)
     ctx.guarded = ctx.guarded | write_opening_labels(read_json(SURFACES_FILE)["surfaces"] if inventory is None else inventory)
+    for surface in surfaces:  # refuse a bad variable name before any capture, not after the first launch
+        launch_mod.checked_variables(surface.get("gallery_variables"))
     ctx.run_dir.mkdir(parents=True, exist_ok=True)
+    ctx.publication = candidate_publication(ctx)
     error = verify_pin(ctx, pin_hash)
     if error:
         raise launch_mod.Refused(error)

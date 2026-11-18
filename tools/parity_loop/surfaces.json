@@ -487,9 +487,16 @@
         "reference": null
       },
       "gallery_page": "household-settings",
+      "gallery_variables": {
+        "FENTON_GALLERY_HOUSEHOLD": "guests"
+      },
       "id": "household-guests",
       "in_scope": true,
       "kind": "page",
+      "landing_title": {
+        "candidate": "Guest Controls",
+        "reference": "Guest Controls"
+      },
       "masks": [],
       "native_reachable": true,
       "presence": "both",
@@ -731,13 +738,20 @@
       "area": "rooms",
       "capture_class": "static",
       "deep_link": {
-        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3D<room-slug>",
-        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3D<room-slug>"
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dliving-room",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dliving-room"
       },
-      "gallery_page": "room-devices",
+      "gallery_page": "rooms",
+      "gallery_variables": {
+        "FENTON_GALLERY_ROOM": "living-room"
+      },
       "id": "room-page",
       "in_scope": true,
       "kind": "page",
+      "landing_title": {
+        "candidate": "Living Room",
+        "reference": "Living Room"
+      },
       "masks": [],
       "native_reachable": true,
       "presence": "both",
@@ -750,7 +764,7 @@
             "press": "Rooms"
           },
           {
-            "press": "a room tile"
+            "press": "Living Room"
           }
         ],
         "reference": [
@@ -761,19 +775,19 @@
             "press": "Rooms"
           },
           {
-            "press": "a room tile"
+            "press": "Living Room"
           }
         ]
       },
       "routes": {
-        "candidate": "page-room-* (16 pages, routes with the room slug)",
-        "reference": "Quick Links > Rooms > a room (or deep link path=<room>)"
+        "candidate": "Rooms > Living Room",
+        "reference": "Rooms gallery > Living Room (FENTON_GALLERY_ROOM=living-room)"
       },
       "state_tags": [
         "light:any",
         "vent:any"
       ],
-      "title": "Room page (config-driven, 16 rooms)",
+      "title": "Room page (config-driven), Living Room",
       "writes_on_reach": true
     },
     {
@@ -783,10 +797,18 @@
         "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom",
         "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom"
       },
-      "gallery_page": "bedroom",
+      "gallery_page": "rooms",
+      "gallery_variables": {
+        "FENTON_GALLERY_CLEAN": "1",
+        "FENTON_GALLERY_ROOM": "bedroom-1"
+      },
       "id": "room-master-bedroom",
       "in_scope": true,
       "kind": "page",
+      "landing_title": {
+        "candidate": "Master Bedroom",
+        "reference": "Bedroom 1"
+      },
       "masks": [],
       "native_reachable": true,
       "presence": "both",
@@ -816,13 +838,66 @@
       },
       "routes": {
         "candidate": "page-room-master-bedroom",
-        "reference": "Master bedroom page (beds, wake light, humidifier)"
+        "reference": "Rooms gallery > Bedroom 1 room page (FENTON_GALLERY_ROOM=bedroom-1)"
       },
       "state_tags": [
         "bed:alarm",
         "humidifier:any"
       ],
-      "title": "Bedroom 1 room page (beds, wake light, humidifier)",
+      "title": "Master Bedroom room page (summary chips, Sleep & Wake, Bed, Media, Climate)",
+      "writes_on_reach": true
+    },
+    {
+      "area": "bedroom",
+      "ax_identifier_match": "^room\\.card\\..+\\.tile$",
+      "capture_class": "static",
+      "deep_link": {
+        "candidate": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom",
+        "reference": "fentonhome://liveactivity?url=%2Fsfenton-react-dash%2Fhome%3Fpath%3Dmaster-bedroom"
+      },
+      "gallery_page": "bedroom",
+      "id": "bedroom-tiles",
+      "in_scope": true,
+      "kind": "page",
+      "landing_title": {
+        "reference": "Bedroom Devices"
+      },
+      "masks": [],
+      "native_reachable": true,
+      "presence": "both",
+      "reach": {
+        "candidate": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Master Bedroom"
+          }
+        ],
+        "reference": [
+          {
+            "manual": "Header trailing group: Quick Links button (opens the Quick Links sheet)"
+          },
+          {
+            "press": "Rooms"
+          },
+          {
+            "press": "Master Bedroom"
+          }
+        ]
+      },
+      "routes": {
+        "candidate": "page-room-master-bedroom, Sleep & Wake section",
+        "reference": "Bedroom component gallery (FENTON_GALLERY=bedroom)"
+      },
+      "state_tags": [
+        "bed:alarm",
+        "humidifier:any"
+      ],
+      "title": "Bedroom tiles component gallery (wake-light tile and the two bed tiles, Sleep & Wake)",
       "writes_on_reach": true
     },
     {
@@ -1111,9 +1186,16 @@
         "reference": null
       },
       "gallery_page": "inventory",
+      "gallery_variables": {
+        "FENTON_GALLERY_SPACE": "pantry"
+      },
       "id": "inventory-space",
       "in_scope": true,
       "kind": "page",
+      "landing_title": {
+        "candidate": "Pantry",
+        "reference": "Pantry"
+      },
       "masks": [],
       "native_reachable": true,
       "presence": "both",
@@ -1126,7 +1208,7 @@
             "press": "Food & Recipes"
           },
           {
-            "press": "a space"
+            "press": "Pantry"
           }
         ],
         "reference": [
@@ -1137,7 +1219,7 @@
             "press": "Food & Recipes"
           },
           {
-            "press": "a space"
+            "press": "Pantry"
           }
         ]
       },
@@ -1149,7 +1231,7 @@
         "inventory:items",
         "inventory:expired"
       ],
-      "title": "Inventory space (All Food, Pantry, Fridge, Freezer, Spice Rack, Cabinet)",
+      "title": "Inventory space, Pantry",
       "writes_on_reach": false
     },
     {
@@ -1211,6 +1293,10 @@
       "id": "vacation-chooser",
       "in_scope": true,
       "kind": "page",
+      "landing_title": {
+        "candidate": "Vacation",
+        "reference": "Vacation"
+      },
       "masks": [],
       "native_reachable": true,
       "presence": "both",
