@@ -50,8 +50,11 @@ final class UKServerUIPreferencesProvider: UKServerUISettingsProvider {
         guard accepts(control) else { throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources") }
         switch control.kind {
         case .blur:
-            let slider = UKPercentSliderRow(control.node.title, value: blur.sliderValue, identifier: control.node.id,
-                                        horizontalPadding: HassTokens.Spacing.l) { [weak self, weak host, weak page] value in
+            host.settingsKind = .control
+            // The slider row already pads its body 4 pt below (the form row's own padding), so the outer bottom gives that back: 10.5 pt in all.
+            var insets = UKSettingsRowKind.control.contentInsets
+            insets.bottom -= HassTokens.Spacing.xs
+            let slider = UKPercentSliderRow(control.node.title, value: blur.sliderValue, identifier: control.node.id, insets: insets) { [weak self, weak host, weak page] value in
                 guard let self, let host, let page else { return }
                 host.perform(from: page) { try self.setBlur(Int(value.rounded())) }
             }
@@ -71,7 +74,10 @@ final class UKServerUIPreferencesProvider: UKServerUISettingsProvider {
                     self.defaults.set(toggle.isOn, forKey: AppIconBadgeSync.enabledKey)
                 }
             }, for: .valueChanged)
-            return UKRowView(.init(control.node.title, subtitle: control.subtitle), accessory: toggle)
+            host.settingsKind = .control
+            var content = UKRowContent(control.node.title, subtitle: control.subtitle, style: .form)
+            content.outerInsets = UKSettingsRowKind.control.contentInsets
+            return UKRowView(content, accessory: toggle)
         case .iconChoice:
             guard let choice = AppIconChoice(rawValue: control.item) else {
                 throw UKServerUIRendererError(code: .unavailableSource, pointer: "/document/dataSources")
@@ -107,6 +113,7 @@ final class UKServerUIPreferencesProvider: UKServerUISettingsProvider {
             // authored icon is ignored.
             let row = UKServerUIPreferenceRow(title: control.node.title, kind: control.kind == .version ? .value : .textButton,
                                               identifier: control.node.id)
+            host.settingsKind = row.settingsRowKind
             row.onTap = { [weak self, weak host, weak page] in
                 guard let self, let host, let page else { return }
                 host.perform(from: page) {

@@ -9,4 +9,5 @@
 - Motion: blur-slider (live value, no token), icon-badge-toggle (standard 0.3 s knob, state 0.6 s track). Transitions: push to Performance, Home Assistant cover, feedback and App Icon sheets.
 - Devices: iPhone, Duo folded, unfolded portrait and landscape, iPad portrait and landscape (never splits).
 - Helpers: `pages/settings/_settings-account.js`, `pages/settings/_settings-page.js` (shared builders and local symbols; promote-to-kit list in the mockup's Notes).
-- Open notes: iPad list width (704 pt readable guide), separator inset and section spacing are unverified. Docs: split-view.md still lists Settings as a split.
+- Grouped rows: one module per section, inset hairlines, title3 bold headers, the list at the 16 pt page margin in every window (patterns module-list and settings-section).
+- Open notes: the App Icon row's preview and name wait on a publication change; the published page's sections (Home Assistant with Performance, no Notifications) differ from the sections drawn here. Docs: split-view.md still lists Settings as a split.

@@ -9,7 +9,7 @@ import UIKit
 /// [settings-version-row](../../../../../../.agents/design/settings-version-row.md)). Both are one ``UKRowButton`` around the module
 /// row and draw no chevron: a chevron means a row pushes ([settings-section](../../../../../../.agents/patterns/settings-section.md)).
 @MainActor
-final class UKServerUIPreferenceRow: UKRowButton {
+final class UKServerUIPreferenceRow: UKRowButton, UKSettingsKinded {
     /// What the row is.
     enum Kind {
         /// A text button in the action ink; dimmed and disabled while there is nothing to reset.
@@ -26,10 +26,14 @@ final class UKServerUIPreferenceRow: UKRowButton {
     var hint: String? { didSet { accessibilityHint = hint } }
     private let kind: Kind
 
+    /// Reset is a text button, Version a link row (it has a glyph column): each takes its kind's padding and content insets.
+    var settingsRowKind: UKSettingsRowKind { kind == .value ? .link : .textButton }
+
     init(title: String, kind: Kind, identifier: String) {
         self.kind = kind
-        var content = kind == .value ? UKRowView.versionContent(title: title, text: nil) : UKRowContent(title)
+        var content = kind == .value ? UKRowView.versionContent(title: title, text: nil) : UKRowContent(title, style: .form)
         content.minHeight = HassTokens.minTarget
+        content.outerInsets = (kind == .value ? UKSettingsRowKind.link : .textButton).contentInsets
         if kind == .textButton { content.titleInk = UKDesignInk.action }
         super.init(UKRowView(content))
         accessibilityIdentifier = identifier

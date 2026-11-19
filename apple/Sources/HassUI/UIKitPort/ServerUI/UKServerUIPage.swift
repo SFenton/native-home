@@ -1393,7 +1393,10 @@ final class UKServerUINode {
 /// The cell is pinned to this view's edges, so a stack (a module list) gets the cell's own height from Auto Layout; without the
 /// pins the link was a 0.67 pt hairline there.
 @MainActor
-final class UKServerUISettingsLink: UKServerUIFittingView {
+final class UKServerUISettingsLink: UKServerUIFittingView, UKSettingsKinded {
+    /// A link is a glyph row of the link kind: the hairline under it starts at its text.
+    var settingsRowKind: UKSettingsRowKind { .link }
+
     /// The settings cell this link draws.
     let cell = UKSettingsStackCell(frame: .zero)
 

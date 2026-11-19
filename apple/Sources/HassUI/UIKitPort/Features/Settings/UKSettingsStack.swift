@@ -6,7 +6,7 @@ import UIKit
 
 /// One row of the settings stack (`InsetGroupedRow`): the caller's row on the module tint (rounded on the card's first and last row),
 /// a hairline above it unless it is first, and a wash while it is pressed (`GroupedRowButtonStyle`). The cell owns the row's padding,
-/// so a tap anywhere on it activates it.
+/// so a tap anywhere on it activates it. As a ``isListRow`` of a module list it is the row alone: no fill, corners or hairline.
 @MainActor
 final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     var style: UKSettingsListDriver.Style = .wallpaper { didSet { restyle() } }
@@ -16,6 +16,10 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     var aboveIsLink = false { didSet { updateSeparator() } }
     var isFirst = true { didSet { restyle(); updateSeparator() } }
     var isLast = true { didSet { restyle() } }
+    /// Whether the cell is a row of a module list's group: the list draws the one fill, the corners, the clipping and the hairlines, so
+    /// the cell draws none of them and keeps its padding, its content insets and its press wash. A link alone in a plain section keeps
+    /// its card (`false`).
+    var isListRow = false { didSet { restyle(); updateSeparator() } }
 
     var contentConfiguration: UIContentConfiguration? {
         didSet {
@@ -127,7 +131,7 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     /// before the first layout (the column measuring its holder) then already counts it. Set in `layoutSubviews`, a link measured 30 pt
     /// short and the stack squashed its rows.
     private func applyPadding() {
-        let vertical = kind == .control ? InsetGroupedMetrics.controlPadding : InsetGroupedMetrics.rowPadding
+        let vertical = kind.verticalPadding
         topPadding.constant = isTransparent ? 0 : vertical
         bottomPadding.constant = isTransparent ? 0 : -vertical
     }
@@ -135,13 +139,13 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     private func restyle() {
         let radius = HassTokens.Radius.module
         var corners: CACornerMask = []
-        if isFirst { corners.formUnion([.layerMinXMinYCorner, .layerMaxXMinYCorner]) }
-        if isLast { corners.formUnion([.layerMinXMaxYCorner, .layerMaxXMaxYCorner]) }
+        if isFirst && !isListRow { corners.formUnion([.layerMinXMinYCorner, .layerMaxXMinYCorner]) }
+        if isLast && !isListRow { corners.formUnion([.layerMinXMaxYCorner, .layerMaxXMaxYCorner]) }
         for view in [fill, wash] {
             view.layer.cornerRadius = corners.isEmpty ? 0 : radius
             view.layer.maskedCorners = corners
         }
-        if isTransparent {
+        if isTransparent || isListRow {
             fill.backgroundColor = .clear
         } else {
             switch style {
@@ -152,7 +156,7 @@ final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     }
 
     private func updateSeparator() {
-        separator.isHidden = isFirst || isTransparent
+        separator.isHidden = isFirst || isTransparent || isListRow
         let glyphInset = aboveIsLink && !traitCollection.ukIsAccessibilitySize
         separatorLeading.constant = glyphInset
             ? InsetGroupedMetrics.leadingInset + InsetGroupedMetrics.glyphColumn + HassTokens.Spacing.m
