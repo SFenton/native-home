@@ -58,6 +58,7 @@ final class ServerUIBedroomTilesHostedTests: DemoHouseTestCase {
         let window: UIWindow
         let page: UKServerUIPage
         let controls: [UKServerUIBedroomControl]
+        let store: EntityStore
     }
 
     private func render(_ size: CGSize) throws -> Rendered {
@@ -78,7 +79,7 @@ final class ServerUIBedroomTilesHostedTests: DemoHouseTestCase {
             return try XCTUnwrap(([view] + HostedPage.descendants(of: view)).compactMap { $0 as? UKServerUIBedroomControl }.first,
                                  "\(id) is drawn by the real bedroom control")
         }
-        return Rendered(window: window, page: page, controls: controls)
+        return Rendered(window: window, page: page, controls: controls, store: store)
     }
 
     private func tile(in control: UKServerUIBedroomControl) throws -> UKBedroomTile {
@@ -114,7 +115,7 @@ final class ServerUIBedroomTilesHostedTests: DemoHouseTestCase {
         }
     }
 
-    /// UX: on a wide window the grid places the two bed tiles side by side; on a narrow one it stacks them. Either way each is the width
+    /// UX: the grid places the two bed tiles side by side only when one track holds their minimum, else it stacks them at the section width. Either way each is the width
     /// of its track and shows the tile's own minimum.
     func testBedTilesShareARowOnlyWhenTheGridHasRoom() throws {
         for size in Self.sizes {
@@ -124,12 +125,22 @@ final class ServerUIBedroomTilesHostedTests: DemoHouseTestCase {
             let right = rendered.controls[1].convert(rendered.controls[1].bounds, to: nil)
             let minimum = try tile(in: rendered.controls[0]).gridMinimumWidth
             let sideBySide = abs(left.minY - right.minY) < 1
+            XCTAssertGreaterThan(minimum, 0, "\(size): the bed tile declares the width its text needs")
+            let grid = try XCTUnwrap(rendered.controls[0].superview?.superview, "the control sits in the page's grid")
+            let oneTrack = (grid.bounds.width - HassTokens.Spacing.m) / 2
+            if oneTrack < minimum {
+                // The minimum (the longest line a bed can show) is wider than one track here, so each tile takes the full section.
+                XCTAssertFalse(sideBySide, "\(size): the bed tiles stack (one track \(oneTrack), minimum \(minimum))")
+                XCTAssertEqual(left.width, grid.bounds.width, accuracy: 1, "\(size): each bed tile spans the section: \(left)")
+                XCTAssertEqual(right.width, left.width, accuracy: 1, "\(size): both bed tiles are as wide")
+            } else {
+                XCTAssertTrue(sideBySide, "\(size): one track holds the minimum, so the tiles share a row (one track \(oneTrack), minimum \(minimum))")
+            }
             if sideBySide {
                 XCTAssertGreaterThanOrEqual(left.width, minimum - 0.5, "\(size): each track holds the tile's minimum")
             } else {
                 XCTAssertEqual(left.minX, right.minX, accuracy: 1, "\(size): stacked tiles share a left edge")
             }
-            if size.width >= 744 { XCTAssertTrue(sideBySide, "\(size): the grid has room for two columns") }
         }
     }
 
@@ -140,6 +151,26 @@ final class ServerUIBedroomTilesHostedTests: DemoHouseTestCase {
         for control in rendered.controls {
             let tile = try tile(in: control)
             XCTAssertEqual(control.gridMinimumWidth, tile.gridMinimumWidth, "the control wraps its tile's minimum")
+        }
+        for control in rendered.controls.prefix(2) {
+            XCTAssertGreaterThan(control.gridMinimumWidth, 0, "a bed tile reports a minimum: 0 would keep it one track")
+        }
+        XCTAssertEqual(rendered.controls[2].gridMinimumWidth, 0, "the wake tile is left as it was")
+    }
+
+    /// UX: a live change (Hot Flash Mode on) leaves the bed tile's minimum alone, so a state change never re-spans the grid.
+    func testALiveStateChangeDoesNotChangeTheBedMinimum() throws {
+        for size in [Self.sizes[0], Self.sizes[3]] {
+            let rendered = try render(size)
+            defer { rendered.window.isHidden = true }
+            let before = rendered.controls.prefix(2).map(\.gridMinimumWidth)
+            let frames = rendered.controls.prefix(2).map { $0.convert($0.bounds, to: nil) }
+            rendered.store.replaceAll(BedroomFixtures.states(.hotFlash), freshness: .live)
+            HostedPage.wait(0.3)
+            rendered.window.layoutIfNeeded()
+            XCTAssertEqual(rendered.controls.prefix(2).map(\.gridMinimumWidth), before, "\(size): the minimum does not follow the text")
+            XCTAssertEqual(rendered.controls.prefix(2).map { $0.convert($0.bounds, to: nil).width }, frames.map(\.width),
+                           "\(size): the tiles keep their widths")
         }
     }
 

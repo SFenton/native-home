@@ -35,11 +35,14 @@ final class UKBedroomTile: UIView, UKGridMeasuring {
     static func bedSide(_ controller: BedSideController, context: UKContext, action: @escaping () -> Void) -> UKBedroomTile {
         UKBedroomTile(environment: UKTileEnvironment(context: context), model: { now in
             let face = BedroomStyle.face(action: controller.action, level: controller.displayedTarget, isAvailable: controller.sideAvailable)
-            return UKGlassTileModel(title: controller.config.title, subtitle: controller.tileSubtitle(now: now), symbol: "bed.double", family: face.family,
-                                    // Fills while the side is on (`ThermostatTileFace.bedSide`).
-                                    isActive: face.isActive && !controller.scope.readOnly,
-                                    // An unavailable side dims and says "Unavailable" and is not mistaken for "Off".
-                                    isUnavailable: !controller.sideAvailable, kind: .navigate, identifier: "room.card.\(controller.config.title)")
+            var model = UKGlassTileModel(title: controller.config.title, subtitle: controller.tileSubtitle(now: now), symbol: "bed.double", family: face.family,
+                                         // Fills while the side is on (`ThermostatTileFace.bedSide`).
+                                         isActive: face.isActive && !controller.scope.readOnly,
+                                         // An unavailable side dims and says "Unavailable" and is not mistaken for "Off".
+                                         isUnavailable: !controller.sideAvailable, kind: .navigate, identifier: "room.card.\(controller.config.title)")
+            // The lines the tile can show, so the grid gives it the tracks its text needs (content-aware span).
+            model.stateCandidates = BedSideController.tileSubtitleCandidates
+            return model
         }, runs: { controller.hotFlashHolding }, action: action)
     }
 

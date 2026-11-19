@@ -183,6 +183,7 @@ struct BedSideControllerTests {
         #expect(bed.action == "heating")
         #expect(bed.subtitle == "Heating • +3")
         #expect(bed.tileSubtitle() == "Heating • +3")
+        #expect(tileFitsCandidates(bed.tileSubtitle()))
         #expect(bed.title == "Alex's Bed")
         #expect(bed.activePhase == .asleep)
         #expect(bed.canSetTarget && bed.canTogglePower)
@@ -268,6 +269,7 @@ struct BedSideControllerTests {
         #expect(bed.powerTitle == "Unavailable")
         #expect(bed.subtitle == "Unavailable", "a side that stopped answering is not spoken as Off")
         #expect(bed.tileSubtitle() == "Unavailable")
+        #expect(tileFitsCandidates(bed.tileSubtitle()))
         bed.setPower(on: true)
         bed.setTarget(1)
         #expect(caller.calls.isEmpty)
@@ -319,6 +321,7 @@ struct BedSideControllerTests {
         bed.liveDidChange()
         #expect(bed.hotFlashCountdown(now: finishes.addingTimeInterval(-65)) == "1:05")
         #expect(bed.tileSubtitle(now: finishes.addingTimeInterval(-65)) == "1:05 Remaining")
+        #expect(tileFitsCandidates(bed.tileSubtitle(now: finishes.addingTimeInterval(-65))))
         bed.cancelHotFlash()
         #expect(!bed.hotFlashActive)
         await bed.waitForCalls()
@@ -346,6 +349,7 @@ struct BedSideControllerTests {
         let (bed, _) = make(bedEntities(phase: "outside", away: soloTrip()))
         #expect(bed.title == "Alex's Bed · Whole Bed")
         #expect(bed.tileSubtitle() == "Whole Bed • Heating • +3")
+        #expect(tileFitsCandidates(bed.tileSubtitle()))
         bed.setTarget(1)
         bed.setPower(on: false)
         await bed.waitForCalls()
@@ -367,6 +371,7 @@ struct BedSideControllerTests {
     @Test func travelerSideIsReadOnly() async {
         let (bed, _) = make(bedEntities(away: soloTrip(home: "sam")))
         #expect(bed.tileSubtitle() == "Away · Read Only")
+        #expect(tileFitsCandidates(bed.tileSubtitle()))
         #expect(!bed.canSetTarget && !bed.canTogglePower && !bed.alarmsEditable && bed.alarmControlsReadOnly)
         #expect(bed.hint == "Away · Read Only")
         bed.snoozeAlarm()
@@ -542,6 +547,7 @@ struct BedSideControllerEdgeTests {
         }
         #expect(bed.hotFlashCountdown(now: now) == "1:35")
         #expect(bed.tileSubtitle(now: now) == "1:35 Remaining")
+        #expect(tileFitsCandidates(bed.tileSubtitle(now: now)))
     }
 
     @Test func hotFlashCountdownFallsBackToTheRestoreLocalTime() {
@@ -556,6 +562,7 @@ struct BedSideControllerEdgeTests {
         update(store, MasterBedroom.bed(.left).hotFlashRestoreAtEntityId) { $0.state = "garbage" }
         #expect(bed.hotFlashCountdown(now: now) == nil)
         #expect(bed.tileSubtitle(now: now) == "Hot Flash Mode • Cooling")
+        #expect(tileFitsCandidates(bed.tileSubtitle(now: now)))
     }
 
     @Test func soloTripStageStepsAndAllNightsGoThroughHouseholdAway() async {
@@ -654,5 +661,31 @@ struct WakeLightPendingLinkTests {
         for _ in 0..<200 where caller.calls.count < 2 { try? await Task.sleep(for: .milliseconds(5)) }
         #expect(!controller.snapshot.isLinked("k2"))
         _ = await off.value
+    }
+}
+
+// MARK: - Tile subtitle candidates
+
+/// Whether `line` is a bed tile candidate or no longer than the longest one, so a grid that sized the tile from
+/// ``BedSideController/tileSubtitleCandidates`` never meets a longer line (the `Whole Bed • ` variants ride the ticker).
+@MainActor private func tileFitsCandidates(_ line: String) -> Bool {
+    let candidates = BedSideController.tileSubtitleCandidates
+    return candidates.contains(line) || line.count <= (candidates.map(\.count).max() ?? 0)
+}
+
+@Suite("Bed tile subtitle candidates") @MainActor
+struct BedTileSubtitleCandidatesTests {
+    @Test func listsTheLongestLineAndTheReadOnlyLine() {
+        let candidates = BedSideController.tileSubtitleCandidates
+        #expect(candidates.contains("Hot Flash Mode • Cooling"))
+        #expect(candidates.contains(HouseholdAwayBedScope.readOnlySubtitle))
+        #expect(candidates.contains("Off") && candidates.contains("Unavailable"))
+        #expect(candidates.contains("Heating • +10") && candidates.contains("Cooling • -10"))
+        #expect(candidates.contains { $0.hasSuffix("Remaining") })
+        #expect(candidates.max { $0.count < $1.count } == "Hot Flash Mode • Cooling")
+    }
+
+    @Test func aLineLongerThanTheListIsRejected() {
+        #expect(!tileFitsCandidates("Hot Flash Mode • Cooling • Extra"))
     }
 }

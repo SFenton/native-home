@@ -1,4 +1,5 @@
 import HassCore
+import HassDemoHouse
 import HassDesign
 import UIKit
 import XCTest
@@ -60,8 +61,8 @@ final class UKHostedContentSpanTests: XCTestCase {
         return column
     }
 
-    private func laidOut(_ items: [UIView], width: CGFloat) -> (UKDynamicGridView, UIWindow) {
-        let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: 150, maxColumns: 4))
+    private func laidOut(_ items: [UIView], width: CGFloat, maxColumns: Int = 4) -> (UKDynamicGridView, UIWindow) {
+        let grid = UKDynamicGridView(configuration: UKGridConfiguration(minCellWidth: 150, maxColumns: maxColumns))
         let host = UIViewController()
         let window = HostedPage.show(host)
         host.view.addSubview(grid)
@@ -116,6 +117,30 @@ final class UKHostedContentSpanTests: XCTestCase {
         XCTAssertLessThan(frames[0].width, 200)
         XCTAssertEqual(frames[0].width, frames[1].width, accuracy: 1)
         XCTAssertEqual(frames[2].width, 350, accuracy: 1, "the media card under them takes the row")
+    }
+
+    /// A bed tile declares the longest line it can show, so it takes the full row at 393 and 466 and one track at 834.
+    func testABedTileTakesTheFullRowAt393And466AndOneTrackAt834() throws {
+        for (width, sectionWidth, fullRow) in [(393.0, 361.0, true), (466.0, 434.0, true), (834.0, 802.0, false)] {
+            let store = EntityStore()
+            let beds = DemoHouse.config.bedroom.beds
+            let context = UKContext(store: store, caller: BedroomGalleryRecorder(store: store))
+            func bed(_ index: Int) throws -> UKMeasuredView<UKBedroomTile> {
+                let controller = BedSideController(config: try XCTUnwrap(beds.indices.contains(index) ? beds[index] : beds.first),
+                                                   store: store, caller: BedroomGalleryRecorder(store: store))
+                return UKMeasuredView(UKBedroomTile.bedSide(controller, context: context, action: {}))
+            }
+            let (grid, window) = laidOut([try bed(0), try bed(1)], width: CGFloat(sectionWidth), maxColumns: 2)
+            defer { window.isHidden = true }
+            let frames = grid.items.map(\.view.frame)
+            XCTAssertGreaterThan(ukWrappedMinimum(grid.items[0].view), 0, "\(width): the bed tile declares a minimum")
+            if fullRow {
+                XCTAssertEqual(frames[0].width, CGFloat(sectionWidth), accuracy: 1, "\(width): a full row each")
+                XCTAssertLessThan(frames[0].maxY, frames[1].minY + 1, "\(width): stacked")
+            } else {
+                XCTAssertEqual(frames[0].minY, frames[1].minY, accuracy: 1, "\(width): one track each, two across")
+            }
+        }
     }
 
     func testTwoRobotCardsSitTwoAcrossAt637() {

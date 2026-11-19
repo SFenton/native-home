@@ -233,6 +233,16 @@ public final class BedSideController {
         return scope.controlsWholeBed ? "Whole Bed • \(text)" : text
     }
 
+    /// The lines a bed tile can show, the longest included, so a grid sizes the tile once and a live change never re-spans it.
+    ///
+    /// Built from the constants and wording ``tileSubtitle(now:)`` uses. The `Whole Bed • ` variants of a solo trip are left out:
+    /// a longer line rides the tile's ticker. Never computed from live state.
+    public static let tileSubtitleCandidates: [String] = [
+        "Off", "Unavailable", HouseholdAwayBedScope.readOnlySubtitle,
+        "Heating • \(BedLevel.format(10))", "Cooling • \(BedLevel.format(-10))",
+        "Hot Flash Mode • Cooling", "12:34 Remaining",
+    ]
+
     /// The sheet title (`Alex's Bed · Whole Bed` while it controls both sides).
     public var title: String { scope.controlsWholeBed ? "\(config.title) · Whole Bed" : config.title }
 
