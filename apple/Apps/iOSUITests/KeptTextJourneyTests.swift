@@ -31,9 +31,16 @@ final class KeptTextJourneyTests: JourneyTestCase {
 
     /// How many times the cue sounds in what VoiceOver reads for `id` (its label and value).
     private func cues(_ id: String, in app: XCUIApplication) -> Int {
-        let target = element(id, in: app)
-        let read = [target.label, target.value as? String ?? ""].joined(separator: " | ")
+        // Every element with the identifier: a row's wrapper and its text element both carry it, and only one speaks.
+        let read = reads(id, in: app).joined(separator: " | ")
         return read.components(separatedBy: "last known").count - 1
+    }
+
+    /// The label and value of every element with identifier `id`.
+    private func reads(_ id: String, in app: XCUIApplication) -> [String] {
+        app.descendants(matching: .any).matching(identifier: id).allElementsBoundByIndex.map {
+            "\($0.label) / \($0.value as? String ?? "")"
+        }
     }
 
     /// Waits until every host reads `expected` cues, then fails naming the hosts that do not.
@@ -46,8 +53,8 @@ final class KeptTextJourneyTests: JourneyTestCase {
             if wrong.isEmpty { return }
             usleep(200_000)
         } while Date() < deadline
-        let reads = wrong.map { "\($0): \(element($0, in: app).exists ? "label '\(element($0, in: app).label)' value '\(element($0, in: app).value as? String ?? "nil")'" : "missing")" }
-        XCTFail("\(what): expected \(expected) cue(s), these differ: \(reads)", file: file, line: line)
+        let found = wrong.map { "\($0): \(reads($0, in: app))" }
+        XCTFail("\(what): expected \(expected) cue(s), these differ: \(found)", file: file, line: line)
     }
 
     private func press(_ state: String, in app: XCUIApplication) {
