@@ -11797,7 +11797,7 @@
     {
       "file": "accept/global-chrome-levels-and-pages.json",
       "outcome": "accept",
-      "note": "A sheet pushes a level and a page; the page rule is unchanged."
+      "note": "A sheet pushes a level and a page; the page push leaves the sheet and the level push stays."
     },
     {
       "file": "reject/global-chrome-levels-duplicate-page-id.json",

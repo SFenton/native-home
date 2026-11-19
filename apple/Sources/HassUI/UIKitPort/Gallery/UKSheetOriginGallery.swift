@@ -6,6 +6,7 @@ import UIKit
 
 // Pages: sheet-origin. The global-chrome sheet rule on demo ids, with no server.
 extension UKGallery {
+    /// The sheet-origin gallery page, or nil for any other page.
     static func sheetOrigin(_ page: ComponentGallery.Page) -> UIViewController? {
         page == .sheetOrigin ? UKSheetOriginGallery.make() : nil
     }
@@ -19,6 +20,7 @@ extension UKGallery {
 /// `level-two`; the tab pages have a tile that opens a page too.
 @MainActor
 enum UKSheetOriginGallery {
+    /// The renderer for the sheet-origin fixture, or a note when the wallpaper or the document is unavailable.
     static func make() -> UIViewController {
         guard let backdrop = HouseBackdropStore.fixture() else { return UKGalleryNoteViewController(title: "Sheet origin: no fixture wallpaper") }
         let store = EntityStore()

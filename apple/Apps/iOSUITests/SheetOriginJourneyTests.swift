@@ -59,7 +59,7 @@ final class SheetOriginJourneyTests: JourneyTestCase {
         XCTAssertFalse(app.buttons["node-palette-local"].exists, "Back reopened the sheet")
     }
 
-    func testATileThatNamesALevelStaysInTheSheetAndAPageLinkTwoLevelsDeepClosesAll() {
+    func testATileThatNamesALevelStaysInTheSheetAndTheNextLevelDrawsNeitherButton() {
         let app = launch()
         openSheet(app)
         app.buttons["node-palette-level"].tap()
