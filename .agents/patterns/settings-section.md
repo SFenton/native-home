@@ -19,13 +19,12 @@
 
 ## Settings rows in a module list
 
-- **One group per `module-list` section.** `UKModuleListView` draws the one 26 pt continuous fill, clips rows and their press wash, and draws every hairline (0.5 pt, between rows only, hidden from VoiceOver). A settings row is content, padding and a wash, never a card ([module-list](module-list.md)). The Studio publishes one section per group; the Background Blur, Reset to Default, Show count on app icon and App Icon rows are one group.
+- **One group per `module-list` section.** `UKModuleListView` draws the one 26 pt continuous fill, clips rows and their press wash, and draws every hairline (0.5 pt, between rows only, hidden from VoiceOver). A settings row is content, padding and a wash, never a card ([module-list](module-list.md)). A group's rows are the rows of one published `module-list` section; the publication decides which rows share a group.
 - **Row kinds** (`UKSettingsRowKind`, declared by the row: a settings link is `.link`, the provider's blur and badge are `.control`, reset is `.textButton`, version is `.link`): `.link` (glyph and text, 15 pt above and below a 44 pt minimum, 74 pt at Large), `.textButton` (text alone, 15 pt, 74 pt), `.control` (a switch, a slider: 10.5 pt, 65 pt for the switch, 83 to 86 pt for the slider; no wash).
 - **Content insets.** 15 pt leading, 17.5 pt trailing, a 34 pt glyph column and 12 pt to the text, so text starts at 61 pt after a glyph and at 15 pt otherwise. The padding does not scale; the text grows and wraps, never truncates.
 - **Hairlines.** Each takes its leading and trailing insets from the row above: 15 pt under a text or control row, 61 pt under a glyph row, 15 pt for every row at accessibility text sizes (the glyph sits above the text); 16 pt short of the trailing edge.
 - **Press.** A row with an action washes its whole width and height; the slider and switch rows draw no wash.
 - **The Settings root** uses the page section header (`UKPageSectionHeaderView`, title3 bold) and the publication's spacing and padding tokens: no native Settings gap, margin or readable width, so the group's edges sit at the page padding in every window.
-- **Departures from the old app (2026-11-18):** title3 bold headers instead of the old 15 pt semibold, and no regular-width margin.
 - `InsetGroupedMetrics` holds the row metrics only (row and control padding, glyph column, leading and trailing content inset, hairline trailing inset).
 
 ## Server-driven Settings rows draw the recorded row kinds
