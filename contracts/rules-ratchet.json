@@ -969,9 +969,9 @@
    "long_lines": 5
   },
   ".agents/patterns/modal-sheet.md": {
-   "forbidden": 69,
-   "long_lines": 23,
-   "over_words": 4895
+   "forbidden": 30,
+   "long_lines": 22,
+   "over_words": 4883
   },
   ".agents/patterns/module-list.md": {
    "forbidden": 4,
