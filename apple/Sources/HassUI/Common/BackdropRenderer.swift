@@ -82,12 +82,20 @@ enum BackdropRenderer {
         return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
     }
 
-    /// Writes a render as JPEG; false when it can't.
+    /// Writes a render as JPEG; false when it can't. The file appears whole or not at all: every window and the next launch
+    /// read the same folder, so a half-written JPEG must never sit under a render's name. The JPEG is made in the system's
+    /// replacement folder for `url` (same volume, cleaned by the system), so a crash mid-write leaves nothing in the render folder.
     @discardableResult
     nonisolated static func write(_ image: CGImage, to url: URL) -> Bool {
-        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
+        let fileManager = FileManager.default
+        guard let scratch = try? fileManager.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true) else {
+            return false
+        }
+        defer { try? fileManager.removeItem(at: scratch) }
+        let partial = scratch.appending(path: url.lastPathComponent)
+        guard let destination = CGImageDestinationCreateWithURL(partial as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary)
-        return CGImageDestinationFinalize(destination)
+        return CGImageDestinationFinalize(destination) && rename(partial.path, url.path) == 0
     }
 
     /// Records which render is on screen, so the next launch can draw it before anything is measured.
@@ -124,15 +132,18 @@ enum BackdropRenderer {
         }
     }
 
-    /// The render for `spec`: the stored file when there is one, else rendered now and stored. Runs off the main thread.
+    /// The render for `spec`: the stored file when there is one, else rendered now (not stored: the caller stores a render it
+    /// keeps, ``store(_:named:in:)``). Runs off the main thread.
     nonisolated static func renderOrLoad(_ photo: CGImage, digest: String, spec: BackdropRenderSpec, in directory: URL) -> (image: CGImage, rendered: Bool)? {
-        let name = spec.cacheName(photo: digest)
-        let url = directory.appending(path: name)
-        if let stored = load(url) { return (stored, false) }
+        if let stored = load(directory.appending(path: spec.cacheName(photo: digest))) { return (stored, false) }
         guard let image = render(photo, spec: spec) else { return nil }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        write(image, to: url)
-        prune(directory, protecting: name)
         return (image, true)
+    }
+
+    /// Writes a render under its cache name and prunes the oldest. Runs off the main thread.
+    nonisolated static func store(_ image: CGImage, named name: String, in directory: URL) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        write(image, to: directory.appending(path: name))
+        prune(directory, protecting: name)
     }
 }
