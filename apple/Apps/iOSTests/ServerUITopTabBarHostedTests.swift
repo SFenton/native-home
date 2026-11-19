@@ -97,6 +97,20 @@ final class ServerUITopTabBarHostedTests: XCTestCase {
         XCTAssertTrue(try ServerUIRendererFixture.root(renderer) === root, "A resize never rebuilds a page")
     }
 
+    /// With no way to open the flyout, its off-screen rows and Close target are out of the accessibility tree; a window with the menu
+    /// button keeps it, and a resize back to regular hides it again.
+    func testTheFlyoutLeavesTheAccessibilityTreeOnlyWithTheTopTabBar() throws {
+        let (renderer, window) = try host(.regular)
+        defer { window.isHidden = true }
+        func flyouts() -> [UKNavigationFlyoutView] { HostedPage.descendants(of: renderer.view).compactMap { $0 as? UKNavigationFlyoutView } }
+        XCTAssertFalse(flyouts().isEmpty, "The flyout view is still built")
+        XCTAssertTrue(flyouts().allSatisfy(\.isHidden), "Hidden, so VoiceOver cannot reach it")
+        renderer.traitOverrides.horizontalSizeClass = .compact
+        XCTAssertTrue(HostedPage.until { flyouts().allSatisfy { !$0.isHidden } }, "The menu button's flyout is untouched")
+        renderer.traitOverrides.horizontalSizeClass = .regular
+        XCTAssertTrue(HostedPage.until { flyouts().allSatisfy(\.isHidden) })
+    }
+
     // MARK: Journey
 
     /// Through the top bar: a tab switch is a cut (no transition), and the tab it left keeps its pushed page.

@@ -830,6 +830,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             if tabController.isTabBarHidden != hidden { tabController.setTabBarHidden(hidden, animated: false) }
         } else { tabController.tabBar.isHidden = hidden }
         if !chrome.showsMenuButton, flyoutOpen { closeMenu() }
+        // The top tab bar has no way to open the flyout, so its off-screen rows and Close target stay out of the accessibility tree.
+        let flyoutGone = style == .topTabBar
+        if let flyout, flyout.isHidden != flyoutGone { flyout.isHidden = flyoutGone }
     }
 
     // MARK: - Keyed controller reconciliation
