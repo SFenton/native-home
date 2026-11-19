@@ -20,10 +20,13 @@ public final class ServerUISprinklerSource {
     private var pendingRequests = 0
 
     /// Creates the source over one store and transport.
-    public init(descriptor: ServerUISprinklerDescriptor, store: EntityStore, caller: any HassServiceCalling) {
+    /// - Parameter scheduler: Runs the controller's optimistic-revert timers; tests inject a manual one so the ten-second
+    ///   revert never races a slow test host.
+    public init(descriptor: ServerUISprinklerDescriptor, store: EntityStore, caller: any HassServiceCalling,
+                scheduler: any RevertScheduler = TaskRevertScheduler()) {
         self.descriptor = descriptor
         self.store = store
-        controller = SprinklerController(config: descriptor.controller, store: store, caller: caller,
+        controller = SprinklerController(config: descriptor.controller, store: store, caller: caller, scheduler: scheduler,
                                         lowBatteryPercent: descriptor.lowBatteryPercent)
     }
     /// Whether a gesture, command or unsaved draft forbids replacing this source.
