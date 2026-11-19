@@ -172,8 +172,8 @@ final class ServerUITopTabBarHostedTests: XCTestCase {
         XCTAssertEqual(page.navigationItem.backButtonDisplayMode, .minimal, "Back is the chevron, named Back by the system")
         XCTAssertFalse(page.navigationItem.hidesBackButton)
         XCTAssertEqual(page.navigationItem.style, .browser, "The title leads, after Back and before the tabs")
-        let trailing = (page.navigationItem.rightBarButtonItems ?? []) + page.navigationItem.trailingItemGroups.flatMap(\.barButtonItems)
-        let names = trailing.compactMap(\.accessibilityIdentifier)
+        // The shell's header buttons are on the section root's bar.
+        let names = ServerUIRendererFixture.barItems(root).compactMap(\.accessibilityIdentifier)
         let links = try XCTUnwrap(names.firstIndex(of: "quickLinks.open"), "Quick Links is in the bar")
         let profile = try XCTUnwrap(names.firstIndex(of: "nav.profile"), "Profile is in the bar")
         XCTAssertLessThan(profile, links, "Items are stored trailing first; the bar draws Quick Links, then Profile")

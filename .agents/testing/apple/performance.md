@@ -56,7 +56,7 @@ Tab switches, pushes, pops, sheets and zooms are timed by the app itself, the wa
   | Sheet dismiss turn p95 / worst | 0.3 / 23.3 | 0.4 / 22.8 | 0.2 / 15.0 |
   | Zoom open, settled | 960 / 1002 (first run) | 944 / 974 | 958 / 988 |
 
-  Against the budgets: transitions cost the main thread very little (turn p95 under 1.3 ms everywhere), but a sheet dismissal's longest turn (22 to 23 ms on the phones) and one tab-revisit turn (15.6 ms iPhone) break the 16 ms rule, and push and sheet "settled" p95 sit above 600 ms (the system animations are about 0.5 s plus the build). `Pop` and `ZoomClose` are not recorded yet (see `patterns/motion.md`, Departures).
+  Against the budgets: transitions cost the main thread very little (turn p95 under 1.3 ms everywhere), but a sheet dismissal's longest turn (22 to 23 ms on the phones) and one tab-revisit turn (15.6 ms iPhone) break the 16 ms rule, and push and sheet "settled" p95 sit above 600 ms. `Pop` and `ZoomClose` are not recorded yet.
 - **Settings push/pop (single-page, 2026-11-03).** `testSettingsPushAndPopStaysWithinBudget`, iPhone: p95 turn 3.6 ms (base 66ae0c9f system push 2.9), longest turn 73 to 77 ms (base 139). Most of the push's p95 is a page build, not the slide: `UKStackTransition` lays the destination out before the first frame, and Settings → Performance reads its report after `viewDidAppear`. The longest turn is the page's forty-row layout, held to 100 ms for this scenario (the base broke 16 ms too).
 - **Adding a navigation surface:** give it a `measuresNavigation` (or a `MotionPolicy.measure`) and a row in `NavigationPerformanceTests` ([patterns/motion.md](../../patterns/motion.md)).
 ## Launch and sign-in
