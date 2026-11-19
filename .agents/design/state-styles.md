@@ -84,4 +84,4 @@ Each row lists state: class, lit or unlit, disc glyph. Words are Home Assistant'
 - **`fillInk`** (rule or fallback, beside a `fill`): `soft` is the state line in white at 92%; the title stays white.
 - **`cellFit`:** `natural` keeps the tile's own height, top-aligned, in a taller equal-height cell.
 
-`AuthoredTileInk` decides where each applies.
+`AuthoredTileInk` decides where each applies. Per state: [state-glyph-tint](state-glyph-tint.md).

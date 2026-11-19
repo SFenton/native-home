@@ -9561,6 +9561,21 @@
       "mockup": "proposals/text-keep/text-keep.html",
       "note": "Owner request 2026-11-18 (N2, sh.text-keep@1). Parked by the app-UI gate (matches_request=unsure); the owner picked A (plain: kept text drawn and spoken exactly as live) on 2026-11-19 over B (spoken ', last known') and C (grey + clock.arrow.circlepath + B's cue). Designer leaned C; overridden. Current design: components/loading/kept-text.",
       "decision": ".agents/design/kept-text.md"
+    },
+    {
+      "id": "bed-tile-glyph-tint",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Bed tile as a state tile: the icon colour when off",
+      "path": "proposals/bed-tile-glyph-tint",
+      "sources": [
+        "apple/Sources/HassDesign/ThermostatTileFace.swift",
+        "apple/Sources/HassDesign/AuthoredTileInk.swift"
+      ],
+      "status": "decided",
+      "mockup": "proposals/bed-tile-glyph-tint/bed-tile-glyph-tint.html",
+      "note": "Task bed-tile-span. Parked by the app-UI gate (route=session); the owner picked C (colour by state) on 2026-11-19 over A (grey) and B (one fixed colour per bed). A state style rule gains an optional glyphTint (sh.state-style-glyph-tint@1): Studio schema plus a small generic native change. Rule: .agents/design/state-glyph-tint.md. Not built yet.",
+      "decision": ".agents/decisions/2026-11-19-state-glyph-tint.md"
     }
   ]
 }

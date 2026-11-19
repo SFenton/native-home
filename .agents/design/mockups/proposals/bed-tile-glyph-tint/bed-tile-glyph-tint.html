@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bed tile as a state tile: the icon colour when off · proposal</title>
+<link rel="stylesheet" href="../../_kit/kit.css">
+<script src="../../_kit/kit.js"></script>
+<style>
+  /* Local helpers (promote to kit: a faces-by-options matrix). Page furniture only; the tiles are the kit's GlassTile. */
+  .bt-scroll { overflow-x: auto; padding-bottom: 6px; }
+  .bt-matrix { display: grid; gap: 10px 12px; align-items: stretch; }
+  .bt-matrix .hd { font: 600 13px var(--font); color: var(--k-fg); padding: 2px 2px 0; }
+  .bt-matrix .hd small { display: block; font-weight: 400; color: var(--k-fg2); }
+  .bt-matrix .row { font: 13px/1.35 var(--font); color: var(--k-fg2); align-self: center; }
+  .bt-matrix .row b { display: block; color: var(--k-fg); font-weight: 600; }
+  .bt-matrix { min-width: 900px; }
+  .bt-matrix .k-swatch { padding: 10px; border-radius: 12px; margin: 0; min-width: 0; }
+  .bt-matrix .k-swatch .in { display: block; }
+  .bt-matrix .ui-tile { width: 100%; }
+  .bt-matrix .same { outline: 1px dashed var(--k-line); outline-offset: 2px; }
+  .bt-tbl { border-collapse: collapse; width: 100%; font: 14px/1.4 var(--font); margin: 8px 0 16px; }
+  .bt-tbl th, .bt-tbl td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--k-line); }
+  .bt-tbl th { font-weight: 600; }
+  .bt-note { font: 13px/1.4 var(--font); color: #fff; opacity: .8; margin: 0 18px 4px; }
+</style>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* The faces a bed tile has. `lean` is the family of the side's level while it is not filling (at or above zero: heating; below: cooling). */
+  var FACES = [
+    { id: 'off-warm', label: 'Off', sub: 'level at or above 0', bed: 'Bed A', text: 'Off', lean: 'heating' },
+    { id: 'off-cool', label: 'Off', sub: 'level below 0', bed: 'Bed B', text: 'Off', lean: 'cooling' },
+    { id: 'away', label: 'Read-only away', sub: 'level at or above 0', bed: 'Bed B', text: 'Away · Read Only', lean: 'heating' },
+    { id: 'away-cool', label: 'Read-only away', sub: 'level below 0', bed: 'Bed B', text: 'Away · Read Only', lean: 'cooling' },
+    { id: 'heating', label: 'Heating', sub: '', bed: 'Bed A', text: 'Heating • +3', fill: 'heating' },
+    { id: 'cooling', label: 'Cooling', sub: '', bed: 'Bed B', text: 'Cooling • -3', fill: 'cooling' },
+    { id: 'hot', label: 'Hot flash', sub: 'cooling down', bed: 'Bed B', text: 'Hot Flash Mode • Cooling', fill: 'cooling' },
+    { id: 'unavail', label: 'Unavailable', sub: '', bed: 'Bed A', text: 'Unavailable', un: true },
+  ];
+  var DARK = { 'off-warm': 1, 'off-cool': 1, away: 1, 'away-cool': 1 };
+  var OPTS = {
+    today: { name: 'Today', line: 'the native bed tile' },
+    a: { name: 'A · Grey', line: 'no icon colour authored' },
+    b: { name: 'B · One colour per bed', line: 'a fixed icon colour, here orange' },
+    c: { name: 'C · Colour by state', line: 'the style sets the icon colour per state' },
+  };
+
+  /** One bed tile as option `o` draws face `f`. Filled and unavailable faces are the same in every option. */
+  function tile(f, o) {
+    var p = { title: f.bed, subtitle: f.text, symbol: 'bed.double', kind: 'navigate', behavior: 'navigate' };
+    if (f.un) { p.isUnavailable = true; if (o === 'today') p.subtitle = 'Off'; return K.GlassTile(p); }
+    if (f.fill) { p.family = f.fill; p.isActive = true; return K.GlassTile(p); }
+    if (o === 'b') p.family = 'heating';
+    else if (o === 'c' || o === 'today') p.family = f.lean;
+    return K.GlassTile(p);   /* A: no family, so the dark face draws the grey glyph */
+  }
+
+  function page(o, text) {
+    return function (ctx) {
+      return Mock.page(ctx, { title: 'Bedroom 1', section: 'home', back: true, body: [
+        K.PageSectionHeader({ title: 'Bed' }),
+        h('p.bt-note', text),
+        K.TileGrid({ items: FACES.map(function (f) { return tile(f, o); }), min: 300, max: 2 }),
+      ] });
+    };
+  }
+  var NOTE = 'Every face of the two tiles, listed for comparison. The real page holds one tile per bed.';
+
+  function matrix(faces, cols, ax) {
+    var grid = h('div.bt-matrix' + (ax ? '.ts-ax5' : ''), { style: { gridTemplateColumns: '110px repeat(' + cols.length + ', minmax(0, 1fr))' } });
+    grid.appendChild(h('div'));
+    cols.forEach(function (c) { grid.appendChild(h('div.hd', OPTS[c].name, h('small', OPTS[c].line))); });
+    faces.forEach(function (f) {
+      grid.appendChild(h('div.row', h('b', f.label), f.sub));
+      cols.forEach(function (c) { grid.appendChild(h('div.k-swatch.page.g-dark' + (DARK[f.id] ? '' : '.same'), h('div.in', tile(f, c)))); });
+    });
+    return h('div.bt-scroll', grid);
+  }
+  function table(head, rows) {
+    return h('table.bt-tbl', h('thead', h('tr', head.map(function (x) { return h('th', x); }))), h('tbody', rows.map(function (r) { return h('tr', r.map(function (c, i) { return h(i ? 'td' : 'th', c); })); })));
+  }
+  function para(t) { return h('p', { style: { maxWidth: '78ch' } }, t); }
+
+  Mock.mount({
+    kind: 'proposal', id: 'bed-tile-glyph-tint', title: 'Bed tile as a state tile: the icon colour when off', area: 'proposals', status: 'decided',
+    summary: 'The two bed tiles become ordinary Studio-authored state tiles over a Home Assistant sensor, with no bed code in the app. One thing cannot carry over as authored today: the bed icon keeps its orange (heating) or teal (cooling) colour on the dark face while the side is off or read-only, following the level, and a state tile has one icon colour per tile. Three options: A grey, B one fixed colour per bed, C the style sets the colour per state. Only the dark faces differ; heating, cooling, hot flash and unavailable draw the same in all three. The owner picked C, colour by state, on 2026-11-19; A and B are the rejected record.',
+    source: ['apple/Sources/HassDesign/ThermostatTileFace.swift', 'apple/Sources/HassDesign/AuthoredTileInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUITileInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIStateStyles.swift'],
+    spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md', '.agents/design/state-styled-tile.md', '.agents/design/state-styles.md'],
+    patterns: ['entity-tile', 'dynamic-grid', 'bedroom-devices'],
+    hig: ['Color', 'Accessibility', 'Dark Mode', 'SF Symbols'],
+    kitComponents: ['GlassTile', 'TileGrid', 'PageSectionHeader'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+
+    states: {
+      'a': { title: 'A · Grey icon on the dark face', note: 'No icon colour is authored. Off and read-only away draw the neutral grey glyph; nothing in the app or the Studio changes.', render: page('a', NOTE) },
+      'b': { title: 'B · One fixed icon colour per bed', note: 'Each tile authors one icon colour (drawn here as heating orange on both). It does not follow the level: a side set below zero and off stays orange where today it is teal.', render: page('b', NOTE) },
+      'c': { title: 'C · The style sets the icon colour per state', note: 'A state style rule can carry an icon colour, so off and away keep orange at or above zero and teal below, as today. Needs a Studio schema field and a small generic native change.', render: page('c', NOTE) },
+      'today': { title: 'Today · the native bed tile (reference)', note: 'ThermostatTileFace.bedSide: an off side keeps the glyph of its level’s family; an unavailable side is grey and reads "Off".', render: page('today', NOTE) },
+      'a-ax5': { title: 'A · Accessibility 5 text size', override: { ts: 'ax5' }, render: page('a', NOTE) },
+      'b-ax5': { title: 'B · Accessibility 5 text size', override: { ts: 'ax5' }, render: page('b', NOTE) },
+      'c-ax5': { title: 'C · Accessibility 5 text size', override: { ts: 'ax5' }, render: page('c', NOTE) },
+    },
+
+    sections: [
+      { id: 'compare', title: 'Side by side: every face, default text size', build: function () {
+        return h('div', para('The tiles are drawn narrower than a real row so the four fit side by side; the tile draws the same at any width (a full row is 370 pt on iPhone and 351 pt on the folded iPhone Duo; on iPad portrait the two share a row at about 395 pt each). The rows with a dashed outline are the same in every option: a filled face keeps its white icon and an unavailable tile keeps its dimmed grey icon whatever is authored (AuthoredTileInk.glyphTintApplies: an authored icon colour applies only on a dark face). Use the Device and Text size controls above to see each option on the room page in every window.'),
+          matrix(FACES, ['today', 'a', 'b', 'c'], false));
+      } },
+      { id: 'compare-ax5', title: 'Side by side: the faces that differ, Accessibility 5', build: function () {
+        return h('div', para('At accessibility sizes every tile stacks its icon over its text and takes one column on every family. The icon grows with the text, so its colour is easier to see, and the words still carry the state. C draws as today does.'),
+          matrix(FACES.filter(function (f) { return DARK[f.id]; }), ['a', 'b', 'c'], true));
+      } },
+      { id: 'options', title: 'The options', build: function () {
+        return h('div',
+          table(['', 'A · Grey', 'B · One colour per bed', 'C · Colour by state'], [
+            ['What a person notices', 'An off or read-only bed has a grey icon, like any other tile that is off. The bed section looks quieter when both sides are off. The words are unchanged.', 'The icon stays coloured when off, as today, but always the one authored colour. A side set below zero shows orange when off where today it shows teal (or the other way round, as authored).', 'Nothing: off and away look as they do today, orange at or above zero, teal below.'],
+            ['Cost', 'No code. No Studio schema change; nothing to author.', 'No code. One authored field per tile, which exists today (the tile’s icon colour). The author can change the colour at any time without an app release.', 'Studio: one optional field on a state style rule and its editor, behind a new capability. Native: a small generic change so the tile’s colour layer reads the rule’s icon colour (no bed concept). HA: the sensor’s state word or an attribute must say which way an off side leans. Tests on all three layers.'],
+            ['Rule on record', 'Departs from it: "Thermostats and bed sides keep a family when off … Never grey, except an unavailable bed side" (direction-g, Colour families; owner, 2026-10-15). Picking A replaces that rule for bed sides.', 'Keeps "never grey"; drops the part that says the off glyph follows the level.', 'Keeps the rule whole, and moves it from app code into the authored style.'],
+            ['HIG', 'Color, Inclusive color: "Avoid relying solely on color to differentiate objects, indicate interactivity or communicate essential information; be sure to also convey it another way, like text labels or glyph shapes." Met: the state line carries off, away and unavailable. Grey would then mean both off and unavailable on the icon; the unavailable tile is also dimmed and says so.', 'Color: "Avoid using the same color to mean different things, especially for status or interactivity". At risk: orange means heating on a filled tile and would also sit on an off side that leans cooling.', 'Color: "Avoid using the same color to mean different things, especially for status or interactivity". Met: orange always means the heating side of zero, teal the cooling side. Accessibility: "Convey state and function with shapes or icons in addition to color": the state line carries it in words.'],
+            ['Reach', 'These two tiles only.', 'These two tiles only.', 'Every state tile gains the option; no existing tile changes unless its style authors a colour.'],
+          ]),
+          para('The same in every option, and not part of this choice: heating and cooling fill the tile with the family colour through the state style; hot flash draws the cooling fill; the tile is a navigation tile with a chevron and no disc; on a narrow window each tile takes a full row because its longest status line is long; on iPad the two share a row.'),
+          para('One wording difference rides along with all three and is the generic tile’s existing rule: an unavailable side reads "Unavailable" with a dimmed icon, where today’s bed tile reads "Off" on the grey face.'));
+      } },
+    ],
+
+    a11y: [
+      { rule: 'Colour is never the only signal', note: 'In every option the state line says Off, Heating, Cooling, Hot Flash Mode, Unavailable or Away · Read Only. VoiceOver reads "Bed A, Off"; the icon colour is not spoken and none of the options changes what is read.' },
+      { rule: 'Contrast on the dark face', note: 'The off-face glyph colours are the ones the app draws today: the family glyph or the neutral grey, each at 3:1 or better on the page off face after the lift (direction-g, the contrast table). No option adds a new colour.' },
+      { rule: 'Unavailable', note: 'The same in all three: the dimmed grey icon, "Unavailable", the not-enabled trait. An authored icon colour never applies to an unavailable tile.' },
+      { rule: 'Accessibility 5', note: 'Tiles stack the icon over the text and take one column on iPhone, iPhone Duo and iPad. Nothing clips; the page scrolls.' },
+      { rule: 'Targets', note: 'The whole tile is the target, 72 pt tall or more at the default size.' },
+    ],
+    reviews: { date: '2026-11-19', hig: [
+      { rule: 'Color: "Avoid using the same color to mean different things, especially for status or interactivity"', verdict: 'pass', note: 'A and C meet it. B puts the heating orange on an off side that leans cooling; recorded as B’s risk, for the owner to weigh.', by: 'apple-hig skill' },
+      { rule: 'Color, Inclusive color: "Avoid relying solely on color to differentiate objects, indicate interactivity or communicate essential information; be sure to also convey it another way, like text labels or glyph shapes."', verdict: 'pass', note: 'Every option keeps the state in words.', by: 'apple-hig skill' },
+      { rule: 'Accessibility: "Convey state and function with shapes or icons in addition to color"', verdict: 'pass', note: 'The state line and, for unavailable, the dimmed tile.', by: 'apple-hig skill' },
+      { rule: 'Dark Mode: "For custom colors, add an Xcode Color Set with bright and dim variants. Avoid hard-coded or non-adaptive values."', verdict: 'pass', note: 'B and C author a light and a dark value (the tile ink’s appearance pair); pages are always dark, sheets follow the system.', by: 'apple-hig skill' },
+    ], swiftui: [{ rule: 'Not applicable', verdict: 'pass', note: 'The tile is UIKit; no SwiftUI is proposed.', by: 'swiftui-pro skill' }] },
+    notes: [
+      'Gate: park basis=request answer=unsure route=session (tools/jev_gate.py on the plan). The owner picked C in the gate session on 2026-11-19 ("C: colour by state"). Record: .agents/decisions/2026-11-19-state-glyph-tint.md; rule: .agents/design/state-glyph-tint.md.',
+      'Mockup only: no option is built in the app, so there is no device capture of A, B or C. The reference captures of today’s tile are in the lane’s evidence folder.',
+      'B is drawn with heating orange on both beds; the author could give each bed its own colour.',
+      'C’s field is glyphTint on a state style rule, capability sh.state-style-glyph-tint@1; how the sensor reports the lean is the lane’s to settle; an option that adds machinery carries a rung-0 note (build/research/bed-tile-generic.md, section 3.3).',
+      'The kit draws the dark-face glyph from a family; an authored colour would be written as the same value.',
+      'Local helper: the faces-by-options matrix (promote to kit).',
+      'Generic names only; no house data.',
+    ],
+    changelog: [{ date: '2026-11-19', note: 'Decided: the owner picked C, colour by state.' }, { date: '2026-11-19', note: 'Options A, B and C drawn for every face on iPhone, iPhone Duo and iPad at the default size and AX5, for the owner.' }],
+  });
+})();
+</script></body></html>
