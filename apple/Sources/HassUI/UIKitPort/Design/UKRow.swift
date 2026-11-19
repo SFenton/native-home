@@ -95,6 +95,9 @@ struct UKRowContent: Equatable {
     var isCentered = false
     /// Overrides the style's side padding (a row on a card of its own, 12 pt in).
     var horizontalPadding: CGFloat?
+    /// Space around the whole row, inside its own bounds (a settings row's 15 pt leading, 17.5 pt trailing and 15 or 10.5 pt above and
+    /// below, so a press wash and a tap target cover all of it). Added to the style's own padding; the minimum height grows with it.
+    var outerInsets: NSDirectionalEdgeInsets = .zero
     /// Overrides the style's subtitle text style (a sheet's detail lines are subheadline).
     var subtitleStyle: UIFont.TextStyle?
     /// Overrides the style's glyph text style (a title3 glyph on a sheet row).
@@ -125,7 +128,7 @@ struct UKRowContent: Equatable {
             && lhs.check == rhs.check && lhs.titleInk == rhs.titleInk && lhs.titleWeight == rhs.titleWeight && lhs.subtitleInk == rhs.subtitleInk
             && lhs.valueInk == rhs.valueInk && lhs.subtitleIsValue == rhs.subtitleIsValue && lhs.showsChevron == rhs.showsChevron
             && lhs.identifier == rhs.identifier && lhs.style == rhs.style && lhs.verticalPadding == rhs.verticalPadding && lhs.minHeight == rhs.minHeight && lhs.alignsLeadingToTop == rhs.alignsLeadingToTop && lhs.spokenValue == rhs.spokenValue && lhs.spokenLabel == rhs.spokenLabel
-            && lhs.isCentered == rhs.isCentered && lhs.horizontalPadding == rhs.horizontalPadding && lhs.subtitleStyle == rhs.subtitleStyle
+            && lhs.isCentered == rhs.isCentered && lhs.horizontalPadding == rhs.horizontalPadding && lhs.outerInsets == rhs.outerInsets && lhs.subtitleStyle == rhs.subtitleStyle
             && lhs.glyphStyle == rhs.glyphStyle && lhs.valueWeight == rhs.valueWeight && lhs.hint == rhs.hint
     }
 
@@ -238,7 +241,7 @@ class UKRowView: UIView, UKSurfaceStyled {
         let structure = old.hasLeading != content.hasLeading || old.showsChevron != content.showsChevron
             || (old.subtitle == nil) != (content.subtitle == nil) || (old.value == nil) != (content.value == nil)
             || old.style != content.style || old.leadingView !== content.leadingView || old.isCentered != content.isCentered
-            || old.horizontalPadding != content.horizontalPadding
+            || old.horizontalPadding != content.horizontalPadding || old.outerInsets != content.outerInsets
         rowContent = content
         if newAccessory !== accessory {
             accessory?.removeFromSuperview()
@@ -380,11 +383,12 @@ class UKRowView: UIView, UKSurfaceStyled {
     private func updatePadding() {
         let style = rowContent.style
         let vertical = rowContent.verticalPadding ?? style.verticalPadding
-        rootPadding[0].constant = sidePadding
-        rootPadding[1].constant = -(accessory != nil ? (accessoryTrailingInset ?? sidePadding) : sidePadding)
+        let outer = rowContent.outerInsets
+        rootPadding[0].constant = sidePadding + outer.leading
+        rootPadding[1].constant = -((accessory != nil ? (accessoryTrailingInset ?? sidePadding) : sidePadding) + outer.trailing)
         // The padding sits around the text, not the row: an accessory (a 44 pt button) may be taller than the text and sets the height.
-        rootPadding[2].constant = 0
-        rootPadding[3].constant = 0
+        rootPadding[2].constant = outer.top
+        rootPadding[3].constant = -outer.bottom
         NSLayoutConstraint.deactivate(bodyConstraints)
         bodyConstraints = []
         if let bodyView {
@@ -392,9 +396,9 @@ class UKRowView: UIView, UKSurfaceStyled {
             rootPadding[3].isActive = false
             bodyConstraints = [
                 bodyView.topAnchor.constraint(equalTo: root.bottomAnchor),
-                bodyView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: sidePadding),
-                bodyView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -sidePadding),
-                bodyView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -vertical),
+                bodyView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: sidePadding + outer.leading),
+                bodyView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -(sidePadding + outer.trailing)),
+                bodyView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -(vertical + outer.bottom)),
             ]
             NSLayoutConstraint.activate(bodyConstraints)
         } else {
@@ -408,7 +412,8 @@ class UKRowView: UIView, UKSurfaceStyled {
     private func updateMinHeight() {
         let style = rowContent.style
         let tall = rowContent.subtitle != nil || hasSecondLine
-        minHeight?.constant = rowContent.minHeight ?? (tall ? style.minHeightWithSubtitle : style.minHeight)
+        let outer = rowContent.outerInsets
+        minHeight?.constant = (rowContent.minHeight ?? (tall ? style.minHeightWithSubtitle : style.minHeight)) + outer.top + outer.bottom
     }
 
     /// Where the tap target ends: at the accessory, or at the row's edge.
@@ -526,12 +531,16 @@ class UKRowView: UIView, UKSurfaceStyled {
         let accessibilityStacked = isAccessibilitySize && !rowContent.isCentered
         let leadingAbove = accessibilityStacked && style.leadingAboveTextAtAccessibilitySizes
         let padding = sidePadding + (accessory != nil ? (accessoryTrailingInset ?? sidePadding) : sidePadding)
+            + rowContent.outerInsets.leading + rowContent.outerInsets.trailing
         var reserved = padding
         if rowContent.hasLeading, !accessibilityStacked { reserved += leadingWidth + style.gap }
         if let accessory, !accessibilityStacked {
             reserved += max(expandsAccessory ? HassTokens.minTarget : accessory.intrinsicContentSize.width, 0) + style.gap
         }
-        if rowContent.showsChevron { reserved += max(chevronView.intrinsicContentSize.width, 0) + (accessibilityStacked ? 0 : style.gap) }
+        // The chevron sits after the text with the style's gap in both arrangements (beside the text, or after the leading stack in the
+        // stacked row's top line), so the gap is always reserved: left out when stacked, a subtitle was measured about 11 pt wider than the
+        // frame it got and drew one line more than the row's height counted.
+        if rowContent.showsChevron { reserved += max(chevronView.intrinsicContentSize.width, 0) + style.gap }
         if rowContent.hasLeading, accessibilityStacked, !leadingAbove { reserved += leadingWidth + style.gap }
         let textReserved = reserved
         // The value beside the text while both fit on a line, else under it.

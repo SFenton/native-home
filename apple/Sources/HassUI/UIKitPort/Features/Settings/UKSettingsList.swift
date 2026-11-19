@@ -40,7 +40,7 @@ struct UKSettingsListRow {
     var signature: String
     var isEnabled = true
     var action: (() -> Void)?
-    /// What the row is in an ``InsetGroupedStack`` (padding, hairline, press highlight): ``InsetGroupedRowKind``.
+    /// The row's kind in the settings stack (padding, hairline, press highlight): ``UKSettingsRowKind``.
     var kind: UKSettingsRowKind
     var configure: (any UKSettingsRowCell) -> Void
 
@@ -55,7 +55,7 @@ struct UKSettingsListRow {
     }
 }
 
-/// ``InsetGroupedRowKind``.
+/// ``UKSettingsRowKind`` declares the row kind; ``InsetGroupedMetrics`` holds the row metrics.
 enum UKSettingsRowKind {
     /// A button or link row with a leading glyph and text.
     case link
@@ -63,6 +63,30 @@ enum UKSettingsRowKind {
     case textButton
     /// A row that holds its own control (a toggle, a slider) or says something without an action.
     case control
+
+    /// The padding above and below the row's content, around its 44 pt minimum (``InsetGroupedMetrics``): 10.5 pt for a control row,
+    /// 15 pt for the others.
+    var verticalPadding: CGFloat { self == .control ? InsetGroupedMetrics.controlPadding : InsetGroupedMetrics.rowPadding }
+
+    /// Whether the row leads with a glyph column, so the hairline above the next row starts at its text.
+    var hasGlyph: Bool { self == .link }
+
+    /// The content insets of a row of this kind inside a settings group: 15 pt leading, 17.5 pt trailing, ``verticalPadding`` above and below.
+    var contentInsets: NSDirectionalEdgeInsets {
+        NSDirectionalEdgeInsets(top: verticalPadding, leading: InsetGroupedMetrics.leadingInset,
+                                bottom: verticalPadding, trailing: InsetGroupedMetrics.trailingInset)
+    }
+}
+
+/// A row that declares its settings kind, and with it the hairline below it (``UKSeparatorInsetDeclaring``): 61 pt after a glyph row,
+/// 15 pt after a text or control row, both 16 pt short of the trailing edge.
+@MainActor
+protocol UKSettingsKinded: UKSeparatorInsetDeclaring {
+    var settingsRowKind: UKSettingsRowKind { get }
+}
+
+extension UKSettingsKinded {
+    var separatorInsets: UKSeparatorInsets? { .grouped(afterGlyph: settingsRowKind.hasGlyph) }
 }
 
 /// A section of a settings list: an optional header, its rows and an optional footer.

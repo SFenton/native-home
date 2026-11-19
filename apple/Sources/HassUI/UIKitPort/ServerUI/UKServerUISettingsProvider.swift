@@ -71,9 +71,18 @@ enum UKServerUISettingsProviders {
 /// ``gridHeight(forWidth:)``. A settings row in a module list (a `UIStackView` of rows, sized by system fitting) would otherwise have
 /// no size of its own and collapse to a hairline: the 350x1 rows of the preview's Settings page.
 @MainActor
-final class UKServerUISettingsAtom: UIView, UKGridMeasuring {
+final class UKServerUISettingsAtom: UIView, UKGridMeasuring, UKSeparatorInsetDeclaring {
     let bag = UKObservationBag()
     private(set) var content: UIView?
+
+    /// The hairline under the atom is the control's to declare (the preferences rows do); other providers keep the list's own.
+    var separatorInsets: UKSeparatorInsets? {
+        settingsKind.map { .grouped(afterGlyph: $0.hasGlyph) } ?? (content as? UKSeparatorInsetDeclaring)?.separatorInsets
+    }
+
+    /// The settings row kind the provider's control declares, or nil for a control that keeps the list's own metrics. A provider sets it in
+    /// ``UKServerUISettingsProvider/make(_:host:page:)``, with the content insets of the kind on the view it returns.
+    var settingsKind: UKSettingsRowKind?
     private var definition: ServerUISettingsControl?
     private weak var provider: (any UKServerUISettingsProvider)?
 
@@ -83,6 +92,7 @@ final class UKServerUISettingsAtom: UIView, UKGridMeasuring {
         try provider.requireCurrent()
         bag.removeAll()
         content?.removeFromSuperview()
+        settingsKind = nil
         definition = control
         self.provider = provider
         install(try provider.make(control, host: self, page: page), identifier: control.node.id)

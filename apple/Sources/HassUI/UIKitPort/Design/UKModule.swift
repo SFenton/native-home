@@ -67,9 +67,48 @@ final class UKModuleView: UIView, UKSurfaceStyled {
     }
 }
 
+// MARK: - Separator insets
+
+/// Where a hairline starts and stops, as its upper row declares it (`.agents/patterns/module-list.md`: a hairline takes its leading and
+/// trailing insets from the row above it). A row that declares nothing keeps the list's own inset and a hairline flush to the trailing
+/// edge, so a list of rows that never heard of this does not move.
+struct UKSeparatorInsets: Equatable {
+    /// What the hairline lines up with.
+    enum Leading: Equatable {
+        /// The row's text: 15 pt in.
+        case text
+        /// The text after a glyph column: 61 pt in (15 + 34 + 12), or 15 pt at accessibility text sizes, where the glyph sits above the text.
+        case afterGlyph
+    }
+
+    var leading: Leading
+    /// How far the hairline stops short of the list's trailing edge.
+    var trailing: CGFloat
+
+    /// The inset-grouped hairline of a settings row.
+    static func grouped(afterGlyph: Bool) -> Self {
+        .init(leading: afterGlyph ? .afterGlyph : .text, trailing: InsetGroupedMetrics.separatorTrailing)
+    }
+
+    /// The leading inset at `traits`' text size.
+    func leadingInset(for traits: UITraitCollection) -> CGFloat {
+        leading == .afterGlyph && !traits.ukIsAccessibilitySize
+            ? InsetGroupedMetrics.leadingInset + InsetGroupedMetrics.glyphColumn + HassTokens.Spacing.m
+            : InsetGroupedMetrics.leadingInset
+    }
+}
+
+/// A row that tells its ``UKModuleListView`` how the hairline below it is inset.
+@MainActor
+protocol UKSeparatorInsetDeclaring: AnyObject {
+    /// The insets of the hairline under this row, or nil to keep the list's own.
+    var separatorInsets: UKSeparatorInsets? { get }
+}
+
 // MARK: - List
 
-/// An inset list on the wallpaper (``ModuleList``): rows on one module card with hairlines inset to the text, 26 pt corners.
+/// An inset list on the wallpaper (``ModuleList``): rows on one module card with hairlines inset to the text, 26 pt corners. The list
+/// draws the one group (fill, corners, clipping, hairlines); a row inside it never draws its own fill, corners or hairline.
 /// In a sheet (`surface: .sheet`) the card is the sheet's cell colour with the sheet's hairlines. For short lists inside a
 /// scrolling page; a long or live list is its own collection view.
 ///
@@ -126,6 +165,7 @@ final class UKModuleListView: UIView, UKSurfaceStyled {
         for (index, row) in newRows.enumerated() {
             if index > 0 {
                 let hairline = UKHairline(inset: hasGlyphs ? .scaledTextInset : .fixed(HassTokens.Spacing.l), surface: surface)
+                hairline.above = newRows[index - 1]
                 separators.append(hairline)
                 stack.addArrangedSubview(hairline)
             }
@@ -135,11 +175,19 @@ final class UKModuleListView: UIView, UKSurfaceStyled {
         ukRemeasureContainers(includingSelf: true)
     }
 
+    /// A row declares its hairline insets when it is built, or later (a settings atom installs its control after the list is made), so
+    /// the hairlines read them again on every layout; a hairline writes a constraint only when its inset changed.
+    override func layoutSubviews() {
+        separators.forEach { $0.rescale() }
+        super.layoutSubviews()
+    }
+
     private func apply(_ row: UIView) { (row as? UKSurfaceStyled)?.surface = surface }
     private func restyleSeparators() { separators.forEach { $0.surface = surface } }
 }
 
-/// A 0.5 pt hairline inset from the leading edge (``HassTokens/Surface/separator``), hidden from accessibility.
+/// A 0.5 pt hairline inset from the leading edge (``HassTokens/Surface/separator``), hidden from accessibility. The row above it may
+/// declare both insets (``UKSeparatorInsets``).
 final class UKHairline: UIView {
     enum Inset {
         /// Where the row's text starts, scaled with the body text (``ModuleRowMetrics/textInset``).
@@ -151,6 +199,9 @@ final class UKHairline: UIView {
     private let inset: Inset
     private let line = UIView()
     private var leading: NSLayoutConstraint!
+    private var trailing: NSLayoutConstraint!
+    /// The row above the hairline, which may declare the hairline's insets (``UKSeparatorInsetDeclaring``).
+    weak var above: UIView?
 
     init(inset: Inset, surface: TileSurface = .page) {
         self.inset = inset
@@ -161,8 +212,9 @@ final class UKHairline: UIView {
         line.translatesAutoresizingMaskIntoConstraints = false
         addSubview(line)
         leading = line.leadingAnchor.constraint(equalTo: leadingAnchor)
+        trailing = line.trailingAnchor.constraint(equalTo: trailingAnchor)
         NSLayoutConstraint.activate([
-            leading, line.trailingAnchor.constraint(equalTo: trailingAnchor),
+            leading, trailing,
             line.topAnchor.constraint(equalTo: topAnchor), line.bottomAnchor.constraint(equalTo: bottomAnchor),
             heightAnchor.constraint(equalToConstant: 0.5),
         ])
@@ -173,12 +225,21 @@ final class UKHairline: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     func rescale() {
-        switch inset {
-        case .scaledTextInset:
-            leading.constant = UIFontMetrics(forTextStyle: .body).scaledValue(for: ModuleRowMetrics.textInset, compatibleWith: traitCollection)
-        case let .fixed(value):
-            leading.constant = value
+        var start: CGFloat
+        var end: CGFloat = 0
+        if let declared = (above as? UKSeparatorInsetDeclaring)?.separatorInsets {
+            start = declared.leadingInset(for: traitCollection)
+            end = -declared.trailing
+        } else {
+            switch inset {
+            case .scaledTextInset:
+                start = UIFontMetrics(forTextStyle: .body).scaledValue(for: ModuleRowMetrics.textInset, compatibleWith: traitCollection)
+            case let .fixed(value):
+                start = value
+            }
         }
+        if leading.constant != start { leading.constant = start }
+        if trailing.constant != end { trailing.constant = end }
     }
 
     override func didMoveToWindow() {
