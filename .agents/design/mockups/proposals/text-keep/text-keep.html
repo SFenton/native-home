@@ -18,111 +18,62 @@ table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0;backgroun
 .q{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:16px 18px;margin:18px 0}
 .lean{font-size:14px;color:var(--fg2);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;max-width:76ch}
 </style></head><body><div class="wrap">
-<p class="eyebrow">Proposal · 2026-11-19 · parked for the owner · T-text-keep · branch claude/text-keep</p>
+<p class="eyebrow">Proposal · 2026-11-19 · decided: owner picked A, 2026-11-19 · T-text-keep · branch claude/text-keep</p>
 <h1>Kept text: how a last-known value looks and sounds</h1>
-<p class="lede">The Studio can now ask a text slot to keep its last reading when the sensor behind it goes unavailable (<code>sh.text-keep@1</code>). The engine part is settled; what is not is whether you can tell a kept reading from a live one. Three treatments are built behind one switch and captured on iPhone, Duo and iPad. The app-UI gate parked this one (it could not confirm the treatment matches your request), so nothing is picked: you choose A, B or C.</p>
+<p class="lede">The Studio can ask a text slot to keep its last reading when the sensor behind it goes unavailable (<code>sh.text-keep@1</code>). Three treatments were built behind one switch and captured on iPhone, Duo and iPad. The owner picked <b>A</b>: kept text looks and sounds exactly like a live value. Only A ships; the record is <a href="../../../kept-text.md">kept-text.md</a> and the atlas page is <a href="../../components/loading/kept-text/kept-text.html">Kept text</a>.</p>
 
-<h2>Your question</h2>
+<div class="q"><h3 style="margin-top:0">Decision (owner, 2026-11-19)</h3>
+<p style="margin:0">Judged A, B and C; the owner picked <b>A, plain</b>, after seeing all three with screenshots, because kept text should look and sound exactly like a live value: no glyph, no colour change, no VoiceOver change. Before any answer a keep slot draws its fallback, never the loading look.</p></div>
+
+<h2>The question</h2>
 <blockquote>"The visible question: while a slot is showing a kept value because the source is unavailable, does it look different from a live value, and how? Examples: no difference, a subtle staleness treatment, or an accessibility-only cue in the VoiceOver value or hint."</blockquote>
 
 <h2>The contract (same in every option)</h2>
 <ul>
-<li><b>Keep.</b> A slot with <code>whenUnavailable: "keep"</code> whose source reads unavailable <i>after</i> at least one answer keeps drawing that last answer. Only this state ("kept") differs between A, B and C.</li>
-<li><b>Loading keeps already.</b> A reconnect or a cold launch from the snapshot keeps the last text under both policies, with no cue in any option, so reopening never flashes a mark (no reload on reopen).</li>
-<li><b>Before an answer.</b> Unavailable with nothing kept yet draws the slot's fallback (<code>"No reading"</code> in the fixture) or the usual empty text, as today. No cue.</li>
-<li><b>Fallback or omitted policy.</b> Today's behaviour: the slot shows its unavailable text.</li>
-<li><b>Recover.</b> Kept back to live drops any mark in the same frame; no animation, no announcement.</li>
+<li><b>Keep.</b> A slot with <code>whenUnavailable: "keep"</code> whose source reads unavailable <i>after</i> at least one answer keeps drawing that last answer ("kept").</li>
+<li><b>Loading keeps already.</b> A reconnect or a cold launch from the snapshot keeps the last text under both policies, so reopening never flashes anything.</li>
+<li><b>Before an answer.</b> Unavailable with nothing kept yet draws the slot's fallback ("No reading") or the usual empty text.</li>
+<li><b>Recover.</b> Kept back to live changes only the text, if it changed; no animation, no announcement.</li>
 </ul>
 
 <h2>The three options</h2>
 <div class="opts">
-<div class="card"><h3>A · Plain</h3><span class="tag">no difference</span>
+<div class="card"><h3>A · Plain</h3><span class="tag">picked</span>
 <p>Kept draws and speaks exactly like live. No glyph, no colour, no VoiceOver change.</p>
-<ul><li><b>You notice:</b> nothing, ever. A frozen sensor reads as current until it answers again.</li>
+<ul><li><b>You notice:</b> nothing. A frozen sensor reads as current until it answers again; staleness shows only in the Studio.</li>
 <li><b>Cost:</b> lowest. No view code beyond the engine.</li>
-<li><b>Risk:</b> a reading hours old is shown as fact, to everyone. Staleness is visible only in the Studio.</li>
-<li><b>HIG:</b> Loading, "Show something quickly"; no staleness signal at all.</li></ul></div>
-<div class="card"><h3>B · Spoken</h3><span class="tag">accessibility-only cue</span>
-<p>Looks exactly like A. VoiceOver appends <code>", last known"</code> to the element's <b>value</b>, once per element however many slots are kept.</p>
-<ul><li><b>You notice:</b> nothing by sight; with VoiceOver, "last known" after a stale reading.</li>
-<li><b>Cost:</b> low. Value composition in tile, chip, row and text hosts; announcements compare values with the cue stripped.</li>
-<li><b>Risk:</b> VoiceOver users learn something sighted users cannot see.</li>
-<li><b>HIG:</b> VoiceOver, "keep labels current as interface and content change". Cue in the value, not the hint: hints describe actions and can be turned off.</li></ul></div>
-<div class="card"><h3>C · Marked</h3><span class="tag">subtle staleness + B's cue</span>
-<p>Kept text gains a leading <code>clock.arrow.circlepath</code> glyph (scales with the text, hidden from VoiceOver) and, where the live ink is a neutral, steps to the grey unavailable tiles already use. On a filled or tinted ground the ink stays and the glyph alone marks it. Plus B's spoken cue.</p>
-<ul><li><b>You notice:</b> when a sensor drops, its readings turn grey with a small clock-arrow; an HA restart can mark many at once, then clear together.</li>
-<li><b>Cost:</b> highest. Attributed text in four hosts, an ink map, an Increase Contrast branch, AX5 and layout tests on three families.</li>
-<li><b>Risk:</b> narrow tiles grow a line when kept (seen below); page-wide marking during HA restarts; a new glyph meaning app-wide.</li>
-<li><b>HIG:</b> Color, "Avoid relying solely on color ... also convey it another way, like text labels or glyph shapes"; Accessibility, "Convey state and function with shapes or icons in addition to color"; Labels, tertiary for "an unavailable item".</li></ul></div>
+<li><b>HIG:</b> Loading, "Show something quickly".</li></ul></div>
+<div class="card"><h3>B · Spoken</h3><span class="tag">not picked</span>
+<p>Looks exactly like A. VoiceOver appends <code>", last known"</code> to the element's value, once per element.</p>
+<ul><li><b>Why not:</b> the owner wanted kept to sound as live too; B would also tell VoiceOver users something sighted users cannot see.</li></ul></div>
+<div class="card"><h3>C · Marked</h3><span class="tag">not picked</span>
+<p>B's cue, plus a leading <code>clock.arrow.circlepath</code> glyph and, on neutral ink, the grey unavailable tiles already use.</p>
+<ul><li><b>Why not:</b> the owner wanted no visible change. The captures also showed the glyph wrapping "21.5 degrees" in two-column tiles on iPhone and Duo folded, so tiles grew a line when a sensor dropped, and a Home Assistant restart would mark many slots at once.</li></ul></div>
 </div>
 
-<h2>iPhone, default text: live and kept</h2>
-<p>A and B kept are <b>pixel-identical</b> to live (same image hash for live, A kept, B kept and C recovered), so one picture stands for all four.</p>
+<p class="lean">Designer's lean was C (a reading that may be hours old should not look current to anyone; C reused the unavailable grey with a glyph so it never relied on colour alone). <b>Overridden by the owner</b>, who picked A. The A, B and C captures stay outside the repo in <code>build/evidence/claude-text-keep/abc-archive/</code>.</p>
+
+<h2>What shipped: A on iPhone, live and kept</h2>
+<p>Kept is the same frame as live: the journey asserts the same label, value, glyph count and frame height on every host, and a pixel diff differs only in the gallery's state label.</p>
 <div class="row">
-<figure><img src="shots/iphone-live.jpg" width="420" alt="iPhone gallery live: a body text 21.5 degrees, two tiles (Bath Temperature, Filled Face in blue) with subtitle 21.5 degrees, a Long Line tile with a two-line subtitle, a Bath status chip reading 21.5 degrees and 80 percent, and a Sensor row with 21.5 degrees and 80 percent"><figcaption><b>Live, and A or B kept</b>Every slot answered. A and B kept look exactly like this.</figcaption></figure>
-<figure><img src="shots/iphone-c-kept.jpg" width="420" alt="iPhone gallery with option C kept: every reading led by a small clock-arrow glyph; neutral text is grey; the blue Filled Face subtitle stays white; the Bath Temperature and Filled Face tiles grow a line because 21.5 degrees wraps"><figcaption><b>C kept</b>Glyph on every kept slot; grey on neutral ink; the blue tile keeps white. Both short tiles wrap "21.5 / degrees" and grow a line.</figcaption></figure>
-<figure><img src="shots/iphone-c-kept-contrast.jpg" width="420" alt="Option C kept with Increase Contrast on: text stays at its live ink with the clock glyph"><figcaption><b>C kept, Increase Contrast</b>No grey step: live ink (white, 17.9:1) plus the glyph.</figcaption></figure>
+<figure><img src="shots/iphone-live.jpg" width="420" alt="iPhone gallery live: body text 21.5 degrees; Bath Temperature and a blue Filled Face tile reading 21.5 degrees; a Long Line tile with a two-line subtitle; a Bath status pill reading 21.5 degrees and 80 percent; a Sensor row with 21.5 degrees and 80 percent"><figcaption><b>Live</b>Every slot answered.</figcaption></figure>
+<figure><img src="shots/iphone-kept.jpg" width="420" alt="iPhone gallery kept: identical to live, every slot still reads 21.5 degrees and 80 percent with no glyph or grey"><figcaption><b>Kept</b>Identical to live: no glyph, no grey, same height.</figcaption></figure>
+<figure><img src="shots/iphone-before-answer.jpg" width="420" alt="iPhone gallery before any answer: every slot reads No reading, the pill and row detail read No battery"><figcaption><b>Before any answer</b>The authored fallback ("No reading", "No battery"), never "Loading".</figcaption></figure>
 </div>
 
-<h2>Loading and before an answer (all options)</h2>
+<h2>Accessibility 5, Duo and iPad</h2>
 <div class="row">
-<figure><img src="shots/iphone-loading.jpg" width="420" alt="Gallery while loading: placeholders where text would be and the row reads Loading"><figcaption><b>Loading</b>No cue in any option (asserted). This capture is the gallery's cold "loading" with no snapshot, so it shows placeholders.</figcaption></figure>
-<figure><img src="shots/iphone-before.jpg" width="420" alt="Gallery labelled before: identical to the loading capture, placeholders and Loading"><figcaption><b>"Before" capture</b>Identical to loading. The fallback "No reading" never appears, so the before-answer state is <i>not</i> shown by this evidence (gap 3).</figcaption></figure>
+<figure><img src="shots/iphone-kept-ax5.jpg" width="360" alt="iPhone at AX5 kept: 21.5 degrees in large body text as live"><figcaption><b>iPhone AX5, kept</b>Drawn as live. Only the top host is legible: the gallery's state buttons cover the rest (harness, not the treatment).</figcaption></figure>
+<figure><img src="shots/duo-kept.jpg" width="360" alt="Duo folded at AX5 kept: 21.5 degrees in large body text as live"><figcaption><b>Duo folded, kept at AX5</b>As live; the same harness overlap.</figcaption></figure>
+<figure><img src="shots/ipad-kept.jpg" width="420" alt="iPad portrait kept: every slot reads as live on wide tiles"><figcaption><b>iPad portrait, kept</b>As live.</figcaption></figure>
 </div>
-
-<h2>Duo and iPad (C against live)</h2>
-<div class="row">
-<figure><img src="shots/duo-live.jpg" width="420" alt="Duo folded live gallery"><figcaption><b>Duo folded, live (A, B kept)</b></figcaption></figure>
-<figure><img src="shots/duo-c-kept.jpg" width="420" alt="Duo folded option C kept: Bath Temperature title hyphenates and both short tiles grow a line"><figcaption><b>Duo folded, C kept</b>Same wrap as iPhone: "21.5 / degrees" on both short tiles.</figcaption></figure>
-</div>
-<div class="row">
-<figure><img src="shots/ipad-live.jpg" width="780" alt="iPad portrait live gallery, tiles wide enough to keep subtitles on one line"><figcaption><b>iPad portrait, live (A, B kept)</b></figcaption></figure>
-<figure><img src="shots/ipad-c-kept.jpg" width="780" alt="iPad portrait option C kept: glyph and grey, no wrapping; tiles keep their height"><figcaption><b>iPad portrait, C kept</b>Wide tiles: the glyph fits, no height change.</figcaption></figure>
-</div>
-
-<h2>AX5 (C only; A and B draw as live)</h2>
-<div class="row">
-<figure><img src="shots/iphone-c-live-ax5.jpg" width="640" alt="AX5 live body text 21.5 degrees"><figcaption><b>iPhone AX5, live</b></figcaption></figure>
-<figure><img src="shots/iphone-c-kept-ax5.jpg" width="640" alt="AX5 kept body text with a large clock glyph in grey"><figcaption><b>iPhone AX5, C kept</b>The glyph scales with the text. Only the top host is legible: at AX5 the gallery harness overlaps the tab bar (a harness fault, not the treatment).</figcaption></figure>
-</div>
-
-<h2>The long-text host</h2>
-<p>"Reading from the upstairs bathroom sensor, last reported this evening" wraps to two lines live and kept under C on iPhone, Duo folded and iPad portrait: the leading glyph adds width but no extra line or truncation here. A and B: unchanged. The single-line subtitle host (truncates at 85% shrink) was not in the fixture, so whether C truncates it earlier is unmeasured.</p>
-
-<h2>What VoiceOver says</h2>
-<p>From the spec and the tests' asserted cue counts (no accessibility tree dumps exist for these runs, so the label and value wording below is the designed reading, not a recording): A has zero cues anywhere; B and C exactly one per kept element, and none when live, loading, recovered or before an answer.</p>
-<table>
-<tr><th>Host</th><th>Live, A kept, any loading or before</th><th>B or C kept</th></tr>
-<tr><td>Text node</td><td>"21.5 degrees"</td><td>"21.5 degrees, last known"</td></tr>
-<tr><td>Tile (Bath Temperature, button)</td><td>"Bath Temperature, 21.5 degrees"</td><td>"Bath Temperature, 21.5 degrees, last known"</td></tr>
-<tr><td>Status chip (two kept slots)</td><td>"Bath, 21.5 degrees, 80 percent"</td><td>"Bath, 21.5 degrees, 80 percent, last known" (one cue, not two)</td></tr>
-<tr><td>Row (title and detail in the label)</td><td>"Sensor, 21.5 degrees", value "80 percent"</td><td>value "80 percent, last known"</td></tr>
-<tr><td>Authored spoken value</td><td>"on, off in 12 minutes, locked"</td><td>"on, off in 12 minutes, locked, last known" (appended, never replaced; not in the fixture)</td></tr>
-</table>
-<p>Moving between live and kept never announces (the text did not change); a real change while kept still announces under <code>valueChange</code>, with the cue.</p>
 
 <h2>Evidence and its gaps</h2>
 <table class="gap">
-<tr><th>Family and pose</th><th>A</th><th>B</th><th>C</th><th>Note</th></tr>
-<tr><td>iPhone portrait</td><td class="yes">default</td><td class="yes">default</td><td class="yes">default, AX5, contrast</td><td>5 journey tests pass</td></tr>
-<tr><td>Duo folded</td><td class="yes">default</td><td class="yes">default</td><td class="yes">default, AX5, contrast</td><td>outer panel</td></tr>
-<tr><td>Duo unfolded portrait, landscape, partial fold</td><td class="no">not run</td><td class="no">not run</td><td class="no">not run</td><td>infra: the run came back folded, twice</td></tr>
-<tr><td>iPad portrait</td><td class="yes">default</td><td class="yes">default</td><td class="yes">default, AX5, contrast</td><td></td></tr>
-<tr><td>iPad landscape</td><td class="yes">default</td><td class="yes">default</td><td class="yes">default, AX5, contrast</td><td>captures rotated 90 degrees</td></tr>
-<tr><td>Rotate-in, rotate-out</td><td class="no">not run</td><td class="no">not run</td><td class="no">not run</td><td>no rotating journey on this surface</td></tr>
+<tr><th>Family and pose</th><th>A</th><th>Note</th></tr>
+<tr><td>iPhone portrait</td><td class="yes">default, AX5, contrast</td><td>4 KeptTextJourneyTests pass</td></tr>
+<tr><td>Duo folded</td><td class="yes">default, AX5</td><td>outer panel</td></tr>
+<tr><td>iPad portrait, landscape</td><td class="yes">default, AX5</td><td>landscape captures rotated (known)</td></tr>
+<tr><td>Duo unfolded portrait, landscape, partial fold; rotate-in and out</td><td class="no">not run</td><td>infra: the inner capture came back black; no rotating journey on this surface</td></tr>
 </table>
-<ol>
-<li><b>A and B at AX5 not run.</b> They draw as live, so the risk is low, but it is unobserved.</li>
-<li><b>C grey on tile fills not measured.</b> On the page ground it is 5.5:1 (#8E8E93 on the dark page); the off-tile fill is lighter, so the ratio there is lower and unknown. Light sheets (#636366) not captured.</li>
-<li><b>Before-answer not shown.</b> The "before" captures match loading; the fallback text never appears, so that state is asserted only by cue counts, not seen.</li>
-<li><b>C grows narrow tiles.</b> On iPhone and Duo folded, "21.5 degrees" wraps when the glyph is added, so short two-column tiles gain a line when a sensor drops and lose it on recovery. iPad portrait does not.</li>
-<li><b>Not in the fixture:</b> a tinted chip, a numeric count badge, a sheet row on a light sheet, an authored spoken value, a single-line truncating subtitle; no accessibility tree dumps.</li>
-</ol>
-
-<div class="q"><h3 style="margin-top:0">Your call</h3>
-<p>When a sensor goes unavailable and a slot keeps its last reading, should it:</p>
-<p><b>A</b> look and sound exactly live; <b>B</b> look live but say "last known" to VoiceOver; or <b>C</b> turn grey with a small clock-arrow (text on coloured tiles keeps its colour) and say "last known"?</p>
-<p style="margin:0">The other two are removed once you pick. If C, the narrow-tile growth and the missing Duo unfolded and contrast-on-tile measurements are checked before it ships.</p></div>
-
-<p class="lean">Designer's lean, advisory; the owner picks: C, because a reading that may be hours old should not look current to anyone, and C reuses the grey the app already gives unavailable tiles with a glyph so it never relies on colour alone; B is the safe second if narrow tiles growing a line, or the page-wide marking during an HA restart, is not acceptable.</p>
 </div></body></html>

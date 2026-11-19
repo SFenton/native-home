@@ -37,7 +37,7 @@
 |---|---|---|---|---|
 | [Brightness tile (drag dragger)](tiles/brightness-tile/brightness-tile.html) | `brightness-tile` | shipped | iphone, duo, ipad |  |
 
-## design (32)
+## design (33)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
@@ -57,6 +57,7 @@
 | [HeaderEdgeFade (content fades under the header)](motion/header-edge-fade/header-edge-fade.html) | `header-edge-fade` | shipped | iphone, duo, ipad |  |
 | [InfoBox](surfaces/info-box/info-box.html) | `info-box` | shipped | iphone, duo, ipad |  |
 | [InlineAlert and SelectableOptionRow](forms/settings-controls/settings-controls.html) | `settings-controls` | shipped | iphone, duo, ipad |  |
+| [Kept text (a text slot showing its last answer)](loading/kept-text/kept-text.html) | `kept-text` | shipped | iphone, duo, ipad |  |
 | [ModalTabBar (glass segmented control, badges, menu)](modals/modal-tab-bar/modal-tab-bar.html) | `modal-tab-bar` | shipped | iphone, duo, ipad |  |
 | [ModuleList and ModuleRow (inset list)](lists/module-list/module-list.html) | `module-list` | shipped | iphone, duo, ipad |  |
 | [Motion tokens (quick, state, standard, emphasized)](motion/motion-tokens/motion-tokens.html) | `motion-tokens` | shipped | iphone, duo, ipad |  |

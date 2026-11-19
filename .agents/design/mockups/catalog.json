@@ -7397,6 +7397,53 @@
       "weight": 1
     },
     {
+      "id": "kept-text",
+      "kind": "component",
+      "area": "design",
+      "title": "Kept text (a text slot showing its last answer)",
+      "path": "components/loading/kept-text",
+      "sources": [
+        "apple/Sources/HassCore/ServerUIComposition/ServerUITextKeep.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBindings.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIShellPrimitives.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift",
+        "apple/Sources/HassUI/UIKitPort/Gallery/UKTextKeepGallery.swift"
+      ],
+      "docs": [
+        ".agents/design/kept-text.md",
+        ".agents/patterns/copy.md"
+      ],
+      "patterns": [
+        "copy",
+        "entity-tile",
+        "status-pill"
+      ],
+      "presentedFrom": [],
+      "presents": [],
+      "devices": [
+        "iphone",
+        "duo",
+        "ipad"
+      ],
+      "appearance": "dark-page",
+      "statesHint": [
+        "live",
+        "kept (identical to live)",
+        "before an answer (fallback)",
+        "reconnecting (keeps what was shown)",
+        "recover",
+        "ax5"
+      ],
+      "motionHint": [],
+      "inFlight": null,
+      "owner": "shell-navigation",
+      "mockup": "components/loading/kept-text/kept-text.html",
+      "status": "shipped",
+      "note": "sh.text-keep@1: a keep slot draws its last answer while its source is unavailable, exactly as live (owner, option A, 2026-11-19); before any answer, its fallback. Decision: .agents/design/kept-text.md; proposal: proposals/text-keep.",
+      "weight": 1
+    },
+    {
       "id": "primary-button",
       "kind": "component",
       "area": "design",
@@ -9506,13 +9553,14 @@
       "title": "Kept text: last-known value treatment",
       "path": "proposals/text-keep",
       "sources": [
-        "apple/Sources/HassUI/UIKitPort/Design/UKKeptText.swift",
-        "apple/Sources/HassCore/ServerUIComposition/ServerUIKeptTextCue.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUITextKeep.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBindings.swift",
         "apple/Sources/HassUI/UIKitPort/Gallery/UKTextKeepGallery.swift"
       ],
-      "status": "proposed",
+      "status": "decided",
       "mockup": "proposals/text-keep/text-keep.html",
-      "note": "Owner request 2026-11-18 (N2, sh.text-keep@1). Parked by the app-UI gate (matches_request=unsure): options A plain, B spoken ', last known', C grey + clock.arrow.circlepath glyph + B's cue, built behind one switch on claude/text-keep. Owner picks; no decision recorded."
+      "note": "Owner request 2026-11-18 (N2, sh.text-keep@1). Parked by the app-UI gate (matches_request=unsure); the owner picked A (plain: kept text drawn and spoken exactly as live) on 2026-11-19 over B (spoken ', last known') and C (grey + clock.arrow.circlepath + B's cue). Designer leaned C; overridden. Current design: components/loading/kept-text.",
+      "decision": ".agents/design/kept-text.md"
     }
   ]
 }
