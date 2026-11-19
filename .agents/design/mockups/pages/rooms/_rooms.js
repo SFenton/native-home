@@ -234,12 +234,13 @@
   };
   /**
    * One titled section. sec: {title, layout:'grid'|'leadRow'|'twoColumnFill'|'appLaunch', cards:[spec], apps?, active?, u?}
+   * min: the section grid's minimum cell width (the Bed section asks for 300, so each bed tile is a full row until two fit side by side).
    * leadRow: the lead card alone, then the rest (two filling columns when more than two follow; at regular width a bathroom fan lead joins the grid).
    */
   R.section = function (ctx, sec) {
     var lay = sec.layout || 'grid', kids = [K.PageSectionHeader({ title: sec.title })], cards = sec.cards || [];
     if (lay === 'grid') kids.push(R.grid(cards, 4));
-    else if (lay === 'twoColumnFill') kids.push(R.grid(cards, 2));
+    else if (lay === 'twoColumnFill') kids.push(R.grid(cards, 2, sec.min));
     else if (lay === 'leadRow') {
       if (ctx.regular && cards[0] && cards[0].isFan) kids.push(K.TileGrid({ items: cards.map(function (c) { return R.tile(c, { span: false }); }), min: 140, max: 2 }));
       else {
@@ -327,7 +328,7 @@
       chips: [Ch.lights('Lights', st.lightsOn === true, 'lightbulb.2', u), Ch.climate('68–72°F', 70, u), Ch.occupancy(st.occ === true, u), Ch.contact('Window', st.window || 'closed', u), Ch.air('38 • 6 µg/m³', u)],
       sections: [
         { title: 'Sleep & Wake', layout: 'twoColumnFill', cards: [wake] },
-        { title: 'Bed', layout: 'twoColumnFill', cards: [R.bedTile(st.viewer === 'sam' ? 'Alex\'s Side' : 'Your Side', beds.left || { action: 'heating', level: 3 }, st, 'Alex\'s Bed'), R.bedTile(st.viewer === 'sam' ? 'Your Side' : 'Sam\'s Side', beds.right || { action: 'cooling', level: -3 }, st, 'Sam\'s Bed')] },
+        { title: 'Bed', layout: 'twoColumnFill', min: 300, cards: [R.bedTile(st.viewer === 'sam' ? 'Alex\'s Side' : 'Your Side', beds.left || { action: 'heating', level: 3 }, st, 'Alex\'s Bed'), R.bedTile(st.viewer === 'sam' ? 'Your Side' : 'Sam\'s Side', beds.right || { action: 'cooling', level: -3 }, st, 'Sam\'s Bed')] },
         { title: 'Media', cards: [tv] },
         { title: 'Climate', layout: 'twoColumnFill', cards: [C.vents('Vents', st), C.purifier(st), hum] },
       ],

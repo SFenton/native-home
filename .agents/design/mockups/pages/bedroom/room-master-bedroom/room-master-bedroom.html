@@ -20,7 +20,7 @@
     kind: 'page', id: 'room-master-bedroom', title: 'Bedroom 1 room page (beds, wake light, humidifier)', area: 'bedroom', status: 'shipped',
     summary: 'The Bedroom 1 swaps the generic card for the bedroom lane\'s tiles: a Wake-Light Alarms card, one Bed tile per bed side (personalised "Your Side"), the Streamer, and a Climate section with the humidifier. Four sections, two columns on wide windows.',
     source: ['apple/Sources/HassUI/Features/Bedroom/BedroomComponents.swift', 'apple/Sources/HassUI/Features/Bedroom/BedSideSheet.swift', 'apple/Sources/HassUI/Features/Bedroom/WakeLightSheet.swift', 'apple/Sources/HassCore/Rooms/RoomsConfig.swift', 'apple/Sources/HassCore/Bedroom/BedSideController.swift', 'apple/Sources/HassDesign/ThermostatTileFace.swift'],
-    spec: ['.agents/patterns/bedroom-devices.md', '.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md'],
+    spec: ['.agents/patterns/bedroom-devices.md', '.agents/pages/rooms/ios.md', '.agents/pages/rooms/spec.md', '.agents/design/state-glyph-tint.md'],
     patterns: ['bedroom-devices', 'room-device-sheets', 'entity-tile', 'status-rail', 'optimistic-actions', 'modal-sheet'],
     hig: ['Toolbars', 'Layout', 'Color', 'Typography', 'Dynamic Type', 'Motion', 'Accessibility'],
     entities: ['sensor.demo_bedroom_1_light_1', 'climate.demo_climate_2', 'climate.demo_climate_3', 'media_player.demo_bedroom_1_1', 'cover.demo_bedroom_1_1',
@@ -37,6 +37,7 @@
       'reconnecting': { title: 'Connection down 2 s+', note: 'arc left of Quick Links', render: room({}, { connection: 'reconnecting' }) },
       'beds-idle': { title: 'Both sides on at level 0 (idle)', note: 'a side that is on fills even at 0 (owner 2026-10-16); family is Heating at 0 or above', render: room({ beds: { left: { action: 'idle', level: 0 }, right: { action: 'idle', level: 0 } } }) },
       'beds-off': { title: 'Both sides off', note: 'dark tiles; the glyph keeps the family of the level (Heating at +3, Cooling at -3)', render: room({ beds: { left: { action: 'off', level: 3 }, right: { action: 'off', level: -3 } } }) },
+      'beds-tint-by-state': { title: 'Bed tiles: the icon colour follows the state, one tile to a row on narrow widths', note: 'Bed A is off and leans heating (orange icon), Bed B is read-only away and leans cooling (teal icon); each state of the authored style sets its own icon colour (sh.state-style-glyph-tint@1). On iPhone and the folded Duo each tile is a full row; on iPad portrait the two share a row. The state words carry the state; the colour is not spoken.', render: room({ beds: { left: { action: 'off', level: 3 }, right: { readOnly: true, level: -3 } } }) },
       'hot-flash': { title: 'Sam: Hot Flash Mode, holding', note: 'cooling fill; the line counts down once a second ("10:12 Remaining"); before it holds it reads "Hot Flash Mode • Cooling"', render: room({ beds: { right: { action: 'cooling', level: -10, hot: true, hold: '10:12' } } }) },
       'solo-trip': { title: 'Solo Trip: Sam away', note: 'Alex\'s side controls the whole bed ("Whole Bed • ..."); Sam\'s side is read-only and draws off', render: room({ beds: { left: { action: 'heating', level: 3, whole: true }, right: { action: 'cooling', level: -3, readOnly: true } } }) },
       'viewer-sam': { title: 'Signed in as Sam', note: 'personal titles swap: "Alex\'s Side" and "Your Side"; nothing else changes', render: room({ viewer: 'sam' }) },
@@ -73,11 +74,12 @@
     ],
 
     a11y: [
+      { rule: 'Icon colour by state', note: 'An off or read-only bed side keeps the heating or cooling icon colour through its authored state style (sh.state-style-glyph-tint@1), never grey except unavailable. The colour is not spoken: the state words ("Off", "Away · Read Only") and the VoiceOver value carry the state, and a tint change adds no announcement or haptic. Each member keeps 3:1 against the face it lands on (the Studio warns below it).' },
       { rule: 'Reading order', note: 'Back, Quick Links, Profile; "Bedroom 1" (heading); the status rail; then Sleep & Wake, Bed (Your Side, Sam\'s Side), Media, Climate, each a container with a heading. Two columns on wide windows read left column first.' },
       { rule: 'Bed sides', note: 'Each is a button named by its personalised title ("Your Side") with the value "Heating • +3"; the identifier stays room.card.Alex\'s Bed (not the personalised title). The state is the words plus the family colour and glyph; a read-only side says "Away · Read Only".' },
       { rule: 'Wake-Light Alarms', note: 'A button with a chevron: "Wake-Light Alarms, Scheduled". The card never fills, so the state is carried only by its words; Ramping and Snoozed read the same way.' },
       { rule: 'Streamer and humidifier', note: 'Buttons with chevrons ("Streamer, Off"; "Humidifier, Off • 44%").' },
-      { rule: 'Targets and Dynamic Type', note: 'All cards 72 pt or taller; at AX5 each anchors its text bottom-leading and the section grid is one column. The two bed tiles share one height with the wake light\'s row.' },
+      { rule: 'Targets and Dynamic Type', note: 'All cards 72 pt or taller; at AX5 each anchors its text bottom-leading and the section grid is one column. The two bed tiles share one height with the wake light\'s row; each is a full row on iPhone and the folded Duo (one column), and the two share a row from iPad portrait.' },
       { rule: 'Reduce Motion', note: 'Colour changes shorten to 0.2 s; the countdown is a text update.' },
     ],
 

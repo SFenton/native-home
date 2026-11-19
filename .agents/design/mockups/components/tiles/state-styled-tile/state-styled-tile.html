@@ -61,6 +61,21 @@
       presenter: Mock.page(ctx, { title: 'Home', section: 'home', badge: 3, choresBadge: 2, body: [] }) }));
   }
 
+  /* Icon colour by state (`sh.state-style-glyph-tint@1`): a dark face keeps the colour its state's rule authors; filled, error and unavailable faces keep their own ink. */
+  function tinted(title, text, tint, x) {
+    var tile = Mock.tile(Object.assign({ title: title, subtitle: text, symbol: 'bed.double', family: tint, kind: 'navigate', behavior: 'navigate' }, x || {}));
+    return tile;
+  }
+  var TINT = function (ctx) {
+    return page(ctx, 'Icon colour by state', [
+      [K.PageSectionHeader({ title: 'Dark faces: the rule sets the icon colour' }),
+        K.TileGrid({ items: [tinted('Bed A', 'Off', 'heating'), tinted('Bed B', 'Off', 'cooling'), tinted('Bed B', 'Away · Read Only', 'cooling'), tinted('Bed A', 'Away · Read Only', 'heating')], min: 300, max: 2 }),
+        h('p.st-note', 'Same tile, same words: the first and second differ only in the rule that matched, so only the icon colour differs. A rule with none falls back to the tile\'s static icon colour, then to the default ink.')],
+      [K.PageSectionHeader({ title: 'Faces that keep their own ink' }),
+        K.TileGrid({ items: [tinted('Bed A', 'Heating • +3', 'heating', { isActive: true }), tinted('Bed B', 'Cooling • -3', 'cooling', { isActive: true }), tinted('Bed A', 'Unavailable', null, { isUnavailable: true })], min: 300, max: 2 }),
+        h('p.st-note', 'A lit or filled face keeps its fixed icon ink, and an unavailable tile keeps the muted grey at 50%: a rule cannot tint either, and the Studio refuses a colour on a warning, error or unknown rule or beside a fill.')],
+    ]);
+  };
   var CLASSES = function (ctx) {
     return page(ctx, 'State classes', [
       sec('Resting', [GT.closed, GT.open, M.robotCleaning], 'Settled. The active flag picks the unlit or the filled face. Active work (Cleaning) is resting and may breathe.'),
@@ -79,7 +94,7 @@
       'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKArcSpinnerView.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift',
       'apple/Sources/HassDesign/TileSwipe.swift', 'apple/Sources/HassDesign/TileInkDefault.swift', 'apple/Sources/HassDesign/TileFaceInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUITileSwipe.swift',
       'apple/Sources/HassUI/UIKitPort/Design/UKTileSwipeController.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUITileSwipe.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift'],
-    spec: ['.agents/design/state-styled-tile.md', '.agents/design/state-styles.md', '.agents/patterns/action-tiles.md', '.agents/design/motion.md', '.agents/patterns/tile-swipe.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
+    spec: ['.agents/design/state-styled-tile.md', '.agents/design/state-glyph-tint.md', '.agents/design/state-styles.md', '.agents/patterns/action-tiles.md', '.agents/design/motion.md', '.agents/patterns/tile-swipe.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
     patterns: ['action-tiles', 'entity-tile', 'optimistic-actions', 'motion', 'tile-swipe'],
     hig: ['Motion', 'SF Symbols', 'Progress indicators', 'Buttons', 'Accessibility', 'VoiceOver', 'Color', 'Designing for iPhone Duo', 'Gestures', 'Sliders', 'Playing haptics', 'Right to left'],
     entities: ['cover.demo_garage_door_1', 'lock.demo_lock_1', 'alarm_control_panel.demo_alarm', 'binary_sensor.demo_battery_1'],
@@ -91,6 +106,7 @@
       'swipe': { title: 'Swipe to adjust (sh.tile-swipe@1)', render: SWIPE },
       'swipe-ax5': { title: 'Swipe at accessibility text sizes', override: { ts: 'ax5' }, render: function (ctx) {
         return page(ctx, 'Swipe, AX5', [[K.PageSectionHeader({ title: 'Mid-swipe' }), h('div', { style: { position: 'relative', paddingTop: '60px' } }, sw(cover(65), .65, '65%', { ax: true })), h('p.st-note', 'The bubble is 44 pt tall and at least 84 pt wide, its centre 30 pt above the tile so the gap stays 8 pt.')]]); } },
+      'glyph-tint': { title: 'Icon colour by state (sh.state-style-glyph-tint@1)', render: TINT },
       'ink': { title: 'Tile ink on a page (sh.tile-ink-default@1)', render: INK },
       'ink-sheet-dark': { title: 'Tile ink in a dark sheet', override: { appearance: 'dark' }, render: inkSheet },
       'ink-sheet-light': { title: 'Tile ink in a light sheet: the primary ink is black', override: { appearance: 'light' }, render: inkSheet },
@@ -126,6 +142,9 @@
     },
 
     motion: [
+      { id: 'tint-flip', what: 'A state flips and only its icon colour differs (Bed A off, leaning heating, to Bed B off, leaning cooling): the icon cross-fades with the face, nothing is laid out again; an equal colour is untouched', token: 'state 0.6 s ease-in-out (0.2 s reduced), colour only', state: 'glyph-tint',
+        source: 'UKGlassTileFaceView.refresh (the colour layer); UKServerUIStateTileViews.face (resolution.glyphTint)', reduce: 'cross-fades at 0.2 s; a first render, cold launch or reconnect sets the colour with no transition',
+        play: function (stage) { var t = stage.querySelectorAll('.ui-tile')[0], g = t.querySelector('.glyph'); function set(f) { t.dataset.family = f; t.style.setProperty('--glyph', 'var(--fam-' + f + '-glyph)'); } return Mock.sleep(500).then(function () { set('cooling'); return Mock.sleep(900); }).then(function () { set('heating'); return Mock.sleep(900); }); } },
       { id: 'continuity', what: 'Closed, Opening, Closing, Open, then an error: the disc fades out as the arc fades in, once, and the arc is the same view through Opening and Closing', token: 'colour: state 0.6 s; disc and arc opacity: quick 0.2 s, cross-faded; glyph: symbol replace (system); text: at once', state: 'storyboard',
         source: 'new: the per-layer transition component (lane L7a); precedent UKTileActions glyph and arc swap', reduce: 'colour cross-fades at 0.2 s, the disc and arc still cross-fade at 0.2 s, the glyph cuts, the arc turns at half speed, no wiggle',
         play: function (stage) { return ST.run(first(stage), [[GT.closed, 700], [GT.opening, 2000], [GT.closing, 2000], [GT.open, 1200], [GT.closed, 800], [GT.opening, 1200], [GT.error, 1600, 'wiggle'], [GT.closed, 800]]); } },
@@ -133,7 +152,7 @@
         source: 'StateStyle.garageDoor, CoverActions', reduce: 'as above',
         play: function (stage) { return ST.run(first(stage), [[G.closed, 600], [G.sendingOpen, 1000], [G.opening, 1800], [G.open, 1200], [G.closed, 600]]); } },
       { id: 'flap-guard', what: 'A lock that answers in 0.3 s: Unlocking and its arc still stand for 1 s, then Unlocked. Without the guard the arc would flash.', token: 'MotionTokens.StateTile.minimumInProgress 1.0 s (new token; the garage tile\'s 1 s Sending feedback)', state: 'presets',
-        source: 'new (lane L7a); the tile's 1 s flap guard', reduce: 'the same 1 s',
+        source: 'new (lane L7a); the tile\'s 1 s flap guard', reduce: 'the same 1 s',
         play: function (stage) { var t = stage.querySelectorAll('.ui-tile')[5]; return ST.run(t, [[LK.locked, 600], [LK.unlocking, 1000], [LK.unlocked, 1200], [LK.locked, 600]]); } },
       { id: 'warning-pulse', what: 'A warning arrives: one pulse. Then the page is shown again: one more. Never a loop.', token: 'SF Symbols Pulse, played once (system timing)', state: 'classes',
         source: 'new (lane L7a): UIImageView.addSymbolEffect(.pulse) with a non-repeating option, iOS 17', reduce: 'no pulse; the amber glyph and words carry it',
@@ -149,6 +168,7 @@
     ],
 
     a11y: [
+      { rule: 'Icon colour by state', note: 'A state rule\'s icon colour (sh.state-style-glyph-tint@1) is never spoken: it changes no label, value, hint or trait, and posts no announcement or haptic. The state text carries the state. Each member keeps 3:1 against the face it lands on (the Studio warns below it); the app draws the authored value unchanged.' },
       { rule: 'Name, value, hint', note: 'One element per tile. Label: the title. Value: the state text, then the class for in progress, warning and error unless the text already says it ("Garage Door, Opening, in progress"; "Hall Sensor, Battery Low, warning"; "Garage Door, Error"). Hint: what a tap does now ("Opens the door", "Reverses the door"); no hint and the not-enabled trait while the arc stands in for the disc or the state is unknown ("Front Door, Unlocking, in progress, dimmed").' },
       { rule: 'Announcements', note: 'Announced without moving focus: the start of the person\'s own request ("Garage Door, Sending Open…"), arrival at resting after in progress or error ("Garage Door, Open"), and arrival at error ("Garage Door, Error"). Never a change from one in-progress state to another, never a warning, never unknown, never a reconnect or first render.' },
       { rule: 'State is not colour or motion alone', note: 'Every class has words and a glyph. Warning and error add a colour; in progress adds the arc, and loses the disc while a tap does nothing. Remove any one and the state still reads.' },
