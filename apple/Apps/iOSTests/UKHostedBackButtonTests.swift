@@ -79,6 +79,7 @@ final class UKHostedBackButtonTests: DemoHouseTestCase {
         ]
         let found = Set(pageClassNames().map { $0.split(separator: ".").last.map(String.init) ?? $0 }
             .filter { !$0.contains("Gallery") && !$0.hasPrefix("UKBackdropOnly") && !$0.hasPrefix("NSKVO") })
+        XCTAssertTrue(found.isSuperset(of: ["UKPageHost", "UKServerUIPage", "UKFormViewController"]), "the class scan found \(found.sorted())")
         let unnamed = found.subtracting(covered)
         XCTAssertTrue(unnamed.isEmpty, "a new page class needs a line here and a check that it keeps the base's mode: \(unnamed.sorted())")
     }

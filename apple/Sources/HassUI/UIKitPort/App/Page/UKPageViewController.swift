@@ -111,8 +111,8 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
         registerForTraitChanges([UITraitAccessibilityContrast.self]) { (page: UKPageViewController, _) in
             page.headerFade?.increaseContrast = page.traitCollection.accessibilityContrast == .high
         }
-        // Back is the system chevron alone on every page: no previous title beside it (HIG, Navigation bars). The system speaks only
-        // "Back" for a minimal button (measured on iPhone, 2026-11-18); see .agents/decisions/2026-11-18-minimal-back.md.
+        // Back is the system chevron alone on every page: no previous title beside it (HIG, Toolbars). The system speaks only
+        // "Back" for a minimal button; see .agents/patterns/page-base.md.
         navigationItem.backButtonDisplayMode = .minimal
         bindChrome()
     }

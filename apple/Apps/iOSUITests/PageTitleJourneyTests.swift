@@ -175,9 +175,16 @@ final class PageTitleJourneyTests: JourneyTestCase {
         let app = launch(largeTitle: true, pushed: true, title: "Climate", arguments: arguments)
         let back = app.buttons["BackButton"].firstMatch
         XCTAssertTrue(back.appears(timeout: 10), "No Back button on the pushed page")
-        // The folded Duo draws Back in the vertical bar's rail, where the system button has had no label with or without this change
-        // (measured on the default title too); that gap is recorded in the pull request, not hidden here.
-        XCTAssertEqual(back.label, FentonHomeApp.family == .iPhoneDuo ? "" : "Back", "Back's spoken name")
+        if FentonHomeApp.family == .iPhoneDuo {
+            // The folded Duo's rail Back has no label: https://github.com/SFenton/native-home/issues/150. Strict, so a fix flags itself.
+            let options = XCTExpectedFailure.Options()
+            options.isStrict = true
+            XCTExpectFailure("Folded Duo rail Back has no label (issue 150)", options: options) {
+                XCTAssertEqual(back.label, "Back", "Back's spoken name")
+            }
+        } else {
+            XCTAssertEqual(back.label, "Back", "Back's spoken name")
+        }
         XCTAssertEqual(back.elementType, .button)
         XCTAssertEqual(back.staticTexts.count, 0, "Back draws no title beside the chevron")
         XCTAssertLessThanOrEqual(back.frame.width, 52, "Back is the chevron's circle alone: \(back.frame)")
