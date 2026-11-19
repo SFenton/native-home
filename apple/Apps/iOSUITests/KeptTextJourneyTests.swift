@@ -11,9 +11,13 @@ import XCTest
 final class KeptTextJourneyTests: JourneyTestCase {
     /// The hosts on the page.
     private let hosts = ["keep-text", "keep-tile-off", "keep-tile-fill", "keep-tile-long", "keep-pill", "keep-row"]
-    /// What the sensors answer, and what the slots draw before any answer.
+    /// What the sensors answer (the long tile reads the long sensor), and what the slots draw before any answer.
     private let live = "21.5 degrees"
+    private let longLive = "Reading from the upstairs bathroom sensor"
     private let fallback = "No reading"
+
+    /// The words `host` draws when the sensors answer `text` (the long tile reads its own sensor).
+    private func words(_ host: String, _ text: String) -> String { host == "keep-tile-long" && text == live ? longLive : text }
 
     /// What one host reads and how it looks: the label and value of every element carrying its identifier, the glyph elements inside, the
     /// frame heights.
@@ -56,7 +60,7 @@ final class KeptTextJourneyTests: JourneyTestCase {
         let subjects = hosts.filter { $0 != "keep-pill" }
         var wrong: [String] = []
         repeat {
-            wrong = subjects.filter { !face($0, in: app).reads.joined(separator: " | ").contains(text) }
+            wrong = subjects.filter { !face($0, in: app).reads.joined(separator: " | ").contains(words($0, text)) }
             if wrong.isEmpty { return }
             usleep(200_000)
         } while Date() < deadline
