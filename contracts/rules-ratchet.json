@@ -804,7 +804,7 @@
    "long_lines": 1
   },
   ".agents/design/single-page-motion.md": {
-   "forbidden": 8,
+   "forbidden": 7,
    "long_lines": 7
   },
   ".agents/design/vacuum-sheet-redesign.md": {
@@ -1196,8 +1196,8 @@
   },
   ".agents/testing/apple/performance.md": {
    "forbidden": 26,
-   "long_lines": 31,
-   "over_words": 8068,
+   "long_lines": 30,
+   "over_words": 8061,
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {
