@@ -221,7 +221,7 @@ struct ServerUIFlowRulesTests {
 
     private static let subscription = #"{"type": "ha-subscription", "kind": "todo-items", "entityId": {"type": "literal", "value": "todo.demo"}}"#
     private static let forecast = #"{"type": "ha-subscription", "kind": "weather-forecast", "entityId": {"type": "literal", "value": "weather.demo"}, "forecastType": "hourly"}"#
-    private static let entities = #"{"type": "entities", "entityIds": [{"type": "literal", "value": "light.a"}, {"type": "literal", "value": "light.b"}], "attributes": []}"#
+    private static let entities = #"{"type": "entities", "entityIds": [{"type": "literal", "value": "light.demo_a"}, {"type": "literal", "value": "light.demo_b"}], "attributes": []}"#
     private static let service = #"{"type": "service-response", "domain": "todo", "service": "get_items", "target": {"entity_id": {"type": "literal", "value": "todo.demo"}}, "timeoutSeconds": 10, "responseShape": {"kind": "object", "fields": {}}}"#
 
     @Test func aSubscriptionNamesItsKind() throws {
@@ -233,11 +233,11 @@ struct ServerUIFlowRulesTests {
     }
 
     @Test func aFlowWatchesTheEntitiesItsRequestNames() throws {
-        #expect(try Self.flow(Self.inputs(request: Self.entities)).watchedEntityIds == ["light.a", "light.b"])
+        #expect(try Self.flow(Self.inputs(request: Self.entities)).watchedEntityIds == ["light.demo_a", "light.demo_b"])
         #expect(try Self.flow(Self.inputs()).watchedEntityIds == ["sensor.demo_case"])
-        let refreshing = Self.decode(Self.inputs(request: Self.service, extra: #", "refresh": {"on": ["entity-change"], "entityIds": [{"type": "literal", "value": "sensor.a"}], "staleAfterSeconds": 60}"#))
+        let refreshing = Self.decode(Self.inputs(request: Self.service, extra: #", "refresh": {"on": ["entity-change"], "entityIds": [{"type": "literal", "value": "sensor.demo_a"}], "staleAfterSeconds": 60}"#))
         #expect(refreshing.issues.isEmpty, "\(refreshing.issues)")
-        #expect(refreshing.flow?.watchedEntityIds == ["sensor.a"])
+        #expect(refreshing.flow?.watchedEntityIds == ["sensor.demo_a"])
         #expect(try Self.flow(Self.inputs(request: Self.service)).watchedEntityIds.isEmpty)
         #expect(try Self.flow(Self.inputs(request: Self.subscription)).watchedEntityIds.isEmpty)
     }
