@@ -82,12 +82,18 @@ enum BackdropRenderer {
         return CGImageSourceCreateImageAtIndex(source, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
     }
 
-    /// Writes a render as JPEG; false when it can't.
+    /// Writes a render as JPEG; false when it can't. The file appears whole or not at all: every window and the next launch
+    /// read the same folder, so a half-written JPEG must never sit under a render's name.
     @discardableResult
     nonisolated static func write(_ image: CGImage, to url: URL) -> Bool {
-        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
+        let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).\(UUID().uuidString).partial")
+        guard let destination = CGImageDestinationCreateWithURL(partial as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
         CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary)
-        return CGImageDestinationFinalize(destination)
+        guard CGImageDestinationFinalize(destination), rename(partial.path, url.path) == 0 else {
+            try? FileManager.default.removeItem(at: partial)
+            return false
+        }
+        return true
     }
 
     /// Records which render is on screen, so the next launch can draw it before anything is measured.

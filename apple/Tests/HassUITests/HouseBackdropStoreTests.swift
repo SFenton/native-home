@@ -129,7 +129,42 @@ struct HouseBackdropStoreTests {
         #expect(relaunch.renderCount == 0, "the stored render is reused, not made again")
     }
 
+    /// A render that fails because the app left and came back while it ran is made again at once, not on the next return.
+    @Test func aRenderThatFailsAcrossABackgroundTripIsRedoneAtOnce() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        let gate = Gate()
+        let real = store.renderWork
+        store.renderWork = { photo, digest, spec, directory in
+            guard gate.firstCall() else { return real(photo, digest, spec, directory) }
+            gate.waitForRelease()
+            return nil
+        }
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        let refresh = Task { await store.refresh() }
+        try #require(await until { store.isRendering })
+        store.setSuspended(true)
+        store.setSuspended(false)
+        gate.release()
+        await refresh.value
+        #expect(store.image != nil)
+        #expect(store.renderCount == 1)
+    }
+
     // MARK: - Fixture
+
+    /// Stalls the first render off the main thread until the test releases it.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var calls = 0
+        private var released = false
+
+        func firstCall() -> Bool { lock.withLock { calls += 1; return calls == 1 } }
+        func release() { lock.withLock { released = true } }
+        func waitForRelease() {
+            while !lock.withLock({ released }) { usleep(1_000) }
+        }
+    }
 
     private func makeStore() throws -> (HouseBackdropStore, URL, () -> Void) {
         let directory = URL.temporaryDirectory.appending(path: "backdrop-life-\(UUID().uuidString)")

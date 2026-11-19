@@ -36,6 +36,9 @@ final class HouseBackdropStore {
     @ObservationIgnored private(set) var isSuspended = false
     /// Whether a render or stored-render load is running off the main thread now.
     @ObservationIgnored private(set) var isRendering = false
+    /// Makes or loads one render off the main thread; tests swap it to fail or stall a render.
+    @ObservationIgnored var renderWork: @Sendable (CGImage, String, BackdropRenderSpec, URL) -> (image: CGImage, rendered: Bool)? =
+        BackdropRenderer.renderOrLoad
 
     @ObservationIgnored private let directory: URL
     @ObservationIgnored private let photos: @Sendable () -> AsyncStream<CGImage>
@@ -174,15 +177,15 @@ final class HouseBackdropStore {
         let directory = directory
         let (picture, digest) = (photo.image, photo.digest)
         let started = suspensions
+        let work = renderWork
         isRendering = true
-        let result = await Task.detached(priority: .utility) {
-            BackdropRenderer.renderOrLoad(picture, digest: digest, spec: spec, in: directory)
-        }.value
+        let result = await Task.detached(priority: .utility) { work(picture, digest, spec, directory) }.value
         isRendering = false
         // A render that failed, or that the app went to the background during, may be blank: it is never shown or stored,
-        // and is made again in the foreground (at once when the app is already back, else on the return).
+        // and is made again in the foreground (at once when the app is already back, else on the return). Only a failure
+        // with no trip to the background waits for the next return, so a photo that cannot render does not loop.
         guard let result, !(result.rendered && suspensions != started) else {
-            if isSuspended || result != nil { isDirty = true } else { needsRetry = true }
+            if isSuspended || result != nil || suspensions != started { isDirty = true } else { needsRetry = true }
             return
         }
         if result.rendered {
