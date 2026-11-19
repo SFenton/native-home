@@ -1,6 +1,6 @@
 # Back is the system chevron with no title
 
-Decision: A, ship plain `.minimal`. Every page sets `navigationItem.backButtonDisplayMode = .minimal`, so Back is the system chevron alone; VoiceOver says "Back" and the long-press menu lists the page titles. Options judged: A, plain `.minimal` and accept the system's spoken "Back"; B, set the label on UIKit's private BackButton view to keep the previous title; C, drop `.minimal` (default title or a generic "Back" title). The owner picked system Back with no title (pick 6 of `build/design/global-chrome/proposal.md`, section 4).
+Decision: A, ship plain `.minimal`. Every page sets `navigationItem.backButtonDisplayMode = .minimal`, so Back is the system chevron alone; VoiceOver says "Back" and the long-press menu lists the page titles. Options A, B and C were judged: A, plain `.minimal` and accept the system's spoken "Back"; B, set the label on UIKit's private BackButton view to keep the previous title; C, drop `.minimal` (default title or a generic "Back" title). The owner picked system Back with no title (pick 6 of `build/design/global-chrome/proposal.md`, section 4). The folded Duo rail's Back has no label with either mode; issue 150 tracks it, and its journey check is a strict expected failure until then.
 Replaces: none
 Rule home: .agents/patterns/page-base.md
 Gate: matches_request=yes. The owner chose the option; the Designer's HIG reading below only records why it is allowed.
