@@ -4,9 +4,9 @@ import UIKit
 
 // MARK: - Cell
 
-/// One row of the settings stack (`InsetGroupedRow`): the caller's row on the module tint (rounded on the card's first and last row),
-/// a hairline above it unless it is first, and a wash while it is pressed (`GroupedRowButtonStyle`). The cell owns the row's padding,
-/// so a tap anywhere on it activates it. As a ``isListRow`` of a module list it is the row alone: no fill, corners or hairline.
+/// One row of the settings stack: the caller's row on the module tint (rounded on the card's first and last row),
+/// a hairline above it unless it is first, and a wash while it is pressed. The cell owns the row's padding,
+/// so a tap anywhere on it activates it. As a ``isListRow`` of a module list it is the row alone: no fill, corners or hairline. ``UKModuleListView`` draws the group fill and hairlines.
 @MainActor
 final class UKSettingsStackCell: UIControl, UKSettingsRowCell {
     var style: UKSettingsListDriver.Style = .wallpaper { didSet { restyle() } }

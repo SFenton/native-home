@@ -1024,7 +1024,7 @@
    "long_lines": 3
   },
   ".agents/patterns/settings-section.md": {
-   "forbidden": 4,
+   "forbidden": 3,
    "long_lines": 3
   },
   ".agents/patterns/state-message.md": {

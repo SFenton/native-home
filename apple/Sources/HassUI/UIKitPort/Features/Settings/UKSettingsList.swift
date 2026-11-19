@@ -40,7 +40,7 @@ struct UKSettingsListRow {
     var signature: String
     var isEnabled = true
     var action: (() -> Void)?
-    /// What the row is in an ``InsetGroupedStack`` (padding, hairline, press highlight): ``InsetGroupedRowKind``.
+    /// The row's kind in the settings stack (padding, hairline, press highlight): ``UKSettingsRowKind``.
     var kind: UKSettingsRowKind
     var configure: (any UKSettingsRowCell) -> Void
 
@@ -55,7 +55,7 @@ struct UKSettingsListRow {
     }
 }
 
-/// ``InsetGroupedRowKind``.
+/// ``UKSettingsRowKind`` declares the row kind; ``InsetGroupedMetrics`` holds the row metrics.
 enum UKSettingsRowKind {
     /// A button or link row with a leading glyph and text.
     case link
