@@ -166,4 +166,37 @@ final class PageTitleJourneyTests: JourneyTestCase {
         }
         XCTAssertLessThanOrEqual(title.height, 60, "The title wrapped in the bar: \(title)")
     }
+
+    // MARK: - Back
+
+    /// Back is the system chevron alone (`backButtonDisplayMode = .minimal`): a button that speaks "Back" (measured on iOS 27; the system
+    /// drops the previous title from a minimal button's name, the long-press menu still lists titles) with no title beside it.
+    private func assertBackIsTheMinimalSystemButton(arguments: [String]) throws {
+        let app = launch(largeTitle: true, pushed: true, title: "Climate", arguments: arguments)
+        let back = app.buttons["BackButton"].firstMatch
+        XCTAssertTrue(back.appears(timeout: 10), "No Back button on the pushed page")
+        if FentonHomeApp.family == .iPhoneDuo {
+            // The folded Duo's rail Back has no label: https://github.com/SFenton/native-home/issues/150. Strict, so a fix flags itself.
+            let options = XCTExpectedFailure.Options()
+            options.isStrict = true
+            XCTExpectFailure("Folded Duo rail Back has no label (issue 150)", options: options) {
+                XCTAssertEqual(back.label, "Back", "Back's spoken name")
+            }
+        } else {
+            XCTAssertEqual(back.label, "Back", "Back's spoken name")
+        }
+        XCTAssertEqual(back.elementType, .button)
+        XCTAssertEqual(back.staticTexts.count, 0, "Back draws no title beside the chevron")
+        XCTAssertLessThanOrEqual(back.frame.width, 52, "Back is the chevron's circle alone: \(back.frame)")
+    }
+
+    /// Accessibility: Back's spoken name at the default text size.
+    func testBackIsTheMinimalSystemButtonSpeakingBack() throws {
+        try assertBackIsTheMinimalSystemButton(arguments: [])
+    }
+
+    /// Accessibility: Back's spoken name at AX5.
+    func testBackIsTheMinimalSystemButtonSpeakingBackAtAccessibilityTextSize() throws {
+        try assertBackIsTheMinimalSystemButton(arguments: FentonHomeApp.ax5)
+    }
 }
