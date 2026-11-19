@@ -6,7 +6,7 @@ a line here when the Studio takes the change.
 
 | File | Departure |
 |---|---|
-| `capabilities.json` | Adds `sh.flow-average@1` and `sh.tile-ink-default@1`, the two ids the app lists that the Studio still marks pending. It is regenerated from the app's list (`FENTON_REGEN_CAPABILITIES=1`), so it is sorted; the Studio's copy puts `sh.check-face@1` before `sh.chart@1`. |
+| `capabilities.json` | Adds `sh.flow-average@1` and `sh.tile-ink-default@1`, the two ids the app lists that the Studio still marks pending, and `sh.sheet-levels@1`, which the Studio does not carry (its cases are in `GlobalChromeCorpus/`). It is regenerated from the app's list (`FENTON_REGEN_CAPABILITIES=1`), so it is sorted; the Studio's copy puts `sh.check-face@1` before `sh.chart@1`. |
 | `capabilities.pending.json` | Drops those two ids. |
 | `index.json`, `accept/flow-average-numbers.json`, `accept/tile-ink-default-*.json`, `reject/flow-average-*.json` | The promotion the corpus README describes: a compiled pending case moves to `accept/` with the `pending-` prefix dropped; a refused one keeps its file and takes the Studio's first issue as `issue`. |
 | `state-styles/built-in.json` | The app's version. The Studio's copy has none of the Robot's per-state icons (`house` when docked, `robotic.vacuum` otherwise), which the app has drawn since #122, so `ServerUIStateStyleTests` fails against it. |

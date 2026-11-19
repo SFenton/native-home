@@ -132,7 +132,7 @@ extension ServerUICompositionDocument {
                 visit(node.childComponents)
             }
         }
-        visit((pages.map(\.surface) + modals.map(\.surface)).flatMap(\.components))
+        visit((surfaces).flatMap(\.components))
         return controls
     }
 }

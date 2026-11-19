@@ -330,7 +330,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         }) { throw blocked("/document/localState") }
         for case let page as UKServerUIPage in pages {
             if let form = page.formView, let definition = form.definition, form.session != nil {
-                let surfaces = candidate.document.pages.map(\.surface) + candidate.document.modals.map(\.surface)
+                let surfaces = candidate.document.surfaces
                 let replacement = surfaces.first { $0.id == page.surfaceID }?.components.compactMap { node -> D.Form? in
                     if case .form(let form) = node, form.node.id == definition.node.id { return form }
                     return nil
@@ -375,8 +375,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if bindings.roomVisits?.pendingCount ?? 0 > 0, candidate.document != publication.document {
             throw blocked("/document/dataSources")
         }
-        let nextSurfaces = candidate.document.pages.map(\.surface) + candidate.document.modals.map(\.surface)
-        for surface in publication.document.pages.map(\.surface) + publication.document.modals.map(\.surface) {
+        let nextSurfaces = candidate.document.surfaces
+        for surface in publication.document.surfaces {
             for (index, component) in surface.components.enumerated() where bindings.roomHasPendingCommand(component) {
                 // Keep the command's containing layout attached without freezing unrelated page copy.
                 guard let next = nextSurfaces.first(where: { $0.id == surface.id }),
@@ -395,7 +395,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         try validateHomeRebindings(candidate.document)
         // A map gesture, draft, report route or pending command keeps its exact attachment and ancestors.
         // Rejecting the affected surface edit is deliberately stricter than silently losing its interaction state.
-        for surface in publication.document.pages.map(\.surface) + publication.document.modals.map(\.surface) {
+        for surface in publication.document.surfaces {
             func pinned(_ components: [D.Component]) -> Bool {
                 components.contains {
                     if case .vacuum(let value) = $0 { return bindings.vacuums[value.sourceId]?.isPinned == true }
@@ -403,7 +403,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             if pinned(surface.components) {
-                let next = (candidate.document.pages.map(\.surface) + candidate.document.modals.map(\.surface)).first { $0.id == surface.id }
+                let next = (candidate.document.surfaces).first { $0.id == surface.id }
                 if next != surface { throw blocked("/document/pages") }
             }
         }
@@ -463,7 +463,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             groups(document.navigation.chrome.groups)
-            for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+            for surface in document.surfaces {
                 components(surface.components)
                 if case .replace(let value) = surface.toolbar { groups(value) }
             }
@@ -519,7 +519,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 visit(component.childComponents, surfaceID: surfaceID)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             visit(surface.components, surfaceID: surface.id)
         }
         return result
@@ -541,7 +541,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 visit(component.childComponents, surfaceID: surfaceID)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) { visit(surface.components, surfaceID: surface.id) }
+        for surface in document.surfaces { visit(surface.components, surfaceID: surface.id) }
         return result
     }
 
@@ -573,7 +573,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 result[component.node.id] = .init(surfaceID: surfaceID, sourceID: source, ancestry: ancestry, component: component)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             visit(surface.components, surfaceID: surface.id, ancestry: [])
         }
         return result
@@ -591,7 +591,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 visit(component.childComponents, surfaceID: surfaceID)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             visit(surface.components, surfaceID: surface.id)
         }
         return result
@@ -624,7 +624,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                     visit(component.childComponents, surfaceID: surfaceID, path: path)
                 }
             }
-            for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+            for surface in document.surfaces {
                 visit(surface.components, surfaceID: surface.id)
             }
             return result
@@ -910,6 +910,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         for (depth, id) in path.enumerated() {
             let surface = presentation != nil && depth == 0 ? modalDefinition?.surface
                 : publication.document.pages.first(where: { $0.id == id })?.surface
+                    ?? publication.document.levels.first(where: { $0.id == id })?.surface
             guard let surface else {
                 // The catalog and the navigation diverged: keep the last good stacks rather than trap.
                 onError(UKServerUIRendererError(code: .differentDocument, pointer: "/document/pages"))
@@ -1094,7 +1095,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         bindings.cell = cell
         defer { bindings.cell = outerCell }
         // An action chosen by rule is resolved here, once, from the house as it is now; no case holding runs nothing.
-        guard let action = action.resolved(reader(control: control)) else { return }
+        guard let resolved = action.resolved(reader(control: control)) else { return }
+        let action = leavingSheet(resolved, from: page)
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) {
             requestSettingsExit(from: page) { [weak self, weak page, weak source] in
                 guard let self, let page else { return }
@@ -1133,7 +1135,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let outerCell = bindings.cell
         bindings.cell = Self.cellScope(of: source) ?? outerCell
         defer { bindings.cell = outerCell }
-        guard let action = action.resolved(reader(control: control)) else { return }
+        guard let resolved = action.resolved(reader(control: control)) else { return }
+        // Room navigation and the Profile and Away destinations reach here without `activate`; the sheet rule holds for them too.
+        let action = leavingSheet(resolved, from: page)
         guard let nav = senderStack(page), activeAlert == nil else { throw blocked() }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) { throw blocked() }
         if action.leavesForm, nativeExitGate?.blocksExit(page) == true { throw blocked("/document/form") }
@@ -1195,6 +1199,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                     do {
                         guard let presenter, self.senderStack(presenter) != nil else { throw self.blocked() }
                         try self.navigation.push(pageID: push.pageId, fromDepth: presenter.depth, onRoot: presenter.presentationID == nil)
+                        self.navigationMeasurement = self.pageContext.motion?.measure(.push(self.measuredName(forPage: push.pageId)))
                         self.reconcile(animated: true, updateBodies: false)
                     } catch let error as UKServerUIRendererError { self.onError(error) }
                     catch { self.onError(self.blocked()) }
@@ -1207,6 +1212,23 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             }
             if settingsExit(action) { attachedSettingsProviders(from: page).forEach { $0.didExit() } }
         } catch is ServerUINavigationState.Failure { throw blocked() }
+    }
+
+    // MARK: - Sheet origin
+
+    /// A `push` to a page from inside a sheet becomes `dismiss-then-push`, so every level closes first and the page lands on the section stack.
+    ///
+    /// The result runs the same path as an authored `dismiss-then-push`: touches held, the exit guards and discard confirmation, one dismissal of
+    /// every level (or the removal of an adaptive column), then the push from the presenter. A push to a level, a push from a page, and a document
+    /// without `sh.sheet-levels@1` keep the action as written.
+    /// - Parameters:
+    ///   - action: The resolved action.
+    ///   - page: The page that sent it.
+    /// - Returns: `.dismissThenPush` for a push that leaves the sheet; `action` otherwise.
+    func leavingSheet(_ action: D.Action, from page: UKServerUIPage) -> D.Action {
+        guard case .push(let push) = action, page.presentationID != nil,
+              publication.document.pushLeavesSheet(to: push.pageId) else { return action }
+        return .dismissThenPush(push)
     }
 
     private func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {

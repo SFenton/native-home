@@ -292,7 +292,7 @@ struct ServerUICompositionCompiler {
             bootstrap: c.value["bootstrap"].map { try bootstrap(Cursor($0, c.path("bootstrap"))) },
             extensions: extensions,
             stateStyles: loweredStyles.isEmpty ? stateLibrary : ServerUIStateStyleLibrary(entries: (stateLibrary?.entries ?? []) + loweredStyles),
-            levels: levels
+            levels: levels, declaresSheetLevels: c.value["levels"] != nil
         )
     }
 

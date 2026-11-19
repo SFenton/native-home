@@ -2,9 +2,10 @@ import Foundation
 
 // MARK: - Global chrome contract
 
-/// The four contract additions of the global-chrome rule: sheet levels, a page's own chrome hides, a page's wide-window open and the tab bar's visibility.
+/// The contract additions of the global-chrome rule: sheet levels, a page's own chrome hides, a page's wide-window open and the tab bar's visibility.
 ///
-/// The compiler holds their decode and validation rules, but a shipped build refuses a publication that uses them as `unsupported_capability`: they are not in
+/// Sheet levels shipped with their runtime (``ServerUIIngestedCapabilities/sheetLevels``). For the other three the compiler holds the decode and validation
+/// rules, but a shipped build refuses a publication that uses them as `unsupported_capability`: they are not in
 /// ``ServerUICompositionPublication/supportedCapabilities``, the list the app tells the server it can draw, and no runtime draws them yet. The rules run only
 /// inside ``understood`` (a test scope). An id moves from ``all`` to ``ServerUIIngestedCapabilities`` in the change that lands its runtime (the owner's
 /// capability rule), `capabilities.json` is regenerated then, and the scope goes with the last id.
@@ -12,7 +13,7 @@ public enum ServerUIGlobalChrome {
     /// Whether the compiler accepts the ids in ``all``. False everywhere but a test scope: `ServerUIGlobalChrome.$understood.withValue(true) { ... }`.
     @TaskLocal static var understood = false
 
-    /// Top-level `levels[]`: surfaces a sheet's `push` reaches without leaving the sheet.
+    /// Top-level `levels[]`: surfaces a sheet's `push` reaches without leaving the sheet. Published: see ``ServerUIIngestedCapabilities/sheetLevels``.
     public static let sheetLevels = "sh.sheet-levels@1"
     /// `pages[].hides`: chrome a page hides for itself.
     public static let pageChromeHide = "sh.page-chrome-hide@1"
@@ -22,7 +23,7 @@ public enum ServerUIGlobalChrome {
     public static let tabsVisibility = "sh.tabs-visibility@1"
 
     /// The ids the compiler understands and the app does not yet publish.
-    public static let all: [String] = [sheetLevels, pageChromeHide, pageWideOpen, tabsVisibility]
+    public static let all: [String] = [pageChromeHide, pageWideOpen, tabsVisibility]
 }
 
 // MARK: - Model
