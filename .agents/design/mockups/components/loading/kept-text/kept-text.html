@@ -38,7 +38,7 @@
   function pg(ctx, v) { return Mock.page(ctx, { title: 'Canvas', section: 'home', body: body(v) }); }
 
   Mock.mount({
-    kind: 'component', id: 'kept-text', title: 'Kept text (a text slot showing its last answer)', area: 'design', status: 'shipped', frame: true,
+    kind: 'component', id: 'kept-text', title: 'Kept text', area: 'design', status: 'shipped', frame: true,
     summary: 'A server-composed text slot with whenUnavailable: "keep" (sh.text-keep@1) keeps its last answer while its source is unavailable, and draws and speaks it exactly as live: no glyph, no grey, no "last known" (owner, option A, 2026-11-19). Before any answer it draws its fallback. Shown on every host: a text node, tile subtitles (off and filled faces, a long line), a status pill and a row.',
     source: ['apple/Sources/HassCore/ServerUIComposition/ServerUITextKeep.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBindings.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIShellPrimitives.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift', 'apple/Sources/HassUI/UIKitPort/Gallery/UKTextKeepGallery.swift'],
     spec: ['.agents/design/kept-text.md', '.agents/patterns/copy.md'],
@@ -82,7 +82,7 @@
       'The gallery also keeps a row and a text node in its Palette sheet (keep-sheet-row, keep-sheet-text); they follow the same rule and are not drawn here.',
       'Evidence: build/evidence/claude-text-keep (hub-shots; Duo unfolded poses and rotation not captured, infra).',
     ],
-    changelog: [{ date: '2026-11-19', note: 'First pass: option A shipped (claude/text-keep).' }],
+    changelog: [{ date: '2026-11-19', note: 'First pass: option A shipped (port/text-keep).' }],
   });
 })();
 </script></body></html>

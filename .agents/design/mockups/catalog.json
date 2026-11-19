@@ -6837,7 +6837,7 @@
       "id": "dynamic-grid-layout",
       "kind": "component",
       "area": "design",
-      "title": "DynamicGridLayout (equal heights, spans, grid headers)",
+      "title": "DynamicGridLayout (spans, headers)",
       "path": "components/grids/dynamic-grid-layout",
       "sources": [
         "apple/Sources/HassDesign/DynamicGridLayout.swift",
@@ -6961,7 +6961,7 @@
       "id": "glass-tile",
       "kind": "component",
       "area": "design",
-      "title": "GlassTile (kinds: toggle, command, navigate, state)",
+      "title": "GlassTile (five kinds)",
       "path": "components/tiles/glass-tile",
       "sources": [
         "apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift",
@@ -7133,7 +7133,7 @@
       "id": "modal-tab-bar",
       "kind": "component",
       "area": "design",
-      "title": "ModalTabBar (glass segmented control, badges, menu)",
+      "title": "ModalTabBar (segmented control)",
       "path": "components/modals/modal-tab-bar",
       "sources": [
         "apple/Sources/HassUI/Common/ModalTabBar.swift",
@@ -7216,7 +7216,7 @@
       "id": "motion-tokens",
       "kind": "component",
       "area": "design",
-      "title": "Motion tokens (quick, state, standard, emphasized)",
+      "title": "Motion tokens",
       "path": "components/motion/motion-tokens",
       "sources": [
         "apple/Sources/HassDesign/Motion/MotionTokens.swift",
@@ -7400,7 +7400,7 @@
       "id": "kept-text",
       "kind": "component",
       "area": "design",
-      "title": "Kept text (a text slot showing its last answer)",
+      "title": "Kept text",
       "path": "components/loading/kept-text",
       "sources": [
         "apple/Sources/HassCore/ServerUIComposition/ServerUITextKeep.swift",
