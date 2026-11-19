@@ -517,4 +517,281 @@ final class ServerUIPartsHostedTests: XCTestCase {
             HostedPage.hideTracked()
         }
     }
+
+    // MARK: A long-status authored state tile (generic: a state-tile over a Home Assistant sensor)
+
+    /// The long-status tile is no native concept: a `state-tile` over a sensor whose `line` attribute is the subtitle, with each state's longest line
+    /// as its style rule's text (the sizing declaration) and a `present` action. These tests pin what that authored shape does in the grid, per
+    /// family, with generic names ("Unit A", "Room X") and placeholder ids.
+    private func unitPage(width: CGFloat, entities: [EntityState]? = nil) throws -> (UKServerUIRenderer, UKServerUIPage) {
+        store = EntityStore()
+        store.replaceAll(entities ?? [AuthoredLongStatusTile.sensor("a", state: "running"), AuthoredLongStatusTile.sensor("b", state: "off")])
+        let host = try UKServerUIRenderer(publication: AuthoredLongStatusTile.publication(), context: UKContext(store: store, caller: HostedCaller()),
+                                          backdrop: ServerUIRendererFixture.backdrop())
+        windows.append(HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180))))
+        HostedPage.wait(0.1)
+        let root = try ServerUIRendererFixture.root(host)
+        root.view.layoutIfNeeded()
+        return (host, root)
+    }
+
+    private func unitTile(_ side: String, in root: UKServerUIPage) throws -> UKGlassTileView {
+        try XCTUnwrap(root.nodes["unit-\(side)"]?.view as? UKGlassTileView, "tile \(side)")
+    }
+
+    /// The two tiles stack where one track cannot hold the minimum and are never squeezed below it; they share a row only where both fit.
+    func testLongStatusTilesStackOrShareByTheirMinimumAtEveryFamilyWidth() throws {
+        var short: [String] = []
+        for width in AuthoredLongStatusTile.familyWidths {
+            let (_, root) = try unitPage(width: width)
+            let tiles = try ["a", "b"].map { try unitTile($0, in: root) }
+            let minimum = tiles[0].gridMinimumWidth
+            let rects = try frames(of: ["unit-a", "unit-b"], in: root)
+            let drawn = root.view.bounds.width
+            print("LONGSTATUS width=\(width) drawn=\(drawn) minimum=\(minimum) frames=\(rects.map { "\($0.minX),\($0.minY) \($0.width)x\($0.height)" })")
+            XCTAssertGreaterThan(minimum, DynamicGridMetrics.tileMinWidth, "the longest line asks for more than one 150 pt track (width \(width))")
+            XCTAssertEqual(minimum, tiles[1].gridMinimumWidth, accuracy: 0.5, "both sides declare the same words (width \(width))")
+            for frame in rects { XCTAssertGreaterThanOrEqual(frame.width + 0.5, minimum, "never squeezed below its minimum at \(drawn)") }
+            let shareRow = abs(rects[0].minY - rects[1].minY) < 1
+            // The grid's own width: the tiles fill it, whether they share the row or each takes it.
+            let gridWidth = (rects.map(\.maxX).max() ?? 0) - (rects.map(\.minX).min() ?? 0)
+            XCTAssertEqual(shareRow, 2 * minimum + HassTokens.Spacing.m <= gridWidth + 0.5,
+                           "two tiles share a row exactly when both minimums fit (grid \(gridWidth), minimum \(minimum))")
+            if abs(drawn - width) > 1 { short.append("\(width) drew at \(drawn)") }
+            HostedPage.hideTracked()
+        }
+        // The window is capped at the simulator's scene width. The assertions above ran at the width actually drawn; the exact family widths
+        // are asserted by `UKHostedContentSpanTests`, which lays the same tiles out at their own frame.
+        if !short.isEmpty { throw XCTSkip("the simulator drew narrower than requested (\(short.joined(separator: ", "))); exact widths are covered by UKHostedContentSpanTests") }
+    }
+
+    /// A live flip across every state word, with the line each state has, leaves the grid minimum where it was.
+    func testALiveFlipAcrossEveryStateWordLeavesTheGridMinimumUnchanged() async throws {
+        for width in AuthoredLongStatusTile.familyWidths {
+            let (_, root) = try unitPage(width: width)
+            let tile = try unitTile("a", in: root)
+            let resting = tile.gridMinimumWidth
+            var seen: [String] = []
+            for state in AuthoredLongStatusTile.states {
+                let line = AuthoredLongStatusTile.liveLines[state] ?? ""
+                store.apply([AuthoredLongStatusTile.sensor("a", state: state, line: line)])
+                // A boost with no end shows the expression's fallback words, the other states their line.
+                let shown = state == "boost" ? "Boost Mode" : line
+                let landed = await HostedPage.settle { tile.model.subtitle == shown }
+                XCTAssertTrue(landed, "\(state) shows its line at \(width): \(String(describing: tile.model.subtitle))")
+                XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01, "\(state) keeps the minimum at \(width)")
+                seen.append(state)
+            }
+            XCTAssertEqual(seen, AuthoredLongStatusTile.states)
+            // The sensor going unavailable is one more state: the minimum holds there too.
+            store.apply([EntityState(entityId: AuthoredLongStatusTile.sensorId("a"), state: "unavailable")])
+            let unknown = await HostedPage.settle { tile.model.isUnavailable }
+            XCTAssertTrue(unknown, "width \(width)")
+            XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01, "unavailable keeps the minimum at \(width)")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// The gap the research named: a live line longer than every declared word is appended to the tile's sizing candidates
+    /// (`UKServerUIStateTileParts.apply`), so the minimum grows with it and the grid re-spans. The desired behaviour is expected to fail until
+    /// the explicit-lines follow-up lands; when it does this test fails as an unexpected pass, and the expectation goes.
+    func testALiveLineLongerThanEveryDeclaredWordDoesNotChangeTheMinimum() async throws {
+        let (_, root) = try unitPage(width: 390)
+        let tile = try unitTile("a", in: root)
+        let resting = tile.gridMinimumWidth
+        let long = "Group • Running • Level 100 • Check The Filter Tray Soon"
+        store.apply([AuthoredLongStatusTile.sensor("a", state: "running", line: long)])
+        let landed = await HostedPage.settle { tile.model.subtitle == long }
+        XCTAssertTrue(landed)
+        print("LONGSTATUS longLine resting=\(resting) afterLongLine=\(tile.gridMinimumWidth)")
+        XCTExpectFailure("Tracking: follow-up \"explicit declared subtitle lines on state-tile\" (task bed-tile-span): a live subtitle longer than the declared words re-spans the grid") {
+            XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01)
+        }
+    }
+
+    /// Tapping the body presents the authored modal; the tile has no disc of its own.
+    func testTappingALongStatusTilePresentsTheAuthoredModalAtEveryFamilyWidth() async throws {
+        for width in AuthoredLongStatusTile.familyWidths {
+            let (host, root) = try unitPage(width: width)
+            let tile = try unitTile("a", in: root)
+            XCTAssertTrue(tile.model.actions.isEmpty, "no disc: the body is the whole control (width \(width))")
+            XCTAssertEqual(tile.model.behavior, .navigate)
+            tile.sendActions(for: .touchUpInside)
+            let opened = HostedPage.until(8) { host.modal?.topViewController is UKServerUIPage }
+            XCTAssertTrue(opened, "the authored modal opened at \(width)")
+            HostedPage.settlePresentations(of: host)
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// VoiceOver reads the title, then the line; the tile is one element, at least 44 pt tall, and its line is one line at the minimum.
+    func testALongStatusTileIsSpokenAsTitleAndLineAndAtLeast44PointsTallAtEveryFamilyWidth() async throws {
+        for width in AuthoredLongStatusTile.familyWidths {
+            let (_, root) = try unitPage(width: width)
+            let tile = try unitTile("a", in: root)
+            XCTAssertEqual(tile.accessibilityLabel, "Unit A", "width \(width)")
+            XCTAssertTrue((tile.accessibilityValue ?? "").contains("Running • Level 3"), "the value carries the line: \(tile.accessibilityValue ?? "nil") (width \(width))")
+            // The tile is a container of its body element (and the line's); the body is the button that opens the modal.
+            let body = (tile.accessibilityElements ?? []).compactMap { $0 as? UIAccessibilityElement }.first { $0.accessibilityIdentifier == "unit-a" }
+            XCTAssertTrue(try XCTUnwrap(body, "the body element (width \(width))").accessibilityTraits.contains(.button), "a tile that opens something is a button (width \(width))")
+            XCTAssertEqual(body?.accessibilityLabel, "Unit A")
+            XCTAssertGreaterThanOrEqual(tile.bounds.height, 44, "touch height at \(width)")
+            store.apply([AuthoredLongStatusTile.sensor("a", state: "paused", line: "Paused · Waiting For Input")])
+            let moved = await HostedPage.settle { (tile.accessibilityValue ?? "").contains("Paused · Waiting For Input") }
+            XCTAssertTrue(moved, "the spoken value follows the live line at \(width)")
+            XCTAssertEqual(tile.accessibilityLabel, "Unit A")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// An unavailable sensor reads Unavailable, dims through the unknown class and keeps its title.
+    func testAnUnavailableLongStatusTileDimsAndSaysSoAtEveryFamilyWidth() async throws {
+        for width in AuthoredLongStatusTile.familyWidths {
+            let (_, root) = try unitPage(width: width)
+            let tile = try unitTile("a", in: root)
+            store.apply([EntityState(entityId: AuthoredLongStatusTile.sensorId("a"), state: "unavailable")])
+            let dimmed = await HostedPage.settle { tile.model.isUnavailable }
+            XCTAssertTrue(dimmed, "width \(width)")
+            XCTAssertEqual(tile.model.look?.stateClass, .unknown, "the unknown class draws the dim face (width \(width))")
+            XCTAssertEqual(tile.gridFace, .unavailable)
+            XCTAssertTrue((tile.accessibilityValue ?? "").contains("Unavailable"), "VoiceOver says Unavailable: \(tile.accessibilityValue ?? "nil")")
+            XCTAssertEqual(tile.accessibilityLabel, "Unit A")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// The countdown reads the second clock only while the state is boost and the sensor carries an end: no other state ticks.
+    func testTheCountdownTicksOnlyWhileBoostHolds() async throws {
+        let (host, root) = try unitPage(width: 390)
+        let source = host.bindings.appState
+        let tile = try unitTile("a", in: root)
+        let appeared = await HostedPage.settle { root.presence.isOnScreen }
+        XCTAssertTrue(appeared)
+        for state in ["running", "idle", "off", "paused"] {
+            store.apply([AuthoredLongStatusTile.sensor("a", state: state, line: AuthoredLongStatusTile.liveLines[state] ?? "")])
+            _ = await HostedPage.settle(passes: 40) { false }
+            XCTAssertFalse(source.isSecondTicking, "\(state) has no countdown to tick")
+        }
+        XCTAssertEqual(source.secondTicks, 0, "no second tick was ever published")
+        XCTAssertNil(source.secondClock, "nothing subscribed to the second clock while no state counts down")
+        let end = ServerUIAppState.clock(at: Date().addingTimeInterval(3_600)).now
+        store.apply([AuthoredLongStatusTile.sensor("a", state: "boost", line: "Boost Mode • Running", endsAt: end)])
+        let counting = await HostedPage.settle { source.isSecondTicking && (tile.model.subtitle ?? "").hasSuffix(" Remaining") }
+        XCTAssertTrue(counting, "boost with an end counts down: \(String(describing: tile.model.subtitle)) (ticking \(source.isSecondTicking))")
+        let first = tile.model.subtitle
+        let moved = await HostedPage.settle { tile.model.subtitle != first }
+        XCTAssertTrue(moved, "the countdown moves with the second clock: \(String(describing: first)) -> \(String(describing: tile.model.subtitle))")
+        // Boost with no end shows the expression's fallback (a different string from the sensor's line) and reads no clock.
+        let line = "Boost Mode • Running"
+        store.apply([AuthoredLongStatusTile.sensor("a", state: "boost", line: line)])
+        let fallback = await HostedPage.settle { tile.model.subtitle == "Boost Mode" }
+        XCTAssertTrue(fallback, "no end: the fallback words, not the line: \(String(describing: tile.model.subtitle))")
+        XCTAssertNotEqual(tile.model.subtitle, line)
+        let quiet = await HostedPage.settle(passes: 500) { !source.isSecondTicking }
+        print("LONGSTATUS boostNoEnd quiet=\(quiet) ticking=\(source.isSecondTicking)")
+        XCTExpectFailure("Tracking: follow-up \"explicit declared subtitle lines on state-tile\" (task bed-tile-span): the countdown branch reads the second clock before it finds ends_at missing, so a boost with no end still ticks") {
+            XCTAssertTrue(quiet, "boost with no end reads no second clock: the tick stops")
+        }
+        // Back to running: the line shows again and nothing ticks.
+        store.apply([AuthoredLongStatusTile.sensor("a", state: "running")])
+        let back = await HostedPage.settle { tile.model.subtitle == AuthoredLongStatusTile.liveLines["running"] }
+        XCTAssertTrue(back)
+        let still = await HostedPage.settle(passes: 500) { !source.isSecondTicking }
+        XCTAssertTrue(still, "running again: the tick stops")
+        let ticks = source.secondTicks
+        _ = await HostedPage.settle(passes: 100) { source.isSecondTicking }
+        XCTAssertEqual(source.secondTicks, ticks, "nothing publishes once the countdown is gone")
+    }
+}
+
+// MARK: - The authored long-status state tile
+
+/// The Studio's long-status tile as a document: a `room-section` of two `state-tile`s over generic sensors ("Unit A", "Unit B" in "Room X").
+///
+/// Each sensor's `state` is a state word, its `line` attribute the full subtitle and its `ends_at` the end of a timed mode. The style's rule texts
+/// are each state's longest line (what sizes the tile); the subtitle is the sensor's line, or a countdown to `ends_at` while the state is
+/// `boost`. No product code names a device: nothing here is read by anything but the generic state-tile parts.
+@MainActor
+enum AuthoredLongStatusTile {
+    /// The widths of the four families: iPhone, folded Duo, iPad and unfolded Duo.
+    static let familyWidths: [CGFloat] = [390, 466, 744, 868]
+    /// The state words the sensor takes, in the order the flip walks them.
+    static let states = ["running", "idle", "off", "boost", "paused"]
+    /// Each state's longest line: the style rule text.
+    static let longest: [String: String] = [
+        "running": "Group • Running • Level 100", "idle": "Group • Idle • Level 0", "off": "Group • Off",
+        "boost": "Group • Boost Mode • Running Longer", "paused": "Paused · Waiting For Input",
+    ]
+    /// The line each state shows live, at most as long as its declared words.
+    static let liveLines: [String: String] = [
+        "running": "Running • Level 3", "idle": "Idle • Level 0", "off": "Off", "boost": "Boost Mode • Running", "paused": "Paused · Waiting For Input",
+    ]
+
+    static func sensorId(_ side: String) -> String { side == "a" ? "sensor.demo_unit_a" : "sensor.demo_unit_b" }
+
+    /// The sensor for `side` in `state`; the line defaults to the state's live line.
+    static func sensor(_ side: String, state: String, line: String? = nil, endsAt: String? = nil) -> EntityState {
+        var attributes: [String: JSONValue] = ["line": .string(line ?? liveLines[state] ?? "")]
+        if let endsAt { attributes["ends_at"] = .string(endsAt) }
+        return EntityState(entityId: sensorId(side), state: state, attributes: attributes)
+    }
+
+    private static func json(_ text: String) throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) }
+
+    private static func read(_ source: String, _ path: String) -> String {
+        #"{"type":"read","from":{"type":"source","sourceId":"\#(source)","path":[\#(path)]},"as":"string","missing":"unavailable"}"#
+    }
+
+    /// The tile's subtitle: the sensor's line, or `m:ss Remaining` to `ends_at` while the state is boost.
+    private static func subtitle(_ source: String) -> String {
+        """
+        {"type":"expr","fallback":"Boost Mode","value":{"type":"choose","otherwise":\(read(source, #""attributes","line""#)),
+         "cases":[{"when":{"type":"compare","op":"eq","left":\(read(source, #""state""#)),"right":{"type":"literal","value":"boost"}},
+         "then":{"type":"format","pattern":"{s} Remaining","args":{"s":{"type":"date","op":"seconds-between","from":{"type":"clock","part":"now-second"},
+         "to":\(read(source, #""attributes","ends_at""#))}},"formats":{"s":{"duration":{"style":"minutes-seconds"}}}}}]}}
+        """
+    }
+
+    private static func rule(_ states: [String], class stateClass: String, active: Bool, icon: String, text: String, rgb: (Int, Int, Int)?) -> String {
+        let fill = rgb.map { #","fill":{"type":"solid-rgb","red":\#($0.0),"green":\#($0.1),"blue":\#($0.2)}"# } ?? ""
+        let names = states.map { "\"\($0)\"" }.joined(separator: ",")
+        return #"{"states":[\#(names)],"class":"\#(stateClass)","active":\#(active),"icon":"\#(icon)","text":"\#(text)"\#(fill)}"#
+    }
+
+    private static func tile(_ side: String, title: String) -> String {
+        """
+        {"id":"unit-\(side)","title":"\(title)","type":"state-tile","layout":{"span":1},
+         "icon":{"type":"sf-symbol","name":"gauge","rendering":"canonical","unavailable":"fallback"},
+         "props":{"subtitle":\(subtitle("src-\(side)"))},
+         "binding":{"entityId":"\(sensorId(side))","styleId":"unit-status"},
+         "action":{"type":"present","modalId":"modal-swatch","arguments":{},"ifPresented":"reject"}}
+        """
+    }
+
+    /// The synthetic fixture with the section, the style, the two sensors as sources and the capabilities they need.
+    static func publication() throws -> ServerUICompositionPublication {
+        var root = try ServerUIRendererFixture.json()
+        var sources = try XCTUnwrap(root["document"]?["dataSources"]?.array)
+        for side in ["a", "b"] {
+            sources.append(try json(#"{"id":"src-\#(side)","kind":"ha-entity","entityId":{"type":"literal","value":"\#(sensorId(side))"}}"#))
+        }
+        root = try ServerUIRendererFixture.changing(root, path: "/document/dataSources", to: .array(sources))
+        let rules = [
+            rule(["running"], class: "resting", active: true, icon: "bolt.fill", text: longest["running"] ?? "", rgb: (200, 90, 40)),
+            rule(["idle"], class: "resting", active: false, icon: "gauge", text: longest["idle"] ?? "", rgb: nil),
+            rule(["off"], class: "resting", active: false, icon: "power", text: longest["off"] ?? "", rgb: nil),
+            rule(["boost"], class: "in-progress", active: true, icon: "wind", text: longest["boost"] ?? "", rgb: (40, 110, 200)),
+            rule(["paused"], class: "warning", active: false, icon: "pause.circle", text: longest["paused"] ?? "", rgb: nil),
+            rule(["unavailable", "unknown"], class: "unknown", active: false, icon: "gauge", text: "Unavailable", rgb: nil),
+        ].joined(separator: ",")
+        root = try ServerUIRendererFixture.changing(root, path: "/document/stateStyles", to: json(
+            #"{"type":"state-styles@1","styles":[{"id":"unit-status","name":"Unit status","domain":"sensor","rules":[\#(rules)],"fallback":{"class":"unknown","active":false}}]}"#))
+        root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/components", to: json(
+            #"[{"id":"room-x","type":"room-section","title":"Room X","layout":{"span":1},"props":{"arrangement":"grid","leadJoinsAtRegularWidth":false},"children":[\#(tile("a", title: "Unit A")),\#(tile("b", title: "Unit B"))]}]"#))
+        let needed = ["sh.room-section@1", "sh.state-style@1", "sh.state-style-fills@1", "sh.tile-parts@1", "sh.conditions@1", "sh.operands@1", "sh.rules@1",
+                      "sh.countdown@1", "sh.duration-format@1", "sh.pipeline-operands@1"]
+        let existing = try XCTUnwrap(root["capabilities"]?.array?.compactMap(\.string))
+        root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(Set(existing + needed).sorted().map(JSONValue.string)))
+        return try ServerUIRendererFixture.publication(root)
+    }
 }
