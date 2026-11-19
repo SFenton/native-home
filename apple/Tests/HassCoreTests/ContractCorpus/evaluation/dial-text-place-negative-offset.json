@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "dial-text-place-negative-offset",
+  "note": "An offset may go up: 50 - 6 is 44.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "textAt": {
+          "share": 0.5,
+          "offset": -6
+        }
+      },
+      "pick": [
+        "textCenterY"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "textCenterY": 44
+    }
+  }
+}

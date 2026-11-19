@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-reported-below-the-ring",
+  "note": "A stopper reported at 50 dragged to 55 is 60.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 50
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "low",
+      "raw": 55
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 60,
+        "stopped": false
+      }
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "dialctl-angle-mirrored-middle",
+  "note": "And the middle is 180 - 270 = -90.",
+  "subject": {
+    "dialctl": {
+      "op": "angle",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "value": 70,
+      "mirrored": true
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "degrees": -90
+    }
+  }
+}

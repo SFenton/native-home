@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-held-by-the-ring",
+  "note": "The ring's own end is not a stop: 55 is 60 and it did not stop.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "raw": 55
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 60,
+        "stopped": false
+      }
+    }
+  }
+}

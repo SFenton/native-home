@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dialctl-snap-nearest-clamped",
+  "note": "On a grid of 3 from 0 (the last value is 9), 10 is held at 9.",
+  "subject": {
+    "dialctl": {
+      "op": "snap",
+      "range": {
+        "min": 0,
+        "max": 10,
+        "step": 3
+      },
+      "value": 10
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 9
+    }
+  }
+}

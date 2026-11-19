@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "dialctl-move-read-only",
+  "note": "A read-only dial moves nothing.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": null
+        }
+      },
+      "id": "low",
+      "raw": 70
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": null
+    }
+  }
+}

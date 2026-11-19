@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "name": "fold-sides-banner-holds-no-slot",
+  "note": "The notification banner is filtered out statically: it holds no slot, so the first section leads.",
+  "subject": {
+    "foldsides": {
+      "geometry": {
+        "leading": 455.3,
+        "band": 40.4,
+        "trailing": 372.3
+      },
+      "inset": 16,
+      "foldSides": "auto",
+      "items": [
+        {
+          "id": "alerts",
+          "type": "notification-permission-banner"
+        },
+        {
+          "id": "s1",
+          "type": "section"
+        },
+        {
+          "id": "s2",
+          "type": "section"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "foldsides": {
+      "active": true,
+      "sides": [
+        {
+          "id": "s1",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s2",
+          "side": "trailing",
+          "width": 340.3
+        }
+      ]
+    }
+  }
+}

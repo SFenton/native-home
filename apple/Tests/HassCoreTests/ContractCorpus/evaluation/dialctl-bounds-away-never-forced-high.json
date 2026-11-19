@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-away-never-forced-high",
+  "note": "And the high handle may stay at 70 or go up, never down.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "high"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 70,
+        "upper": 100,
+        "lowerMark": 70,
+        "upperMark": null
+      }
+    }
+  }
+}

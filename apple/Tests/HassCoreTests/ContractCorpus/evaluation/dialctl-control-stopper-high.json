@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "dialctl-control-stopper-high",
+  "note": "And the other's.",
+  "subject": {
+    "operand": {
+      "type": "control",
+      "stopper": "high"
+    }
+  },
+  "env": {
+    "controlValues": {
+      "low": 68,
+      "high": 75
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 75
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "name": "badge-spoken-unavailable-says-the-text",
+  "note": "A spoken value that cannot be read says the drawn text.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": 3
+      },
+      "spoken": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "words",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": "3",
+    "spoken": null
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-tightest-wins-limit",
+  "note": "A highest of 60 is tighter than the gap's stop at 65: 60, marked.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 30,
+            "limit": {
+              "max": 60
+            }
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "low"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 0,
+        "upper": 60,
+        "lowerMark": null,
+        "upperMark": 60
+      }
+    }
+  }
+}

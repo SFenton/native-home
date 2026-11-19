@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-limit-at-the-ring-end",
+  "note": "A limit at the ring's own end holds nothing more and has no mark.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 50,
+            "limit": {
+              "min": 0,
+              "max": 100
+            }
+          }
+        ]
+      },
+      "id": "target"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 0,
+        "upper": 100,
+        "lowerMark": null,
+        "upperMark": null
+      }
+    }
+  }
+}

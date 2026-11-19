@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-off-the-grid-up",
+  "note": "A value off the grid (68.3) goes to the grid value above: 68.5.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68.3
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "direction": 1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 68.5
+    }
+  }
+}

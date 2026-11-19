@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "dial-text-place-offset-only",
+  "note": "An offset alone is from the ring's centre: 56 + 4 is 60.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "textAt": {
+          "offset": 4
+        }
+      },
+      "pick": [
+        "textCenterY"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "textCenterY": 60
+    }
+  }
+}

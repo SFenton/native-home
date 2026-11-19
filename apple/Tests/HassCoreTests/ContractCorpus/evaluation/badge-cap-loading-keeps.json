@@ -1,0 +1,69 @@
+{
+  "format": 1,
+  "name": "badge-cap-loading-keeps",
+  "note": "While the count is loading the badge keeps what it showed.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "above",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 9
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "9+"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{count}",
+          "args": {
+            "count": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

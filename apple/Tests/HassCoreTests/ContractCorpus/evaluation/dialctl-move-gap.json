@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-move-gap",
+  "note": "With a gap of 5 the low handle dragged to 90 stops at 65.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 30
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "low",
+      "raw": 90
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 65,
+        "stopped": true
+      }
+    }
+  }
+}

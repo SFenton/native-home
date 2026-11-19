@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "badge-last-changed-loading-keeps",
+  "note": "A badge over a last-change time that is still loading keeps what it showed.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "last-changed",
+        "sourceId": "a"
+      }
+    }
+  },
+  "env": {
+    "changed": {
+      "a": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

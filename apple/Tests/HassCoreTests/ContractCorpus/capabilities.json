@@ -81,6 +81,7 @@
   "sh.duration-format@1",
   "sh.enabled-when@1",
   "sh.entity-time@1",
+  "sh.flow-average@1",
   "sh.flow-extras@1",
   "sh.form@1",
   "sh.full-screen-modal@1",

@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "dialctl-nearest-stacked-below",
+  "note": "Two stoppers at 70 and a tap below: the first.",
+  "subject": {
+    "dialctl": {
+      "op": "nearest",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 70
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "raw": 65
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "id": "low"
+    }
+  }
+}

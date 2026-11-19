@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "dialctl-ticks-every-5",
+  "note": "Dots every 5 on 60 to 80: five.",
+  "subject": {
+    "dialctl": {
+      "op": "ticks",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "every": 5
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "values": [
+        60,
+        65,
+        70,
+        75,
+        80
+      ]
+    }
+  }
+}

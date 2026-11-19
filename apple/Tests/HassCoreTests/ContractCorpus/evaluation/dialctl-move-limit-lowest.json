@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-move-limit-lowest",
+  "note": "A lowest of 10: dragged to 2 it stops at 10.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 50,
+            "limit": {
+              "min": 10,
+              "max": 80
+            }
+          }
+        ]
+      },
+      "id": "target",
+      "raw": 2
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 10,
+        "stopped": true
+      }
+    }
+  }
+}

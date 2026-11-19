@@ -7,11 +7,12 @@ import Testing
 /// Sheet levels, a page's chrome hides, its wide-window open and the tab bar's visibility
 /// (`sh.sheet-levels@1`, `sh.page-chrome-hide@1`, `sh.page-wide-open@1`, `sh.tabs-visibility@1`).
 ///
-/// The shared corpus (`ServerUIContractCorpusTests`) pins the first issue of every refusal; these tests pin what the decoder made of an accepted
-/// document and that the four ids are understood by the compiler without being published.
+/// The app's own corpus (`GlobalChromeCorpus/`, kept apart from the byte-for-byte Studio copy) pins the first issue of every refusal; these tests pin
+/// what the decoder made of an accepted document and that the four ids are understood by the compiler without being published.
 @Suite(.timeLimit(.minutes(1)))
 struct ServerUIGlobalChromeTests {
-    private static let corpus = ServerUIContractCorpusTests.directory
+    /// The cases the app owns (`GlobalChromeCorpus/`): the Studio does not carry these four ids yet, so they live beside the shared corpus, not in it.
+    private static let corpus = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("GlobalChromeCorpus", isDirectory: true)
 
     private static func file(_ name: String) -> URL {
         corpus.appendingPathComponent(name.contains("/") ? name : "reject/pending-\(name).json")
@@ -193,7 +194,7 @@ struct ServerUIGlobalChromeTests {
         #expect(ServerUIGlobalChrome.all == ["sh.sheet-levels@1", "sh.page-chrome-hide@1", "sh.page-wide-open@1", "sh.tabs-visibility@1"])
         let supported = Set(ServerUICompositionPublication.supportedCapabilities)
         let ingested = Set(ServerUIIngestedCapabilities.all)
-        let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: Self.corpus.appendingPathComponent("capabilities.json")))
+        let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent("capabilities.json")))
         for id in ServerUIGlobalChrome.all {
             #expect(!supported.contains(id) && !ingested.contains(id) && !published.contains(id), "\(id) is published")
             #expect(!ServerUICompositionPublication.acceptedCapabilities.contains(id), "\(id) is accepted outside the scope")

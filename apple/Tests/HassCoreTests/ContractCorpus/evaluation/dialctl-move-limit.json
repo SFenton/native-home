@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-move-limit",
+  "note": "A highest of 80: dragged to 95 the stopper stops at 80.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 50,
+            "limit": {
+              "min": 10,
+              "max": 80
+            }
+          }
+        ]
+      },
+      "id": "target",
+      "raw": 95
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 80,
+        "stopped": true
+      }
+    }
+  }
+}

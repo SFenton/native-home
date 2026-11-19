@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "dialctl-state-limit-unreadable",
+  "note": "A limit that cannot be read makes the whole dial read-only, whichever stopper has it.",
+  "subject": {
+    "dialctl": {
+      "op": "state",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75,
+            "limit": {
+              "max": null
+            }
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "state": "read-only"
+    }
+  }
+}

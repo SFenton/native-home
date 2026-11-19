@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "name": "dialctl-control-stopper-low",
+  "note": "`control` with a stopper reads that stopper's new value.",
+  "subject": {
+    "operand": {
+      "type": "control",
+      "stopper": "low"
+    }
+  },
+  "env": {
+    "controlValues": {
+      "low": 68,
+      "high": 75
+    }
+  },
+  "expected": {
+    "status": "value",
+    "value": 68
+  }
+}

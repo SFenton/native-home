@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "stack-reflow-section-header-token-is-ten-points",
+  "note": "The section-header spacing token is 10 points, as native SpaceToken.sectionHeader (ServerUICompositionDocument.swift:143): 100 + 100 + 10 = 210 fits in 210.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "section-header"
+        },
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "overflow"
+          ],
+          "fits": [
+            "a",
+            "b"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "section-header"
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 100
+        },
+        {
+          "id": "b",
+          "width": 100
+        }
+      ],
+      "width": 210,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": false,
+      "reason": null,
+      "axis": "horizontal",
+      "spacing": 10,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 10,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 10,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

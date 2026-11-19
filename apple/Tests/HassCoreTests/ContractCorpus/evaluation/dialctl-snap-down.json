@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "dialctl-snap-down",
+  "note": "Down from 7.9 is 6.",
+  "subject": {
+    "dialctl": {
+      "op": "snap",
+      "range": {
+        "min": 0,
+        "max": 10,
+        "step": 3
+      },
+      "value": 7.9,
+      "mode": "down"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 6
+    }
+  }
+}

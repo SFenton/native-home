@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "dialctl-control-stopper-ignores-bare-value",
+  "note": "A named stopper is read from the stoppers' values, not from the bare control value.",
+  "subject": {
+    "operand": {
+      "type": "control",
+      "stopper": "low"
+    }
+  },
+  "env": {
+    "controlValue": 72
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

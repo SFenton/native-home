@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-down",
+  "note": "One step down is 67.5.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "direction": -1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 67.5
+    }
+  }
+}

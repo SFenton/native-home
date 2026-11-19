@@ -35,7 +35,7 @@ struct ServerUIPipelineCorpusTests {
     @Test func theCorpusIsWholeAndNamedByItsFiles() throws {
         let names = try FileManager.default.contentsOfDirectory(atPath: Self.directory.path).filter { $0.hasSuffix(".json") }.sorted()
         #expect(Self.cases.count == names.count, "a file did not decode")
-        #expect(Self.cases.count == 51 + 28)
+        #expect(Self.cases.count == 51 + 28 + 12, "twelve of the files are the `flow-average-*` cases")
         #expect(Self.cases.map { $0.name + ".json" } == names)
         for item in Self.cases {
             #expect(item.file["format"] == .number(1))

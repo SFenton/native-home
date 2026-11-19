@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "badge-spoken-loading-keeps",
+  "note": "A spoken value that is still loading keeps what the badge showed.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": 3
+      },
+      "spoken": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "words",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "string",
+        "missing": "unavailable"
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "words/state": {
+        "status": "loading"
+      }
+    }
+  },
+  "expected": {
+    "status": "loading"
+  }
+}

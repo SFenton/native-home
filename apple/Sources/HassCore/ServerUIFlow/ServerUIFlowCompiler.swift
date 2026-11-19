@@ -59,6 +59,7 @@ public enum ServerUIFlowCompiler {
             facts.needsOperands = facts.needsOperands || local.needsOperands
             facts.usesRules = facts.usesRules || local.usesRules
             facts.flowExtras = facts.flowExtras || local.flowExtras
+            facts.flowAverage = facts.flowAverage || local.flowAverage
             facts.usesRepeat = facts.usesRepeat || local.usesRepeat
             facts.edge.formUnion(local.edge)
             for ref in local.parameterReferences {
@@ -89,6 +90,7 @@ public enum ServerUIFlowCompiler {
             facts.needsOperands = facts.needsOperands || local.needsOperands
             facts.usesRules = facts.usesRules || local.usesRules
             facts.flowExtras = facts.flowExtras || local.flowExtras
+            facts.flowAverage = facts.flowAverage || local.flowAverage
             facts.usesRepeat = facts.usesRepeat || local.usesRepeat
             facts.edge.formUnion(local.edge)
         }
@@ -252,7 +254,7 @@ public enum ServerUIFlowCompiler {
         if flow.steps.count > ServerUIFlow.Limits.steps { issue(.limitExceeded, join(base, "steps")) }
 
         let capabilities = [capability] + (facts.needsOperands ? [operandsCapability] : []) + (facts.usesRules ? ["rules"] : [])
-            + (flow.givesRecords || facts.usesRepeat ? ["repeat"] : []) + (facts.flowExtras ? ["flow-extras"] : []) + facts.edge.sorted()
+            + (flow.givesRecords || facts.usesRepeat ? ["repeat"] : []) + (facts.flowExtras ? ["flow-extras"] : []) + (facts.flowAverage ? ["flow-average"] : []) + facts.edge.sorted()
         return Result(issues: facts.issues, reads: facts.reads.map { ($0.sourceId, $0.pointer) }, capabilities: capabilities)
     }
 

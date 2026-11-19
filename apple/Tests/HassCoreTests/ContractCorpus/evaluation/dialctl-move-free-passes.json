@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-free-passes",
+  "note": "Free stoppers pass: the low handle goes to 78.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "low",
+      "raw": 78
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 78,
+        "stopped": false
+      }
+    }
+  }
+}

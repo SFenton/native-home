@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-reported-below-the-ring-down",
+  "note": "Adjust down from 50 stays at 50.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 50
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "low",
+      "direction": -1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 50
+    }
+  }
+}

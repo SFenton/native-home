@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "dialctl-snap-up",
+  "note": "Up from 6.1 is 9.",
+  "subject": {
+    "dialctl": {
+      "op": "snap",
+      "range": {
+        "min": 0,
+        "max": 10,
+        "step": 3
+      },
+      "value": 6.1,
+      "mode": "up"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 9
+    }
+  }
+}

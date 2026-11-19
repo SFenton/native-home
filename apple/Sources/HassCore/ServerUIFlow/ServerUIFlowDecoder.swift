@@ -157,6 +157,9 @@ struct ServerUIFlowDecoder {
             case "min", "max":
                 guard let value = operand(item["value"], own + "/value") else { return nil }
                 operation = op == "min" ? .min(value) : .max(value)
+            case "average":
+                guard let value = operand(item["value"], own + "/value") else { return nil }
+                operation = .average(value)
             case "running-sum":
                 guard let value = operand(item["value"], own + "/value"), let into = item["into"]?.string,
                       case .bool(let propagates)? = item["nullPropagates"] else { return nil }
