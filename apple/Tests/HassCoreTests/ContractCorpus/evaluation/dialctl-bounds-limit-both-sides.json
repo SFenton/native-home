@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-limit-both-sides",
+  "note": "A limit of 10 to 80 on a stopper on a range of 0 to 100: both stops have marks.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 50,
+            "limit": {
+              "min": 10,
+              "max": 80
+            }
+          }
+        ]
+      },
+      "id": "target"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 10,
+        "upper": 80,
+        "lowerMark": 10,
+        "upperMark": 80
+      }
+    }
+  }
+}

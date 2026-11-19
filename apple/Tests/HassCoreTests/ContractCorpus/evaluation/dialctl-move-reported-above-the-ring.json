@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-reported-above-the-ring",
+  "note": "Any move of a stopper reported above the ring brings it inside: dragged to 79 it is 79; dragged to 95 it is 80, and the ring's end is not a stop.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 90
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "high",
+      "raw": 95
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 80,
+        "stopped": false
+      }
+    }
+  }
+}

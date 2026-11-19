@@ -1,0 +1,26 @@
+{
+  "format": 1,
+  "name": "dialctl-ticks-end-not-reached",
+  "note": "Dots every 7 on 60 to 80 stop at 74: the next would pass the end.",
+  "subject": {
+    "dialctl": {
+      "op": "ticks",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "every": 7
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "values": [
+        60,
+        67,
+        74
+      ]
+    }
+  }
+}

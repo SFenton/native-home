@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "dialctl-state-none-drawn",
+  "note": "With no stopper drawn the dial is unavailable.",
+  "subject": {
+    "dialctl": {
+      "op": "state",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": null
+          },
+          {
+            "id": "high",
+            "value": null
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "state": "unavailable"
+    }
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "stack-reflow-section-header-token-stacks-past-the-tolerance",
+  "note": "The same stack in 209.4 points is more than half a point short of 100 + 100 + 10 = 210, so it stacks with 10 points between the two.",
+  "subject": {
+    "stack": {
+      "props": {
+        "axis": "horizontal",
+        "spacing": {
+          "type": "token",
+          "name": "section-header"
+        },
+        "collapse": {
+          "to": "vertical",
+          "when": [
+            "overflow"
+          ],
+          "fits": [
+            "a",
+            "b"
+          ],
+          "spacing": {
+            "type": "token",
+            "name": "section-header"
+          }
+        }
+      },
+      "children": [
+        {
+          "id": "a",
+          "width": 100
+        },
+        {
+          "id": "b",
+          "width": 100
+        }
+      ],
+      "width": 209.4,
+      "accessibilitySize": false
+    }
+  },
+  "env": {},
+  "expected": {
+    "stack": {
+      "collapsed": true,
+      "reason": "overflow",
+      "axis": "vertical",
+      "spacing": 10,
+      "groups": [
+        {
+          "children": [
+            "a"
+          ],
+          "spacing": 10,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        },
+        {
+          "children": [
+            "b"
+          ],
+          "spacing": 10,
+          "distribution": "natural",
+          "align": "start",
+          "grow": false
+        }
+      ]
+    }
+  }
+}

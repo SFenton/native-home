@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "dialctl-nearest-tie-goes-first",
+  "note": "A tap at 71.5 is 3.5 from each: the first stopper.",
+  "subject": {
+    "dialctl": {
+      "op": "nearest",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "raw": 71.5
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "id": "low"
+    }
+  }
+}

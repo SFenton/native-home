@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-move-gap-off-the-grid-high",
+  "note": "And the high handle, held at 13, takes 15.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 10
+          },
+          {
+            "id": "high",
+            "value": 50
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 3
+        }
+      },
+      "id": "high",
+      "raw": 0
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 15,
+        "stopped": true
+      }
+    }
+  }
+}

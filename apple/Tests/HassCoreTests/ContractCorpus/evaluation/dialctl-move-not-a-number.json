@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-not-a-number",
+  "note": "A raw value that is not a number keeps the stopper where it is.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "raw": null
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 68,
+        "stopped": true
+      }
+    }
+  }
+}

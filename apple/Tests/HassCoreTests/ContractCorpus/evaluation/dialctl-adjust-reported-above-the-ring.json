@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-reported-above-the-ring",
+  "note": "Adjust down from 90 goes to the ring's last grid value below 90, which is 80 (a step from outside the ring lands inside it).",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 90
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "high",
+      "direction": -1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 80
+    }
+  }
+}

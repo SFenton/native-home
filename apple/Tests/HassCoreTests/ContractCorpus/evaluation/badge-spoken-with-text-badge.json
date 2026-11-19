@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "badge-spoken-with-text-badge",
+  "note": "A text badge keeps its text and says its words.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": "!"
+      },
+      "spoken": {
+        "type": "literal",
+        "value": "Needs attention"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": "!",
+    "spoken": "Needs attention"
+  }
+}

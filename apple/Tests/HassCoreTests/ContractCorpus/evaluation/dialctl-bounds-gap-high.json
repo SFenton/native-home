@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-gap-high",
+  "note": "The high handle stays 5 above the low one (30): 35, with its mark.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 30
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "high"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 35,
+        "upper": 100,
+        "lowerMark": 35,
+        "upperMark": null
+      }
+    }
+  }
+}

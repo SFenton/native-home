@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "name": "dial-text-place-share-zero",
+  "note": "A share of 0 is the top of the dial: the centre of the block stands at 0.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        },
+        "textAt": {
+          "share": 0
+        }
+      },
+      "pick": [
+        "textCenterY"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "textCenterY": 0
+    }
+  }
+}

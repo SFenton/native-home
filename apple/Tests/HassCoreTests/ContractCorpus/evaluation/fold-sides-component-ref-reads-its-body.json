@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "name": "fold-sides-component-ref-reads-its-body",
+  "note": "A use of a saved component counts by its body: a strip body spans, a section body takes its turn.",
+  "subject": {
+    "foldsides": {
+      "geometry": {
+        "leading": 455.3,
+        "band": 40.4,
+        "trailing": 372.3
+      },
+      "inset": 16,
+      "foldSides": "auto",
+      "items": [
+        {
+          "id": "place-rail",
+          "type": "component-ref",
+          "bodyType": "status-rail"
+        },
+        {
+          "id": "place-a",
+          "type": "component-ref",
+          "bodyType": "section"
+        },
+        {
+          "id": "place-b",
+          "type": "component-ref",
+          "bodyType": "section",
+          "foldSide": "leading"
+        },
+        {
+          "id": "s3",
+          "type": "section"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "foldsides": {
+      "active": true,
+      "sides": [
+        {
+          "id": "place-rail",
+          "side": "span",
+          "width": 836
+        },
+        {
+          "id": "place-a",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "place-b",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s3",
+          "side": "leading",
+          "width": 423.3
+        }
+      ]
+    }
+  }
+}

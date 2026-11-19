@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-thermostat-high",
+  "note": "The high handle stops at the low one (68).",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "high"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 68,
+        "upper": 80,
+        "lowerMark": null,
+        "upperMark": null
+      }
+    }
+  }
+}

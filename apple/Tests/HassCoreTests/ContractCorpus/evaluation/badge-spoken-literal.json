@@ -1,0 +1,24 @@
+{
+  "format": 1,
+  "name": "badge-spoken-literal",
+  "note": "A badge says its spoken words after the name: the text is drawn, the words are said.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "literal",
+        "value": 3
+      },
+      "spoken": {
+        "type": "literal",
+        "value": "3 items"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": "3",
+    "spoken": "3 items"
+  }
+}

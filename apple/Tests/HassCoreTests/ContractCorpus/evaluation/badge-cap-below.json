@@ -1,0 +1,71 @@
+{
+  "format": 1,
+  "name": "badge-cap-below",
+  "note": "Show at Most 9, as published: a count below the cap is its text.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "above",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 9
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "9+"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{count}",
+          "args": {
+            "count": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": 3
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "text": "3"
+  }
+}

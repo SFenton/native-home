@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-move-away-from-the-other",
+  "note": "Two values closer than the gap: the low handle at 68 may go down to 60 but not up.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "low",
+      "raw": 69
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 68,
+        "stopped": true
+      }
+    }
+  }
+}

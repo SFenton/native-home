@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dialctl-angle-end",
+  "note": "The highest is 135 + 270 = 405 (45 degrees, lower right).",
+  "subject": {
+    "dialctl": {
+      "op": "angle",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "value": 80
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "degrees": 405
+    }
+  }
+}

@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-gap-held",
+  "note": "At 65 it holds.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 65
+          },
+          {
+            "id": "high",
+            "value": 70
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": 5
+        }
+      },
+      "id": "low",
+      "direction": 1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 65
+    }
+  }
+}

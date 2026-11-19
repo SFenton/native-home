@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "name": "dialctl-control-stopper-not-sent",
+  "note": "A stopper that sent nothing is unavailable.",
+  "subject": {
+    "operand": {
+      "type": "control",
+      "stopper": "high"
+    }
+  },
+  "env": {
+    "controlValues": {
+      "low": 68
+    }
+  },
+  "expected": {
+    "status": "unavailable"
+  }
+}

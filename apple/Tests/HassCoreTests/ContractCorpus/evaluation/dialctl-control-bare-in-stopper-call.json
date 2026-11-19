@@ -1,0 +1,17 @@
+{
+  "format": 1,
+  "name": "dialctl-control-bare-in-stopper-call",
+  "note": "Inside a stopper's own call a bare `control` is that stopper's value.",
+  "subject": {
+    "operand": {
+      "type": "control"
+    }
+  },
+  "env": {
+    "controlValue": 72
+  },
+  "expected": {
+    "status": "value",
+    "value": 72
+  }
+}

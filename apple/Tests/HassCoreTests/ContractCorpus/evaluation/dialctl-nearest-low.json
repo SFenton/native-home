@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "dialctl-nearest-low",
+  "note": "A tap at 70 is nearer 68 than 75: the low one.",
+  "subject": {
+    "dialctl": {
+      "op": "nearest",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "raw": 70
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "id": "low"
+    }
+  }
+}

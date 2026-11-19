@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-move-no-grid-value-inside",
+  "note": "A limit of 21 to 29 on a grid of 10 holds no grid value: the stopper keeps its 25.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 10
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 25,
+            "limit": {
+              "min": 21,
+              "max": 29
+            }
+          }
+        ]
+      },
+      "id": "target",
+      "raw": 50
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 25,
+        "stopped": true
+      }
+    }
+  }
+}

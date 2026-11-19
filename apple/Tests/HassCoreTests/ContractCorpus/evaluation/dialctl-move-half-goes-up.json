@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "name": "dialctl-move-half-goes-up",
+  "note": "Half way between two values goes up: 70.25 is 70.5.",
+  "subject": {
+    "dialctl": {
+      "op": "move",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "raw": 70.25
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "move": {
+        "value": 70.5,
+        "stopped": false
+      }
+    }
+  }
+}
