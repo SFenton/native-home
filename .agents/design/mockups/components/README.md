@@ -37,7 +37,7 @@
 |---|---|---|---|---|
 | [Brightness tile (drag dragger)](tiles/brightness-tile/brightness-tile.html) | `brightness-tile` | shipped | iphone, duo, ipad |  |
 
-## design (32)
+## design (33)
 
 | Mockup | Id | Status | Surfaces | Relations |
 |---|---|---|---|---|
@@ -48,18 +48,19 @@
 | [Colour families and palettes (tokens)](tokens/color-families/color-families.html) | `color-families` | shipped | iphone, duo, ipad |  |
 | [ContentGate (loading gate)](loading/content-gate/content-gate.html) | `content-gate` | shipped | iphone, duo, ipad |  |
 | [Dial and arc track](controls/dial-arc-track/dial-arc-track.html) | `dial-arc-track` | shipped | iphone, duo, ipad |  |
-| [DynamicGridLayout (equal heights, spans, grid headers)](grids/dynamic-grid-layout/dynamic-grid-layout.html) | `dynamic-grid-layout` | shipped | iphone, duo, ipad |  |
+| [DynamicGridLayout (spans, headers)](grids/dynamic-grid-layout/dynamic-grid-layout.html) | `dynamic-grid-layout` | shipped | iphone, duo, ipad |  |
 | [Empty and error states (ContentUnavailable usage)](forms/content-unavailable/content-unavailable.html) | `content-unavailable` | shipped | iphone, duo, ipad |  |
 | [FilterSheet, FilterSection, FilterOptionRow](modals/filter-sheet/filter-sheet.html) | `filter-sheet` | shipped | iphone, duo, ipad |  |
 | [FloatingActionBar (actions, search)](controls/floating-action-bar/floating-action-bar.html) | `floating-action-bar` | shipped | iphone, duo, ipad |  |
-| [GlassTile (kinds: toggle, command, navigate, state)](tiles/glass-tile/glass-tile.html) | `glass-tile` | shipped | iphone, duo, ipad |  |
+| [GlassTile (five kinds)](tiles/glass-tile/glass-tile.html) | `glass-tile` | shipped | iphone, duo, ipad |  |
 | [HassModal, SheetCloseItem and hassSheet sizing](modals/hass-modal/hass-modal.html) | `hass-modal` | shipped | iphone, duo, ipad |  |
 | [HeaderEdgeFade (content fades under the header)](motion/header-edge-fade/header-edge-fade.html) | `header-edge-fade` | shipped | iphone, duo, ipad |  |
 | [InfoBox](surfaces/info-box/info-box.html) | `info-box` | shipped | iphone, duo, ipad |  |
 | [InlineAlert and SelectableOptionRow](forms/settings-controls/settings-controls.html) | `settings-controls` | shipped | iphone, duo, ipad |  |
-| [ModalTabBar (glass segmented control, badges, menu)](modals/modal-tab-bar/modal-tab-bar.html) | `modal-tab-bar` | shipped | iphone, duo, ipad |  |
+| [Kept text](loading/kept-text/kept-text.html) | `kept-text` | shipped | iphone, duo, ipad |  |
+| [ModalTabBar (segmented control)](modals/modal-tab-bar/modal-tab-bar.html) | `modal-tab-bar` | shipped | iphone, duo, ipad |  |
 | [ModuleList and ModuleRow (inset list)](lists/module-list/module-list.html) | `module-list` | shipped | iphone, duo, ipad |  |
-| [Motion tokens (quick, state, standard, emphasized)](motion/motion-tokens/motion-tokens.html) | `motion-tokens` | shipped | iphone, duo, ipad |  |
+| [Motion tokens](motion/motion-tokens/motion-tokens.html) | `motion-tokens` | shipped | iphone, duo, ipad |  |
 | [OptionPickerSheet and GradientSwatch](modals/option-picker-sheet/option-picker-sheet.html) | `option-picker-sheet` | shipped | iphone, duo, ipad |  |
 | [Page section header and form header/footer](surfaces/page-section-header/page-section-header.html) | `page-section-header` | shipped | iphone, duo, ipad |  |
 | [PagedRow (native paging row)](grids/paged-row/paged-row.html) | `paged-row` | shipped | iphone, duo, ipad |  |

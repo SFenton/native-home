@@ -156,6 +156,22 @@ struct ServerUIPartsTests {
         #expect(words(nil, keeping: "Pause", loading: true) == "Pause")
     }
 
+    @Test func aKeptLabelSaysItsLastWordsWhileUnavailableAndAFallbackSlotDoesNot() throws {
+        var disc = try #require(try tile("parts-disc-label-by-expression").parts.discs.first)
+        let source = D.Read(sourceId: "robot", path: ["state"], kind: .string)
+        func draw(_ policy: ServerUIUnavailablePolicy, _ reads: [String: ServerUIReadResult], _ memory: inout ServerUITextMemory) -> String {
+            disc.labelValue = .read(source, fallback: "Idle", whenUnavailable: policy)
+            return disc.resolvedLabel(read: { reads[([$0.sourceId] + $0.path).joined(separator: "/")] ?? .unavailable }, in: Reader(),
+                                      keeping: nil, memory: &memory)
+        }
+        let answered: [String: ServerUIReadResult] = ["robot/state": .value(.string("Pause"))]
+        var kept = ServerUITextMemory(), plain = ServerUITextMemory()
+        #expect(draw(.keep, answered, &kept) == "Pause")
+        #expect(draw(.fallback, answered, &plain) == "Pause")
+        #expect(draw(.keep, [:], &kept) == "Pause", "kept while unavailable")
+        #expect(draw(.fallback, [:], &plain) == "Idle", "a fallback slot draws its fallback")
+    }
+
     @Test func aLabelThatIsAnObjectLiteralSaysItsText() throws {
         let disc = try #require(try tile("parts-disc-label-object-literal").parts.discs.first)
         #expect(disc.labelValue != nil && !disc.label.isEmpty)

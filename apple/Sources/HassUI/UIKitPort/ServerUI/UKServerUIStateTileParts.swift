@@ -54,7 +54,9 @@ enum UKServerUIStateTileParts {
         model.actions += discs.map { disc in
             // A rule that is still loading keeps what the disc last showed; one that cannot answer shows its `otherwise` (the authored words).
             let symbol = disc.resolvedIcon(in: reader, keeping: memory.discSymbols[disc.id])
-            let words = disc.resolvedLabel(read: read, in: reader, keeping: memory.discLabels[disc.id])
+            var text = memory.discLabelText[disc.id] ?? ServerUITextMemory()
+            let words = disc.resolvedLabel(read: read, in: reader, keeping: memory.discLabels[disc.id], memory: &text)
+            memory.discLabelText[disc.id] = text
             memory.discSymbols[disc.id] = symbol
             memory.discLabels[disc.id] = words
             return TileActionItem(id: itemID(disc), verb: words, symbol: ServerUISymbolFallback.resolve(symbol.name),

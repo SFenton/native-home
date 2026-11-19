@@ -115,7 +115,7 @@ struct ServerUIDoorLoweringTests {
 
     @Test func loadingWordsAreASubtitleThatSpeaksOnlyWhileLoading() throws {
         let (_, tile) = try lowered("demo-garage-control")
-        guard case .expression(.map(let phase, let cases, let otherwise), let fallback)? = tile.parts.subtitle else {
+        guard case .expression(.map(let phase, let cases, let otherwise), let fallback, _)? = tile.parts.subtitle else {
             Issue.record("Expected an expression subtitle"); return
         }
         #expect(phase == .read(sourceId: "demo-garage", path: ["phase"], as: .string))

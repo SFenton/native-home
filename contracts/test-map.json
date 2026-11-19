@@ -2656,6 +2656,16 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Apps/iOSTests/ServerUIChartFixture",
+   "swift": [],
+   "hosted": [
+    "ServerUIChartHostedTests",
+    "ServerUIDialHostedTests",
+    "ServerUITextKeepRerenderHostedTests"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Sources/HassTelemetry/LogicCost",
    "swift": [
     "LogicCostTests"

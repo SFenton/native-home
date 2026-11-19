@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 30,
+  "version": 32,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -24,6 +24,7 @@
     ".agents/design/duo-widths.md": "Duo widths: one section column in portrait, buttons fill their section: how many section columns a page shows by pose, and how a short row of tiles fills its section (lone tiles, a row of 3 in 4 tracks, the final unpaired section). (read when: you touch `UKGridSolver`, `DynamicGridMetrics`, `UKDynam...",
     ".agents/design/feedback-media-compression.md": "Feedback media compression: Where and how Feedback (Report an Issue, Request a Feature) shrinks an oversized video so it can be attached. (read when: touching `FeedbackMediaFitter`, `FeedbackMovieEncoder` or the Feedback media limit. Policy details: [Media compression in feedback.md](../pages/settin...",
     ".agents/design/house-config-states.md": "Server field and missing house layout: the Server row on sign-in (the owner's 2026-11-06 request, reversing the 2026-10-17 \"no address field\"), and where a house layout (the `fenton_home/house_config` document) that is missing, loading, broken or newer than the build is shown. (read when: you change...",
+    ".agents/design/kept-text.md": "Kept text: how a server-composed text slot looks and sounds while it shows a kept value (`sh.text-keep@1`, `whenUnavailable: \"keep\"`). (read when: you touch a text slot's host (text node, tile title or subtitle, status pill, row, info box, dial, collection empty message, local control subtitle), its...",
     ".agents/design/live-activity-problem-notice.md": "Live Activity problem card: the failure notice: where a problem card shows the one-update failure notice after a button press fails. (read when: you touch `ProblemCardView`, the `notice` content key, or the problem card's mockup.)",
     ".agents/design/motion-components.md": "Motion: every component: the per-component motion checklist. It covers every shared and screen-level component, what changes its look, what animates today, what the rule in [motion.md](motion.md) says it must do, and the test that holds it there. (read when: you add a component, give one a new state...",
     ".agents/design/motion.md": "Motion: the app-wide rules for movement in S+H. They cover the launch and sign-in moments, switching tabs, opening pages and modals, loading, live updates and user actions. They also cover when *not* to animate, how motion is measured, and the components that enforce all of it. (read when: you add o...",

@@ -22,6 +22,7 @@
       "selectedTests": [
         "HeaderButtonsJourneyTests/testBarKeepsItsSizesAtAX5()",
         "HeaderButtonsJourneyTests/testPhotoButtonKeepsItsSizeAtAX5()",
+        "KeptTextJourneyTests/testKeptTextAtAX5()",
         "LiveActivityJourneyTests/testAX5CardDishwasherLongStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardFanStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5CardFanXLongStaysOnScreen()",

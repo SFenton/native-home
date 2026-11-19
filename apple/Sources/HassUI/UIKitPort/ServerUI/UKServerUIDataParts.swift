@@ -15,9 +15,10 @@ enum UKServerUIDataParts {
     typealias D = ServerUICompositionDocument
 
     /// The text of a slot, or `fallback` while it has none.
-    private static func words(_ slot: D.StringValue?, in renderer: UKServerUIRenderer, fallback: String?) -> String? {
+    private static func words(_ slot: D.StringValue?, name: String, memories: UKServerUITextMemories, in renderer: UKServerUIRenderer,
+                              fallback: String?) -> String? {
         guard let slot else { return fallback }
-        if case .ready(let text) = renderer.bindings.string(slot), !text.trimmingCharacters(in: .whitespaces).isEmpty { return text }
+        if case .ready(let text) = memories.string(slot, slot: name, bindings: renderer.bindings), !text.trimmingCharacters(in: .whitespaces).isEmpty { return text }
         return fallback
     }
 
@@ -44,6 +45,7 @@ enum UKServerUIDataParts {
     /// The series is always spoken and always plays as an audio graph, whether or not the document writes `a11y.value` (HIG, Charting data, Best
     /// practices: make every chart accessible; HIG, Charts, Enhancing the accessibility of a chart: without an audio graph, give an overview).
     static func bind(_ chart: ServerUIChart, view: UKChartView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        let memories = entry.textMemories
         entry.bag.observe { [weak view, weak renderer] in
             guard let view, let renderer else { return }
             let reader = renderer.reader()
@@ -57,7 +59,7 @@ enum UKServerUIDataParts {
             let pattern = chart.axis?.pattern ?? "{value}"
             let digits = chart.axis?.digits ?? content.digits
             let speech = UKChartSpeech(
-                label: words(chart.label, in: renderer, fallback: chart.node.title) ?? chart.node.title,
+                label: words(chart.label, name: "label", memories: memories, in: renderer, fallback: chart.node.title) ?? chart.node.title,
                 series: ServerUIChartMath.seriesText(points, pattern: pattern, digits: digits, unknownText: chart.emptyText),
                 describe: { ServerUIChartMath.axisText(pattern: pattern, value: $0, digits: digits) })
             view.apply(content.value, speech: speech)
@@ -94,6 +96,7 @@ enum UKServerUIDataParts {
 
     /// Binds a gauge: the numbers its operands give now, and the name and value it tells a screen reader.
     static func bind(_ gauge: ServerUILinearGauge, view: UKLinearGaugeView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        let memories = entry.textMemories
         entry.bag.observe { [weak view, weak renderer] in
             guard let view, let renderer else { return }
             let reader = renderer.reader()
@@ -103,7 +106,7 @@ enum UKServerUIDataParts {
             switch gauge.accessibility {
             case .hidden: speech = .hidden
             case .value(let label, let value):
-                speech = .value(label: words(label, in: renderer, fallback: gauge.node.title) ?? gauge.node.title, value: words(value, in: renderer, fallback: nil))
+                speech = .value(label: words(label, name: "label", memories: memories, in: renderer, fallback: gauge.node.title) ?? gauge.node.title, value: words(value, name: "value", memories: memories, in: renderer, fallback: nil))
             }
             view.apply(gauge, reading: reading, speech: speech)
         }
@@ -112,18 +115,21 @@ enum UKServerUIDataParts {
     // MARK: Dial and arc track
 
     /// What a gauge part tells an assistive technology.
-    private static func speech(_ spoken: (label: D.StringValue, value: D.StringValue?)?, title: String, in renderer: UKServerUIRenderer) -> UKGaugeSpeech {
+    private static func speech(_ spoken: (label: D.StringValue, value: D.StringValue?)?, title: String, memories: UKServerUITextMemories,
+                               in renderer: UKServerUIRenderer) -> UKGaugeSpeech {
         guard let spoken else { return .hidden }
-        return .value(label: words(spoken.label, in: renderer, fallback: title) ?? title, value: words(spoken.value, in: renderer, fallback: nil))
+        return .value(label: words(spoken.label, name: "label", memories: memories, in: renderer, fallback: title) ?? title,
+                      value: words(spoken.value, name: "value", memories: memories, in: renderer, fallback: nil))
     }
 
     /// Binds a dial: the pointer's number, the words of each line in the middle, and the name and value it tells a screen reader.
     static func bind(_ dial: ServerUIDial, view: UKDialView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        let memories = entry.textMemories
         entry.bag.observe { [weak view, weak renderer] in
             guard let view, let renderer else { return }
             let reader = renderer.reader()
-            let lines = dial.center.map { line -> UKDialLineValue in
-                switch renderer.bindings.string(line.value) {
+            let lines = dial.center.enumerated().map { index, line -> UKDialLineValue in
+                switch memories.string(line.value, slot: "center.\(index)", bindings: renderer.bindings) {
                 case .ready(let text): .text(text)
                 case .unavailable: .unavailable
                 case .loading: .loading
@@ -132,17 +138,18 @@ enum UKServerUIDataParts {
             var spoken: (label: D.StringValue, value: D.StringValue?)?
             if case .value(let label, let value) = dial.accessibility { spoken = (label, value) }
             view.apply(dial, reading: UKDialReading(value: number(dial.pointer?.value, in: reader), lines: lines),
-                       speech: speech(spoken, title: dial.node.title, in: renderer))
+                       speech: speech(spoken, title: dial.node.title, memories: memories, in: renderer))
         }
     }
 
     /// Binds an arc: the progress its operand gives now, and the name and value it tells a screen reader.
     static func bind(_ arc: ServerUIArcTrack, view: UKArcTrackView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
+        let memories = entry.textMemories
         entry.bag.observe { [weak view, weak renderer] in
             guard let view, let renderer else { return }
             var spoken: (label: D.StringValue, value: D.StringValue?)?
             if case .value(let label, let value) = arc.accessibility { spoken = (label, value) }
-            view.apply(arc, progress: number(arc.progress, in: renderer.reader()), speech: speech(spoken, title: arc.node.title, in: renderer))
+            view.apply(arc, progress: number(arc.progress, in: renderer.reader()), speech: speech(spoken, title: arc.node.title, memories: memories, in: renderer))
         }
     }
 }

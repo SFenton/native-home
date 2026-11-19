@@ -85,8 +85,8 @@ extension ServerUICompositionCompiler {
             let value = try stringValue(labelCursor)
             labelValue = value
             if case .literal(let text) = value { label = text }
-            if case .read(_, let fallback) = value { label = fallback ?? "" }
-            if case .expression(_, let fallback) = value { label = fallback ?? "" }
+            if case .read(_, let fallback, _) = value { label = fallback ?? "" }
+            if case .expression(_, let fallback, _) = value { label = fallback ?? "" }
         }
         let names = disc.value["namesTile"] != nil
         if icon.1 != nil || labelValue != nil || names { require("tile-disc-rules") }

@@ -9,9 +9,9 @@ import UIKit
 final class UKServerUIInfoBox: UKServerUIFittingView {
     private var key: [String]?
     private var content: UIView?
-    func apply(_ value: ServerUICompositionDocument.InfoBox, bindings: UKServerUIBindings) {
+    func apply(_ value: ServerUICompositionDocument.InfoBox, bindings: UKServerUIBindings, memories: UKServerUITextMemories) {
         let message: String
-        if case .ready(let text) = bindings.string(value.message) { message = text }
+        if case .ready(let text) = memories.string(value.message, slot: "message", bindings: bindings) { message = text }
         else { message = value.unavailableText }
         let key = [value.node.title, message, value.tone.rawValue]
         guard self.key != key else { return }
