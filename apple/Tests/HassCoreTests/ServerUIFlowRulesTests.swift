@@ -44,6 +44,11 @@ struct ServerUIFlowRulesTests {
         ServerUIFlowCompiler.check(try #require(decode(inputs).flow), at: "").issues.map(\.code)
     }
 
+    /// What the compiler finds in a flow, each as its code and where.
+    private static func found(_ inputs: JSONValue) throws -> [String] {
+        ServerUIFlowCompiler.check(try #require(decode(inputs).flow), at: "").issues.map { "\($0.code) \($0.pointer)" }
+    }
+
     private static func run(_ inputs: JSONValue, response: JSONValue = .null, context: ServerUIFlowContext = ServerUIFlowContext()) throws -> JSONValue {
         let run = ServerUIFlowEvaluator.run(try #require(decode(inputs).flow), response: response, context: context)
         try #require(run.status == .ok)
@@ -148,12 +153,17 @@ struct ServerUIFlowRulesTests {
         let operand = #"{"type": "format", "pattern": "{a}", "args": {"a": {"type": "literal", "value": 1.5}}, "formats": {"a": {"number": {"maximumFractionDigits": 1, "minimumFractionDigits": 3}}}}"#
         let decoded = Self.decode(Self.operandFlow(operand))
         let found = decoded.issues + (decoded.flow.map { ServerUIFlowCompiler.check($0, at: "").issues } ?? [])
-        #expect(found.contains { $0.code == .invalidCombination }, "\(found)")
+        #expect(found.map(\.code) == [.invalidCombination], "\(found)")
+        #expect(found.first?.pointer == "/request/value/formats/a/number/minimumFractionDigits", "\(found)")
     }
 
     @Test func aFormatThatNamesNoArgumentForAPlaceholderIsRefused() throws {
         let operand = #"{"type": "format", "pattern": "{a}{b}", "args": {"a": {"type": "literal", "value": "x"}}}"#
-        #expect(!Self.decode(Self.operandFlow(operand)).issues.isEmpty)
+        let decoded = Self.decode(Self.operandFlow(operand))
+        #expect(decoded.issues.map(\.code) == [.invalidReference], "\(decoded.issues)")
+        #expect(decoded.issues.first?.pointer == "/request/value/pattern", "\(decoded.issues)")
+        let found = ServerUIFlowCompiler.check(try #require(decoded.flow), at: "").issues
+        #expect(found.map(\.code) == [.invalidReference] && found.first?.pointer == "/inputs/request/value/pattern", "\(found)")
     }
 
     @Test func aRuleWhoseBranchesGiveDifferentKindsIsRefused() throws {
@@ -166,15 +176,18 @@ struct ServerUIFlowRulesTests {
 
     @Test func aListOrRecordLiteralTypesAsAListOrRecord() throws {
         let literal = #"{"type": "literal", "value": [1, "a", {"k": true}]}"#
-        let found = try Self.codes(Self.operandFlow(literal, schema: #"{"kind": "number"}"#))
-        #expect(!found.isEmpty, "a list is no number")
+        // The one finding is the answer's kind: a list is no number, so the output cannot be one.
+        let listIssues = try Self.found(Self.operandFlow(literal, schema: #"{"kind": "number"}"#))
+        #expect(listIssues == ["bindingType /inputs/output/kind"], "a list is no number: \(listIssues)")
         let record = #"{"type": "literal", "value": {"a": [1, 2], "c": false}}"#
-        #expect(!(try Self.codes(Self.operandFlow(record, schema: #"{"kind": "number"}"#))).isEmpty)
+        let recordIssues = try Self.found(Self.operandFlow(record, schema: #"{"kind": "number"}"#))
+        #expect(recordIssues == ["bindingType /inputs/output/kind"], "a record is no number: \(recordIssues)")
     }
 
     @Test func aListOfOperandsTypesItsItems() throws {
         let list = #"{"type": "list", "items": [{"type": "literal", "value": 1}, {"type": "literal", "value": "a"}]}"#
-        #expect(!(try Self.codes(Self.operandFlow(list, schema: #"{"kind": "number"}"#))).isEmpty)
+        let issues = try Self.found(Self.operandFlow(list, schema: #"{"kind": "number"}"#))
+        #expect(issues == ["bindingType /inputs/output/kind"], "a list of operands is no number: \(issues)")
     }
 
     @Test func aViewerPersonConditionIsUnknownInAFlowSoTheRuleFallsThrough() throws {
