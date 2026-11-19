@@ -47,9 +47,9 @@ Tab switches, pushes, pops, sheets and zooms are timed by the app itself, the wa
 
   | Surface | iPhone | iPhone Duo | iPad |
   |---|---|---|---|
-  | Tab revisit, first frame | 67 / 71 | 3 / 89 | (flyout) |
-  | Tab cycle, first frame (turn p95 / worst) | 94 / 220 (15.6) | 78 / 116 (9.2) | (flyout) |
-  | Tab first visit, first frame | 304 / 481 | 325 / 468 | (flyout) |
+  | Tab revisit, first frame | 67 / 71 | 3 / 89 | n/a |
+  | Tab cycle, first frame (turn p95 / worst) | 94 / 220 (15.6) | 78 / 116 (9.2) | n/a |
+  | Tab first visit, first frame | 304 / 481 | 325 / 468 | n/a |
   | Push room, first frame / settled | 89 / 201, 563 / 673 | 93 / 251, 580 / 736 | 78 / 218, 570 / 712 |
   | Push turn p95 / worst | 0.8 / 10.5 | 0.6 / 3.2 | 0.9 / 11.6 |
   | Sheet present, settled | 610 / 817 | 626 / 903 | 600 / 726 |
@@ -327,7 +327,7 @@ The app never enumerates the store by domain except `person.*`, so the union is 
 **Question.** How much of the remaining scroll stutter is the system large-title collapse in the navigation bar, and does a first-party alternative remove it?
 
 **Tooling added.** The variants below were switched in source by temporary `FENTON_PERF_DISABLE` layers (`leadingTitle`, `headerButtons`, `largeTitle`, `inlineLargeTitle`) and a `FENTON_VANILLA_HEADER` build flag. **They are removed (2026-10-28, cleanup): the experiments are over, the layer names below are history, and a new run cannot select those variants.** Kept:
-- `FENTON_GALLERY_FLYOUT=1` (Debug) runs gallery pages in the flyout chrome. Surfaces `Settings (flyout)`, `Recipes (flyout)` and `Chores long house (flyout)` are in the `[flyout]` section of `tools/scrollcost-surfaces.txt`. `--section` takes a comma list (`flyout,live`).
+- `FENTON_GALLERY_FLYOUT=1` (Debug) runs gallery pages in the menu-button chrome. Surfaces `Settings (flyout)`, `Recipes (flyout)` and `Chores long house (flyout)` are in the `[flyout]` section of `tools/scrollcost-surfaces.txt`. `--section` takes a comma list (`flyout,live`).
 - The probe's `Mover` now remembers the largest top inset seen, across runs, so every pass goes into the expanded large-title zone and back (before, it clamped to the collapsed inset and never re-entered it). The probe line carries `inset_changes=` (an `adjustedContentInsetDidChange` hook on the driven scroll view) and `inset_kvo=` (KVO on `adjustedContentInset`). **KVO never fires** (0 in every run); use `inset_changes`.
 - `scrollcost_ab.py --compact` prints the table below. `ios_flingfps.sh` takes `--disable`, `--flyout`, `--tag`, `--ab-disable <switch>` (A/B any `FENTON_PERF_DISABLE` switch in one device hold: `--runs N` of each test with the default build, then with the switch, interleaved, and a table at the end; variants `default` and `<switch>-off`), and builds with `-O`.
 

@@ -823,8 +823,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if environment.style != style { environment.style = style }
         if environment.chrome != chrome { environment.chrome = chrome }
         edgePan?.isEnabled = chrome.edgeSwipe
-        let hidden = style == .flyout || publication.document.navigation.tabs.isEmpty
+        // The tab bar is never hidden for style: a regular-width window gets the system's top bar (`.tabBar`, never the sidebar).
+        let hidden = publication.document.navigation.tabs.isEmpty
         if UKGlassEra.hasIOS18, #available(iOS 18.0, *) {
+            if tabController.mode != .tabBar { tabController.mode = .tabBar }
             if tabController.isTabBarHidden != hidden { tabController.setTabBarHidden(hidden, animated: false) }
         } else { tabController.tabBar.isHidden = hidden }
         if !chrome.showsMenuButton, flyoutOpen { closeMenu() }

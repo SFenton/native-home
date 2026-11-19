@@ -30,7 +30,7 @@ enum UKGlassEra {
 @MainActor
 @Observable
 final class UKShellEnvironment {
-    /// Tab bar (compact width) or flyout (regular width).
+    /// Tab bar with the menu button (compact width, the Duo) or the system tab bar at the top (regular width, no hinge).
     var style: ShellNavigationStyle = .tabBar
     /// Where the menu button and the title go (``ShellChrome``).
     var chrome: ShellChrome = .resolve(style: .tabBar)

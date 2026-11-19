@@ -1,7 +1,7 @@
 import XCTest
 
 /// The page title (`.agents/patterns/header-edge-fade.md`, R7). Owner, 2026-10-28: "Bring back the title collapse as well." On the
-/// iPhone and the iPad with its flyout the page has the system's large title, which collapses into the leading-aligned inline title (right of the hamburger) in the
+/// iPhone and the iPad (the top tab bar, no hamburger) the page has the system's large title, which collapses into the leading-aligned inline title (right of the hamburger) in the
 /// bar as the page scrolls; on the folded iPhone Duo (the vertical bar has no hamburger) the system's inline title is in the bar from the start. No
 /// custom `nav.title` view; a long title is truncated by the system. Runs on the `shell-header` gallery with a title no bar is wide
 /// enough for, with no sign-in.

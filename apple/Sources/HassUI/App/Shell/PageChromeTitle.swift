@@ -1,9 +1,9 @@
 import CoreGraphics
 
 /// The title display mode of a page. Owner, 2026-10-28: "Bring back the title collapse." Where the title sits below the bar
-/// (`ShellChrome.titleInHeader == false`: iPhone, any iPad window including a compact one, the unfolded Duo, everywhere the
-/// hamburger shows) the page has the system's large title, which collapses into the inline title as it scrolls, leading aligned
-/// where the hamburger shows. Only the folded Duo's vertical bar (`titleInHeader == true`) shows the inline title from the
+/// (`ShellChrome.titleInHeader == false`: iPhone, any iPad window including a compact one, the unfolded Duo) the page has the
+/// system's large title, which collapses into the inline title as it scrolls, leading aligned (`ShellChrome.titleLeads`) beside the
+/// hamburger, or alone where the iPad's top tab bar holds the centre. Only the folded Duo's vertical bar (`titleInHeader == true`) shows the inline title from the
 /// start (header-edge-fade R7).
 enum PageChromeTitle {
     /// Whether the page has a large title that collapses on scrolling.

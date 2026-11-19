@@ -279,6 +279,11 @@
 .ui-tabbar button svg { width: 24px; height: 24px; }
 .ui-tabbar button.sel { background: rgba(255, 255, 255, .17); color: #409CFF; }
 .ui-tabbar .ui-badge { top: 4px; right: calc(50% - 22px); }
+.ui-tabbar.top { position: static; height: 44px; border-radius: 22px; padding: 2px; flex: 0 1 auto; margin: 0 auto; }
+.ui-tabbar.top button { flex-direction: row; gap: 6px; padding: 0 14px; font-size: 13px; border-radius: 20px; }
+.ui-tabbar.top button svg { width: 18px; height: 18px; }
+.ui-tabbar.top .ui-badge { position: static; margin-left: 2px; }
+.ui-bar .inline-title.lead { position: static; padding: 0; text-align: left; flex: 0 1 auto; max-width: 28%; }
 .ui-actions-slot { position: absolute; left: 0; right: calc(var(--rail-w, 0px) + var(--split-inset, 0px)); z-index: 24; display: flex; justify-content: flex-end; pointer-events: none; }
 .ui-actions-slot > * { pointer-events: auto; }
 

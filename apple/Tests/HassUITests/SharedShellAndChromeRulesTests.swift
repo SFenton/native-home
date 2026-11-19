@@ -11,17 +11,46 @@ import HassTestSupport
 struct SharedShellAndChromeRulesTests {
     // MARK: Navigation style
 
-    @Test func wideWindowsGetAFlyoutUnlessAHingeSplitsThemAndTheChromeFollows() {
-        #expect(ShellNavigationStyle.resolve(isRegularWidth: true) == .flyout)
-        #expect(ShellNavigationStyle.resolve(isRegularWidth: true, hasHinge: true) == .tabBar)
-        #expect(ShellNavigationStyle.resolve(isRegularWidth: false) == .tabBar)
-        let flyout = ShellChrome.resolve(style: .flyout)
-        #expect(flyout == ShellChrome(showsMenuButton: true, titleInHeader: false, edgeSwipe: true))
+    /// One window as the shell sees it: the size class, the hinge, and whether the system moved bar items into a vertical bar.
+    private struct Window {
+        let name: String
+        let regular: Bool
+        let hinge: Bool
+        let vertical: Bool
+
+        var style: ShellNavigationStyle { .resolve(isRegularWidth: regular, hasHinge: hinge) }
+        var chrome: ShellChrome { .resolve(style: style, inVerticalBar: vertical) }
+    }
+
+    private static let windows: [Window] = [
+        Window(name: "iPhone", regular: false, hinge: false, vertical: false),
+        Window(name: "iPad portrait", regular: true, hinge: false, vertical: false),
+        Window(name: "iPad landscape", regular: true, hinge: false, vertical: false),
+        Window(name: "Duo folded", regular: false, hinge: false, vertical: true),
+        Window(name: "Duo unfolded portrait", regular: true, hinge: true, vertical: false),
+        Window(name: "Duo unfolded landscape", regular: true, hinge: true, vertical: true),
+        Window(name: "iPad compact window", regular: false, hinge: false, vertical: false),
+    ]
+
+    @Test func onlyARegularWindowWithoutAHingeGetsTheTopTabBarAndNoMenu() {
+        for window in Self.windows {
+            let top = window.regular && !window.hinge
+            #expect(window.style == (top ? .topTabBar : .tabBar), "\(window.name)")
+            #expect(window.chrome.showsMenuButton == (!top && !window.vertical), "\(window.name) menu button")
+            #expect(window.chrome.edgeSwipe == window.chrome.showsMenuButton, "\(window.name) edge swipe follows the menu")
+            #expect(window.chrome.titleInHeader == (window.vertical && !top), "\(window.name) title in header")
+        }
+    }
+
+    @Test func theTopTabBarLeadsTheCollapsedTitleAndTheRestKeepToday() {
+        let ipad = ShellChrome.resolve(style: .topTabBar)
+        #expect(ipad == ShellChrome(showsMenuButton: false, titleInHeader: false, edgeSwipe: false, titleLeads: true))
         let phone = ShellChrome.resolve(style: .tabBar)
-        #expect(phone.showsMenuButton && !phone.titleInHeader && phone.edgeSwipe)
+        #expect(phone.showsMenuButton && !phone.titleInHeader && phone.edgeSwipe && phone.titleLeads)
         let vertical = ShellChrome.resolve(style: .tabBar, inVerticalBar: true)
-        #expect(!vertical.showsMenuButton && vertical.titleInHeader && !vertical.edgeSwipe)
+        #expect(!vertical.showsMenuButton && vertical.titleInHeader && !vertical.edgeSwipe && !vertical.titleLeads)
         #expect(ShellChrome(showsMenuButton: true, titleInHeader: false).edgeSwipe, "the edge swipe defaults to the menu button")
+        #expect(ShellChrome(showsMenuButton: true, titleInHeader: false).titleLeads, "the title leads beside the menu button")
     }
 
     // MARK: Profile button

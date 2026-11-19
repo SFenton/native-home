@@ -2,8 +2,8 @@ import XCTest
 
 extension XCUIApplication {
     /// Opens Settings, which is the last tab of the shell (owner, 2026-10-16; `.agents/design/direction-g.md`,
-    /// Navigation): its bar item in compact width (the folded Duo's vertical bar is a toolbar to XCUITest), else its row
-    /// in the flyout. Does nothing when the Settings list is already showing.
+    /// Navigation): its bar item in the tab bar (at the bottom, or at the top of a regular iPad window; the folded Duo's vertical bar is a toolbar to
+    /// XCUITest), else its row in the flyout. Does nothing when the Settings list is already showing.
     func openAccountSettings(file: StaticString = #filePath, line: UInt = #line) {
         if descendants(matching: .any).matching(identifier: "settings.list").firstMatch.exists, navigationBars["Settings"].exists { return }
         let items = [barItem("Settings")]
@@ -13,7 +13,7 @@ extension XCUIApplication {
                 item.tap()
                 break
             }
-            // Regular width has no bar: Open Navigation, then the Settings row.
+            // A bar that stays off screen: Open Navigation, then the Settings row.
             let menu = buttons["nav.open"]
             if menu.exists, menu.isHittable, !items.contains(where: \.exists) {
                 menu.tap()

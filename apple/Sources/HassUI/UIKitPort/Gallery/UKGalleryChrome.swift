@@ -95,8 +95,8 @@ final class UKGalleryHostViewController: UIViewController {
         view.addSubview(navigation.view)
         navigation.didMove(toParent: self)
         if UKGalleryChrome.flyout {
-            context.shell?.style = .flyout
-            context.shell?.chrome = .resolve(style: .flyout)
+            context.shell?.style = .tabBar
+            context.shell?.chrome = .resolve(style: .tabBar)
         }
         if let store = context.backdrop { Task { await store.refresh() } }
         if let shell = context.shell { signals = UKDeviceSignals(view: view, environment: shell) }

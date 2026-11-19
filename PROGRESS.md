@@ -33,7 +33,7 @@ A lane reads anything and edits only what it owns; ask in your report for a chan
 ## 4. Backlog
 
 - Duo Back label: the pushed page's system Back reports an empty accessibility label on the folded Duo; label it and restore the Duo assertion in the single-page motion journey.
-- iPad flyout stays open after choosing a section; the iPad single-page journeys skip until it is fixed.
+- iPad has no flyout since the top tab bar (global chrome pick 3, 2026-11-18); the iPad single-page journeys no longer wait on the flyout bug.
 - Measured against felt performance: deferred by the owner.
 
 ## 5. Where to look

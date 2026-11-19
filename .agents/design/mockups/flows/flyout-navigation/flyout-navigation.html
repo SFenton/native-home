@@ -20,16 +20,16 @@
   function focusRing(el) { el.style.outline = '3px solid #fff'; el.style.outlineOffset = '3px'; el.style.borderRadius = '50%'; }
 
   Mock.mount({
-    kind: 'flow', id: 'flyout-navigation', title: 'Flyout navigation (iPad, iPhone and unfolded Duo portrait menu button)', area: 'shell', status: 'shipped',
+    kind: 'flow', id: 'flyout-navigation', title: 'Flyout navigation (iPhone and unfolded Duo portrait menu button)', area: 'shell', status: 'shipped',
     summary: 'Opening the full-height drawer from the Open Navigation button or a leading-edge swipe, choosing a section or dismissing it, and where VoiceOver focus goes. The drawer overlays the content; it never resizes it. Full height, dimmed top safe area and the iPhone edge swipe are on main (#140).',
     source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKNavigationFlyout.swift', 'apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift'],
     spec: ['.agents/design/apple/ipados.md', '.agents/design/direction-g.md', '.agents/design/apple/iphone.md', '.agents/design/motion.md'],
     patterns: ['motion'],
     hig: ['Sidebars', 'Modality', 'Gestures', 'Accessibility'],
     kitComponents: ['NavigationFlyout', 'HamburgerButton', 'NavigationGlass'],
-    devices: ['iphone', 'ipad-portrait', 'ipad-landscape', 'duo-unfolded-portrait'],
+    devices: ['iphone', 'duo-unfolded-portrait'],
     states: {
-      'closed': { title: '1. Closed: the section root with Open Navigation', note: 'iPhone, iPad and the unfolded Duo in portrait lead with the menu button (horizontal bars)', render: function (c) { return root(c, 'home'); } },
+      'closed': { title: '1. Closed: the section root with Open Navigation', note: 'iPhone and the unfolded Duo in portrait lead with the menu button (horizontal bars); iPad has the top tab bar instead', render: function (c) { return root(c, 'home'); } },
       'edge-swipe': { title: '2a. Leading-edge swipe', note: 'a screen-edge pan that starts within 20 pt of the edge and travels 60 pt or more, mostly horizontal; the drawer opens when the swipe ends, it does not follow the finger', render: function (c) { var p = root(c, 'home'); SN.finger(p, { x: 10, y: c.h * .42 }, { label: 'swipe 60+ pt', drag: { x: 86, y: c.h * .42 } }); return p; } },
       'tap-menu': { title: '2b. Tap Open Navigation', note: 'nav.open; focus will move to the heading', render: function (c) { var p = root(c, 'home'); SN.finger(p, 'button[aria-label="Open Navigation"]', { label: 'tap' }); return p; } },
       'opening': { title: '3. Opening (half way)', note: 'panel slides from the leading edge, the scrim fades with it: standard 0.3 s smooth', render: function (c) { return partway(c, .5); } },

@@ -8,4 +8,4 @@
 - States covered: home, tab-cut, pushed-on-home, re-tap-pops-to-root, second-tap-scrolls-top, at-top, chores-badge, chores-badge-none, duo-folded-rail, ax5
 - Motion: tab cut, re-tap pop, scroll to top; three transitions
 - Devices: iPhone, folded Duo, iPad portrait, unfolded Duo (portrait and landscape)
-- Open notes: Regular width shows the flyout row instead of the bar. motion.md says scrollTo; the code uses setContentOffset(animated:).
+- Open notes: Regular width (iPad) shows the same bar at the top of the window. motion.md says scrollTo; the code uses setContentOffset(animated:).

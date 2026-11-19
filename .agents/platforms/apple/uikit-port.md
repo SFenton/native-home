@@ -35,7 +35,7 @@ Decision record: [decision-uikit-replaces-swiftui](decision-uikit-replaces-swift
 - **Appearance.** Pages are always dark (`overrideUserInterfaceStyle = .dark` on the shell); sheets follow the system (direction G, Layers).
 - **Motion.** SwiftUI springs map to `UIView.animate(springDuration:bounce:…)` (iOS 17) with the token's duration and bounce; `.easeInOut(duration:)` to `UIViewPropertyAnimator` curves. Reduce Motion, Reduce Transparency and Increase Contrast are honoured exactly where the SwiftUI code honours them (`UIAccessibility.isReduceMotionEnabled` …, and their change notifications).
 - **Layout.** Grids and long lists are `UICollectionView` with a compositional layout and a diffable data source (self-sizing cells); short fixed pages may be a `UIScrollView` with `UIStackView`s. Inset grouped lists use `UICollectionLayoutListConfiguration(appearance: .insetGrouped)` or the module row metrics, matching the SwiftUI page's insets, radii and hairlines. Sheets are `UISheetPresentationController` with the detents and grabber the SwiftUI `.presentationDetents` gives (`HassModal`, `SheetFit`).
-- **Navigation.** Each section is a `UINavigationController`; the published navigation chrome is a tab bar (compact) or the flyout (`UKNavigationFlyout`, regular width), as `ShellChrome` decides. Large titles, back buttons, toolbar items and the header buttons are the system's.
+- **Navigation.** Each section is a `UINavigationController`; the chrome is a tab bar (top on iPad) plus the flyout (`UKNavigationFlyout`) behind the menu button, as `ShellChrome` decides. Titles, back buttons, toolbar items and header buttons are the system's.
 
 ## Galleries and probes
 

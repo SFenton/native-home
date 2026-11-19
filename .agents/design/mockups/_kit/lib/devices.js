@@ -36,9 +36,9 @@
     'duo-unfolded-landscape': { key: 'duo-unfolded-landscape', label: 'iPhone Duo, unfolded landscape (951 × 669)', short: 'Duo unfolded landscape', w: 951, h: 669, r: 24, bezel: 10, family: 'duo', regular: true,
       safeTop: 24, safeBottom: 20, barTop: 30, rail: 83, menu: false, tabs: 'rail', titleInHeader: true, verticalBar: true, sheetTop: 28, hinge: { axis: 'v', at: HINGE.at, size: HINGE.size } },
     'ipad-portrait': { key: 'ipad-portrait', label: 'iPad Pro 11, portrait (834 × 1194)', short: 'iPad portrait', w: 834, h: 1194, r: 20, bezel: 14, family: 'ipad', regular: true, safeTop: 24, safeBottom: 20,
-      barTop: 30, rail: 0, menu: true, tabs: 'flyout', titleInHeader: false, sheetTop: 28, hinge: null },
+      barTop: 30, rail: 0, menu: false, tabs: 'top', titleInHeader: false, sheetTop: 28, hinge: null },
     'ipad-landscape': { key: 'ipad-landscape', label: 'iPad Pro 11, landscape (1194 × 834)', short: 'iPad landscape', w: 1194, h: 834, r: 20, bezel: 14, family: 'ipad', regular: true, safeTop: 24, safeBottom: 20,
-      barTop: 30, rail: 0, menu: true, tabs: 'flyout', titleInHeader: false, sheetTop: 28, hinge: null },
+      barTop: 30, rail: 0, menu: false, tabs: 'top', titleInHeader: false, sheetTop: 28, hinge: null },
   };
   Mock.deviceKeys = Object.keys(Mock.devices);
   /** Hinge postures of the unfolded Duo (see the header): `open` is flat, `part` is the book pose. */

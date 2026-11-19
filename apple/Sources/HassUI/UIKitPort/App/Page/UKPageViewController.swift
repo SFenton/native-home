@@ -536,10 +536,10 @@ class UKPageViewController: UIViewController, UKColumnBarHosting {
     private func applyChrome(_ chrome: ShellChrome, cap: CGFloat?) {
         headerFade?.cap = cap
         let largeMode: UINavigationItem.LargeTitleDisplayMode = chrome.titleInHeader ? .never : .automatic
-        let changed = navigationItem.largeTitleDisplayMode != largeMode || (navigationItem.style == .browser) != chrome.showsMenuButton
+        let changed = navigationItem.largeTitleDisplayMode != largeMode || (navigationItem.style == .browser) != chrome.titleLeads
         navigationItem.largeTitleDisplayMode = largeMode
-        // The system's own titles (header-edge-fade R7): leading aligned where the hamburger shows (`PageChromeTitle.role`).
-        navigationItem.style = chrome.showsMenuButton ? .browser : .navigator
+        // The system's own titles (header-edge-fade R7): leading aligned where the hamburger shows or the top tab bar holds the centre.
+        navigationItem.style = chrome.titleLeads ? .browser : .navigator
         if changed { refreshTitleBar() }
         // A section root has the menu button when the window shows the flyout (`sectionRootChrome()`).
         menuWanted = chrome.showsMenuButton
