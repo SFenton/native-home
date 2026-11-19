@@ -15,7 +15,7 @@ The two bed tiles become Studio-authored state tiles over a Home Assistant senso
 - B, one fixed colour per bed. Lost: the tile's existing `glyphTint`, no code. It keeps "never grey" but drops the part that says the off icon follows the level, and the heating orange would sit on an off side that leans cooling (HIG, Color: "Avoid using the same color to mean different things, especially for status or interactivity").
 - C, colour by state. Won: off and read-only draw as they do today, orange at or above zero and teal below. The rule on record stays whole and moves from app code into the authored style. Cost: one optional field on a state style rule behind a new capability in the Studio, a small generic change in the app, and a sensor state that says which way an off side leans.
 
-Only the off and read-only faces differ between the options; heating, cooling, hot flash and unavailable draw the same in all three.
+Only the off and read-only faces differ between the options; heating, cooling, boost and unavailable draw the same in all three.
 
 ## Rules it adds
 

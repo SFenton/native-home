@@ -31,11 +31,11 @@
   var FACES = [
     { id: 'off-warm', label: 'Off', sub: 'level at or above 0', bed: 'Bed A', text: 'Off', lean: 'heating' },
     { id: 'off-cool', label: 'Off', sub: 'level below 0', bed: 'Bed B', text: 'Off', lean: 'cooling' },
-    { id: 'away', label: 'Read-only away', sub: 'level at or above 0', bed: 'Bed B', text: 'Away · Read Only', lean: 'heating' },
-    { id: 'away-cool', label: 'Read-only away', sub: 'level below 0', bed: 'Bed B', text: 'Away · Read Only', lean: 'cooling' },
+    { id: 'away', label: 'Read-only', sub: 'level at or above 0', bed: 'Bed B', text: 'View Only', lean: 'heating' },
+    { id: 'away-cool', label: 'Read-only', sub: 'level below 0', bed: 'Bed B', text: 'View Only', lean: 'cooling' },
     { id: 'heating', label: 'Heating', sub: '', bed: 'Bed A', text: 'Heating • +3', fill: 'heating' },
     { id: 'cooling', label: 'Cooling', sub: '', bed: 'Bed B', text: 'Cooling • -3', fill: 'cooling' },
-    { id: 'hot', label: 'Hot flash', sub: 'cooling down', bed: 'Bed B', text: 'Hot Flash Mode • Cooling', fill: 'cooling' },
+    { id: 'hot', label: 'Boost', sub: 'cooling down', bed: 'Bed B', text: 'Boost Mode • Cooling', fill: 'cooling' },
     { id: 'unavail', label: 'Unavailable', sub: '', bed: 'Bed A', text: 'Unavailable', un: true },
   ];
   var DARK = { 'off-warm': 1, 'off-cool': 1, away: 1, 'away-cool': 1 };
@@ -84,7 +84,7 @@
 
   Mock.mount({
     kind: 'proposal', id: 'bed-tile-glyph-tint', title: 'Bed tile as a state tile: the icon colour when off', area: 'proposals', status: 'decided',
-    summary: 'The two bed tiles become ordinary Studio-authored state tiles over a Home Assistant sensor, with no bed code in the app. One thing cannot carry over as authored today: the bed icon keeps its orange (heating) or teal (cooling) colour on the dark face while the side is off or read-only, following the level, and a state tile has one icon colour per tile. Three options: A grey, B one fixed colour per bed, C the style sets the colour per state. Only the dark faces differ; heating, cooling, hot flash and unavailable draw the same in all three. The owner picked C, colour by state, on 2026-11-19; A and B are the rejected record.',
+    summary: 'The two bed tiles become ordinary Studio-authored state tiles over a Home Assistant sensor, with no bed code in the app. One thing cannot carry over as authored today: the bed icon keeps its orange (heating) or teal (cooling) colour on the dark face while the side is off or read-only, following the level, and a state tile has one icon colour per tile. Three options: A grey, B one fixed colour per bed, C the style sets the colour per state. Only the dark faces differ; heating, cooling, boost and unavailable draw the same in all three. The owner picked C, colour by state, on 2026-11-19; A and B are the rejected record.',
     source: ['apple/Sources/HassDesign/ThermostatTileFace.swift', 'apple/Sources/HassDesign/AuthoredTileInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUITileInk.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIStateStyles.swift'],
     spec: ['.agents/design/direction-g.md', '.agents/patterns/entity-tile.md', '.agents/design/state-styled-tile.md', '.agents/design/state-styles.md'],
     patterns: ['entity-tile', 'dynamic-grid', 'bedroom-devices'],
@@ -93,7 +93,7 @@
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
 
     states: {
-      'a': { title: 'A · Grey icon on the dark face', note: 'No icon colour is authored. Off and read-only away draw the neutral grey glyph; nothing in the app or the Studio changes.', render: page('a', NOTE) },
+      'a': { title: 'A · Grey icon on the dark face', note: 'No icon colour is authored. Off and read-only draw the neutral grey glyph; nothing in the app or the Studio changes.', render: page('a', NOTE) },
       'b': { title: 'B · One fixed icon colour per bed', note: 'Each tile authors one icon colour (drawn here as heating orange on both). It does not follow the level: a side set below zero and off stays orange where today it is teal.', render: page('b', NOTE) },
       'c': { title: 'C · The style sets the icon colour per state', note: 'A state style rule can carry an icon colour, so off and away keep orange at or above zero and teal below, as today. Needs a Studio schema field and a small generic native change.', render: page('c', NOTE) },
       'today': { title: 'Today · the native bed tile (reference)', note: 'ThermostatTileFace.bedSide: an off side keeps the glyph of its level’s family; an unavailable side is grey and reads "Off".', render: page('today', NOTE) },
@@ -120,13 +120,13 @@
             ['HIG', 'Color, Inclusive color: "Avoid relying solely on color to differentiate objects, indicate interactivity or communicate essential information; be sure to also convey it another way, like text labels or glyph shapes." Met: the state line carries off, away and unavailable. Grey would then mean both off and unavailable on the icon; the unavailable tile is also dimmed and says so.', 'Color: "Avoid using the same color to mean different things, especially for status or interactivity". At risk: orange means heating on a filled tile and would also sit on an off side that leans cooling.', 'Color: "Avoid using the same color to mean different things, especially for status or interactivity". Met: orange always means the heating side of zero, teal the cooling side. Accessibility: "Convey state and function with shapes or icons in addition to color": the state line carries it in words.'],
             ['Reach', 'These two tiles only.', 'These two tiles only.', 'Every state tile gains the option; no existing tile changes unless its style authors a colour.'],
           ]),
-          para('The same in every option, and not part of this choice: heating and cooling fill the tile with the family colour through the state style; hot flash draws the cooling fill; the tile is a navigation tile with a chevron and no disc; on a narrow window each tile takes a full row because its longest status line is long; on iPad the two share a row.'),
+          para('The same in every option, and not part of this choice: heating and cooling fill the tile with the family colour through the state style; boost draws the cooling fill; the tile is a navigation tile with a chevron and no disc; on a narrow window each tile takes a full row because its longest status line is long; on iPad the two share a row.'),
           para('One wording difference rides along with all three and is the generic tile’s existing rule: an unavailable side reads "Unavailable" with a dimmed icon, where today’s bed tile reads "Off" on the grey face.'));
       } },
     ],
 
     a11y: [
-      { rule: 'Colour is never the only signal', note: 'In every option the state line says Off, Heating, Cooling, Hot Flash Mode, Unavailable or Away · Read Only. VoiceOver reads "Bed A, Off"; the icon colour is not spoken and none of the options changes what is read.' },
+      { rule: 'Colour is never the only signal', note: 'In every option the state line says Off, Heating, Cooling, Boost Mode, Unavailable or View Only. VoiceOver reads "Bed A, Off"; the icon colour is not spoken and none of the options changes what is read.' },
       { rule: 'Contrast on the dark face', note: 'The off-face glyph colours are the ones the app draws today: the family glyph or the neutral grey, each at 3:1 or better on the page off face after the lift (direction-g, the contrast table). No option adds a new colour.' },
       { rule: 'Unavailable', note: 'The same in all three: the dimmed grey icon, "Unavailable", the not-enabled trait. An authored icon colour never applies to an unavailable tile.' },
       { rule: 'Accessibility 5', note: 'Tiles stack the icon over the text and take one column on iPhone, iPhone Duo and iPad. Nothing clips; the page scrolls.' },

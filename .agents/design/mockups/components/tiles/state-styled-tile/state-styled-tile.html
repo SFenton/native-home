@@ -69,7 +69,7 @@
   var TINT = function (ctx) {
     return page(ctx, 'Icon colour by state', [
       [K.PageSectionHeader({ title: 'Dark faces: the rule sets the icon colour' }),
-        K.TileGrid({ items: [tinted('Bed A', 'Off', 'heating'), tinted('Bed B', 'Off', 'cooling'), tinted('Bed B', 'Away · Read Only', 'cooling'), tinted('Bed A', 'Away · Read Only', 'heating')], min: 300, max: 2 }),
+        K.TileGrid({ items: [tinted('Bed A', 'Off', 'heating'), tinted('Bed B', 'Off', 'cooling'), tinted('Bed B', 'View Only', 'cooling'), tinted('Bed A', 'View Only', 'heating')], min: 300, max: 2 }),
         h('p.st-note', 'Same tile, same words: the first and second differ only in the rule that matched, so only the icon colour differs. A rule with none falls back to the tile\'s static icon colour, then to the default ink.')],
       [K.PageSectionHeader({ title: 'Faces that keep their own ink' }),
         K.TileGrid({ items: [tinted('Bed A', 'Heating • +3', 'heating', { isActive: true }), tinted('Bed B', 'Cooling • -3', 'cooling', { isActive: true }), tinted('Bed A', 'Unavailable', null, { isUnavailable: true })], min: 300, max: 2 }),
