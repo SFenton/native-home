@@ -65,7 +65,8 @@ struct HouseBackdropStoreTests {
         #expect(BackdropRenderer.loadLatest(in: directory) == nil, "nothing is stored while suspended")
 
         store.setSuspended(false)
-        await store.settled()
+        // The publication's retried preparation refreshes again: that waits for the render the return started.
+        await store.refresh()
         #expect(store.image != nil)
         #expect(store.renderCount == 1)
     }

@@ -116,9 +116,10 @@ final class HouseBackdropStore {
     }
 
     /// Loads the photo and renders each one the pipeline yields (the cached photo, then a changed one), once per store.
-    /// Returns when the renders it asked for are done. Failures keep the render on screen.
+    /// Returns when the renders it asked for are done; a later call loads nothing and waits for the renders running then (the one
+    /// a return from the background started). Failures keep the render on screen.
     func refresh() async {
-        guard !refreshed else { return }
+        guard !refreshed else { await settled(); return }
         refreshed = true
         let directory = directory
         // Renders from an older recipe are never read again; drop them off the main thread.
