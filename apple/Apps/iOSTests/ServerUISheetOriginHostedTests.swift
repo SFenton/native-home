@@ -263,6 +263,39 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         XCTAssertTrue(landed)
     }
 
+    // MARK: Room navigation
+
+    /// A room chosen in a level of the sheet leaves the sheet like any page link: room navigation reaches `perform` without `activate`.
+    func testARoomChosenInALevelClosesTheSheetAndLandsOnTheSectionStack() throws {
+        let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let corpus = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: apple.appendingPathComponent(
+            "Tests/HassCoreTests/ContractCorpus/accept/global-chrome-levels-two-levels.json")))
+        var level = try XCTUnwrap(corpus["document"]?["levels"]?.array?.first)
+        level = try ServerUIRendererFixture.changing(level, path: "/components", to: .array([.object([
+            "id": .string("room-grid-level"), "title": .string("Level rooms"), "type": .string("room-navigation-grid"),
+            "layout": .object(["span": .number(1)]),
+            "binding": .object(["sourceId": .string("source-room-navigation"), "projection": .string("room-navigation@1")]),
+            "props": .object([:]),
+        ])]))
+        var json = try ServerUIRendererFixture.roomsJSON()
+        json = try ServerUIRendererFixture.changing(json, path: "/document/levels", to: .array([level]))
+        let capabilities = try XCTUnwrap(json["capabilities"]?.array).compactMap(\.string) + [ServerUIGlobalChrome.sheetLevels]
+        json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(Set(capabilities).sorted().map(JSONValue.string)))
+        let (host, window, _) = try ServerUIRendererFixture.roomHost(json: json)
+        defer { window.isHidden = true }
+        let sheet = try openSheet(host, from: ServerUIRendererFixture.root(host))
+        host.activate(push("level-one"), from: sheet)
+        let inLevel = spin({ host.modal?.viewControllers.count == 2 })
+        XCTAssertTrue(inLevel, "A push to a level stays in the sheet")
+        let one = try XCTUnwrap(host.modal?.topViewController as? UKServerUIPage)
+        guard case .roomNavigation(_, let configuration) = host.bindings.definitions["source-room-navigation"],
+              let room = configuration.items.first(where: { $0.id == "room-b" }) else { return XCTFail("The fixture's room navigation") }
+        try host.activateRoom(room, sourceId: "source-room-navigation", from: one, source: one.view)
+        let landed = spin({ host.modal == nil && host.navigation.snapshot.presentations.isEmpty })
+        XCTAssertTrue(landed, "The sheet closed")
+        XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit", "page-lattice"], "The room page is on the section stack")
+    }
+
     // MARK: Documents without the capability
 
     func testADocumentWithoutLevelsKeepsAPagePushInsideTheSheet() throws {

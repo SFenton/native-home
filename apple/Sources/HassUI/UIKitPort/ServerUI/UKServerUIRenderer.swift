@@ -1133,7 +1133,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let outerCell = bindings.cell
         bindings.cell = Self.cellScope(of: source) ?? outerCell
         defer { bindings.cell = outerCell }
-        guard let action = action.resolved(reader(control: control)) else { return }
+        guard let resolved = action.resolved(reader(control: control)) else { return }
+        // Room navigation and the Profile and Away destinations reach here without `activate`; the sheet rule holds for them too.
+        let action = leavingSheet(resolved, from: page)
         guard let nav = senderStack(page), activeAlert == nil else { throw blocked() }
         if settingsExit(action), attachedSettingsProviders(from: page).contains(where: \.blocksExit) { throw blocked() }
         if action.leavesForm, nativeExitGate?.blocksExit(page) == true { throw blocked("/document/form") }
