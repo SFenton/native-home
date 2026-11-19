@@ -163,26 +163,26 @@ final class UKHostedContentSpanTests: XCTestCase {
         }
     }
 
-    // MARK: A bed-shaped authored state tile
+    // MARK: A long-status authored state tile
 
-    /// The models the authored bed-shaped tiles draw (`AuthoredBedShapedTile`: a state tile over a generic sensor, each state's longest line as its
+    /// The models the authored long-status tiles draw (`AuthoredLongStatusTile`: a state tile over a generic sensor, each state's longest line as its
     /// rule text), taken from the real renderer once and then laid out as tiles of their own at the exact family widths, whatever the simulator.
-    private func authoredBedModels() throws -> [UKGlassTileModel] {
+    private func authoredStatusModels() throws -> [UKGlassTileModel] {
         let store = EntityStore()
-        store.replaceAll([AuthoredBedShapedTile.sensor("a", state: "heating"), AuthoredBedShapedTile.sensor("b", state: "off")])
-        let host = try UKServerUIRenderer(publication: AuthoredBedShapedTile.publication(), context: UKContext(store: store, caller: HostedCaller()),
+        store.replaceAll([AuthoredLongStatusTile.sensor("a", state: "running"), AuthoredLongStatusTile.sensor("b", state: "off")])
+        let host = try UKServerUIRenderer(publication: AuthoredLongStatusTile.publication(), context: UKContext(store: store, caller: HostedCaller()),
                                           backdrop: ServerUIRendererFixture.backdrop())
         let window = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: 390, height: 1180)))
         defer { window.isHidden = true }
         HostedPage.wait(0.1)
         let root = try ServerUIRendererFixture.root(host)
         root.view.layoutIfNeeded()
-        return try ["a", "b"].map { try XCTUnwrap(root.nodes["bed-\($0)"]?.view as? UKGlassTileView, "tile \($0)").model }
+        return try ["a", "b"].map { try XCTUnwrap(root.nodes["unit-\($0)"]?.view as? UKGlassTileView, "tile \($0)").model }
     }
 
-    /// Two authored bed tiles stack at 390 and 466 and share a row at 744 and 868 only where two minimums fit; neither is squeezed below its own.
-    func testAuthoredBedShapedTilesStackAtPhoneWidthsAndShareOnlyWhereTheMinimumsFit() throws {
-        let models = try authoredBedModels()
+    /// Two authored tiles stack at 390 and 466 and share a row at 744 and 868 only where two minimums fit; neither is squeezed below its own.
+    func testAuthoredLongStatusTilesStackAtPhoneWidthsAndShareOnlyWhereTheMinimumsFit() throws {
+        let models = try authoredStatusModels()
         var minimum: CGFloat = 0
         for width in [390, 466, 744, 868] as [CGFloat] {
             let tiles = models.map { UKGlassTileView(model: $0) }
@@ -191,33 +191,34 @@ final class UKHostedContentSpanTests: XCTestCase {
             defer { window.isHidden = true }
             let frames = grid.items.map(\.view.frame)
             let sharing = abs(frames[0].minY - frames[1].minY) < 1
-            print("BEDSPAN width=\(width) minimum=\(minimum) share=\(sharing) frames=\(frames.map { "\($0.minX),\($0.minY) \($0.width)x\($0.height)" })")
+            print("LONGSPAN width=\(width) minimum=\(minimum) share=\(sharing) frames=\(frames.map { "\($0.minX),\($0.minY) \($0.width)x\($0.height)" })")
             XCTAssertGreaterThan(minimum, 150, "the longest line asks for more than one track (\(width))")
             for frame in frames {
                 XCTAssertGreaterThanOrEqual(frame.width + 0.5, minimum, "never squeezed below its minimum at \(width)")
                 XCTAssertLessThanOrEqual(frame.maxX, width + 1)
             }
+            XCTAssertEqual(sharing, 2 * minimum + HassTokens.Spacing.m <= width + 0.5,
+                           "two tiles share a row exactly when both minimums fit (\(width), minimum \(minimum))")
             if sharing {
                 XCTAssertLessThan(frames[0].maxX, frames[1].minX + 1, "side by side at \(width)")
-                XCTAssertLessThanOrEqual(2 * minimum + HassTokens.Spacing.m, width + 1, "two tiles share a row only where both minimums fit (\(width))")
             } else {
                 XCTAssertEqual(frames[0].width, width, accuracy: 1, "a stacked tile takes the row at \(width)")
                 XCTAssertLessThan(frames[0].maxY, frames[1].minY + 1)
             }
-            if width <= 466 { XCTAssertFalse(sharing, "one bed tile per row at \(width)") }
+            if width <= 466 { XCTAssertFalse(sharing, "one tile per row at \(width)") }
         }
         XCTAssertGreaterThan(minimum, 0)
     }
 
     /// Touch height and accessibility of the authored tile at the exact family widths: at least 44 pt tall, title and line spoken, never a disc.
-    func testAuthoredBedShapedTilesKeepTheirHeightAndSpeechAtEveryFamilyWidth() throws {
-        let models = try authoredBedModels()
+    func testAuthoredLongStatusTilesKeepTheirHeightAndSpeechAtEveryFamilyWidth() throws {
+        let models = try authoredStatusModels()
         for width in [390, 466, 744, 868] as [CGFloat] {
             let tiles = models.map { UKGlassTileView(model: $0) }
             let (grid, window) = laidOut(tiles.map(wrapped), width: width)
             defer { window.isHidden = true }
             HostedPage.layoutTracked()
-            for (tile, title) in zip(tiles, ["Bed A", "Bed B"]) {
+            for (tile, title) in zip(tiles, ["Unit A", "Unit B"]) {
                 XCTAssertEqual(tile.accessibilityLabel, title, "width \(width)")
                 XCTAssertFalse(tile.accessibilityValue?.isEmpty ?? true, "\(title) speaks its line at \(width)")
                 XCTAssertGreaterThanOrEqual(tile.bounds.height, 44 - 0.5, "\(title) is at least 44 pt tall at \(width)")
