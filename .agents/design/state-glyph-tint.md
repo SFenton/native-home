@@ -9,7 +9,7 @@ Proposal: [bed-tile-glyph-tint](mockups/proposals/bed-tile-glyph-tint/bed-tile-g
 1. **The field.** A state style rule and a style's fallback may carry `glyphTint`. It has the shape of the tile's `glyphTint`: a `solid-rgb`, or a `solid-appearance` pair that resolves with the trait collection, with no clamp.
 2. **Order.** The matching rule's `glyphTint`, else the tile's static `glyphTint`, else the document's default ink. A style that authors none draws as before.
 3. **Where it draws.** Exactly where the static tint draws (`AuthoredTileInk.glyphTintApplies`): a face that is neither filled nor an error. A lit face, a family fill and a style `fill` keep their fixed icon ink.
-4. **Never while unavailable or unknown.** The icon keeps the muted grey at 50%.
+4. **Never while unavailable or unknown.** The rule's colour never draws; the tile's own icon ink shows at 50%.
 5. **Accepted on** a resting or in-progress rule with no `fill`. On a warning, error or unknown rule, or beside a `fill`, it is rejected: those inks follow the class or the fill.
 6. **Contrast.** The Studio measures each member against the face it lands on, the dark member on the page's off face at its lightest ground and the light member on a light sheet's white cell, and warns below 3:1. The app draws the authored value unchanged.
 7. **One colour, one meaning** across a style's states.
@@ -17,8 +17,6 @@ Proposal: [bed-tile-glyph-tint](mockups/proposals/bed-tile-glyph-tint/bed-tile-g
 9. **Motion.** The tint belongs to the tile's colour layer: a changed tint fades with the face, an equal one is untouched, and a first render, a cold launch or a reconnect sets it with no transition.
 10. **Disc icons** are unchanged: `discGlyphTint` stays one colour per tile.
 11. **Capability.** A publication needs `sh.state-style-glyph-tint@1` only when a rule or fallback writes the field. A build without it treats that publication as any layout naming a capability it lacks ([server-ui-boundary](server-ui-boundary.md)): a last good layout stays, and no style is half-applied.
-
-A bed side authored as a state tile keeps direction-g's bed-side rule this way: its off and read-only states carry the heating or the cooling glyph colour.
 
 ## HIG
 

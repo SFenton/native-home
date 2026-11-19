@@ -19,13 +19,8 @@ Only the off and read-only faces differ between the options; heating, cooling, b
 
 ## Rules it adds
 
-- A state style rule, or a style's fallback, may carry `glyphTint` (`sh.state-style-glyph-tint@1`): the icon colour while that rule matches, in the tile's own `glyphTint` shape.
-- A rule with none falls back to the tile's static `glyphTint`, then to the document's default ink.
-- It applies only where the static tint applies: a face that is neither filled nor an error, and never an unavailable tile.
-- It is accepted on a resting or in-progress rule with no `fill`, and rejected elsewhere.
-- Colour stays a second channel: the state text and the VoiceOver value are unchanged, and the colour is never spoken.
-- direction-g's bed-side rule is unchanged: a bed side keeps its family icon when off and is never grey except when unavailable.
+The rules are in the rule home, [state-glyph-tint](../design/state-glyph-tint.md). direction-g's bed-side rule is unchanged.
 
 ## Evidence
 
-Mockup only (`.agents/design/mockups/proposals/bed-tile-glyph-tint/`): no option was built before the pick, so there is no device capture of A, B or C. The build's evidence pack covers C on the three families.
+Mockup only (`.agents/design/mockups/proposals/bed-tile-glyph-tint/`): no option was built before the pick, so there is no device capture of A, B or C. The build is covered by unit tests and hosted tests run on the iPhone simulator at the iPhone, Duo and iPad widths; CI's smoke runs cover all three families. No device capture of C exists: no published layout uses the field until this build ships.

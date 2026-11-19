@@ -15,3 +15,4 @@
 - Change log: 2026-10-28 tile rollout R: bed sides carry a Power disc; Humidifier a Power disc; BedSideTile and WakeLightTile are gone (the gallery draws these cards).
 - In flight (`claude/section-sides`, [section-sides](../../../../section-sides.md)): partly folded Duo, each section wholly on one side (fold columns); state `duo-part-fold`. Every other pose unchanged.
 - Bed tiles as authored state tiles: the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`) and each tile is a full row on narrow widths.
+- Bed tiles take the tracks their longest line needs, a full row each on iPhone and folded Duo (owner request 2026-11-19, task bed-tile-span; restores the pre-#119 width). Since publication r32 they are Studio-authored state tiles over a Home Assistant status sensor, sized by their style's words (`min: 300` in `_rooms.js`).
