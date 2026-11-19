@@ -107,13 +107,18 @@ enum UKServerUIStateTileViews {
                 face.model.actions = face.spec.map { [$0].items } ?? []
             }
             var subtitle: String?
+            var subtitleIsKept = false
             // MARK: - Kept text presentation (T-text-keep)
-            if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value, memory: &subtitleMemory).value { subtitle = text }
+            if let value = tile.parts.subtitle {
+                let answer = renderer.bindings.string(value, memory: &subtitleMemory)
+                if case .ready(let text) = answer.value { subtitle = text; subtitleIsKept = answer.isKept && !text.isEmpty }
+            }
             var discMemory = node?.layoutMemory ?? UKServerUILayoutMemory()
             UKServerUIStateTileParts.apply(tile, to: &face.model, reader: renderer.reader(), subtitle: subtitle,
                                            unknown: hidden || loading || unavailable, busy: busy,
                                            read: { renderer.bindings.textResult($0) }, memory: &discMemory)
             node?.layoutMemory = discMemory
+            face.model.subtitleIsKept = subtitleIsKept && face.model.subtitle != nil
             swipe?.apply(to: &face.model, allowed: allowed, unknown: hidden || loading || unavailable, failed: failed)
             // A drag holds its tile: the latest model waits for the finger to lift (C8).
             let configure: () -> Void = { [first] in view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,

@@ -43,6 +43,8 @@ public struct ComponentGallery {
         case home
         /// The state-styled tile through its states: a tile with a disc and one without (`FENTON_GALLERY=state-tile`).
         case stateTile = "state-tile"
+        /// A composition with one kept-text slot per host, whose source the page drives (`FENTON_GALLERY=text-keep`; T-text-keep).
+        case textKeep = "text-keep"
     }
 
     /// The page requested at launch, if any. The whole type is debug-only.

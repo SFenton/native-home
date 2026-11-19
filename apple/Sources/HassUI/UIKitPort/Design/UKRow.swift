@@ -106,6 +106,10 @@ struct UKRowContent: Equatable {
     var valueWeight: UIFont.Weight?
     /// What VoiceOver reads after the label.
     var hint: String?
+    /// Which text slots draw the last answered text while their value is unavailable (`sh.text-keep@1`; ``ServerUIKeptTextTreatment``).
+    var titleIsKept = false, subtitleIsKept = false, valueIsKept = false
+    /// Whether any slot of the row is kept: one cue for the row's element.
+    var isKept: Bool { titleIsKept || subtitleIsKept || valueIsKept }
 
     init(_ title: String, subtitle: String? = nil, value: String? = nil, symbol: String? = nil, glyph: UIColor? = nil,
          subtitleInk: UIColor? = nil, glyphOpacity: CGFloat = 1, subtitleIsValue: Bool = false, showsChevron: Bool = false,
@@ -600,7 +604,7 @@ class UKRowView: UIView, UKSurfaceStyled {
         updateMinHeight()
         let subtitle = valuesPending && rowContent.subtitleIsValue ? nil : rowContent.subtitle
         textStack.accessibilityLabel = rowContent.spokenLabel ?? Self.accessibilityLabel(title: rowContent.title, subtitle: subtitle)
-        textStack.accessibilityValue = rowContent.spokenValue ?? rowContent.value
+        textStack.accessibilityValue = UKKeptText.value(appendingTo: rowContent.spokenValue ?? rowContent.value, kept: rowContent.isKept)
         textStack.accessibilityIdentifier = rowContent.identifier
         textStack.accessibilityHint = rowContent.hint
     }
@@ -623,13 +627,28 @@ class UKRowView: UIView, UKSurfaceStyled {
         titleLabel.font = .ukFont(.body, weight: rowContent.titleWeight ?? .regular)
         titleLabel.textAlignment = rowContent.isCentered ? .center : .natural
         titleLabel.textColor = rowContent.titleInk ?? UKDesignSurface.title(on: surface)
+        if titleLabel.attributedText != nil { titleLabel.attributedText = nil; titleLabel.text = rowContent.title }
         subtitleLabel.font = .ukFont(rowContent.subtitleStyle ?? style.subtitleStyle, monospacedDigit: style.monospacedSubtitle)
+        if subtitleLabel.attributedText != nil { subtitleLabel.attributedText = nil }
         subtitleLabel.text = rowContent.subtitle
         valueLabel.font = .ukFont(style.valueStyle, weight: rowContent.valueWeight ?? .regular, monospacedDigit: style == .grouped)
+        if valueLabel.attributedText != nil { valueLabel.attributedText = nil }
         valueLabel.text = rowContent.value
         valueLabel.textColor = rowContent.valueInk ?? secondary
         let subtitleInk = rowContent.subtitleInk ?? secondary
         if subtitleLabel.textColor != subtitleInk { UKMotion.crossFade(subtitleLabel) { self.subtitleLabel.textColor = subtitleInk } }
+        // Kept text under option C: the glyph, and the grey where the live ink is a neutral (`UKKeptText`).
+        if rowContent.titleIsKept {
+            UKKeptText.apply(to: titleLabel, text: rowContent.title, kept: true, liveInk: titleLabel.textColor, neutral: rowContent.titleInk == nil, textStyle: .body)
+        }
+        if rowContent.subtitleIsKept {
+            UKKeptText.apply(to: subtitleLabel, text: rowContent.subtitle, kept: true, liveInk: subtitleInk, neutral: rowContent.subtitleInk == nil,
+                             textStyle: rowContent.subtitleStyle ?? style.subtitleStyle)
+        }
+        if rowContent.valueIsKept {
+            UKKeptText.apply(to: valueLabel, text: rowContent.value, kept: true, liveInk: valueLabel.textColor, neutral: rowContent.valueInk == nil,
+                             textStyle: style.valueStyle)
+        }
         if let check = rowContent.check {
             glyphView.image = UIImage(systemName: CheckRowMetrics.symbol(checked: check.isChecked),
                                       withConfiguration: UIImage.SymbolConfiguration(textStyle: .body))
@@ -713,7 +732,7 @@ class UKRowButton: UIControl, UKSurfaceStyled {
     }
 
     override var accessibilityValue: String? {
-        get { row.rowContent.value }
+        get { UKKeptText.value(appendingTo: row.rowContent.value, kept: row.rowContent.isKept) }
         set {}
     }
 

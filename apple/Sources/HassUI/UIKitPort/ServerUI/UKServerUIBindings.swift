@@ -22,7 +22,7 @@ enum UKServerUIValue<Value> {
 
 /// What a text slot instance gives: the value to draw, and whether it is remembered text drawn while the live value is unavailable.
 ///
-/// ``isKept`` is carried to every render site that owns a slot instance; no site draws it differently yet.
+/// ``isKept`` is carried to every render site that owns a slot instance, which draws and speaks it as ``ServerUIKeptTextTreatment`` says.
 struct UKServerUIStringAnswer {
     /// The value to draw.
     let value: UKServerUIValue<String>

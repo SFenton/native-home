@@ -18,6 +18,9 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
     private let surface: StatusPill.Surface
     /// The first values have not arrived (`EnvironmentValues.valuesPending`): the value is a muted placeholder, never "Unavailable".
     var valuesPending = false { didSet { if valuesPending != oldValue { refresh(animated: false) } } }
+    /// Which of the value and the detail draw the last answered text while theirs is unavailable (`sh.text-keep@1`;
+    /// ``ServerUIKeptTextTreatment``). Set before ``configure(label:value:detail:symbol:tone:)``, which draws it.
+    var keptSlots: (value: Bool, detail: Bool) = (false, false)
 
     private let blur = UIVisualEffectView(effect: UIBlurEffect(style: .systemMaterial))
     private let iconView = UIImageView()
@@ -75,10 +78,13 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
         valueView.font = UKFont.rowTitle(traitCollection, monospacedDigit: true)
         detailView.font = UKFont.preferred(.footnote, traits: traitCollection)
         labelView.text = label
-        valueView.text = valuesPending ? nil : value
+        // Kept text under option C: the glyph, and the grey on these neutral inks (`UKKeptText`).
+        UKKeptText.apply(to: valueView, text: valuesPending ? nil : value, kept: keptSlots.value && !valuesPending, liveInk: UKInk.primary,
+                         neutral: true, textStyle: .body)
         valueView.isHidden = valuesPending
         pendingBar.isHidden = !valuesPending
-        detailView.text = valuesPending ? nil : detail
+        UKKeptText.apply(to: detailView, text: valuesPending ? nil : detail, kept: keptSlots.detail && !valuesPending, liveInk: UKInk.secondary,
+                         neutral: true, textStyle: .footnote)
         detailView.isHidden = valuesPending || detail == nil
         let color = UIColor(StatusPill.colorToken(valuesPending ? .unavailable : tone))
         if animated, window != nil {
@@ -88,7 +94,10 @@ final class UKStatusPillView: UIView, UKGridMeasuring {
             iconView.tintColor = color
         }
         accessibilityLabel = label
-        accessibilityValue = valuesPending ? StatusPill.pendingValue : StatusPill.accessibilityValue(value: value, detail: detail)
+        let spoken = StatusPill.accessibilityValue(value: value, detail: detail)
+        // One cue for the element, however many of its slots are kept.
+        accessibilityValue = valuesPending ? StatusPill.pendingValue
+            : UKKeptText.spoken(spoken, drawn: spoken, kept: keptSlots.value || keptSlots.detail) ?? spoken
         setNeedsLayout()
         invalidateIntrinsicContentSize()
         // Text, symbol or size category changed the pill's size: the containers above measure it again (a live tick that keeps it does nothing).

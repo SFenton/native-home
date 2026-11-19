@@ -10,6 +10,7 @@ extension UKGallery {
         case .roomDevices: UKGalleryChrome.wrap(UKRoomDevicesGalleryViewController(), context: UKGalleryChrome.context())
         case .cameraViewer: UKCameraViewerGallery.make()
         case .stateTile: UKStateTileGallery.make()
+        case .textKeep: UKTextKeepGallery.make()
         default: nil
         }
     }

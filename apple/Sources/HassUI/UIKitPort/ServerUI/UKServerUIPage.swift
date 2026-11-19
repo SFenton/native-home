@@ -651,7 +651,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .statusPill(let value):
                 if let view = entry.view as? UKStatusPillView {
-                    // The value's and the detail's last answers (`sh.text-keep@1`); `isKept` is carried, not yet drawn differently.
+                    // The value's and the detail's last answers (`sh.text-keep@1`); `isKept` is drawn as ``ServerUIKeptTextTreatment`` says.
                     var valueMemory = ServerUITextMemory(), detailMemory = ServerUITextMemory()
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer, let view else { return }
@@ -666,8 +666,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                         case .unavailable: text = value.unavailableText; tone = .unavailable
                         }
                         let detail: String?
-                        if case .ready(let text) = renderer.bindings.string(value.detail, memory: &detailMemory).value, !text.isEmpty { detail = text }
+                        let shownDetail = renderer.bindings.string(value.detail, memory: &detailMemory)
+                        if case .ready(let text) = shownDetail.value, !text.isEmpty { detail = text }
                         else { detail = nil }
+                        view.keptSlots = (value: shown.isKept && !text.isEmpty, detail: shownDetail.isKept && detail != nil)
                         view.valuesPending = pending
                         view.configure(label: value.node.title, value: text, detail: detail, symbol: value.icon.drawn, tone: tone)
                     }
@@ -945,6 +947,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                                      isActive: tile.selected == .navigationPath && renderer.isSelected(tile.action, from: self),
                                                      kind: .navigate, identifier: tile.node.id)
                         model.fillDarkRGB = fillDarkRGB
+                        model.subtitleIsKept = shownSubtitle.isKept && subtitle != nil
                         model.bodyHint = tile.presentation?.bodyHint
                         var alarmSpec: TileActionSpec?
                         if let alarm = tile.alarm, let provider = renderer.bindings.alarms[alarm.sourceId] {
@@ -1443,8 +1446,13 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         accessibilityTraits = traits
     }
     /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
-    /// Whether the text shown is the last answered text, kept while its value is unavailable (`sh.text-keep@1`). Carried only: nothing draws it yet.
+    /// Whether the text shown is the last answered text, kept while its value is unavailable (`sh.text-keep@1`); drawn and spoken as
+    /// ``ServerUIKeptTextTreatment`` says.
     private(set) var isKept = false
+    /// The text shown, without the glyph an option C draws before it.
+    private var shownText: String?
+    /// The ink the style and look give the text, before kept text steps it.
+    private var liveInk = UIColor.label
     var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }
     /// Whether a single line shrinks to 0.6 of its size before it is cut, so it stays inside what holds it (a dial's centre). Off for a plain text.
     var shrinksToFit = false { didSet { if shrinksToFit != oldValue { restyle() } } }
@@ -1491,13 +1499,16 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         // MARK: - Kept text presentation (T-text-keep)
         isKept = answer.isKept
         switch answer.value {
-        case .ready(let text): label.text = text; pending.isHidden = true
-        case .unavailable: label.text = unavailable; pending.isHidden = true
-        case .loading: label.text = "Loading"; pending.isHidden = false
+        case .ready(let text): shownText = text; pending.isHidden = true
+        case .unavailable: shownText = unavailable; pending.isHidden = true
+        case .loading: shownText = "Loading"; pending.isHidden = false
         }
+        drawShownText()
         label.alpha = pending.isHidden ? 1 : 0
-        ticker?.text = label.text ?? ""
-        accessibilityLabel = label.text
+        ticker?.text = shownText ?? ""
+        // The label speaks the plain text, never the glyph; the value carries the cue once.
+        accessibilityLabel = shownText
+        accessibilityValue = UKKeptText.value(appendingTo: nil, kept: isKept)
         ukRemeasureContainers(includingSelf: true)
     }
 
@@ -1514,19 +1525,20 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         let font = UKStyledText.font(style: style, look: look, traits: traitCollection, baseWeight: base) ?? styled
         let ink = look.ink.map(UKStyledText.color) ?? ([.subheadline, .footnote].contains(style) ? UKDesignInk.secondary : UKDesignInk.primary)
         label.font = font
-        label.textColor = ink
+        liveInk = ink
+        drawShownText()
         label.numberOfLines = look.lines ?? 0
         label.lineBreakMode = look.shrinks || (look.lines ?? 0) > 0 ? .byTruncatingTail : .byWordWrapping
         label.adjustsFontSizeToFitWidth = shrinksToFit
         label.minimumScaleFactor = shrinksToFit ? 0.6 : 0
         label.textAlignment = UKStyledText.alignment(look.align, rightToLeft: effectiveUserInterfaceLayoutDirection == .rightToLeft)
         if look.isTicker {
-            let ticker = self.ticker ?? UKTickerLabel(label.text ?? "", truncatesWhenStill: true)
+            let ticker = self.ticker ?? UKTickerLabel(shownText ?? "", truncatesWhenStill: true)
             if self.ticker == nil { self.ticker = ticker; insertSubview(ticker, belowSubview: pending) }
             ticker.fontProvider = { [style, look, base] traits in UKStyledText.font(style: style, look: look, traits: traits, baseWeight: base) ?? font }
             ticker.textColor = ink
             ticker.textAlignment = label.textAlignment
-            ticker.text = label.text ?? ""
+            ticker.text = shownText ?? ""
             label.isHidden = true
         } else {
             ticker?.removeFromSuperview()
@@ -1534,6 +1546,11 @@ final class UKServerUIText: UIView, UKGridMeasuring {
             label.isHidden = false
         }
         setNeedsLayout()
+    }
+
+    /// Draws the shown text in the label, as kept text when it is (option C: the glyph, and the grey on a neutral ink).
+    private func drawShownText() {
+        UKKeptText.apply(to: label, text: shownText, kept: isKept && pending.isHidden, liveInk: liveInk, neutral: look.ink == nil, textStyle: style)
     }
 
     /// Lays out the label above its pending bar.
