@@ -279,8 +279,9 @@
 .ui-tabbar button svg { width: 24px; height: 24px; }
 .ui-tabbar button.sel { background: rgba(255, 255, 255, .17); color: #409CFF; }
 .ui-tabbar .ui-badge { top: 4px; right: calc(50% - 22px); }
-.ui-tabbar.top { position: static; height: 40px; border-radius: 20px; padding: 2px; flex: 0 1 auto; margin: 0 auto; }
+.ui-tabbar.top { position: absolute; left: 50%; top: 2px; bottom: auto; right: auto; transform: translateX(-50%); height: 40px; border-radius: 20px; padding: 2px; margin: 0; }   /* centred on the window, not on the free space */
 .ui-tabbar.top button { height: 36px; flex: 0 0 auto; padding: 0 14px; font-size: 13px; border-radius: 18px; }   /* HIG, Tab bars (iPadOS): label only, system-drawn 36 pt items */
+.ui-tabbar.top button.sel { background: rgba(0, 0, 0, .3); color: #409CFF; }
 .ui-tabbar.top .ui-badge { position: absolute; top: -2px; right: -2px; }
 .ui-bar .inline-title.lead { position: static; padding: 0; text-align: left; flex: 0 1 auto; max-width: 28%; }
 .ui-actions-slot { position: absolute; left: 0; right: calc(var(--rail-w, 0px) + var(--split-inset, 0px)); z-index: 24; display: flex; justify-content: flex-end; pointer-events: none; }
