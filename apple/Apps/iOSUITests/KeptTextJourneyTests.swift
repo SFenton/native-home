@@ -131,8 +131,7 @@ final class KeptTextJourneyTests: JourneyTestCase {
         palette.tap()
         XCTAssertTrue(element(sheetHosts[0], in: app).appears(timeout: 10), "the sheet never opened")
         let liveFaces = sheetHosts.map { face($0, in: app) }
-        let deadline = Date().addingTimeInterval(15)
-        while element("keptText.state", in: app).label != "kept", Date() < deadline { usleep(200_000) }
+        sleep(7)  // the source goes unavailable 6 s after launch, behind the sheet
         XCTAssertEqual(sheetHosts.map { face($0, in: app) }, liveFaces, "the sheet's kept text reads and measures as live")
     }
 }
