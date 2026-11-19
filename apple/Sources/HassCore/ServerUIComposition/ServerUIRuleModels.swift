@@ -241,8 +241,8 @@ public enum ServerUIStringResolver {
                                in environment: some ServerUIReading) -> ServerUIReadResult {
         switch value {
         case .literal(let text): return .value(.string(text))
-        case .read(let source, let fallback): return text(of: read(source), fallback: fallback)
-        case .expression(let operand, let fallback): return text(of: operand.evaluate(environment), fallback: fallback)
+        case .read(let source, let fallback, _): return text(of: read(source), fallback: fallback)
+        case .expression(let operand, let fallback, _): return text(of: operand.evaluate(environment), fallback: fallback)
         }
     }
 
@@ -262,8 +262,8 @@ public enum ServerUIStringResolver {
     public static func sourceIds(_ value: ServerUICompositionDocument.StringValue) -> Set<String> {
         switch value {
         case .literal: []
-        case .read(let source, _): [source.sourceId]
-        case .expression(let operand, _): operand.sourceIds
+        case .read(let source, _, _): [source.sourceId]
+        case .expression(let operand, _, _): operand.sourceIds
         }
     }
 }

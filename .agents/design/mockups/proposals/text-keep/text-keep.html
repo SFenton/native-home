@@ -1,0 +1,79 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Kept text: how a last-known value looks and sounds</title><style>
+:root{--bg:#f4f5f7;--surface:#fff;--fg:#16181d;--fg2:#4b525e;--line:#d9dde4;--accent:#0066cc;--bad:#b3261e;--ok:#1e7b34;--warn:#8a5a00;--code:#eceef2;--ui:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--bg:#101216;--surface:#1a1d23;--fg:#eef0f4;--fg2:#a6adba;--line:#2e333c;--accent:#409cff;--bad:#ff6961;--ok:#30d158;--warn:#ffb340;--code:#20242b}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 var(--ui)}
+.wrap{max-width:1240px;margin:0 auto;padding:40px 16px 72px}
+h1{font-size:clamp(28px,4vw,38px);line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}h2{font-size:22px;margin:44px 0 10px}h3{font-size:16px;margin:22px 0 6px}
+p,li{max-width:76ch}p{margin:0 0 12px}code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:.88em}.lede{font-size:18px;color:var(--fg2)}
+.eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg2);margin-bottom:8px}
+blockquote{margin:12px 0 18px;padding:10px 16px;border-left:3px solid var(--accent);background:var(--surface);border-radius:0 10px 10px 0;max-width:76ch}
+.row{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;margin:14px 0}
+figure{margin:0}figure img{display:block;border-radius:12px;border:1px solid var(--line);max-width:100%;height:auto}
+figcaption{font-size:13px;color:var(--fg2);margin-top:6px;max-width:420px}figcaption b{display:block;color:var(--fg);font-size:14px}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin:14px 0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px}.card h3{margin-top:0}.card ul{padding-left:18px;margin:8px 0}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--fg2);margin-right:4px}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:10px 0;background:var(--surface);border-radius:10px;overflow:hidden}th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:13px;color:var(--fg2)}
+.gap td:first-child{white-space:nowrap}.no{color:var(--bad);font-weight:600}.yes{color:var(--ok);font-weight:600}.part{color:var(--warn);font-weight:600}
+.q{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:16px 18px;margin:18px 0}
+.lean{font-size:14px;color:var(--fg2);border:1px dashed var(--line);border-radius:10px;padding:10px 14px;max-width:76ch}
+</style></head><body><div class="wrap">
+<p class="eyebrow">Proposal · 2026-11-19 · decided: owner picked A, 2026-11-19 · T-text-keep · branch claude/text-keep</p>
+<h1>Kept text: how a last-known value looks and sounds</h1>
+<p class="lede">The Studio can ask a text slot to keep its last reading when the sensor behind it goes unavailable (<code>sh.text-keep@1</code>). Three treatments were built behind one switch and captured on iPhone, Duo and iPad. The owner picked <b>A</b>: kept text looks and sounds exactly like a live value. Only A ships; the record is <a href="../../../kept-text.md">kept-text.md</a> and the atlas page is <a href="../../components/loading/kept-text/kept-text.html">Kept text</a>.</p>
+
+<div class="q"><h3 style="margin-top:0">Decision (owner, 2026-11-19)</h3>
+<p style="margin:0">Judged A, B and C; the owner picked <b>A, plain</b>, after seeing all three with screenshots, because kept text should look and sound exactly like a live value: no glyph, no colour change, no VoiceOver change. Before any answer a keep slot draws its fallback, never the loading look.</p></div>
+
+<h2>The question</h2>
+<blockquote>"The visible question: while a slot is showing a kept value because the source is unavailable, does it look different from a live value, and how? Examples: no difference, a subtle staleness treatment, or an accessibility-only cue in the VoiceOver value or hint."</blockquote>
+
+<h2>The contract (same in every option)</h2>
+<ul>
+<li><b>Keep.</b> A slot with <code>whenUnavailable: "keep"</code> whose source reads unavailable <i>after</i> at least one answer keeps drawing that last answer ("kept").</li>
+<li><b>Loading keeps already.</b> A reconnect or a cold launch from the snapshot keeps the last text under both policies, so reopening never flashes anything.</li>
+<li><b>Before an answer.</b> Unavailable with nothing kept yet draws the slot's fallback ("No reading") or the usual empty text.</li>
+<li><b>Recover.</b> Kept back to live changes only the text, if it changed; no animation, no announcement.</li>
+</ul>
+
+<h2>The three options</h2>
+<div class="opts">
+<div class="card"><h3>A · Plain</h3><span class="tag">picked</span>
+<p>Kept draws and speaks exactly like live. No glyph, no colour, no VoiceOver change.</p>
+<ul><li><b>You notice:</b> nothing. A frozen sensor reads as current until it answers again; staleness shows only in the Studio.</li>
+<li><b>Cost:</b> lowest. No view code beyond the engine.</li>
+<li><b>HIG:</b> Loading, "Show something quickly".</li></ul></div>
+<div class="card"><h3>B · Spoken</h3><span class="tag">not picked</span>
+<p>Looks exactly like A. VoiceOver appends <code>", last known"</code> to the element's value, once per element.</p>
+<ul><li><b>Why not:</b> the owner wanted kept to sound as live too; B would also tell VoiceOver users something sighted users cannot see.</li></ul></div>
+<div class="card"><h3>C · Marked</h3><span class="tag">not picked</span>
+<p>B's cue, plus a leading <code>clock.arrow.circlepath</code> glyph and, on neutral ink, the grey unavailable tiles already use.</p>
+<ul><li><b>Why not:</b> the owner wanted no visible change. The captures also showed the glyph wrapping "21.5 degrees" in two-column tiles on iPhone and Duo folded, so tiles grew a line when a sensor dropped, and a Home Assistant restart would mark many slots at once.</li></ul></div>
+</div>
+
+<p class="lean">Designer's lean was C (a reading that may be hours old should not look current to anyone; C reused the unavailable grey with a glyph so it never relied on colour alone). <b>Overridden by the owner</b>, who picked A. The A, B and C captures stay outside the repo in <code>build/evidence/claude-text-keep/abc-archive/</code>.</p>
+
+<h2>What shipped: A on iPhone, live and kept</h2>
+<p>Kept is the same frame as live: the journey asserts the same label, value, glyph count and frame height on every host, and a pixel diff differs only in the gallery's state label.</p>
+<div class="row">
+<figure><img src="shots/iphone-live.jpg" width="420" alt="iPhone gallery live: body text 21.5 degrees; Bath Temperature and a blue Filled Face tile reading 21.5 degrees; a Long Line tile with a two-line subtitle; a Bath status pill reading 21.5 degrees and 80 percent; a Sensor row with 21.5 degrees and 80 percent"><figcaption><b>Live</b>Every slot answered.</figcaption></figure>
+<figure><img src="shots/iphone-kept.jpg" width="420" alt="iPhone gallery kept: identical to live, every slot still reads 21.5 degrees and 80 percent with no glyph or grey"><figcaption><b>Kept</b>Identical to live: no glyph, no grey, same height.</figcaption></figure>
+<figure><img src="shots/iphone-before-answer.jpg" width="420" alt="iPhone gallery before any answer: every slot reads No reading, the pill and row detail read No battery"><figcaption><b>Before any answer</b>The authored fallback ("No reading", "No battery"), never "Loading".</figcaption></figure>
+</div>
+
+<h2>Accessibility 5, Duo and iPad</h2>
+<div class="row">
+<figure><img src="shots/iphone-kept-ax5.jpg" width="360" alt="iPhone at AX5 kept: 21.5 degrees in large body text as live"><figcaption><b>iPhone AX5, kept</b>Drawn as live. Only the top host is legible: the gallery's state buttons cover the rest (harness, not the treatment).</figcaption></figure>
+<figure><img src="shots/duo-kept.jpg" width="360" alt="Duo folded at AX5 kept: 21.5 degrees in large body text as live"><figcaption><b>Duo folded, kept at AX5</b>As live; the same harness overlap.</figcaption></figure>
+<figure><img src="shots/ipad-kept.jpg" width="420" alt="iPad portrait kept: every slot reads as live on wide tiles"><figcaption><b>iPad portrait, kept</b>As live.</figcaption></figure>
+</div>
+
+<h2>Evidence and its gaps</h2>
+<table class="gap">
+<tr><th>Family and pose</th><th>A</th><th>Note</th></tr>
+<tr><td>iPhone portrait</td><td class="yes">default, AX5, contrast</td><td>4 KeptTextJourneyTests pass</td></tr>
+<tr><td>Duo folded</td><td class="yes">default, AX5</td><td>outer panel</td></tr>
+<tr><td>iPad portrait, landscape</td><td class="yes">default, AX5</td><td>landscape captures rotated (known)</td></tr>
+<tr><td>Duo unfolded portrait, landscape, partial fold; rotate-in and out</td><td class="no">not run</td><td>infra: the inner capture came back black; no rotating journey on this surface</td></tr>
+</table>
+</div></body></html>

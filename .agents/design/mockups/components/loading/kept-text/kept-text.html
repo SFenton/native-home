@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kept text · component mockup</title>
+<link rel="stylesheet" href="../../../_kit/kit.css">
+<script src="../../../_kit/kit.js"></script>
+</head><body>
+<script>
+(function () {
+  var h = Mock.h, K = Mock.components;
+
+  /* The gallery fixture (UKTextKeepGallery): one keep slot per host, all reading the same demo sensor. Values are fixture values. */
+  var LIVE = { reading: '21.5 degrees', battery: '80 percent', long: 'Reading from the upstairs bathroom sensor, last reported this evening' };
+  var BEFORE = { reading: 'No reading', battery: 'No battery', long: 'No reading' };
+
+  /* A server-composed text node (body style, primary ink on the wallpaper). Local helper: the kit has no ServerUI text node; promote to kit. */
+  function textNode(t) { return h('div', { style: { font: 'var(--fs-body) var(--font)', color: '#fff' } }, t); }
+  /* A server-composed row (UKServerUIRow): primary and secondary leading, value trailing, no card. Local helper; promote to kit. */
+  function row(primary, secondary, value) {
+    return h('div', { role: 'group', 'aria-label': primary + ', ' + secondary + ', ' + value, style: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '4px 12px', minHeight: '44px', padding: '6px 16px' } },
+      h('span', { style: { display: 'flex', flexDirection: 'column' } },
+        h('span', { style: { font: 'var(--fs-body) var(--font)', color: '#fff' } }, primary),
+        h('span', { style: { font: 'var(--fs-foot) var(--font)', color: 'rgba(255,255,255,.6)' } }, secondary)),
+      h('span', { style: { font: 'var(--fs-body) var(--font)', color: 'rgba(255,255,255,.6)' } }, value));
+  }
+  function body(v) {
+    return [
+      textNode(v.reading),
+      K.TileGrid({ min: 150, max: 2, span: { 2: 2 }, items: [
+        { title: 'Bath Temperature', subtitle: v.reading, symbol: 'thermometer.medium', kind: 'navigate', isActive: false },
+        { title: 'Filled Face', subtitle: v.reading, symbol: 'thermometer.medium', fill: 'rgb(30,136,229)', kind: 'navigate', isActive: true },
+        { title: 'Long Line', subtitle: v.long, symbol: 'thermometer.medium', kind: 'navigate', isActive: false },
+      ] }),
+      K.StatusPill({ label: 'Bath', value: v.reading, detail: v.battery, symbol: 'drop', tone: 'neutral' }),
+      row('Sensor', v.reading, v.battery),
+    ];
+  }
+  function pg(ctx, v) { return Mock.page(ctx, { title: 'Canvas', section: 'home', body: body(v) }); }
+
+  Mock.mount({
+    kind: 'component', id: 'kept-text', title: 'Kept text (a text slot showing its last answer)', area: 'design', status: 'shipped', frame: true,
+    summary: 'A server-composed text slot with whenUnavailable: "keep" (sh.text-keep@1) keeps its last answer while its source is unavailable, and draws and speaks it exactly as live: no glyph, no grey, no "last known" (owner, option A, 2026-11-19). Before any answer it draws its fallback. Shown on every host: a text node, tile subtitles (off and filled faces, a long line), a status pill and a row.',
+    source: ['apple/Sources/HassCore/ServerUIComposition/ServerUITextKeep.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIBindings.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPage.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIShellPrimitives.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIStateTileViews.swift', 'apple/Sources/HassUI/UIKitPort/Gallery/UKTextKeepGallery.swift'],
+    spec: ['.agents/design/kept-text.md', '.agents/patterns/copy.md'],
+    patterns: ['copy', 'entity-tile', 'status-pill'],
+    hig: ['Loading', 'VoiceOver'],
+    entities: ['sensor.demo_keep_temperature', 'sensor.demo_keep_battery', 'sensor.demo_keep_long_text'],
+    kitComponents: ['TileGrid', 'GlassTile', 'StatusPill'],
+    devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
+    states: {
+      'live': { title: 'Live: every slot answered', render: function (ctx) { return pg(ctx, LIVE); } },
+      'kept': { title: 'Kept: the source is unavailable after an answer', note: 'identical to live, pixel for pixel: same ink, weight and height, no glyph; VoiceOver reads the same label and value', render: function (ctx) { return pg(ctx, LIVE); } },
+      'before-answer': { title: 'Unavailable before any answer', note: 'each slot draws its authored fallback ("No reading", "No battery"), never the loading look; a slot with no fallback draws its host\'s usual unknown text', render: function (ctx) { return pg(ctx, BEFORE); } },
+      'reconnecting': { title: 'Reconnect or cold launch from the snapshot', note: 'loading keeps what was shown under either policy, so nothing blanks or flashes; the first sign-in with no snapshot is the pending bar (pending-value-bar)', render: function (ctx) { return pg(ctx, LIVE); } },
+      'recover': { title: 'Kept back to live', note: 'only the text changes, and only if the reading changed; no animation and no announcement beyond a real value change', render: function (ctx) { return pg(ctx, LIVE); } },
+      'ax5': { title: 'Accessibility 5, kept', override: { ts: 'ax5' }, note: 'kept wraps exactly as live: tiles stack and take one column, nothing truncates', render: function (ctx) { return pg(ctx, LIVE); } },
+    },
+    motion: [],
+    a11y: [
+      { rule: 'Same as live', note: 'Kept text gives the element the same label, value, hint and traits it has live (asserted per host by KeptTextJourneyTests). No "last known", no suffix, no hint.' },
+      { rule: 'No announcement on the switch', note: 'Moving between live and kept posts nothing (the text did not change). A status pill with announcement: valueChange announces only a real value change.' },
+      { rule: 'Authored spoken values', note: 'value.spoken and a11y.value are spoken unchanged while kept.' },
+      { rule: 'Before an answer', note: 'The fallback is read as drawn ("Bath Temperature, No reading"); never "Loading".' },
+      { rule: 'Targets and text size', note: 'No layout change between live and kept, so tiles keep their 44 pt or larger targets and AX5 wraps as live.' },
+    ],
+    reviews: {
+      date: '2026-11-19',
+      hig: [
+        { rule: 'Loading: show something quickly', verdict: 'pass', note: 'The last answer stays on screen while its source is unavailable, and before an answer the authored fallback, so a slot is never blank or stuck on a placeholder.', by: 'apple-hig skill' },
+        { rule: 'VoiceOver: keep labels current as interface and content change', verdict: 'pass', note: 'The label and value are the text drawn; kept and live are the same content, so they read the same.', by: 'apple-hig skill' },
+        { rule: 'Color: avoid relying solely on color', verdict: 'pass', note: 'Kept draws no state at all (owner, option A, 2026-11-19), so nothing is carried by colour. The Designer leaned toward a grey and glyph cue (option C); the owner overrode it: kept-text.md.', by: 'apple-hig skill' },
+      ],
+      swiftui: [
+        { rule: 'Accessibility: one element per host, value from the drawn text', verdict: 'pass', note: 'UIKit hosts (UKGlassTileView, UKStatusPillView, UKServerUIRow, the text node) keep their existing label and value composition; no kept branch.', by: 'swiftui-pro skill' },
+        { rule: 'Performance: no shared or per-frame state', verdict: 'pass', note: 'Each slot instance holds one ServerUITextMemory beside its view, written inside the observation that already runs.', by: 'swiftui-pro skill' },
+      ],
+    },
+    notes: [
+      'Drawn on an ordinary page titled Canvas with the gallery fixture\'s hosts (UKTextKeepGallery); the gallery\'s own Canvas and Shelf bar and state buttons are harness and are not drawn.',
+      'Kept, reconnecting and recover render the same frame as live on purpose: that is the decision.',
+      'Local helpers: the text node and the row (promote to kit).',
+      'The gallery also keeps a row and a text node in its Palette sheet (keep-sheet-row, keep-sheet-text); they follow the same rule and are not drawn here.',
+      'Evidence: build/evidence/claude-text-keep (hub-shots; Duo unfolded poses and rotation not captured, infra).',
+    ],
+    changelog: [{ date: '2026-11-19', note: 'First pass: option A shipped (claude/text-keep).' }],
+  });
+})();
+</script></body></html>
