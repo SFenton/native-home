@@ -1,5 +1,6 @@
 @testable import HassCore
 import HassDesign
+import Observation
 import UIKit
 import XCTest
 @testable import HassUI
@@ -9,7 +10,8 @@ import XCTest
 /// A server-drawn sheet that a swipe down closed opens again from the same control, even when the sheet re-configured itself under the
 /// open sheet first (an unfold, a rotation or an app switch re-runs `configureSheet`). The renderer hears the swipe through
 /// `UKHassModalController` (the sheet's delegate) and its token, so a stale token or a replaced delegate would leave the renderer
-/// believing the sheet is still up and refuse the next `present`. The window sizes are the four of the three families: iPhone,
+/// believing the sheet is still up and refuse the next `present`. The controls that present (a folded row) re-read their enabled state
+/// on the close, whichever way it came, or they stay greyed out under a closed sheet. The window sizes are the four of the three families: iPhone,
 /// iPhone Duo folded and unfolded, iPad.
 @MainActor
 final class ServerUISheetReopenHostedTests: XCTestCase {
@@ -64,6 +66,27 @@ final class ServerUISheetReopenHostedTests: XCTestCase {
         }
     }
 
+    func testASwipeCloseReEnablesTheControlsThatPresentOnEveryFamily() throws {
+        for size in Self.sizes {
+            let (host, page, window, id) = try rig(size)
+            defer { window.isHidden = true }
+            let present = ServerUICompositionDocument.Action.present(modalId: id, arguments: .init(), ifPresented: .reject)
+            let modal = try open(host, page, id)
+            // Past the present's own flight, whose end re-enables nothing: the sheet is up.
+            HostedPage.wait(0.6)
+            XCTAssertFalse(host.isEnabled(present, from: page), "width \(size.width): disabled while the sheet is up")
+            // A control (a folded row) re-reads its enabled state only when what it read last changes.
+            let changed = Flag()
+            withObservationTracking { _ = host.isEnabled(present, from: page) } onChange: { changed.raise() }
+            HostedPage.wait(0.2)
+            XCTAssertFalse(changed.isRaised, "width \(size.width): nothing changes while the sheet stays up")
+            try swipeDown(modal)
+            XCTAssertTrue(changed.isRaised, "width \(size.width): a swipe close tells the controls that present to re-read")
+            XCTAssertTrue(host.isEnabled(present, from: page), "width \(size.width): and they are enabled again")
+            HostedPage.hideTracked()
+        }
+    }
+
     func testTheSheetOpenedAfterASwipeCloseIsTheSheetsOwnAndClosesByEscape() throws {
         for size in Self.sizes {
             let (host, page, window, id) = try rig(size)
@@ -78,4 +101,16 @@ final class ServerUISheetReopenHostedTests: XCTestCase {
             HostedPage.hideTracked()
         }
     }
+}
+
+// MARK: - Flag
+
+/// A one-way flag an observation's change handler (which may run off the main actor) raises.
+private final class Flag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var raised = false
+    /// Whether ``raise()`` has run.
+    var isRaised: Bool { lock.withLock { raised } }
+    /// Raises the flag.
+    func raise() { lock.withLock { raised = true } }
 }

@@ -124,15 +124,18 @@ enum BackdropRenderer {
         }
     }
 
-    /// The render for `spec`: the stored file when there is one, else rendered now and stored. Runs off the main thread.
+    /// The render for `spec`: the stored file when there is one, else rendered now (not stored: the caller stores a render it
+    /// keeps, ``store(_:named:in:)``). Runs off the main thread.
     nonisolated static func renderOrLoad(_ photo: CGImage, digest: String, spec: BackdropRenderSpec, in directory: URL) -> (image: CGImage, rendered: Bool)? {
-        let name = spec.cacheName(photo: digest)
-        let url = directory.appending(path: name)
-        if let stored = load(url) { return (stored, false) }
+        if let stored = load(directory.appending(path: spec.cacheName(photo: digest))) { return (stored, false) }
         guard let image = render(photo, spec: spec) else { return nil }
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        write(image, to: url)
-        prune(directory, protecting: name)
         return (image, true)
+    }
+
+    /// Writes a render under its cache name and prunes the oldest. Runs off the main thread.
+    nonisolated static func store(_ image: CGImage, named name: String, in directory: URL) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        write(image, to: directory.appending(path: name))
+        prune(directory, protecting: name)
     }
 }
