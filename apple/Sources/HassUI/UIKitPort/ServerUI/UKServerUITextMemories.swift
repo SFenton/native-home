@@ -20,6 +20,13 @@ final class UKServerUITextMemories {
     ///   - bindings: The reader of the house.
     func string(_ value: ServerUICompositionDocument.StringValue, slot: String, bindings: UKServerUIBindings) -> UKServerUIValue<String> {
         var memory = slots[slot] ?? ServerUITextMemory()
+        // A republish can point the slot at another source, and a repeat cell is keyed by position: forget text kept for something else.
+        switch value {
+        case .read(_, _, .keep), .expression(_, _, .keep):
+            // Only a `keep` slot reads the cell's record, so no other slot depends on it.
+            if case .object(let record)? = bindings.cell?.record { memory.attend(to: value, owner: record["id"]) } else { memory.attend(to: value, owner: nil) }
+        default: break
+        }
         let result = bindings.string(value, memory: &memory)
         slots[slot] = memory
         return result

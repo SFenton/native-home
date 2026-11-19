@@ -6,4 +6,5 @@
 - A tab change adds the panels of the areas that begin to show and removes the ones that stop. A panel shown on both tabs is not touched, so a shared map keeps its picture and zoom (AGENTS.md, "No reload").
 - An area has no chrome. An area that begins to show fades in; Reduce Motion never animates.
 - `sh.tab-bar@1` places the bar and labels the tabs; `sh.tab-fallback@1` names the tab to open when the chosen one cannot show.
+- **Kept text.** Text slots keep through `UKServerUILayoutMemory.discLabelText` and `UKServerUITextMemories` (`sh.text-keep@1`, rule in [kept-text](../design/kept-text.md)): a `keep` slot draws its last answer while unavailable, drawn and spoken as live.
 - Tests: `ServerUILayoutTests`, `ServerUILayoutCorpusTests` (`tab-blocks-*`).

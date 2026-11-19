@@ -17,6 +17,7 @@ Contract: Studio `studio-ux2-integ11@e6629db` (`src/preview2/nodes/chart.tsx`, `
 - **VoiceOver.** The chart is one element named by `a11y.label`; its value is always the series read out and it always carries an `AXChartDescriptor`, whether or not the document writes `a11y.value` (HIG, Charting data, Best practices; HIG, Charts, Enhancing the accessibility of a chart). The gauge is hidden or one element named by the document.
 - **Motion.** A chart never animates. A gauge glides with the standard token only when its `animates` is on and Reduce Motion is off; a marker that reappears appears in place.
 - **Marker.** Kept wholly inside the track; mirrors in a right-to-left language.
+- **Kept text.** Text slots keep through `UKServerUITextMemories` (`sh.text-keep@1`, rule in [kept-text](../design/kept-text.md)): a `keep` slot draws its last answer while unavailable, drawn and spoken as live.
 - **Tests.** `ServerUIChartTests`, the corpus tests, and the hosted `ServerUIChartHostedTests` and `UKHostedChartShotsTests` on iPhone, Duo and iPad.
 
 ## Weather views

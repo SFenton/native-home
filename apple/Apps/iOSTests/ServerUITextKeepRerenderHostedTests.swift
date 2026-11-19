@@ -27,9 +27,10 @@ final class ServerUITextKeepRerenderHostedTests: XCTestCase {
     private func labels(in view: UIView) -> [String] { F.all(UILabel.self, in: view).compactMap(\.text) }
 
     /// Answers, goes unavailable, then draws the page again by a publication update and by a Dynamic Type change.
-    private func drawAgain(_ shown: F, check: () throws -> Void, file: StaticString = #filePath, line: UInt = #line) throws {
+    private func drawAgain(_ shown: F, gone: EntityState = entity("unavailable"), check: () throws -> Void,
+                           file: StaticString = #filePath, line: UInt = #line) throws {
         try check()
-        shown.store.apply([Self.entity("unavailable")])
+        shown.store.apply([gone])
         shown.settle()
         try check()
         shown.page.update(shown.page.definition, inheritedGroups: [], close: nil)
@@ -83,5 +84,53 @@ final class ServerUITextKeepRerenderHostedTests: XCTestCase {
         try drawAgain(shown) {
             XCTAssertTrue(labels(in: view).contains("21.5"), "drew \(labels(in: view))")
         }
+    }
+
+    /// A state tile's button label keeps the words it was last answered with: spoken by VoiceOver and held in the node's layout memory.
+    func testStateTileDiscLabelKeepsItsWordsWhenDrawnAgain() throws {
+        let robot = EntityState(entityId: "vacuum.demo_robot", state: "Pause", attributes: [:])
+        let label: JSONValue = .object([
+            "type": .string("read"),
+            "from": .object(["type": .string("source"), "sourceId": .string("robot"), "path": .array([.string("state")])]),
+            "as": .string("string"), "missing": .string("unavailable"), "whenUnavailable": .string("keep"), "fallback": .string("Start")
+        ])
+        let shown = try F.show("parts-disc-label-by-expression", width: 390, entities: [robot], adding: ["sh.text-keep@1"]) { components in
+            guard case .object(var tile)? = components.first, case .object(var props)? = tile["props"], case .array(var discs)? = props["discs"],
+                  case .object(var disc)? = discs.first else { return components }
+            disc["label"] = label
+            discs[0] = .object(disc)
+            props["discs"] = .array(discs)
+            tile["props"] = .object(props)
+            return [.object(tile)]
+        }
+        defer { shown.window.isHidden = true }
+        let node = try XCTUnwrap(shown.page.nodes["main-floor"])
+        let view = try XCTUnwrap(node.view)
+        try drawAgain(shown, gone: EntityState(entityId: "vacuum.demo_robot", state: "unavailable", attributes: [:])) {
+            XCTAssertEqual(node.layoutMemory.discLabelText["start-pause"]?.answered, "Pause", "the disc's memory holds the answer")
+            XCTAssertTrue(Self.spoken(in: view).contains("Pause"), "spoke \(Self.spoken(in: view))")
+            XCTAssertFalse(Self.spoken(in: view).contains("Start"), "the fallback is for before an answer")
+        }
+    }
+
+    /// A dial's spoken value (an accessibility slot) keeps the words it was last answered with.
+    func testSpokenValueKeepsItsWordsWhenDrawnAgain() throws {
+        let shown = try F.show("dial-a11y-value", width: 390, entities: [Self.entity("steady")], adding: ["sh.text-keep@1", "sh.rules@1"]) { components in
+            F.setting(["value"], to: Self.keeps, in: components, under: "a11y")
+        }
+        defer { shown.window.isHidden = true }
+        let view = try XCTUnwrap(shown.page.nodes["d"]?.view as? UKDialView)
+        try drawAgain(shown) {
+            XCTAssertEqual(view.accessibilityLabel, "Level")
+            XCTAssertEqual(view.accessibilityValue, "steady", "spoke \(view.accessibilityValue ?? "nil")")
+        }
+    }
+
+    /// Every label, title and accessibility name under `view`.
+    private static func spoken(in view: UIView) -> [String] {
+        var words = [view.accessibilityLabel, view.accessibilityValue].compactMap { $0 }
+        words += (view as? UILabel).flatMap(\.text).map { [$0] } ?? []
+        words += (view.accessibilityCustomActions ?? []).map(\.name)
+        return words + view.subviews.flatMap { spoken(in: $0) }
     }
 }

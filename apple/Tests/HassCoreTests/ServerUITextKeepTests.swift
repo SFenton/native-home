@@ -150,6 +150,27 @@ struct ServerUITextKeepTests {
         #expect(outcome == .value(.string("on")))
     }
 
+    @Test func aMemoryForgetsWhenTheSlotIsPointedAtAnotherSource() {
+        var memory = ServerUITextMemory()
+        let other = ServerUICompositionDocument.StringValue.expression(.read(sourceId: "other", path: ["state"], as: .string),
+                                                                      fallback: "No reading", whenUnavailable: .keep)
+        #expect(Self.draw(Self.slot(.keep), Self.answer("21.5"), &memory) == .value(.string("21.5")))
+        #expect(Self.draw(Self.slot(.keep), Self.gone, &memory) == .value(.string("21.5")), "the same source keeps")
+        #expect(Self.draw(other, Self.gone, &memory) == .value(.string("No reading")), "a new source draws its fallback, not the old text")
+    }
+
+    @Test func aMemoryForgetsWhenARepeatCellShowsAnotherRecord() {
+        var memory = ServerUITextMemory()
+        let value = Self.slot(.keep)
+        memory.attend(to: value, owner: .string("a"))
+        #expect(Self.draw(value, Self.answer("21.5"), &memory) == .value(.string("21.5")))
+        memory.attend(to: value, owner: .string("a"))
+        #expect(memory.answered == "21.5", "the same record keeps")
+        memory.attend(to: value, owner: .string("b"))
+        #expect(memory.answered == nil, "another record starts over")
+        #expect(Self.draw(value, Self.gone, &memory) == .value(.string("No reading")))
+    }
+
     @Test func aLiteralHasNothingToKeep() {
         var memory = ServerUITextMemory()
         #expect(Self.draw(.literal("A"), Self.gone, &memory) == .value(.string("A")))
