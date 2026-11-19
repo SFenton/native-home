@@ -9498,6 +9498,21 @@
       "note": "Owner request 2026-11-16 (gate matches_request=yes): flip the map; button groups as a row or column in each corner, ordered; the app handles overflow with a More menu. Built on t3/native-ingest (4b066cd6). Current design: vacuum-sheet and vacuum-map-canvas. The README lists what the build settled (Clean and Locate hidden while unavailable, More a system menu).",
       "decision": "proposals/vacuum-map-controls/README.md",
       "shippedIn": "#122"
+    },
+    {
+      "id": "text-keep",
+      "kind": "proposal",
+      "area": "proposals",
+      "title": "Kept text: last-known value treatment",
+      "path": "proposals/text-keep",
+      "sources": [
+        "apple/Sources/HassUI/UIKitPort/Design/UKKeptText.swift",
+        "apple/Sources/HassCore/ServerUIComposition/ServerUIKeptTextCue.swift",
+        "apple/Sources/HassUI/UIKitPort/Gallery/UKTextKeepGallery.swift"
+      ],
+      "status": "proposed",
+      "mockup": "proposals/text-keep/text-keep.html",
+      "note": "Owner request 2026-11-18 (N2, sh.text-keep@1). Parked by the app-UI gate (matches_request=unsure): options A plain, B spoken ', last known', C grey + clock.arrow.circlepath glyph + B's cue, built behind one switch on claude/text-keep. Owner picks; no decision recorded."
     }
   ]
 }
