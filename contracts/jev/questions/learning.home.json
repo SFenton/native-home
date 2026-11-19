@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 32,
+  "version": 33,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -38,6 +38,7 @@
     ".agents/design/setup-flow.md": "Setup flow (Notifications, Time Sensitive, Location): the first-run and later-launch setup sheet that asks for notifications, explains Time Sensitive and asks for location, plus the Settings → Notifications entries that are the way back; decided 2026-10-27. (read when: touching the setup sheet, `Set...",
     ".agents/design/sheet-bottom-gap.md": "Sheet bottom gap: why a content-fitted sheet no longer leaves an empty band under its last control, chosen 2026-10-28 (option B, \"fit to content\"). (read when: touching `SheetFit`, `SheetChrome` or a sheet's bottom padding, or asking why a fitted sheet is 34 pt shorter than its detent.)",
     ".agents/design/single-page-motion.md": "Single-page motion: how pages push and pop on the single-page layouts (iPhone, folded Duo, Duo and iPad in portrait), chosen 2026-11-02 so they move like the unfolded columns. (read when: you touch push, pop, the swipe back, a navigation controller's delegate, or anything that draws the wallpaper.)",
+    ".agents/design/state-glyph-tint.md": "Icon colour by state: how a state style rule sets the icon colour of a [state-styled tile](state-styled-tile.md) for one state (`sh.state-style-glyph-tint@1`, a rule's `glyphTint`). (read when: you author or draw a tile whose icon colour follows its state, change `AuthoredTileInk`, or build the fiel...",
     ".agents/design/state-styled-tile.md": "State-styled tile: the one tile for doors, locks, blinds, the alarm, robots and sensors: state classes, the look per class, indicators, the transition table, the flap guard and accessibility. (read when: you build or change the tile or its transition component. Styles, the request phase and the Stud...",
     ".agents/design/state-styles.md": "State styles: the built-in styles of the [state-styled tile](state-styled-tile.md), the request phase, how the shipped door, lock and alarm tiles map onto them, and what the Studio's style library does. (read when: you add or change a built-in style, retire a fixed tile shape, or build style authori...",
     ".agents/design/vacuum-sheet-redesign.md": "Vacuum sheet redesign: the redesign of the robot vacuum sheet (map, status, settings, rooms, Auto-Clean, dock, run controls), decided 2026-10-28: option B (the Recommended column) with the owner's amendments. (read when: touching `HassUI/Features/Vacuums/*`, `ValetudoMapView`, `AlertCopy` (Use Area...",
