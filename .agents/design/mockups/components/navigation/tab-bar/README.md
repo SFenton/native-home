@@ -1,6 +1,6 @@
 # Floating tab bar (component)
 
-> **What:** The five-tab bar: glass capsule on iPhone, the same capsule on the unfolded Duo in portrait, vertical bar on the folded Duo and in unfolded landscape (owner, 2026-10-26), hidden only on iPad. **Read when:** you touch MainTabView tabs, AppSection or the Chores badge.
+> **What:** The five-tab bar: glass capsule on iPhone, the same capsule on the unfolded Duo in portrait, vertical bar on the folded Duo and in unfolded landscape (owner, 2026-10-26), at the top of the window on iPad. **Read when:** you touch MainTabView tabs, AppSection or the Chores badge.
 
 - Mockup: [tab-bar.html](tab-bar.html) · shipped · reviewed 2026-10-23
 - Source: `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRenderer.swift`, `apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIChrome.swift` (the publication authors the layout)

@@ -56,9 +56,10 @@ class JourneyTestCase: XCTestCase {
 
     // MARK: - Shell navigation
 
-    /// Opens a root section through whichever navigation the window shows (`ShellNavigationStyle`): the tab bar
-    /// (iPhone), the folded iPhone Duo's vertical bar (a toolbar to XCUITest), or the flyout in regular width
-    /// (iPad, unfolded Duo). Compact windows also show the menu button, so a visible bar item wins.
+    /// Opens a root section through whichever navigation the window shows (`ShellNavigationStyle`): the tab bar at the bottom
+    /// (iPhone, a compact iPad window), the system tab bar at the top of a regular iPad window (global chrome pick 3), or the folded
+    /// iPhone Duo's vertical bar (a toolbar to XCUITest). Windows with the menu button also keep the flyout as a fallback, so a
+    /// visible bar item wins.
     /// - Parameters:
     ///   - section: The `AppSection` raw value (`security`), whose flyout row is `nav.<section>`.
     ///   - title: The section's visible name (`Security`), which labels its bar item.

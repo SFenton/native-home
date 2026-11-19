@@ -10,7 +10,7 @@
  *   duo-unfolded-portrait  the iPhone chrome at regular width (horizontal bars, no vertical bar; ShellNavigationStyle.resolve -> tabBar because of the hinge,
  *                           ShellChrome.resolve(inVerticalBar: false) -> menu button + title below the bar): hamburger leading, Quick Links and Profile
  *                           trailing, the system large title that collapses into the inline title beside the hamburger, floating tab bar. Single page (portrait never splits).
- *   ipad-*                  flyout style (regular width, no hinge); hamburger leading; Quick Links and Profile circles trailing; title below the bar; no tab bar.
+ *   ipad-*                  top tab bar (regular width, no hinge; global chrome pick 3): no hamburger, the tabs in the bar's centre, the collapsed title leading; Quick Links and Profile circles trailing; large title below the bar.
  * Quick Links and Profile are on every page, root or pushed. A pushed page swaps the hamburger for a glass Back circle.
  */
 (function () {
@@ -79,10 +79,13 @@
     var titleCls = d.verticalBar ? 'h1.ui-t-vbar' : 'h1.ui-t-large';
     if (d.titleInHeader && !o.back) bar.appendChild(h(titleCls, { style: { marginLeft: lead ? 0 : 4, whiteSpace: 'nowrap' } }, o.title));
     else if (d.titleInHeader && o.back) bar.appendChild(h(titleCls, { style: { whiteSpace: 'nowrap' } }, o.title));
-    bar.appendChild(h('div.sp'));
+    if (d.tabs !== 'top') bar.appendChild(h('div.sp'));
     // The inline title: where the large title lives below the bar, it fades into the bar as the large title scrolls under it (standard large-title collapse).
     var inlineTitle = d.titleInHeader ? null : h('div.inline-title', { 'aria-hidden': 'true' }, o.title);
-    if (inlineTitle) bar.appendChild(inlineTitle);
+    if (inlineTitle) { if (d.tabs === 'top') inlineTitle.classList.add('lead'); bar.appendChild(inlineTitle); }
+    // iPad: the system tab bar draws at the top, in the navigation bar's row, between the leading title and the trailing circles.
+    if (d.tabs === 'top' && !o.noTabs) bar.appendChild(K.TabBar({ selected: o.section || 'home', badges: { chores: o.choresBadge }, orientation: 'top' }));
+    if (d.tabs === 'top') bar.appendChild(h('div.sp'));
     if (o.connection === 'reconnecting') bar.appendChild(K.ReconnectingArc({ on: true }));
     if (!d.rail) {
       bar.appendChild(K.QuickLinksButton());

@@ -84,7 +84,7 @@
       date: '2026-10-23', by: 'apple-hig skill, swiftui-pro skill',
       hig: [
         { rule: 'Navigation bars: use the system Back and back swipe', verdict: 'pass', note: 'No custom back button on pushed pages; only HumidifierSchedulesTab hides it while saving (HumidifierSchedulesTab.swift:187).', by: 'apple-hig skill' },
-        { rule: 'Tab bars: keep the bar on a pushed page', verdict: 'pass', note: 'Hidden only in flyout style (MainTabView.swift:254).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: keep the bar on a pushed page', verdict: 'pass', note: 'Never hidden for style: the bar stays on pushed pages in every window, at the top on iPad (global chrome pick 3).', by: 'apple-hig skill' },
         { rule: 'Gestures: do not compete with the back swipe', verdict: 'pass', note: 'The menu button and edge swipe exist only at a section root (ShellNavigator.swift:85-90; AppSection.swift:119-123).', by: 'apple-hig skill' },
         { rule: 'Motion: system transition, Reduce Motion by default', verdict: 'departure', note: 'Owner, 2026-11-02: single-page layouts use the columns\' motion instead of the system push (single-page-motion.md); Reduce Motion cross-fades and the swipe back stays.', by: 'apple-hig skill' },
         { rule: 'Toolbars: the same shell buttons on every pushed page', verdict: 'pass', note: 'pageChrome() adds Quick Links and Profile to every destination (MainTabView.swift:247-257).', by: 'apple-hig skill' },

@@ -33,7 +33,7 @@
       'parts': { title: 'The three surfaces, by count', note: '0 hides the badge; the tab and flyout print the number; Profile caps at 9+', render: parts },
       'tab-3': { title: 'Three overdue: iPhone tab bar, Duo rail, header', note: 'the tab bar (or the Duo rail) carries the badge and the Profile button carries the same count', render: function (d) { return pg(d, { choresBadge: 3, badge: 3 }); } },
       'none': { title: 'Nothing overdue', note: 'count 0 hides the tab badge; Profile has no badge unless food expired', render: function (d) { return pg(d, {}); } },
-      'flyout': { title: 'Flyout open (iPad, iPhone and unfolded-portrait Duo hamburger)', note: 'the Chores row gets a red capsule with the number; spoken "Chores, 3 overdue"', render: function (d) { return pg(d, { choresBadge: 3, badge: 3, flyoutOpen: true }); } },
+      'flyout': { title: 'Flyout open (iPhone and unfolded-portrait Duo hamburger)', note: 'the Chores row gets a red capsule with the number; spoken "Chores, 3 overdue"', render: function (d) { return pg(d, { choresBadge: 3, badge: 3, flyoutOpen: true }); } },
       'non-resident': { title: 'Signed in as neither resident', note: 'the modifier publishes nil: no badge anywhere (the web shows none either)', render: function (d) { return pg(d, {}); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the badge keeps its size (a system badge); the Profile badge is a fixed disc', render: function (d) { return pg(d, { choresBadge: 3, badge: 3 }); } },
     },

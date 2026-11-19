@@ -31,8 +31,8 @@
         { key: 'duo-folded', zoom: .82, caption: 'Folded Duo: the tab bar and the header group are in the trailing vertical bar (about 83 pt). The title shares the header row (inline-large) because nothing else leads.', build: function (c) { return root(c, 'home'); } },
         { key: 'duo-unfolded-landscape', zoom: .6, caption: 'Unfolded landscape: the vertical bar like the folded Duo, with no menu button; the title stays in the bar at a fixed 24 pt.', build: function (c) { return root(c, 'home'); } },
       ]); } },
-    'ipad-with-menu': { title: 'iPad: menu leading, two circles trailing', note: 'regular width; the title stays below the bar because the menu leads the row', render: function (ctx) {
-      return SN.board(ctx, [{ key: 'ipad-portrait', zoom: .5, caption: 'Portrait: the same header circles as the iPhone; no tab bar (the flyout).', build: function (c) { return root(c, 'security'); } },
+    'ipad-with-menu': { title: 'iPad: tabs in the centre, two circles trailing', note: 'regular width; no menu button, the collapsed title leads and the large title stays below the bar', render: function (ctx) {
+      return SN.board(ctx, [{ key: 'ipad-portrait', zoom: .5, caption: 'Portrait: the same header circles as the iPhone; the system tab bar sits in the bar\'s row, no menu button.', build: function (c) { return root(c, 'security'); } },
         { key: 'ipad-landscape', zoom: .4, caption: 'Landscape: same header; the page may split at the midpoint.', build: function (c) { return root(c, 'security'); } }]); } },
     'pre-ios26-material-circles': { title: 'Before iOS 26: material circles', note: 'the bar draws no glass; no spacer is added', render: function (ctx) {
       return h('div.sn-row', h('div', h('div.k-swatch.page', { style: { width: '300px' } }, h('div.k-cap', 'iOS 17 to 25'), h('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' } }, material('square.grid.2x2', 'Quick Links'), preGlass())),

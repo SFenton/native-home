@@ -81,7 +81,7 @@
         { rule: 'Tab bars: switching keeps each tab\'s state, no animation', verdict: 'pass', note: 'A cut; paths are per section in ShellNavigator.paths, scroll stays with the mounted stack (MainTabView.swift:107-120, 137).', by: 'apple-hig skill' },
         { rule: 'Tab bars: tapping the selected tab pops to the root, then scrolls to the top', verdict: 'pass', note: 'ShellNavigator.reselect (ShellNavigator.swift:150-158) driven by the binding setter (MainTabView.swift:124-132).', by: 'apple-hig skill' },
         { rule: 'Tab bars: badge only what needs attention', verdict: 'pass', note: 'Chores only.', by: 'apple-hig skill' },
-        { rule: 'Tab bars: use the same navigation on every size', verdict: 'departure', note: 'Regular width uses the flyout, owner 2026-10-10 (ipados.md); the second-tap behaviour carries over via select(_:).', by: 'apple-hig skill' },
+        { rule: 'Tab bars: use the same navigation on every size', verdict: 'departure', note: 'Regular width shows the same tab bar at the top (owner pick 3, 2026-11-18, ipados.md); the second-tap behaviour carries over via select(_:).', by: 'apple-hig skill' },
       ],
       swiftui: [
         { rule: 'Prefer SwiftUI scroll APIs to walking UIKit', verdict: 'departure', note: 'ScrollToTopBridge finds the largest vertical UIScrollView so one path serves ScrollView and List on the iOS 17 target (ScrollToTop.swift:7-12, 59-74).', by: 'swiftui-pro skill' },

@@ -13,9 +13,11 @@ struct UKFlyoutDestination: Equatable {
     var spokenLabel: String?
 }
 
-/// The regular-width navigation panel: an overlay that slides in from the leading edge over a full-window scrim, like the web's
-/// `drawer-only` layout. The UIKit counterpart of ``NavigationFlyout``: it never pushes or resizes the content
-/// (`.agents/design/apple/ipados.md`).
+/// The navigation panel behind the menu button: an overlay that slides in from the leading edge over a full-window scrim, like the
+/// web's `drawer-only` layout. The UIKit counterpart of ``NavigationFlyout``: it never pushes or resizes the content
+/// (`.agents/design/apple/ipados.md`). A regular-width window without a hinge (iPad) has the system's top tab bar instead and never
+/// shows the menu button, the panel or its edge swipe (``ShellChrome/resolve(style:inVerticalBar:)``); the iPhone, the unfolded Duo
+/// and a compact iPad window keep it.
 ///
 /// Closes on a destination, a scrim tap, Escape or the VoiceOver escape gesture. Three layers, back to front: a touch shield over
 /// the whole window (so nothing under the panel answers while it is open or still sliding away), the dimming scrim with its close

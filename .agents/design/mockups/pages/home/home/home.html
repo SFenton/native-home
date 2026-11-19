@@ -110,7 +110,7 @@
           var ctx = Mock.current, a = stage.querySelector('.ui-page'), b = Mock.page(ctx, { title: 'Security', section: 'security', body: [K.ChipRail({ chips: [Mock.chips.security('armed_home'), Mock.chips.contacts('closed', 0)] })] });
           a.hidden = true; a.parentNode.insertBefore(b, a); return Mock.sleep(800).then(function () { b.remove(); a.hidden = false; });
         } },
-      { from: 'Header', to: 'Open Navigation flyout', kind: 'overlay', note: 'The iPad (regular width, no hinge) and the iPhone hamburger: a full-height drawer slides over the content with a scrim; the content never resizes. Standard 0.3 s smooth; Reduce Motion cross-fades.',
+      { from: 'Header', to: 'Open Navigation flyout', kind: 'overlay', note: 'The iPhone hamburger (iPad has the top tab bar instead, 2026-11-18): a full-height drawer slides over the content with a scrim; the content never resizes. Standard 0.3 s smooth; Reduce Motion cross-fades.',
         play: function (stage) {
           var ctx = Mock.current, page = stage.querySelector('.ui-page'), fly = K.NavigationFlyout({ selected: 'home', badges: { chores: 2 } }); page.appendChild(fly);
           return Mock.anim.flyout(stage, true).then(function () { return Mock.sleep(700); }).then(function () { return Mock.anim.flyout(stage, false); }).then(function () { fly.remove(); });

@@ -47,16 +47,16 @@ Tab switches, pushes, pops, sheets and zooms are timed by the app itself, the wa
 
   | Surface | iPhone | iPhone Duo | iPad |
   |---|---|---|---|
-  | Tab revisit, first frame | 67 / 71 | 3 / 89 | (flyout) |
-  | Tab cycle, first frame (turn p95 / worst) | 94 / 220 (15.6) | 78 / 116 (9.2) | (flyout) |
-  | Tab first visit, first frame | 304 / 481 | 325 / 468 | (flyout) |
+  | Tab revisit, first frame | 67 / 71 | 3 / 89 | not measured (`ServerUITopTabBarHostedTests`) |
+  | Tab cycle, first frame (turn p95 / worst) | 94 / 220 (15.6) | 78 / 116 (9.2) | not measured (`ServerUITopTabBarHostedTests`) |
+  | Tab first visit, first frame | 304 / 481 | 325 / 468 | not measured (`ServerUITopTabBarHostedTests`) |
   | Push room, first frame / settled | 89 / 201, 563 / 673 | 93 / 251, 580 / 736 | 78 / 218, 570 / 712 |
   | Push turn p95 / worst | 0.8 / 10.5 | 0.6 / 3.2 | 0.9 / 11.6 |
   | Sheet present, settled | 610 / 817 | 626 / 903 | 600 / 726 |
   | Sheet dismiss turn p95 / worst | 0.3 / 23.3 | 0.4 / 22.8 | 0.2 / 15.0 |
   | Zoom open, settled | 960 / 1002 (first run) | 944 / 974 | 958 / 988 |
 
-  Against the budgets: transitions cost the main thread very little (turn p95 under 1.3 ms everywhere), but a sheet dismissal's longest turn (22 to 23 ms on the phones) and one tab-revisit turn (15.6 ms iPhone) break the 16 ms rule, and push and sheet "settled" p95 sit above 600 ms (the system animations are about 0.5 s plus the build). `Pop` and `ZoomClose` are not recorded yet (see `patterns/motion.md`, Departures).
+  Against the budgets: transitions cost the main thread very little (turn p95 under 1.3 ms everywhere), but a sheet dismissal's longest turn (22 to 23 ms on the phones) and one tab-revisit turn (15.6 ms iPhone) break the 16 ms rule, and push and sheet "settled" p95 sit above 600 ms. `Pop` and `ZoomClose` are not recorded yet.
 - **Settings push/pop (single-page, 2026-11-03).** `testSettingsPushAndPopStaysWithinBudget`, iPhone: p95 turn 3.6 ms (base 66ae0c9f system push 2.9), longest turn 73 to 77 ms (base 139). Most of the push's p95 is a page build, not the slide: `UKStackTransition` lays the destination out before the first frame, and Settings → Performance reads its report after `viewDidAppear`. The longest turn is the page's forty-row layout, held to 100 ms for this scenario (the base broke 16 ms too).
 - **Adding a navigation surface:** give it a `measuresNavigation` (or a `MotionPolicy.measure`) and a row in `NavigationPerformanceTests` ([patterns/motion.md](../../patterns/motion.md)).
 ## Launch and sign-in
@@ -327,7 +327,7 @@ The app never enumerates the store by domain except `person.*`, so the union is 
 **Question.** How much of the remaining scroll stutter is the system large-title collapse in the navigation bar, and does a first-party alternative remove it?
 
 **Tooling added.** The variants below were switched in source by temporary `FENTON_PERF_DISABLE` layers (`leadingTitle`, `headerButtons`, `largeTitle`, `inlineLargeTitle`) and a `FENTON_VANILLA_HEADER` build flag. **They are removed (2026-10-28, cleanup): the experiments are over, the layer names below are history, and a new run cannot select those variants.** Kept:
-- `FENTON_GALLERY_FLYOUT=1` (Debug) runs gallery pages in the flyout chrome. Surfaces `Settings (flyout)`, `Recipes (flyout)` and `Chores long house (flyout)` are in the `[flyout]` section of `tools/scrollcost-surfaces.txt`. `--section` takes a comma list (`flyout,live`).
+- `FENTON_GALLERY_FLYOUT=1` (Debug) runs gallery pages in the menu-button chrome. Surfaces `Settings (flyout)`, `Recipes (flyout)` and `Chores long house (flyout)` are in the `[flyout]` section of `tools/scrollcost-surfaces.txt`. `--section` takes a comma list (`flyout,live`).
 - The probe's `Mover` now remembers the largest top inset seen, across runs, so every pass goes into the expanded large-title zone and back (before, it clamped to the collapsed inset and never re-entered it). The probe line carries `inset_changes=` (an `adjustedContentInsetDidChange` hook on the driven scroll view) and `inset_kvo=` (KVO on `adjustedContentInset`). **KVO never fires** (0 in every run); use `inset_changes`.
 - `scrollcost_ab.py --compact` prints the table below. `ios_flingfps.sh` takes `--disable`, `--flyout`, `--tag`, `--ab-disable <switch>` (A/B any `FENTON_PERF_DISABLE` switch in one device hold: `--runs N` of each test with the default build, then with the switch, interleaved, and a table at the end; variants `default` and `<switch>-off`), and builds with `-O`.
 

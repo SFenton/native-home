@@ -15,7 +15,7 @@
    "long_lines": 8
   },
   ".agents/design/apple/ipados.md": {
-   "forbidden": 14,
+   "forbidden": 12,
    "long_lines": 7
   },
   ".agents/design/apple/iphone.md": {
@@ -25,7 +25,7 @@
   ".agents/design/apple/split-view.md": {
    "forbidden": 29,
    "long_lines": 18,
-   "over_words": 1205
+   "over_words": 1194
   },
   ".agents/design/apple/system-api-audit.md": {
    "forbidden": 15,
@@ -36,9 +36,9 @@
    "long_lines": 2
   },
   ".agents/design/direction-g.md": {
-   "forbidden": 125,
+   "forbidden": 123,
    "long_lines": 51,
-   "over_words": 8573,
+   "over_words": 8567,
    "links": 1
   },
   ".agents/design/duo-widths.md": {
@@ -804,7 +804,7 @@
    "long_lines": 1
   },
   ".agents/design/single-page-motion.md": {
-   "forbidden": 8,
+   "forbidden": 7,
    "long_lines": 7
   },
   ".agents/design/vacuum-sheet-redesign.md": {
@@ -947,9 +947,9 @@
    "long_lines": 5
   },
   ".agents/patterns/header-edge-fade.md": {
-   "forbidden": 41,
+   "forbidden": 37,
    "long_lines": 4,
-   "over_words": 1132,
+   "over_words": 1107,
    "links": 1
   },
   ".agents/patterns/hinge-avoidance.md": {
@@ -1183,7 +1183,7 @@
    "long_lines": 1
   },
   ".agents/testing/apple/devices.md": {
-   "forbidden": 14,
+   "forbidden": 12,
    "long_lines": 8,
    "over_words": 205,
    "links": 1
@@ -1196,8 +1196,8 @@
   },
   ".agents/testing/apple/performance.md": {
    "forbidden": 26,
-   "long_lines": 31,
-   "over_words": 8068,
+   "long_lines": 30,
+   "over_words": 8061,
    "structure": 3
   },
   ".agents/testing/apple/strategy.md": {
