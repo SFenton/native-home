@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-reported-above-the-ring-up",
+  "note": "Adjust up from 90 stays at 90: nothing above it is on the ring.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 90
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "high",
+      "direction": 1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 90
+    }
+  }
+}

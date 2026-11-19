@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "name": "fold-sides-two-strips-span",
+  "note": "The run of strips at the top all span.",
+  "subject": {
+    "foldsides": {
+      "geometry": {
+        "leading": 455.3,
+        "band": 40.4,
+        "trailing": 372.3
+      },
+      "inset": 16,
+      "foldSides": "auto",
+      "items": [
+        {
+          "id": "rail-a",
+          "type": "status-rail"
+        },
+        {
+          "id": "rail-b",
+          "type": "status-rail"
+        },
+        {
+          "id": "s1",
+          "type": "section"
+        },
+        {
+          "id": "s2",
+          "type": "section"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "foldsides": {
+      "active": true,
+      "sides": [
+        {
+          "id": "rail-a",
+          "side": "span",
+          "width": 836
+        },
+        {
+          "id": "rail-b",
+          "side": "span",
+          "width": 836
+        },
+        {
+          "id": "s1",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s2",
+          "side": "trailing",
+          "width": 340.3
+        }
+      ]
+    }
+  }
+}

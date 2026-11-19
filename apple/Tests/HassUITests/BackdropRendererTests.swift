@@ -138,15 +138,19 @@ struct BackdropRendererTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["keep.txt"])
     }
 
+    /// Drawing never writes (a render made as the app left may be blank); the caller stores a render it accepts.
     @Test func aRenderIsMadeOnceAndFoundOnTheNextAsk() throws {
         let directory = try folder().appending(path: "cache", directoryHint: .isDirectory)
         defer { try? FileManager.default.removeItem(at: directory.deletingLastPathComponent()) }
         let source = try photo(width: 300, height: 400)
         let spec = try spec()
         let digest = BackdropRenderer.digest(of: source)
+        let name = spec.cacheName(photo: digest)
         let first = try #require(BackdropRenderer.renderOrLoad(source, digest: digest, spec: spec, in: directory))
         #expect(first.rendered)
-        #expect(FileManager.default.fileExists(atPath: directory.appending(path: spec.cacheName(photo: digest)).path))
+        #expect(!FileManager.default.fileExists(atPath: directory.appending(path: name).path), "drawing stores nothing")
+        BackdropRenderer.store(first.image, named: name, in: directory)
+        #expect(FileManager.default.fileExists(atPath: directory.appending(path: name).path))
         let second = try #require(BackdropRenderer.renderOrLoad(source, digest: digest, spec: spec, in: directory))
         #expect(!second.rendered, "the stored file is read, not drawn again")
         #expect(second.image.width == first.image.width)

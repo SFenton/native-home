@@ -1,0 +1,72 @@
+{
+  "format": 1,
+  "name": "fold-sides-override-holds-its-count",
+  "note": "The second section pinned leading still holds its position in the count: the third, at position two, leads and the fourth trails.",
+  "subject": {
+    "foldsides": {
+      "geometry": {
+        "leading": 455.3,
+        "band": 40.4,
+        "trailing": 372.3
+      },
+      "inset": 16,
+      "foldSides": "auto",
+      "items": [
+        {
+          "id": "rail",
+          "type": "status-rail"
+        },
+        {
+          "id": "s1",
+          "type": "section"
+        },
+        {
+          "id": "s2",
+          "type": "section",
+          "foldSide": "leading"
+        },
+        {
+          "id": "s3",
+          "type": "section"
+        },
+        {
+          "id": "s4",
+          "type": "section"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "foldsides": {
+      "active": true,
+      "sides": [
+        {
+          "id": "rail",
+          "side": "span",
+          "width": 836
+        },
+        {
+          "id": "s1",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s2",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s3",
+          "side": "leading",
+          "width": 423.3
+        },
+        {
+          "id": "s4",
+          "side": "trailing",
+          "width": 340.3
+        }
+      ]
+    }
+  }
+}

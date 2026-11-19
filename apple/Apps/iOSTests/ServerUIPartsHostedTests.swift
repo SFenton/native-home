@@ -20,8 +20,13 @@ final class ServerUIPartsHostedTests: XCTestCase {
     /// The store of the page opened last.
     private var store = EntityStore()
 
+    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
+    /// `viewDidDisappear`, which rests the page's node observations (`UKServerUIPage.restNodes()`), so it stops following the store.
+    private var windows: [UIWindow] = []
+
     override func tearDown() async throws {
         HostedPage.hideTracked()
+        windows.removeAll()
         HostedPage.resetGlobals()
         try await super.tearDown()
     }
@@ -47,7 +52,7 @@ final class ServerUIPartsHostedTests: XCTestCase {
         store.replaceAll(entities)
         let host = try UKServerUIRenderer(publication: publication(file, change: change), context: UKContext(store: store, caller: caller),
                                           backdrop: ServerUIRendererFixture.backdrop())
-        _ = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180)))
+        windows.append(HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180))))
         HostedPage.wait(0.1)
         let root = try ServerUIRendererFixture.root(host)
         root.view.layoutIfNeeded()

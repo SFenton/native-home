@@ -1,0 +1,407 @@
+{
+  "format": 1,
+  "description": "The global-chrome cases the app owns. The Studio does not carry them yet: ServerUIGlobalChromeTests runs each pending case with the compiler rules on and holds it to its recorded first issue, and each promoted sh.sheet-levels@1 case as an ordinary accept or reject with no scope.",
+  "cases": [
+    {
+      "file": "accept/global-chrome-levels-two-levels.json",
+      "outcome": "accept",
+      "note": "A sheet reaches two levels: one from the sheet, one from the first level."
+    },
+    {
+      "file": "accept/global-chrome-levels-shared.json",
+      "outcome": "accept",
+      "note": "Two sheets push the same level; a level belongs to the document, not to one sheet."
+    },
+    {
+      "file": "accept/global-chrome-levels-and-pages.json",
+      "outcome": "accept",
+      "note": "A sheet pushes a level and a page; the page push leaves the sheet and the level push stays."
+    },
+    {
+      "file": "reject/global-chrome-levels-duplicate-page-id.json",
+      "outcome": "reject",
+      "note": "A level may not reuse a page id.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/levels/1/id"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-duplicate-modal-id.json",
+      "outcome": "reject",
+      "note": "A level may not reuse a modal id.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/levels/1/id"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-duplicate-level-id.json",
+      "outcome": "reject",
+      "note": "Two levels may not share an id.",
+      "issue": {
+        "code": "duplicate_id",
+        "pointer": "/document/levels/0/id"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-push-from-page.json",
+      "outcome": "reject",
+      "note": "A page may not push a level.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/0/components/0/children/1/action/pageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-push-from-chrome.json",
+      "outcome": "reject",
+      "note": "The shell chrome belongs to pages, so it may not push a level.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/navigation/chrome/groups/0/items/1/action/pageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-dismiss-then-push.json",
+      "outcome": "reject",
+      "note": "Dismiss-then-push leaves the sheet, so it may not name a level.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/modals/0/components/3/action/destination/pageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-tab.json",
+      "outcome": "reject",
+      "note": "A tab may not open a level.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/navigation/tabs/1/pageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-initial-page.json",
+      "outcome": "reject",
+      "note": "The first page may not be a level.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/navigation/initialPageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-route.json",
+      "outcome": "reject",
+      "note": "An outside link may not open a level.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/extensions/routes/0/pageId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-present.json",
+      "outcome": "reject",
+      "note": "A present may not name a level.",
+      "issue": {
+        "code": "invalid_reference",
+        "pointer": "/document/navigation/chrome/groups/1/items/0/action/modalId"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-inherit-toolbar.json",
+      "outcome": "reject",
+      "note": "A level carries no shell chrome, as a modal does not.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/levels/0/toolbar"
+      }
+    },
+    {
+      "file": "reject/global-chrome-levels-page-field.json",
+      "outcome": "reject",
+      "note": "A level has no route style.",
+      "issue": {
+        "code": "unknown_field",
+        "pointer": "/document/levels/0/navigation"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-tabs.json",
+      "outcome": "reject",
+      "note": "A page hides the tab bar.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-items.json",
+      "outcome": "reject",
+      "note": "A page hides two chrome buttons.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-both.json",
+      "outcome": "reject",
+      "note": "A page hides the tab bar and a button.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-unknown-item.json",
+      "outcome": "reject",
+      "note": "A hidden item must name a chrome item.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_reference",
+        "pointer": "/document/pages/0/hides/items/0"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-menu.json",
+      "outcome": "reject",
+      "note": "The shell menu cannot be hidden.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/0/hides/items/0"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-duplicate-item.json",
+      "outcome": "reject",
+      "note": "An item is named once.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "duplicate_id",
+        "pointer": "/document/pages/0/hides/items/1"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-tabs-with-replace.json",
+      "outcome": "reject",
+      "note": "A page with its own toolbar may still hide the tab bar.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-items-with-replace.json",
+      "outcome": "reject",
+      "note": "A page with its own toolbar has no inherited items to hide.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/hides/items"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-on-modal.json",
+      "outcome": "reject",
+      "note": "A sheet shows no global chrome, so it hides none.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_field",
+        "pointer": "/document/modals/0/hides"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-on-level.json",
+      "outcome": "reject",
+      "note": "A level shows no global chrome, so it hides none.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_field",
+        "pointer": "/document/levels/0/hides"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-hides-items-not-a-list.json",
+      "outcome": "reject",
+      "note": "Hidden items are a list.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_value",
+        "pointer": "/document/pages/0/hides/items"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-wide-open-each.json",
+      "outcome": "reject",
+      "note": "Each wide-window open: automatic, full and beside.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-wide-open@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-wide-open-columns-page.json",
+      "outcome": "reject",
+      "note": "A columns page may also say how it opens.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/11",
+        "capability": "sh.page-wide-open@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-wide-open-unknown.json",
+      "outcome": "reject",
+      "note": "An unknown wide-window open.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-wide-open@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_variant",
+        "pointer": "/document/pages/0/wideOpen"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-wide-open-on-modal.json",
+      "outcome": "reject",
+      "note": "A sheet has no wide-window open.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-wide-open@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_field",
+        "pointer": "/document/modals/0/wideOpen"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-wide-open-on-level.json",
+      "outcome": "reject",
+      "note": "A level has no wide-window open.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-wide-open@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_field",
+        "pointer": "/document/levels/0/wideOpen"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-tabs-visibility-always.json",
+      "outcome": "reject",
+      "note": "The tab bar shows on every page.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/15",
+        "capability": "sh.tabs-visibility@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-tabs-visibility-root-only.json",
+      "outcome": "reject",
+      "note": "The tab bar shows on a root page only.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/15",
+        "capability": "sh.tabs-visibility@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/pending-global-chrome-tabs-visibility-unknown.json",
+      "outcome": "reject",
+      "note": "An unknown tab bar visibility.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/15",
+        "capability": "sh.tabs-visibility@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "unknown_variant",
+        "pointer": "/document/navigation/tabsVisibility"
+      }
+    },
+    {
+      "file": "reject/pending-global-chrome-all.json",
+      "outcome": "reject",
+      "note": "All four global-chrome capabilities in one document.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.page-chrome-hide@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "accept/global-chrome-levels-component-in-sheet.json",
+      "outcome": "accept",
+      "note": "A saved component whose page-id argument names a level, used inside a sheet."
+    },
+    {
+      "file": "reject/global-chrome-levels-component-on-page.json",
+      "outcome": "reject",
+      "note": "The same component on a page may not push a level.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/pages/2/components/0/args/target"
+      }
+    }
+  ]
+}

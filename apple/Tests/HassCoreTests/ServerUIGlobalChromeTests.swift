@@ -7,11 +7,12 @@ import Testing
 /// Sheet levels, a page's chrome hides, its wide-window open and the tab bar's visibility
 /// (`sh.sheet-levels@1`, `sh.page-chrome-hide@1`, `sh.page-wide-open@1`, `sh.tabs-visibility@1`).
 ///
-/// The shared corpus (`ServerUIContractCorpusTests`) pins the first issue of every refusal; these tests pin what the decoder made of an accepted
-/// document and that the four ids are understood by the compiler without being published.
+/// The app's own corpus (`GlobalChromeCorpus/`, kept apart from the byte-for-byte Studio copy) pins the first issue of every refusal; these tests pin
+/// what the decoder made of an accepted document and that the four ids are understood by the compiler without being published.
 @Suite(.timeLimit(.minutes(1)))
 struct ServerUIGlobalChromeTests {
-    private static let corpus = ServerUIContractCorpusTests.directory
+    /// The cases the app owns (`GlobalChromeCorpus/`): the Studio does not carry these four ids yet, so they live beside the shared corpus, not in it.
+    private static let corpus = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("GlobalChromeCorpus", isDirectory: true)
 
     private static func file(_ name: String) -> URL {
         if name.contains("/") { return corpus.appendingPathComponent(name) }
@@ -51,6 +52,20 @@ struct ServerUIGlobalChromeTests {
         return index.cases.filter { $0.file.hasPrefix("reject/pending-global-chrome-") }
     }()
 
+    struct Promoted: Decodable, Sendable, CustomTestStringConvertible {
+        let file: String
+        let outcome: String
+        let issue: Held.Issue?
+        var testDescription: String { file }
+    }
+
+    nonisolated static let promoted: [Promoted] = {
+        struct Index: Decodable { let cases: [Promoted] }
+        guard let data = try? Data(contentsOf: corpus.appendingPathComponent("index.json")),
+              let index = try? JSONDecoder().decode(Index.self, from: data) else { return [] }
+        return index.cases.filter { $0.file.contains("global-chrome-levels-") && !$0.file.contains("/pending-") }
+    }()
+
     // MARK: Corpus
 
     /// The corpus holds each global-chrome case as a pending reject (a shipped build refuses it); here the rules run and must give the Studio's answer.
@@ -66,9 +81,22 @@ struct ServerUIGlobalChromeTests {
         }
     }
 
+    /// The promoted `sh.sheet-levels@1` cases are ordinary accepts and rejects: no scope, the Studio's first issue for a refusal.
+    @Test(arguments: promoted)
+    func eachPromotedCaseGivesItsAnswerWithNoScope(_ item: Promoted) throws {
+        let data = try Data(contentsOf: Self.file(item.file))
+        do {
+            _ = try ServerUICompositionPublication.decode(data)
+            #expect(item.outcome == "accept", "\(item.file) must be refused")
+        } catch {
+            let thrown = try #require(error as? ServerUICompositionError, "\(item.file) threw \(error)")
+            #expect(item.outcome == "reject" && item.issue == .init(code: thrown.code.rawValue, pointer: thrown.pointer), "\(item.file) threw \(thrown)")
+        }
+    }
+
     /// The `levels` cases were promoted with `sh.sheet-levels@1`; the other three ids still hold their cases as pending (20 at promotion).
     @Test func theCorpusHoldsTheUnshippedCasesAsPending() {
-        #expect(Self.held.count >= 20 && Self.held.allSatisfy { $0.pending == true })
+        #expect(Self.held.count >= 20 && Self.promoted.count == 17 && Self.held.allSatisfy { $0.pending == true })
     }
 
     // MARK: Production
@@ -242,7 +270,7 @@ struct ServerUIGlobalChromeTests {
         #expect(ServerUIIngestedCapabilities.sheetLevels == [ServerUIGlobalChrome.sheetLevels])
         let supported = Set(ServerUICompositionPublication.supportedCapabilities)
         let ingested = Set(ServerUIIngestedCapabilities.all)
-        let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: Self.corpus.appendingPathComponent("capabilities.json")))
+        let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent("capabilities.json")))
         for id in ServerUIGlobalChrome.all {
             #expect(!supported.contains(id) && !ingested.contains(id) && !published.contains(id), "\(id) is published")
             #expect(!ServerUICompositionPublication.acceptedCapabilities.contains(id), "\(id) is accepted outside the scope")

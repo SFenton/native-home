@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-free",
+  "note": "Free stoppers pass each other: each may go anywhere on the ring.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "low"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 60,
+        "upper": 80,
+        "lowerMark": null,
+        "upperMark": null
+      }
+    }
+  }
+}

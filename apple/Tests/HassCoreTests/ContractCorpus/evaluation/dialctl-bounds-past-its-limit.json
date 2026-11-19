@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-past-its-limit",
+  "note": "A value reported past its highest (90 on 80) may stay or come back, never go further.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 0,
+          "max": 100,
+          "step": 1
+        },
+        "stoppers": [
+          {
+            "id": "target",
+            "value": 90,
+            "limit": {
+              "max": 80
+            }
+          }
+        ]
+      },
+      "id": "target"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 0,
+        "upper": 90,
+        "lowerMark": null,
+        "upperMark": 90
+      }
+    }
+  }
+}

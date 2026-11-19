@@ -11,9 +11,10 @@ import Testing
 @Suite(.timeLimit(.minutes(2)))
 @MainActor
 struct ServerUIDialTests {
+    /// The two shipped ids' publications. `dial-text-place-*` (`sh.dial-text-place@1`, the dial control lane) is a different, still pending id.
     nonisolated static let family: [ServerUIContractCorpusTests.Case] = ServerUIContractCorpusTests.cases.filter {
         let name = $0.file.split(separator: "/").last.map(String.init) ?? ""
-        return name.hasPrefix("dial-") || name.hasPrefix("arc-track-")
+        return (name.hasPrefix("dial-") && !name.hasPrefix("dial-text-place-")) || name.hasPrefix("arc-track-")
     }
 
     private static func decode(_ file: String) throws -> ServerUICompositionPublication {

@@ -1,0 +1,84 @@
+{
+  "format": 1,
+  "name": "badge-spoken-for-one",
+  "note": "A line for 1 is the first case of a choose on the count equal to 1.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "read",
+        "from": {
+          "type": "source",
+          "sourceId": "temp",
+          "path": [
+            "state"
+          ]
+        },
+        "as": "number",
+        "missing": "unavailable"
+      },
+      "spoken": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "eq",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 1
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "1 item needs attention"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{count} items need attention",
+          "args": {
+            "count": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": 1
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "text": "1",
+    "spoken": "1 item needs attention"
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-other-not-drawn",
+  "note": "A stopper with no value holds nothing against the other: the low handle may go to the ring's end.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": null
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 60,
+        "upper": 80,
+        "lowerMark": null,
+        "upperMark": null
+      }
+    }
+  }
+}

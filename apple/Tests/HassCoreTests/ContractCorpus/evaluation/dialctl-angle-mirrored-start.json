@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "name": "dialctl-angle-mirrored-start",
+  "note": "Mirrored for right-to-left, the lowest is 180 - 135 = 45.",
+  "subject": {
+    "dialctl": {
+      "op": "angle",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "value": 60,
+      "mirrored": true
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "degrees": 45
+    }
+  }
+}

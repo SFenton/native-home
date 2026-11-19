@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "name": "badge-viewer-operand-without-a-viewer-keeps",
+  "note": "A badge over the viewer's id, before the connection knows the viewer, keeps what it showed rather than drawing nothing.",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "viewer",
+        "field": "userId"
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "loading"
+  }
+}

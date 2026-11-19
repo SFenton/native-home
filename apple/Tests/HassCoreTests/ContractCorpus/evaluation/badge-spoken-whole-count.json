@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "name": "badge-spoken-whole-count",
+  "note": "The spoken words carry the whole count, never \"9+\": 12 is drawn 9+ and said \"12 overdue\".",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "above",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 9
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "9+"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{count}",
+          "args": {
+            "count": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          }
+        }
+      },
+      "spoken": {
+        "type": "format",
+        "pattern": "{count} overdue",
+        "args": {
+          "count": {
+            "type": "read",
+            "from": {
+              "type": "source",
+              "sourceId": "temp",
+              "path": [
+                "state"
+              ]
+            },
+            "as": "number",
+            "missing": "unavailable"
+          }
+        }
+      }
+    }
+  },
+  "env": {
+    "reads": {
+      "temp/state": {
+        "status": "value",
+        "value": 12
+      }
+    }
+  },
+  "expected": {
+    "status": "value",
+    "text": "9+",
+    "spoken": "12 overdue"
+  }
+}

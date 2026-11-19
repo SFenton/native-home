@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-nearest-read-only",
+  "note": "A read-only dial has none.",
+  "subject": {
+    "dialctl": {
+      "op": "nearest",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": null
+        }
+      },
+      "raw": 70
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "id": null
+    }
+  }
+}

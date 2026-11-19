@@ -36,6 +36,8 @@ extension ServerUICompositionShape {
             // `sh.flow-extras@1`
             "min": step("min", ["value": flowOperand]),
             "max": step("max", ["value": flowOperand]),
+            // `sh.flow-average@1`
+            "average": step("average", ["value": flowOperand]),
             "running-sum": step("running-sum", ["value": flowOperand, "into": .text(160, blank: true), "nullPropagates": .bool]),
             "annotate": step("annotate", ["fields": .dictionary(.text(10_000, blank: true), object([
                 "aggregate": .choice(ServerUIFlow.Annotation.Aggregate.allCases.map(\.rawValue)), "value": flowOperand]), 100_000)])

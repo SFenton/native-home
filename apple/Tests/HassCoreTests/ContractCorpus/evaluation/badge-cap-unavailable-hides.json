@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "name": "badge-cap-unavailable-hides",
+  "note": "A count that cannot be read draws nothing, as a plain count does: a stalled rule with no source loading is unavailable, not \"not yet\".",
+  "subject": {
+    "badge": {
+      "type": "value",
+      "value": {
+        "type": "choose",
+        "cases": [
+          {
+            "when": {
+              "type": "compare",
+              "op": "above",
+              "left": {
+                "type": "read",
+                "from": {
+                  "type": "source",
+                  "sourceId": "temp",
+                  "path": [
+                    "state"
+                  ]
+                },
+                "as": "number",
+                "missing": "unavailable"
+              },
+              "right": {
+                "type": "literal",
+                "value": 9
+              }
+            },
+            "then": {
+              "type": "literal",
+              "value": "9+"
+            }
+          }
+        ],
+        "otherwise": {
+          "type": "format",
+          "pattern": "{count}",
+          "args": {
+            "count": {
+              "type": "read",
+              "from": {
+                "type": "source",
+                "sourceId": "temp",
+                "path": [
+                  "state"
+                ]
+              },
+              "as": "number",
+              "missing": "unavailable"
+            }
+          }
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "status": "value",
+    "text": null
+  }
+}

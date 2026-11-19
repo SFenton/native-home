@@ -25,10 +25,15 @@ final class ServerUIPreviewFlagsHostedTests: DemoHouseTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     }
 
+    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
+    /// `viewDidDisappear`, which rests the page's node observations (`UKServerUIPage.restNodes()`), so it stops following the store.
+    private var windows: [UIWindow] = []
+
     override func tearDown() async throws {
         restore?()
         restore = nil
         HostedPage.hideTracked()
+        windows.removeAll()
         HostedPage.resetGlobals()
         UKDesign.animationsPaused = false
         try? FileManager.default.removeItem(at: directory)
@@ -58,7 +63,7 @@ final class ServerUIPreviewFlagsHostedTests: DemoHouseTestCase {
                                                      store: store, flags: flags)
         let prepared = try UKServerUIPreview.Prepared(publication: publication, context: fixtures.context, assets: assets,
             backdrop: ServerUIRendererFixture.backdrop(), renderDirectory: directory, fixtures: fixtures)
-        _ = HostedPage.show(prepared.renderer, size: HostedPage.inScene(size))
+        windows.append(HostedPage.show(prepared.renderer, size: HostedPage.inScene(size)))
         HostedPage.wait(0.15)
         return (prepared.renderer, fixtures)
     }
@@ -141,7 +146,7 @@ final class ServerUIPreviewFlagsHostedTests: DemoHouseTestCase {
                 store.replaceAll([EntityState(entityId: "input_boolean.demo_auto_clean", state: "off")])
                 let host = try UKServerUIRenderer(publication: autoCleanPublication(),
                     context: UKContext(store: store, caller: fixtures.caller), backdrop: ServerUIRendererFixture.backdrop())
-                _ = HostedPage.show(host, size: HostedPage.inScene(size))
+                windows.append(HostedPage.show(host, size: HostedPage.inScene(size)))
                 HostedPage.wait(0.1)
                 let root = try ServerUIRendererFixture.root(host)
                 root.view.layoutIfNeeded()
@@ -223,7 +228,7 @@ final class ServerUIPreviewFlagsHostedTests: DemoHouseTestCase {
             try Data(#"{"entities":{},"flags":{"gateDelayMs":500}}"#.utf8).write(to: directory.appendingPathComponent("bootstrap.json"))
             let preview = UKServerUIPreview(directory: directory, environmentName: "FENTON_FLAGS_HOSTED_\(UUID().uuidString.prefix(6))",
                                             launchEnvironment: [:])
-            _ = HostedPage.show(preview, size: HostedPage.inScene(size))
+            windows.append(HostedPage.show(preview, size: HostedPage.inScene(size)))
             let started = ContinuousClock.now
             let load = Task { await preview.loadPublication() }
             HostedPage.wait(0.15)

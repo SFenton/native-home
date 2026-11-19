@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-adjust-stops-at-the-other",
+  "note": "The low handle at 75 beside the high one at 75 does not go up.",
+  "subject": {
+    "dialctl": {
+      "op": "adjust",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 75
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "id": "low",
+      "direction": 1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "value": 75
+    }
+  }
+}

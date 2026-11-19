@@ -25,6 +25,8 @@ public struct ServerUIFlowTyping {
         var usesRules = false
         /// Whether a step, a date style or a `date` operation of `sh.flow-extras@1` appears: the flow then needs it.
         var flowExtras = false
+        /// Whether an `average` step appears: the flow then needs `sh.flow-average@1` (and not `sh.flow-extras@1`, which `min` and `max` bring).
+        var flowAverage = false
         /// Whether an `index` operand appears: the flow then needs `sh.repeat@1`.
         var usesRepeat = false
         /// The edge-logic ids (without `sh.` and `@1`) a duration format, a truncation or a `seconds-between` needs: `duration-format`, `math-truncate`, `countdown`.
@@ -415,6 +417,12 @@ public struct ServerUIFlowTyping {
         case .min(let value), .max(let value):
             // Two list aggregates reduce a list to one number (`null` when it holds none), as `sum` does.
             facts.flowExtras = true
+            let element = list(&facts)
+            expect(&facts, operand(value, element ?? .any, "value", facts: &facts), [.number], join(at, "value"))
+            return element == nil ? .any : Shape.float.orNull
+        case .average(let value):
+            // Typed as `min` and `max` are, but it declares its own id.
+            facts.flowAverage = true
             let element = list(&facts)
             expect(&facts, operand(value, element ?? .any, "value", facts: &facts), [.number], join(at, "value"))
             return element == nil ? .any : Shape.float.orNull

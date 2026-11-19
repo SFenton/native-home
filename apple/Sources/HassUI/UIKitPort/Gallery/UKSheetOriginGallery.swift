@@ -15,7 +15,7 @@ extension UKGallery {
 /// Gallery for the sheet rule of the global chrome: Quick Links and Profile open a sheet whose tiles reach a page, a level and, from the level, a second
 /// level; a page link closes every level and lands on the section stack with Quick Links and Profile. Launch with `FENTON_GALLERY=sheet-origin`.
 ///
-/// The document is the contract corpus' two-level sheet (`accept/global-chrome-levels-two-levels.json`) with the app's header in place of its Alerts button:
+/// The document is the app's own corpus' two-level sheet (`GlobalChromeCorpus/accept/global-chrome-levels-two-levels.json`) with the app's header in place of its Alerts button:
 /// demo ids only, fixtures only, no sign-in. In the sheet "Inspect Here" is a page link (`page-echo`), "Level" opens `level-one`, and `level-one` opens
 /// `level-two`; the tab pages have a tile that opens a page too.
 @MainActor

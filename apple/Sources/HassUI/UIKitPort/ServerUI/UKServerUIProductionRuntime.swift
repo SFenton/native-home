@@ -26,18 +26,33 @@ final class UKServerUIProductionRuntime {
             self.directory = directory
         }
 
-        /// Geometry and blur rendering belong to a window, never to the session's first window.
+        /// Geometry and blur rendering belong to a window, never to the session's first window. The render files do not: they are
+        /// named by everything that shaped them, so every window, and the next launch, shares the publication's one folder (a
+        /// relaunch draws its stored render on the first frame instead of rendering again).
         func backdrop(for host: UKServerUIProductionHost) throws -> HouseBackdropStore {
             if let value = backdrops[host.sceneID] { return value }
-            let root = directory.appendingPathComponent(host.sceneID.uuidString, isDirectory: true)
             let blur = BackdropBlurSettings(initialPercent: host.preferredBlurPercent(fallback: blurPercent))
             let value = photo.map {
-                HouseBackdropStore(verifiedPhoto: $0, directory: root, blur: blur)
-            } ?? HouseBackdropStore.empty(directory: root, blur: blur)
+                HouseBackdropStore(verifiedPhoto: $0, directory: directory, blur: blur)
+            } ?? HouseBackdropStore.empty(directory: directory, blur: blur)
             try Self.requireGeometry(host.view.bounds.size)
             value.setWindow(host.view.bounds.size, scale: Double(host.traitCollection.displayScale))
+            if backdrops.isEmpty {
+                let directory = directory
+                Task.detached(priority: .background) { Self.removeWindowFolders(in: directory) }
+            }
             backdrops[host.sceneID] = value
             return value
+        }
+
+        /// Removes the per-window render folders earlier builds made, one per launch, named by a fresh scene UUID.
+        nonisolated static func removeWindowFolders(in directory: URL) {
+            let fileManager = FileManager.default
+            guard let entries = try? fileManager.contentsOfDirectory(at: directory, includingPropertiesForKeys: [.isDirectoryKey]) else { return }
+            for entry in entries where UUID(uuidString: entry.lastPathComponent) != nil
+                && (try? entry.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
+                try? fileManager.removeItem(at: entry)
+            }
         }
 
         /// A scene that has not laid out yet has no window to size the backdrop to: timing, not a rejection. The store keeps the
@@ -51,6 +66,8 @@ final class UKServerUIProductionRuntime {
             if photo != nil {
                 await value.refresh()
                 try Task.checkCancellation()
+                // In the background the render waits for the foreground: timing, so the candidate is kept and retried then.
+                if value.image == nil, value.isSuspended { throw Failure.preparationChanged }
                 guard value.image != nil else { throw Failure.backdrop }
             }
         }

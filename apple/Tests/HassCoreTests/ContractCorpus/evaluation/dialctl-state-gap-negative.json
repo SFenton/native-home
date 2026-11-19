@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "dialctl-state-gap-negative",
+  "note": "A gap read below 0 cannot be used: read-only.",
+  "subject": {
+    "dialctl": {
+      "op": "state",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": -1
+        }
+      }
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "state": "read-only"
+    }
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-reported-above-the-ring",
+  "note": "A stopper reported at 90 on a ring of 60 to 80 has its upper bound at the ring's end, 80: no mark, whatever \"never forced\" says elsewhere.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 90
+          }
+        ],
+        "between": {
+          "rule": "free"
+        }
+      },
+      "id": "high"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": {
+        "lower": 60,
+        "upper": 80,
+        "lowerMark": null,
+        "upperMark": null
+      }
+    }
+  }
+}

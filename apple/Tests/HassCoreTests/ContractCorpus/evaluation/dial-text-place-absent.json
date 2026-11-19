@@ -1,0 +1,28 @@
+{
+  "format": 1,
+  "name": "dial-text-place-absent",
+  "note": "A dial that states no place centres its text on the ring: 0.56 of 100 is 56.",
+  "subject": {
+    "dial": {
+      "op": "layout",
+      "input": {
+        "width": 140,
+        "aspect": 1.4,
+        "centerY": 0.56,
+        "sweep": {
+          "start": 145,
+          "length": 250
+        }
+      },
+      "pick": [
+        "textCenterY"
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "dial": {
+      "textCenterY": 56
+    }
+  }
+}

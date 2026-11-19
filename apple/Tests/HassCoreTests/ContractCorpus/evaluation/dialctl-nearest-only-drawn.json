@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "name": "dialctl-nearest-only-drawn",
+  "note": "A stopper with no value is never the nearest.",
+  "subject": {
+    "dialctl": {
+      "op": "nearest",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": null
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop"
+        }
+      },
+      "raw": 60
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "id": "high"
+    }
+  }
+}

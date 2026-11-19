@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dialctl-ticks-60-dots",
+  "note": "60 dots: 0 to 59 by 1 is the most a ring draws.",
+  "subject": {
+    "dialctl": {
+      "op": "tick-count",
+      "range": {
+        "min": 0,
+        "max": 59,
+        "step": 1
+      },
+      "every": 1
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "count": 60
+    }
+  }
+}

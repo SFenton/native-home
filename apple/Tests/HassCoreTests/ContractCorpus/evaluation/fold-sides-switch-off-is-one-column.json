@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "name": "fold-sides-switch-off-is-one-column",
+  "note": "No switch and no side: the page is one column, whatever else it holds.",
+  "subject": {
+    "foldsides": {
+      "geometry": {
+        "leading": 455.3,
+        "band": 40.4,
+        "trailing": 372.3
+      },
+      "inset": 16,
+      "items": [
+        {
+          "id": "rail",
+          "type": "status-rail"
+        },
+        {
+          "id": "s1",
+          "type": "section"
+        },
+        {
+          "id": "s2",
+          "type": "section"
+        }
+      ]
+    }
+  },
+  "env": {},
+  "expected": {
+    "foldsides": {
+      "active": false,
+      "sides": []
+    }
+  }
+}

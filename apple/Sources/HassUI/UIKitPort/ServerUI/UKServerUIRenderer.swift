@@ -46,7 +46,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     let tabController = UITabBarController()
     private(set) var stacks: [ServerUINavigationState.Root: UINavigationController] = [:]
     private var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
-    private(set) var modal: UKHassModalController?
+    /// The open sheet. ``isEnabled(_:from:)`` reads it, so every change bumps ``busyState``: a swipe-down dismissal ends with no
+    /// flight, and without this the controls that present (disabled while the sheet was open) would stay disabled.
+    private(set) var modal: UKHassModalController? { didSet { if modal !== oldValue { busyState.changed() } } }
     private var modalPresentationID: UUID?
     private var modalToken: UUID?
     private struct AdaptivePresentation {

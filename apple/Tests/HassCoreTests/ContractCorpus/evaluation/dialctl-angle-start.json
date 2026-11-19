@@ -1,0 +1,22 @@
+{
+  "format": 1,
+  "name": "dialctl-angle-start",
+  "note": "The ring starts at 135 degrees (lower left): the lowest value.",
+  "subject": {
+    "dialctl": {
+      "op": "angle",
+      "range": {
+        "min": 60,
+        "max": 80,
+        "step": 0.5
+      },
+      "value": 60
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "degrees": 135
+    }
+  }
+}

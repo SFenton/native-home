@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "name": "dialctl-bounds-read-only",
+  "note": "A dial that is not editable has no bounds.",
+  "subject": {
+    "dialctl": {
+      "op": "bounds",
+      "input": {
+        "range": {
+          "min": 60,
+          "max": 80,
+          "step": 0.5
+        },
+        "stoppers": [
+          {
+            "id": "low",
+            "value": 68
+          },
+          {
+            "id": "high",
+            "value": 75
+          }
+        ],
+        "between": {
+          "rule": "stop",
+          "gap": null
+        }
+      },
+      "id": "low"
+    }
+  },
+  "env": {},
+  "expected": {
+    "dialctl": {
+      "bounds": null
+    }
+  }
+}

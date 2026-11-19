@@ -25,7 +25,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
     /// The corpus' two-level sheet, with a Quick Links and Profile header on the app's trailing group.
     private func fixture(adaptive: Bool = false, form: Bool = false) throws -> JSONValue {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let file = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/accept/global-chrome-levels-two-levels.json")
+        let file = apple.appendingPathComponent("Tests/HassCoreTests/GlobalChromeCorpus/accept/global-chrome-levels-two-levels.json")
         var root = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: file))
         let present = JSONValue.object(["type": .string("present"), "modalId": .string(Self.modal), "arguments": .object([:]), "ifPresented": .string("reject")])
         root = try ServerUIRendererFixture.changing(root, path: "/document/navigation/chrome/groups/1/items", to: .array([.object([
@@ -269,7 +269,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
     func testARoomChosenInALevelClosesTheSheetAndLandsOnTheSectionStack() throws {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let corpus = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: apple.appendingPathComponent(
-            "Tests/HassCoreTests/ContractCorpus/accept/global-chrome-levels-two-levels.json")))
+            "Tests/HassCoreTests/GlobalChromeCorpus/accept/global-chrome-levels-two-levels.json")))
         var level = try XCTUnwrap(corpus["document"]?["levels"]?.array?.first)
         level = try ServerUIRendererFixture.changing(level, path: "/components", to: .array([.object([
             "id": .string("room-grid-level"), "title": .string("Level rooms"), "type": .string("room-navigation-grid"),
