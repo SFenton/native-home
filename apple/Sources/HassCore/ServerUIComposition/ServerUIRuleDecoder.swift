@@ -28,7 +28,8 @@ struct ServerUIRuleDecoder {
         needs.insert("rules")
         guard let raw = json["value"], let operand = parser.operand(raw, at: pointer + "/value") else { return nil }
         if ServerUIExpressionParser.kind(operand) == .structure { issues.append(.init(.bindingType, pointer + "/value")) }
-        return .expression(operand, fallback: json["fallback"]?.string)
+        if json["whenUnavailable"] != nil { needs.insert("text-keep") }
+        return .expression(operand, fallback: json["fallback"]?.string, whenUnavailable: ServerUIUnavailablePolicy(json["whenUnavailable"]?.string))
     }
 
     // MARK: Fills

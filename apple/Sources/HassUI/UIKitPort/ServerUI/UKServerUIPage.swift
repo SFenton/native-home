@@ -604,9 +604,10 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                     view.isSectionTitle = text.style == .sectionTitle
                     view.style = UKServerUIPreflight.textStyle(text.style)
                     view.look = text.look
+                    var memory = ServerUITextMemory()
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer else { return }
-                        view?.apply(renderer.bindings.string(text.value), unavailable: text.unavailableText)
+                        view?.apply(renderer.bindings.string(text.value, memory: &memory), unavailable: text.unavailableText)
                     }
                 }
             case .grid(let grid):
@@ -650,18 +651,22 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .statusPill(let value):
                 if let view = entry.view as? UKStatusPillView {
+                    // The value's and the detail's last answers (`sh.text-keep@1`); `isKept` is carried, not yet drawn differently.
+                    var valueMemory = ServerUITextMemory(), detailMemory = ServerUITextMemory()
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer, let view else { return }
                         let text: String
                         var pending = false
                         var tone = value.resolvedTone(in: renderer.reader()).native
-                        switch renderer.bindings.string(value.value) {
+                        // MARK: - Kept text presentation (T-text-keep)
+                        let shown = renderer.bindings.string(value.value, memory: &valueMemory)
+                        switch shown.value {
                         case .ready(let value): text = value
                         case .loading: text = ""; pending = true
                         case .unavailable: text = value.unavailableText; tone = .unavailable
                         }
                         let detail: String?
-                        if case .ready(let text) = renderer.bindings.string(value.detail), !text.isEmpty { detail = text }
+                        if case .ready(let text) = renderer.bindings.string(value.detail, memory: &detailMemory).value, !text.isEmpty { detail = text }
                         else { detail = nil }
                         view.valuesPending = pending
                         view.configure(label: value.node.title, value: text, detail: detail, symbol: value.icon.drawn, tone: tone)
@@ -909,10 +914,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if let view = entry.view as? UKGlassTileView {
                     var first = true
                     var shownFill: D.TileFill?
+                    var subtitleMemory = ServerUITextMemory()
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer else { return }
                         let subtitle: String?
-                        switch renderer.bindings.string(tile.subtitle) {
+                        // MARK: - Kept text presentation (T-text-keep)
+                        let shownSubtitle = renderer.bindings.string(tile.subtitle, memory: &subtitleMemory)
+                        switch shownSubtitle.value {
                         case .ready(let value): subtitle = value.isEmpty ? nil : value
                         case .loading: subtitle = nil
                         case .unavailable: subtitle = nil
@@ -1435,6 +1443,8 @@ final class UKServerUIText: UIView, UKGridMeasuring {
         accessibilityTraits = traits
     }
     /// The weight, digits, scaled size, ink, lines, alignment and overflow over the style (`sh.text-style@1`).
+    /// Whether the text shown is the last answered text, kept while its value is unavailable (`sh.text-keep@1`). Carried only: nothing draws it yet.
+    private(set) var isKept = false
     var look = ServerUITextLook() { didSet { if look != oldValue { restyle() } } }
     /// Whether a single line shrinks to 0.6 of its size before it is cut, so it stays inside what holds it (a dial's centre). Off for a plain text.
     var shrinksToFit = false { didSet { if shrinksToFit != oldValue { restyle() } } }
@@ -1470,7 +1480,17 @@ final class UKServerUIText: UIView, UKGridMeasuring {
     ///   - value: The bound text value.
     ///   - unavailable: The text shown while the value is unavailable.
     func apply(_ value: UKServerUIValue<String>, unavailable: String) {
-        switch value {
+        apply(UKServerUIStringAnswer(value: value, isKept: false), unavailable: unavailable)
+    }
+
+    /// Shows a text slot's answer, noting whether it is kept text.
+    /// - Parameters:
+    ///   - answer: The slot's answer, with whether it is the last answered text.
+    ///   - unavailable: The text shown while the value is unavailable.
+    func apply(_ answer: UKServerUIStringAnswer, unavailable: String) {
+        // MARK: - Kept text presentation (T-text-keep)
+        isKept = answer.isKept
+        switch answer.value {
         case .ready(let text): label.text = text; pending.isHidden = true
         case .unavailable: label.text = unavailable; pending.isHidden = true
         case .loading: label.text = "Loading"; pending.isHidden = false

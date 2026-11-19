@@ -10,7 +10,7 @@ Both repositories carry this directory byte for byte; change it in one and copy 
 - `index.json`: every file once, its expected outcome and a note. A few older entries still carry a `houseScripts` list;
   it is ignored now that the app accepts any script (no house document is needed).
 - `capabilities.pending.json`: Studio-owned, sorted. Capabilities the Studio compiles and the corpus exercises that the app does not list
-  yet. Shipped and pending are disjoint and the Studio's supported list is their union. Twenty ids were promoted after verification against native-home main and `ios/v2611.18.09`; the original remaining nine are unchanged, with the new pending `sh.flow-average@1` and `sh.text-keep@1` beside them. When the app ships a capability, one app change
+  yet. Shipped and pending are disjoint and the Studio's supported list is their union. Twenty ids were promoted after verification against native-home main and `ios/v2611.18.09`; the original remaining nine are unchanged, with the new `sh.flow-average@1` and `sh.text-keep@1` beside them (both shipped in the app since). When the app ships a capability, one app change
   adds it to its list, regenerates `capabilities.json`, moves its `pending-*` cases from `reject/` to `accept/` with the real expectation
   and drops it from this file.
 - `capabilities.json`: the capability strings the app compiler supports, sorted, generated from
@@ -85,7 +85,7 @@ the `compare`, `in` and `exists` leaves and reads of any model source (`sh.condi
 
 The `enabled-when-`, `tile-look-`, `bound-color-`, `bound-symbol-`, `text-fallback-`, `badge-`, `action-rules-`, `confirm-when-`, `tab-fallback-`, `list-parts-` and `date-format-` files (and their `pending-` twins) cover the lane L-asks ids (`sh.enabled-when@1`, `sh.tile-look@1`, `sh.rules@1` colors and symbols, `sh.badges@1`, `sh.action-rules@1`, `sh.confirm-when@1`, `sh.tab-fallback@1`, `sh.list-parts@1`, and the date format under `sh.pipeline-operands@1`). They are written by `scripts/asks-corpus.ts` through the same generator. Evaluation cases name a subject kind (`operand`, `condition`, `fill`, `symbol`, `text`, `badge`, `enabled`, `faces`, `action`, `asks`) with its answer.
 
-The `text-keep-*` cases add pending `sh.text-keep@1`: `read` and `expr` accept
+The `text-keep-*` cases cover `sh.text-keep@1` (shipped): `read` and `expr` accept
 `whenUnavailable: "fallback" | "keep"`, reject unknown policies and require the
 capability when either policy is written. Keep uses the last answered text,
 never a fallback as an answer; before any answer it still draws the fallback.

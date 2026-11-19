@@ -950,7 +950,8 @@ struct ServerUICompositionCompiler {
         default:
             let fallback = try c.optionalString("fallback")
             if fallback != nil { require("rules") }
-            return try .read(read(c, expected: .string), fallback: fallback)
+            if c.value["whenUnavailable"] != nil { require("text-keep") }
+            return try .read(read(c, expected: .string), fallback: fallback, whenUnavailable: ServerUIUnavailablePolicy(c.value["whenUnavailable"]?.string))
         }
     }
 

@@ -367,10 +367,13 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     ///
     /// A `read` and an `expression` may carry the text to draw while the value is unavailable (never while it is loading: the slot keeps
     /// what it showed). ``ServerUIStringResolver`` is the one place that turns one into text.
+    ///
+    /// A `read` and an `expression` also carry a ``ServerUIUnavailablePolicy`` (`sh.text-keep@1`): `keep` draws the last answered text
+    /// while the value is unavailable. A literal has no unavailable state and takes none.
     public enum StringValue: Equatable, Sendable {
         case literal(String)
-        case read(Read, fallback: String? = nil)
-        case expression(ServerUIOperand, fallback: String?)
+        case read(Read, fallback: String? = nil, whenUnavailable: ServerUIUnavailablePolicy = .fallback)
+        case expression(ServerUIOperand, fallback: String?, whenUnavailable: ServerUIUnavailablePolicy = .fallback)
     }
     /// An entity id given literally or read from a source.
     public enum EntityValue: Equatable, Sendable { case literal(String), read(Read) }

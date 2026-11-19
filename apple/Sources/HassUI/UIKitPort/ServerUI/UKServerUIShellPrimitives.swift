@@ -77,6 +77,10 @@ class UKServerUIFittingView: UIView, UKGridMeasuring, UKFitCaching {
 final class UKServerUIRow: UKServerUIFittingView {
     private let row = UKRowView(.init(""))
     private var button: UKRowButton?
+    /// The last answer of each text slot of this row instance (primary, secondary, value), for `sh.text-keep@1`.
+    private var memories = [ServerUITextMemory](repeating: ServerUITextMemory(), count: 3)
+    /// Whether each slot (primary, secondary, value) drew kept text last time. Carried only: nothing draws it yet.
+    private(set) var keptSlots = [Bool](repeating: false, count: 3)
 
     init() { super.init(frame: .zero) }
 
@@ -85,15 +89,19 @@ final class UKServerUIRow: UKServerUIFittingView {
 
     func apply(_ value: ServerUICompositionDocument.Row, bindings: UKServerUIBindings, surface: TileSurface,
                enabled: Bool, action: @escaping () -> Void) {
-        func text(_ binding: ServerUICompositionDocument.StringValue) -> String {
-            switch bindings.string(binding) {
+        // MARK: - Kept text presentation (T-text-keep)
+        func text(_ binding: ServerUICompositionDocument.StringValue, slot: Int) -> String {
+            // The answer's `isKept` is carried (`keptSlots`), not yet drawn differently.
+            let answer = bindings.string(binding, memory: &memories[slot])
+            keptSlots[slot] = answer.isKept
+            switch answer.value {
             case .ready(let value): value
             case .loading: value.loadingText
             case .unavailable: value.unavailableText
             }
         }
-        var content = UKRowContent(text(value.primary), subtitle: text(value.secondary).nilIfEmpty,
-                                   value: text(value.value).nilIfEmpty, symbol: value.icon?.drawn,
+        var content = UKRowContent(text(value.primary, slot: 0), subtitle: text(value.secondary, slot: 1).nilIfEmpty,
+                                   value: text(value.value, slot: 2).nilIfEmpty, symbol: value.icon?.drawn,
                                    showsChevron: value.accessory == .disclosure)
         content.identifier = value.node.id
         row.update(content)

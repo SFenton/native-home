@@ -294,8 +294,11 @@ enum ServerUICompositionShape {
         ]
         var variants: [String: Shape] = ["literal": object(["type": fixed("literal"), "value": literal])]
         if let fallback {
+            // `whenUnavailable` is a text slot's policy (`sh.text-keep@1`); a literal has no unavailable state, so it stays a closed object.
+            let policy = Shape.optional(.choice(ServerUIUnavailablePolicy.allCases.map(\.rawValue)))
             read["fallback"] = .optional(fallback)
-            variants["expr"] = object(["type": fixed("expr"), "value": operand, "fallback": .optional(fallback)])
+            read["whenUnavailable"] = policy
+            variants["expr"] = object(["type": fixed("expr"), "value": operand, "fallback": .optional(fallback), "whenUnavailable": policy])
         }
         variants["read"] = object(read)
         return .variant("type", variants)

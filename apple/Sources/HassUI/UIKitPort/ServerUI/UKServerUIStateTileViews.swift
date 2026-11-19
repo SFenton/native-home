@@ -84,6 +84,8 @@ enum UKServerUIStateTileViews {
     static func bind(_ tile: D.StateTile, view: UKGlassTileView, bag: UKObservationBag, page: UKServerUIPage, renderer: UKServerUIRenderer,
                      node: UKServerUINode? = nil) {
         var first = true
+        // The subtitle's last answer, kept beside the tile (`sh.text-keep@1`).
+        var subtitleMemory = ServerUITextMemory()
         let swipe = UKServerUITileSwipeBinding(tile: tile, view: view, page: page, renderer: renderer)
         bag.observe { [weak view, weak page, weak renderer] in
             guard let view, let page, let renderer else { return }
@@ -105,7 +107,8 @@ enum UKServerUIStateTileViews {
                 face.model.actions = face.spec.map { [$0].items } ?? []
             }
             var subtitle: String?
-            if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value) { subtitle = text }
+            // MARK: - Kept text presentation (T-text-keep)
+            if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value, memory: &subtitleMemory).value { subtitle = text }
             var discMemory = node?.layoutMemory ?? UKServerUILayoutMemory()
             UKServerUIStateTileParts.apply(tile, to: &face.model, reader: renderer.reader(), subtitle: subtitle,
                                            unknown: hidden || loading || unavailable, busy: busy,

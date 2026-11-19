@@ -56,6 +56,9 @@ public enum ServerUIIngestedCapabilities {
     /// The `average` step of a Data Flow (lane `native-flow-average`): the mean of the finite numbers an operand gives over a list, `null` when there is none.
     public static let flowAverage: [String] = ["sh.flow-average@1"]
 
+    /// A text slot's `whenUnavailable` policy (lane `T-text-keep`): `keep` draws the last answered text while the value is unavailable, `fallback` (the default) the slot's fallback.
+    public static let textKeep: [String] = ["sh.text-keep@1"]
+
     /// The chart and the linear gauge (lane `ni-wgchart`): one series as bars, a line or an area on an axis, from points written in the document or from the
     /// records of a flow or a `repeat`; and a rail with a gradient, a span and a marker.
     public static let dataParts: [String] = ["sh.chart@1", "sh.linear-gauge@1"]
@@ -75,5 +78,5 @@ public enum ServerUIIngestedCapabilities {
     public static let counting: [String] = ["sh.count@1"]
 
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + flowAverage + dataParts + gaugeParts + edgeOperands + counting }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + flowAverage + textKeep + dataParts + gaugeParts + edgeOperands + counting }
 }
