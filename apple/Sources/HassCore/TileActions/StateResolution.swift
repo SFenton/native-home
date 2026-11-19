@@ -37,6 +37,10 @@ public struct StateResolution: Equatable, Sendable {
     public var fill: UInt32? = nil
     /// The face fill while the screen is dark, when the rule's fill is a light and dark pair; nil is ``fill`` in both.
     public var fillDark: UInt32? = nil
+    /// The icon colour of the state's rule (`sh.state-style-glyph-tint@1`, `red << 16 | green << 8 | blue`); nil leaves the tile's own tint.
+    public var glyphTint: UInt32? = nil
+    /// The icon colour while the screen is dark, when the rule's tint is a light and dark pair; nil is ``glyphTint`` in both.
+    public var glyphTintDark: UInt32? = nil
     /// The ink of the state line on ``fill`` (`sh.tile-ink@1`).
     public var fillInk: StateFillInk = .white
     /// The colour of the disc's glyph while the face is unlit (`red << 16 | green << 8 | blue`); nil leaves the disc's own ink.

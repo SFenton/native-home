@@ -5,7 +5,7 @@
 - Mockup: [room-master-bedroom.html](room-master-bedroom.html) · in flight (`claude/section-sides`) · reviewed 2026-10-23 (author draft; skill reviewers replace it)
 - Source: `apple/Sources/HassUI/` RoomScreen.swift; RoomTiles.swift (RoomCardView); Features/Bedroom/*; HassCore/Bedroom/BedSideController.swift; HassDesign/ThermostatTileFace.swift
 - Spec: .agents/patterns/bedroom-devices.md, .agents/pages/rooms/ios.md · Patterns: bedroom-devices, room-device-sheets, entity-tile
-- States covered: default, loading, refreshing, error, offline, reconnecting (+ was), beds-idle, beds-off, hot-flash, solo-trip, viewer-sam, wake-ramping/snoozed/blocked, media-playing, window-open, long-text, ax5, placeholder
+- States covered: default, loading, refreshing, error, offline, reconnecting (+ was), beds-idle, beds-off, beds-tint-by-state, hot-flash, solo-trip, viewer-sam, wake-ramping/snoozed/blocked, media-playing, window-open, long-text, ax5, placeholder
 - Motion: bed power, bed family swap, hot flash countdown; transitions: wake-light sheet, bed sheet, wake light to bed (queued)
 - Devices: iPhone, Duo folded, Duo unfolded landscape and portrait, iPad portrait and landscape
 - Open notes:
@@ -14,3 +14,4 @@
 - Shared helper: `pages/rooms/_rooms.js` (rooms batch; list of kit promotions in its header).
 - Change log: 2026-10-28 tile rollout R: bed sides carry a Power disc; Humidifier a Power disc; BedSideTile and WakeLightTile are gone (the gallery draws these cards).
 - In flight (`claude/section-sides`, [section-sides](../../../../section-sides.md)): partly folded Duo, each section wholly on one side (fold columns); state `duo-part-fold`. Every other pose unchanged.
+- Bed tiles as authored state tiles (publication r32, task bed-tile-span): each takes the tracks its longest line needs, a full row on narrow widths; the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`).

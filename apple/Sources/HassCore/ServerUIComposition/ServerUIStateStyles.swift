@@ -36,6 +36,9 @@ public struct ServerUIStateStyleLibrary: Equatable, Sendable {
     /// Whether any rule names the ink of its state line on a fill, which needs `sh.tile-ink@1`.
     public var usesFillInk: Bool { entries.contains { $0.style.rules.contains { $0.fillInk != nil } } }
 
+    /// Whether any rule or fallback names an icon colour, which needs `sh.state-style-glyph-tint@1`.
+    public var usesGlyphTint: Bool { entries.contains { $0.style.rules.contains { $0.glyphTint != nil } } }
+
     /// The saved style with `id`.
     public func style(id: String) -> StateStyle? { entries.first { $0.style.id == id }?.style }
 }
@@ -190,6 +193,11 @@ enum ServerUIStateStyles {
         if rule["colour"] != nil, !acceptsColour(stateClass) { issues.append(Issue(.invalidCombination, path + "/colour")) }
         // The ink belongs to a fill: a state with no fill has no ink to name (`sh.tile-ink@1`).
         if rule["fillInk"] != nil, rule["fill"] == nil { issues.append(Issue(.invalidCombination, path + "/fillInk")) }
+        // The icon colour is cosmetic like the colour token: it sits on a resting or in-progress state with no fill, whose ink it would
+        // otherwise fight (`sh.state-style-glyph-tint@1`).
+        if rule["glyphTint"] != nil, !acceptsColour(stateClass) || rule["fill"] != nil {
+            issues.append(Issue(.invalidCombination, path + "/glyphTint"))
+        }
         if let action = rule["action"], action["otherwise"] != nil, action["requiresFeature"] == nil {
             issues.append(Issue(.invalidCombination, path + "/action/otherwise"))
         }
@@ -216,6 +224,9 @@ enum ServerUIStateStyles {
                   action: rule["action"].map(decodeAction),
                   colour: rule["colour"]?.string.flatMap(StateColour.init(rawValue:)), fill: fill?.light)
         decoded.fillDark = fill?.dark
+        let tint = rule["glyphTint"].flatMap(decodeFill)
+        decoded.glyphTint = tint?.light
+        decoded.glyphTintDark = tint?.dark
         decoded.fillInk = rule["fillInk"]?.string.flatMap(StateFillInk.init(rawValue:))
         return decoded
     }

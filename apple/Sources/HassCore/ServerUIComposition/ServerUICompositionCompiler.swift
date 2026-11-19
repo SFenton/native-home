@@ -202,6 +202,7 @@ struct ServerUICompositionCompiler {
             stateLibrary = decoded.library
             if decoded.library.usesFills { require("state-style-fills") }
             if decoded.library.usesFillInk { require("tile-ink") }
+            if decoded.library.usesGlyphTint { require("state-style-glyph-tint") }
         }
         if c.value["localState"] != nil {
             require("local-state")

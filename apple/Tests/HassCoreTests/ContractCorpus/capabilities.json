@@ -171,6 +171,7 @@
   "sh.sprinkler-state@1",
   "sh.stack@1",
   "sh.state-style-fills@1",
+  "sh.state-style-glyph-tint@1",
   "sh.state-style@1",
   "sh.state-words@1",
   "sh.status-chip@1",

@@ -14321,6 +14321,121 @@
         "code": "capability_manifest_mismatch",
         "pointer": "/capabilities"
       }
+    },
+    {
+      "file": "accept/state-style-glyph-tint-per-state.json",
+      "outcome": "accept",
+      "note": "Each resting or in-progress rule carries its own icon colour; the unknown rule carries none."
+    },
+    {
+      "file": "accept/state-style-glyph-tint-pair.json",
+      "outcome": "accept",
+      "note": "A light and dark pair resolves with the trait collection; it needs sh.solid-appearance@1 too."
+    },
+    {
+      "file": "accept/state-style-glyph-tint-fallback.json",
+      "outcome": "accept",
+      "note": "The style fallback may carry the icon colour: a resting fallback state is tinted."
+    },
+    {
+      "file": "accept/state-style-glyph-tint-with-static-tint.json",
+      "outcome": "accept",
+      "note": "A rule's colour beside the tile's static glyphTint: the rule wins in its state, the static tint draws in the others."
+    },
+    {
+      "file": "accept/state-style-glyph-tint-absent-needs-no-capability.json",
+      "outcome": "accept",
+      "note": "A style that authors no icon colour needs no sh.state-style-glyph-tint@1."
+    },
+    {
+      "file": "reject/state-style-glyph-tint-on-error-rule.json",
+      "outcome": "reject",
+      "note": "An error rule keeps the error ink: it refuses an icon colour.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/1/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-on-warning-rule.json",
+      "outcome": "reject",
+      "note": "A warning rule keeps its warning ink: it refuses an icon colour.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/1/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-on-unknown-rule.json",
+      "outcome": "reject",
+      "note": "An unavailable or unknown state keeps the muted grey: it refuses an icon colour.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/1/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-beside-fill.json",
+      "outcome": "reject",
+      "note": "A rule with a fill keeps the fill's fixed icon ink: the icon colour is refused beside it.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-on-unknown-fallback.json",
+      "outcome": "reject",
+      "note": "The fallback is a state too: an unknown-class fallback refuses an icon colour.",
+      "issue": {
+        "code": "invalid_combination",
+        "pointer": "/document/stateStyles/styles/0/fallback/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-missing-capability.json",
+      "outcome": "reject",
+      "note": "A rule that writes the field requires sh.state-style-glyph-tint@1 in the publication manifest.",
+      "issue": {
+        "code": "capability_manifest_mismatch",
+        "pointer": "/capabilities"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-missing-blue.json",
+      "outcome": "reject",
+      "note": "A tint colour has red, green and blue.",
+      "issue": {
+        "code": "missing_required",
+        "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint/blue"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-hex-string.json",
+      "outcome": "reject",
+      "note": "A colour is the solid-rgb object, never a string.",
+      "issue": {
+        "code": "invalid_value",
+        "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-bound-color.json",
+      "outcome": "reject",
+      "note": "A tint is not an entity's colour: bound-color is refused.",
+      "issue": {
+        "code": "unknown_variant",
+        "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint/type"
+      }
+    },
+    {
+      "file": "reject/state-style-glyph-tint-over-255.json",
+      "outcome": "reject",
+      "note": "A channel is 0 to 255.",
+      "issue": {
+        "code": "limit_exceeded",
+        "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint/red"
+      }
     }
   ]
 }

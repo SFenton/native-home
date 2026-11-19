@@ -24,6 +24,7 @@
 | [pending-controls.md](pending-controls.md) | Between a tap and Home Assistant's answer: the optimistic value, the waiting arc, the failed face, defaults by call and the authored `pending` settings |
 | [server-ui-boundary.md](server-ui-boundary.md) | The recovery boundary of the server-driven root: its four states, actions, hinge placement and words |
 | [kept-text.md](kept-text.md) | A text slot showing a kept value (`sh.text-keep@1`) is drawn and spoken exactly as live; before any answer it draws its fallback |
+| [state-glyph-tint.md](state-glyph-tint.md) | A state style rule's `glyphTint` (`sh.state-style-glyph-tint@1`): the icon colour per state, its fallback, where it draws, contrast and accessibility |
 | [state-styles.md](state-styles.md) | Built-in state styles, the request phase, how the door, lock and alarm tiles map onto them, and the Studio's style library |
 | [controller-bound-controls.md](controller-bound-controls.md) | Proposal (awaiting owner): removing `Binding(get:set:)` closures that forward to controllers |
 | [mockups/proposals/long-titles/long-titles.html](mockups/proposals/long-titles/long-titles.html) | Page titles lead the navigation bar and carousel when long: today beside proposed on iPhone, iPad and the Duo |
