@@ -94,7 +94,7 @@ final class UKServerUIRow: UKServerUIFittingView {
             // Whether the slot drew kept text is drawn by the row (`ServerUIKeptTextTreatment`).
             let answer = bindings.string(binding, memory: &memories[slot])
             keptSlots[slot] = answer.isKept
-            switch answer.value {
+            return switch answer.value {
             case .ready(let value): value
             case .loading: value.loadingText
             case .unavailable: value.unavailableText
