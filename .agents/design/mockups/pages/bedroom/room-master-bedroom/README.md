@@ -14,4 +14,4 @@
 - Shared helper: `pages/rooms/_rooms.js` (rooms batch; list of kit promotions in its header).
 - Change log: 2026-10-28 tile rollout R: bed sides carry a Power disc; Humidifier a Power disc; BedSideTile and WakeLightTile are gone (the gallery draws these cards).
 - In flight (`claude/section-sides`, [section-sides](../../../../section-sides.md)): partly folded Duo, each section wholly on one side (fold columns); state `duo-part-fold`. Every other pose unchanged.
-- Change log: 2026-11-19 bed tiles as authored state tiles: the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`) and each tile is a full row on narrow widths.
+- Bed tiles as authored state tiles: the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`) and each tile is a full row on narrow widths.

@@ -15,7 +15,7 @@ final class ServerUIStateGlyphTintHostedTests: XCTestCase {
     private static let warm: UInt32 = 0xF2A65A
     private static let warmLight: UInt32 = 0xB5651D
     private static let cool: UInt32 = 0x78B4F0
-    private static let tileID = "tile"
+    private static let tileID = "demo-tile"
     private static let entity = "vacuum.demo_robot"
 
     private var window: UIWindow?
@@ -198,8 +198,10 @@ final class ServerUIStateGlyphTintHostedTests: XCTestCase {
     /// The Studio's 3:1 warning, as the app sees it: each authored member keeps WCAG 1.4.11 against the face it lands on (the dark member on
     /// the page's off face, the light member on a light sheet's white cell).
     func testTheAuthoredMembersKeepThreeToOneAgainstTheirGround() {
+        // The off face is the thin module (66% of `moduleThin`) over the lightest wallpaper (sRGB grey 0.46): about #3A3A3C.
+        let lightestOffFace: UInt32 = 0x3A3A3C
         for dark in [Self.warm, Self.cool] {
-            XCTAssertGreaterThanOrEqual(ChipTint.contrast(dark, HassTokens.Palette.moduleThin), 3)
+            XCTAssertGreaterThanOrEqual(ChipTint.contrast(dark, lightestOffFace), 3)
         }
         XCTAssertGreaterThanOrEqual(ChipTint.contrast(Self.warmLight, 0xFFFFFF), 3)
     }
