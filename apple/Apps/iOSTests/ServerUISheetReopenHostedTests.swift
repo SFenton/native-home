@@ -72,14 +72,21 @@ final class ServerUISheetReopenHostedTests: XCTestCase {
             defer { window.isHidden = true }
             let present = ServerUICompositionDocument.Action.present(modalId: id, arguments: .init(), ifPresented: .reject)
             let modal = try open(host, page, id)
-            // Past the present's own flight, whose end re-enables nothing: the sheet is up.
-            HostedPage.wait(0.6)
             XCTAssertFalse(host.isEnabled(present, from: page), "width \(size.width): disabled while the sheet is up")
-            // A control (a folded row) re-reads its enabled state only when what it read last changes.
-            let changed = Flag()
-            withObservationTracking { _ = host.isEnabled(present, from: page) } onChange: { changed.raise() }
-            HostedPage.wait(0.2)
+            // A control (a folded row) re-reads its enabled state only when what it read last changes. Watch from a moment the
+            // renderer is idle (a push is enabled) and stays quiet: past the present's flight and any column settling it causes.
+            let push = ServerUICompositionDocument.Action.push(.init(pageId: id, arguments: .init(), origin: .sender, duplicate: .reuseNearest))
+            var changed = Flag()
+            let quietBy = Date().addingTimeInterval(8)
+            repeat {
+                XCTAssertTrue(HostedPage.until(8) { host.isEnabled(push, from: page) }, "width \(size.width): the present settles")
+                changed = Flag()
+                let flag = changed
+                withObservationTracking { _ = host.isEnabled(present, from: page) } onChange: { flag.raise() }
+                HostedPage.wait(0.3)
+            } while changed.isRaised && Date() < quietBy
             XCTAssertFalse(changed.isRaised, "width \(size.width): nothing changes while the sheet stays up")
+            XCTAssertFalse(host.isEnabled(present, from: page), "width \(size.width): still disabled while the sheet is up")
             try swipeDown(modal)
             XCTAssertTrue(changed.isRaised, "width \(size.width): a swipe close tells the controls that present to re-read")
             XCTAssertTrue(host.isEnabled(present, from: page), "width \(size.width): and they are enabled again")
