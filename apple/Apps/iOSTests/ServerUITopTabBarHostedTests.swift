@@ -161,7 +161,16 @@ final class ServerUITopTabBarHostedTests: XCTestCase {
 
     /// On a pushed page the leading item is Back and the trailing items are Quick Links, then Profile (read leading to trailing).
     func testAPushedPageReadsBackThenTheTitleThenTheTrailingButtons() throws {
-        let (renderer, window) = try host(.regular)
+        // A renderer with the shell header source, so the root's bar carries Quick Links and Profile.
+        let source = UKServerUIShellHeaderSource(state: {
+            .init(profileName: "Example Person", attentionCount: 0, isOffline: false, reconnectingPresent: false, reconnectingLit: false)
+        })
+        let publication = try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUIRendererFixture.publication() }
+        let renderer = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()),
+                                              backdrop: ServerUIRendererFixture.backdrop(), shellHeader: source)
+        let window = HostedPage.show(renderer, size: CGSize(width: 744, height: 1133))
+        renderer.traitOverrides.horizontalSizeClass = .regular
+        HostedPage.layoutTracked()
         defer { window.isHidden = true }
         let root = try ServerUIRendererFixture.root(renderer)
         try push(in: renderer, from: root)
