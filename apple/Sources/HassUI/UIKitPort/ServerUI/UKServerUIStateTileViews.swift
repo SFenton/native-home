@@ -75,6 +75,8 @@ enum UKServerUIStateTileViews {
         model.look = look
         model.isWarning = resolution.stateClass == .warning && !request.isUnknown && !request.failed && !request.isInFlight
         UKServerUITileInk.apply(tile.ink, fillInk: resolution.fillInk, to: &model)
+        // The state's own icon colour (`sh.state-style-glyph-tint@1`) beats the tile's static tint; it draws on the same faces (`AuthoredTileInk`).
+        if let tint = resolution.glyphTint { model.glyphTint = AppearanceFill(light: tint, dark: resolution.glyphTintDark ?? tint) }
         // A state that is not active draws the unlit face and no fill; its authored colour inks the disc's glyph instead. A tile's own
         // `discGlyphTint` (`sh.tile-ink@1`) is the author's word for the tile and wins.
         if model.discGlyphTint == nil, let ink = resolution.discGlyph { model.discGlyphTint = AppearanceFill(ink) }

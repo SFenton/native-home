@@ -25,6 +25,11 @@ public struct StateRule: Equatable, Sendable {
     /// The face colour while the screen is dark, when the rule's fill is a light and dark pair (`sh.solid-appearance@1`); nil is ``fill``
     /// in both appearances.
     public var fillDark: UInt32?
+    /// The icon colour of this state as `red << 16 | green << 8 | blue` (`sh.state-style-glyph-tint@1`), drawn where the tile's static
+    /// `glyphTint` draws; nil leaves the tile's own tint, then the default ink.
+    public var glyphTint: UInt32?
+    /// The icon colour while the screen is dark, when the rule's tint is a light and dark pair; nil is ``glyphTint`` in both appearances.
+    public var glyphTintDark: UInt32?
     /// The ink of the state line on ``fill`` (`sh.tile-ink@1`); nil is the document not naming one, which draws ``StateFillInk/white``.
     public var fillInk: StateFillInk?
     /// Whether the disc reads as on in this state, when that differs from the tile's own ``isActive``. Never authored: a lowered

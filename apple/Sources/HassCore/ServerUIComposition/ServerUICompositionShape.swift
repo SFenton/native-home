@@ -948,7 +948,8 @@ extension ServerUICompositionShape {
         "indicator": .optional(.choice(StateIndicator.allCases.map(\.rawValue))),
         "colour": .optional(.choice(StateColour.allCases.map(\.rawValue))),
         "action": .optional(stateAction), "fill": .optional(exactSolid),
-        "fillInk": .optional(.collapsed(.choice(StateFillInk.allCases.map(\.rawValue))))
+        "fillInk": .optional(.collapsed(.choice(StateFillInk.allCases.map(\.rawValue)))),
+        "glyphTint": .optional(exactSolid)
     ]
     private static let stateRequest: Shape = {
         object([
