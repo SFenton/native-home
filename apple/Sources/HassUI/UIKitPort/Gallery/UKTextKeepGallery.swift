@@ -46,8 +46,8 @@ final class UKTextKeepGalleryViewController: UIViewController {
 
     /// The answered values, then what an unavailable sensor reads.
     private static let answers: [(id: String, state: String)] = [
-        ("sensor.keep_temperature", "21.5 degrees"), ("sensor.keep_battery", "80 percent"),
-        ("sensor.keep_long_text", "Reading from the upstairs bathroom sensor, last reported this evening"),
+        ("sensor.demo_keep_temperature", "21.5 degrees"), ("sensor.demo_keep_battery", "80 percent"),
+        ("sensor.demo_keep_long_text", "Reading from the upstairs bathroom sensor, last reported this evening"),
     ]
 
     override func viewDidLoad() {

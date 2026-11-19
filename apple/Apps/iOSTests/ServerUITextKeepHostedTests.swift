@@ -28,9 +28,9 @@ final class ServerUITextKeepHostedTests: XCTestCase {
         let value = try slot()
         var memory = ServerUITextMemory()
         var other = ServerUITextMemory()
-        _ = store.replaceAll([answer("sensor.keep_temperature", "21.5 degrees")])
+        _ = store.replaceAll([answer("sensor.demo_keep_temperature", "21.5 degrees")])
         XCTAssertEqual(bindings.string(value, memory: &memory).value, "21.5 degrees")
-        _ = store.replaceAll([answer("sensor.keep_temperature", "unavailable")])
+        _ = store.replaceAll([answer("sensor.demo_keep_temperature", "unavailable")])
         XCTAssertEqual(bindings.string(value, memory: &memory).value, "21.5 degrees", "kept")
         XCTAssertEqual(bindings.string(value, memory: &other).value, "No reading", "another instance never answered")
         XCTAssertEqual(bindings.string(value).value, "No reading", "the memoryless form draws the fallback")
@@ -44,9 +44,9 @@ final class ServerUITextKeepHostedTests: XCTestCase {
         var memory = ServerUITextMemory()
         if case .loading = bindings.string(value, memory: &memory) {} else { XCTFail("an empty store has not been heard from: loading") }
         // A delta on an empty store has not handed the server's state over: still not heard from.
-        _ = store.apply([answer("sensor.keep_temperature", "unavailable")])
+        _ = store.apply([answer("sensor.demo_keep_temperature", "unavailable")])
         if case .loading = bindings.string(value, memory: &memory) {} else { XCTFail("apply alone leaves the store unheard") }
-        _ = store.replaceAll([answer("sensor.keep_temperature", "unavailable")])
+        _ = store.replaceAll([answer("sensor.demo_keep_temperature", "unavailable")])
         XCTAssertEqual(bindings.string(value, memory: &memory).value, "No reading")
     }
 
