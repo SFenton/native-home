@@ -1,4 +1,4 @@
-import HassCore
+@testable import HassCore
 import UIKit
 import XCTest
 @testable import HassUI
