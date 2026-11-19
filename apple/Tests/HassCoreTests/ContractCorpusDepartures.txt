@@ -16,4 +16,9 @@ Cases the Studio compiles or refuses for ids the app has not ingested stay in th
 (`ServerUIExpressionCorpusTests.pendingIds`) and ten refusals that use a pending id's field without declaring it
 (`ServerUIContractCorpusTests.undeclaredUseOfAPendingId`). `sh.text-keep@1` is one of those ids; its cases stay refused.
 
+One case is a real disagreement on shipped behaviour, not a pending id: `evaluation/badge-cap-unavailable-hides`. A badge rule with no source loading and
+nothing to read gives no value in the Studio (`resolveBadge`, `src/shared/composition/evaluator.ts`), and `loading` in the app (`ServerUILooks.badge`). The test
+`ServerUIExpressionCorpusTests.knownDisagreements` pins the app's current answer, so a change on either side fails it. Follow-up: decide which side moves, then
+change that side and delete the entry. This lane leaves `ServerUILooks` alone.
+
 The global-chrome cases the app owns live in `GlobalChromeCorpus/`, outside the copy.
