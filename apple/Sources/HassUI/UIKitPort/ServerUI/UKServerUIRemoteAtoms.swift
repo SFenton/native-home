@@ -60,7 +60,7 @@ enum UKServerUIRemoteProviders {
                 visit(component.childComponents, path: path)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             visit(surface.components, path: surface.id)
         }
         return result

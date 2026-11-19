@@ -8,4 +8,5 @@
 - States covered: home, open-sheet, rooms-detail-pushed-in-sheet, choose-page, sheet-dismisses, page-pushes-after-dismissal, room-chosen, sprinklers-hidden, ax5
 - Motion: sheet then push in order; sheet present; three transitions
 - Devices: iPhone, folded Duo, unfolded Duo landscape, iPad (both)
+- Rule (owner, 2026-11-18): a page link in any sheet closes every level of it, then pushes; a level stays in the sheet. See `.agents/patterns/modal-sheet.md`.
 - Open notes: Target pages are trimmed stand-ins. Media's symbol (appletvremote.gen4) is not in the kit map; tv is drawn.

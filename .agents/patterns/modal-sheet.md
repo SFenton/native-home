@@ -52,6 +52,17 @@ A form either keeps a draft for everything it shows (Save or Apply writes it, Ca
 
 - **Owned files** (also in `contracts/patterns.json`): `KeyboardDone.swift`, `SheetSubtitle.swift`, `BadgedTabSegment.swift`, `BadgedTabSegments.swift`.
 
+## A page link closes the sheet (owner, 2026-11-18)
+
+A `push` to a page (a `pages[]` entry) activated from inside a sheet closes the sheet first, then pushes on the section stack that is showing, so the landed page draws the global chrome ([page-base](page-base.md)). A push to a level (a `levels[]` entry, `sh.sheet-levels@1`) stays in the sheet.
+
+- **One dismissal.** Every level closes together; levels never pop one by one. Touches are held from the tap until the push settles. `UKServerUIRenderer.activate` turns the push into the `dismiss-then-push` path; an authored `dismiss-then-push` is equal.
+- **Guards first.** An alert is answered first and a form with unsaved changes asks "Discard changes?"; Cancel keeps the sheet and nothing moves.
+- **On the stack.** A page already on the stack is popped to, not pushed again; the page under the sheet only closes.
+- **A column.** An adaptive presentation (a column beside the page) is removed and the page opens by the columns' rule in one motion.
+- **Back** leads to the page under the sheet, with the sheet closed.
+- **Without levels.** A document that declares no `levels` keeps every push inside the sheet: a lowered layout reads as it does on a build before the capability.
+
 ## Guards
 
 Checked by `python3 tools/pattern_guard.py` against `contracts/patterns.json` (comment lines are ignored).

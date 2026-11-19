@@ -46,7 +46,7 @@ final class UKServerUIRecordProviders {
                     visit(node.childComponents)
                 }
             }
-            visit((document.pages.map(\.surface) + document.modals.map(\.surface)).flatMap(\.components))
+            visit((document.surfaces).flatMap(\.components))
             for form in formNodes {
                 for suffix in ["-add", "-edit"] where form.providerId.hasSuffix(suffix) {
                     if absent.contains(String(form.providerId.dropLast(suffix.count))) {
@@ -185,7 +185,7 @@ final class UKServerUIRecordProviders {
                 }
             }
         }
-        return (document.pages.map(\.surface) + document.modals.map(\.surface)).contains { needs($0.components) }
+        return (document.surfaces).contains { needs($0.components) }
             || document.dataSources.contains { if case .inventoryList = $0 { true } else { false } }
     }
 }

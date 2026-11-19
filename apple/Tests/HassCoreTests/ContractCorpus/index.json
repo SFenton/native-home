@@ -11785,214 +11785,124 @@
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-two-levels.json",
-      "outcome": "reject",
-      "note": "A sheet reaches two levels: one from the sheet, one from the first level.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-levels-two-levels.json",
+      "outcome": "accept",
+      "note": "A sheet reaches two levels: one from the sheet, one from the first level."
     },
     {
-      "file": "reject/pending-global-chrome-levels-shared.json",
-      "outcome": "reject",
-      "note": "Two sheets push the same level; a level belongs to the document, not to one sheet.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-levels-shared.json",
+      "outcome": "accept",
+      "note": "Two sheets push the same level; a level belongs to the document, not to one sheet."
     },
     {
-      "file": "reject/pending-global-chrome-levels-and-pages.json",
-      "outcome": "reject",
-      "note": "A sheet pushes a level and a page; the page rule is unchanged.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-levels-and-pages.json",
+      "outcome": "accept",
+      "note": "A sheet pushes a level and a page; the page rule is unchanged."
     },
     {
-      "file": "reject/pending-global-chrome-levels-duplicate-page-id.json",
+      "file": "reject/global-chrome-levels-duplicate-page-id.json",
       "outcome": "reject",
       "note": "A level may not reuse a page id.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/levels/1/id"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-duplicate-modal-id.json",
+      "file": "reject/global-chrome-levels-duplicate-modal-id.json",
       "outcome": "reject",
       "note": "A level may not reuse a modal id.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/levels/1/id"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-duplicate-level-id.json",
+      "file": "reject/global-chrome-levels-duplicate-level-id.json",
       "outcome": "reject",
       "note": "Two levels may not share an id.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/levels/0/id"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-push-from-page.json",
+      "file": "reject/global-chrome-levels-push-from-page.json",
       "outcome": "reject",
       "note": "A page may not push a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/0/components/0/children/1/action/pageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-push-from-chrome.json",
+      "file": "reject/global-chrome-levels-push-from-chrome.json",
       "outcome": "reject",
       "note": "The shell chrome belongs to pages, so it may not push a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/navigation/chrome/groups/0/items/1/action/pageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-dismiss-then-push.json",
+      "file": "reject/global-chrome-levels-dismiss-then-push.json",
       "outcome": "reject",
       "note": "Dismiss-then-push leaves the sheet, so it may not name a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/modals/0/components/3/action/destination/pageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-tab.json",
+      "file": "reject/global-chrome-levels-tab.json",
       "outcome": "reject",
       "note": "A tab may not open a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/navigation/tabs/1/pageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-initial-page.json",
+      "file": "reject/global-chrome-levels-initial-page.json",
       "outcome": "reject",
       "note": "The first page may not be a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/navigation/initialPageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-route.json",
+      "file": "reject/global-chrome-levels-route.json",
       "outcome": "reject",
       "note": "An outside link may not open a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/13",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/extensions/routes/0/pageId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-present.json",
+      "file": "reject/global-chrome-levels-present.json",
       "outcome": "reject",
       "note": "A present may not name a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/navigation/chrome/groups/1/items/0/action/modalId"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-inherit-toolbar.json",
+      "file": "reject/global-chrome-levels-inherit-toolbar.json",
       "outcome": "reject",
       "note": "A level carries no shell chrome, as a modal does not.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/levels/0/toolbar"
       }
     },
     {
-      "file": "reject/pending-global-chrome-levels-page-field.json",
+      "file": "reject/global-chrome-levels-page-field.json",
       "outcome": "reject",
       "note": "A level has no route style.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/12",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/levels/0/navigation"
       }
@@ -12262,27 +12172,15 @@
       "pending": true
     },
     {
-      "file": "reject/pending-global-chrome-levels-component-in-sheet.json",
-      "outcome": "reject",
-      "note": "A saved component whose page-id argument names a level, used inside a sheet.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-levels-component-in-sheet.json",
+      "outcome": "accept",
+      "note": "A saved component whose page-id argument names a level, used inside a sheet."
     },
     {
-      "file": "reject/pending-global-chrome-levels-component-on-page.json",
+      "file": "reject/global-chrome-levels-component-on-page.json",
       "outcome": "reject",
       "note": "The same component on a page may not push a level.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.sheet-levels@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/components/0/args/target"
       }

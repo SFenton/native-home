@@ -192,7 +192,7 @@ struct UKServerUIRecords {
             }
 
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             guard surface.components.filter({ if case .pinnedActions = $0 { true } else { false } }).count <= 1,
                   surface.components.filter({ if case .form = $0 { true } else { false } }).count <= 1 else {
                 throw UKServerUIRendererError(code: .unsupportedPolicy, pointer: "/document/pages")

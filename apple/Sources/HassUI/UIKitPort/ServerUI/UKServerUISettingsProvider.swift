@@ -57,7 +57,7 @@ enum UKServerUISettingsProviders {
                 try visit(component.childComponents, surfaceID: surfaceID)
             }
         }
-        for surface in document.pages.map(\.surface) + document.modals.map(\.surface) {
+        for surface in document.surfaces {
             try visit(surface.components, surfaceID: surface.id)
         }
     }

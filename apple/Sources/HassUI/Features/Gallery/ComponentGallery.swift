@@ -43,6 +43,8 @@ public struct ComponentGallery {
         case home
         /// The state-styled tile through its states: a tile with a disc and one without (`FENTON_GALLERY=state-tile`).
         case stateTile = "state-tile"
+        /// The global-chrome sheet rule: a page link in a sheet closes it and lands with Quick Links and Profile (`FENTON_GALLERY=sheet-origin`).
+        case sheetOrigin = "sheet-origin"
     }
 
     /// The page requested at launch, if any. The whole type is debug-only.

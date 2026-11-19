@@ -71,6 +71,10 @@ public enum ServerUIIngestedCapabilities {
     /// Counting many entities (lane `native-count`): the `count` operand, how many of up to 32 conditions hold, each optionally for some people only.
     public static let counting: [String] = ["sh.count@1"]
 
+    /// Sheet levels (lane `gc-runtime-sheet-origin`): `levels[]`, surfaces a sheet's `push` reaches without leaving the sheet. A `push` to a page from a
+    /// sheet in a document that declares them closes every level and lands on the section stack.
+    public static let sheetLevels: [String] = ["sh.sheet-levels@1"]
+
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts + edgeOperands + counting }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + surface + styleParts + tileContract + flowRepeat + dataParts + gaugeParts + edgeOperands + counting + sheetLevels }
 }

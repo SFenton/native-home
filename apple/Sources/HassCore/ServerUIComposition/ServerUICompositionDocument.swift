@@ -26,6 +26,11 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public var stateStyles: ServerUIStateStyleLibrary? = nil
     /// The surfaces a sheet's `push` reaches inside the sheet (`sh.sheet-levels@1`); empty when the document carries none.
     public internal(set) var levels: [Level] = []
+    /// Whether the document wrote a `levels` list, even an empty one, and so requires `sh.sheet-levels@1`.
+    ///
+    /// Only such a document separates a page a sheet leaves for (a `pages[]` entry) from a drill that stays inside it (a level). A document
+    /// without it keeps every `pages[]` push from a sheet inside the sheet, which is how a build before the capability reads a lowered layout.
+    public internal(set) var declaresSheetLevels = false
 
     /// An explicitly authored empty object; parameterized routes and legacy `variables` remain unsupported.
     public struct EmptyObject: Equatable, Sendable {}
@@ -809,4 +814,20 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
     public enum AssetRole: String, Sendable { case backdrop, contentImage = "content-image" }
     /// The image types an asset may be.
     public enum MIMEType: String, Sendable { case png = "image/png", jpeg = "image/jpeg" }
+}
+
+// MARK: - Surfaces and sheet origin
+
+extension ServerUICompositionDocument {
+    /// Every surface the document draws: pages, modals and levels.
+    public var surfaces: [Surface] { pages.map(\.surface) + modals.map(\.surface) + levels.map(\.surface) }
+
+    /// Whether a `push` to `pageId` activated from inside a sheet leaves the sheet: the document declares levels and `pageId` is not one of them.
+    ///
+    /// A level stays in the sheet; any other destination is a page, which closes every level of the sheet and lands on the section stack, where the
+    /// app's global chrome (Quick Links, Profile) draws.
+    /// - Parameter pageId: The destination of the `push`.
+    public func pushLeavesSheet(to pageId: String) -> Bool {
+        declaresSheetLevels && !levels.contains { $0.id == pageId }
+    }
 }

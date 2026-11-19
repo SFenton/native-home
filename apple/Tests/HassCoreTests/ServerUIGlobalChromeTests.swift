@@ -14,7 +14,11 @@ struct ServerUIGlobalChromeTests {
     private static let corpus = ServerUIContractCorpusTests.directory
 
     private static func file(_ name: String) -> URL {
-        corpus.appendingPathComponent(name.contains("/") ? name : "reject/pending-\(name).json")
+        if name.contains("/") { return corpus.appendingPathComponent(name) }
+        // A promoted case (`sh.sheet-levels@1`) is an ordinary accept or reject; the rest are still pending.
+        let candidates = ["accept/\(name).json", "reject/\(name).json", "reject/pending-\(name).json"]
+        let found = candidates.first { FileManager.default.fileExists(atPath: corpus.appendingPathComponent($0).path) }
+        return corpus.appendingPathComponent(found ?? candidates[2])
     }
 
     /// Decodes with the compiler's global-chrome rules on, the way a lane suite does before the ids are published.
@@ -62,8 +66,9 @@ struct ServerUIGlobalChromeTests {
         }
     }
 
-    @Test func theCorpusHoldsEveryCaseAsPending() {
-        #expect(Self.held.count > 30 && Self.held.allSatisfy { $0.pending == true })
+    /// The `levels` cases were promoted with `sh.sheet-levels@1`; the other three ids still hold their cases as pending (20 at promotion).
+    @Test func theCorpusHoldsTheUnshippedCasesAsPending() {
+        #expect(Self.held.count >= 20 && Self.held.allSatisfy { $0.pending == true })
     }
 
     // MARK: Production
@@ -85,7 +90,7 @@ struct ServerUIGlobalChromeTests {
 
     @Test func aDocumentThatUsesAFieldMustDeclareItsId() throws {
         let text = try String(contentsOf: Self.file("global-chrome-all"), encoding: .utf8)
-        for id in ServerUIGlobalChrome.all {
+        for id in ServerUIGlobalChrome.all + [ServerUIGlobalChrome.sheetLevels] {
             let without = text.replacingOccurrences(of: "\"\(id)\",", with: "").replacingOccurrences(of: ",\n    \"\(id)\"", with: "")
             do {
                 _ = try Self.decode(without)
@@ -114,6 +119,47 @@ struct ServerUIGlobalChromeTests {
         let document = try Self.publication("global-chrome-levels-shared").document
         #expect(document.modals.map(\.id) == ["modal-swatch", "modal-second"])
         #expect(document.levels.count == 2)
+    }
+
+    // MARK: Sheet origin
+
+    @Test func aPushToAPageLeavesTheSheetAndAPushToALevelStays() throws {
+        let document = try Self.publication("global-chrome-levels-two-levels").document
+        #expect(document.declaresSheetLevels)
+        #expect(document.pushLeavesSheet(to: "page-echo"))
+        #expect(document.pushLeavesSheet(to: "page-orbit"))
+        #expect(!document.pushLeavesSheet(to: "level-one"))
+        #expect(!document.pushLeavesSheet(to: "level-two"))
+    }
+
+    @Test func aDocumentWithAnEmptyLevelsListStillLeavesTheSheetForAPage() throws {
+        let data = try Data(contentsOf: Self.file("global-chrome-levels-two-levels"))
+        var root = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var document = try #require(root["document"] as? [String: Any])
+        var modals = try #require(document["modals"] as? [[String: Any]])
+        // Keep the key, drop its surfaces and the tile that pushed to one.
+        modals[0]["components"] = try #require(modals[0]["components"] as? [[String: Any]]).filter { $0["id"] as? String != "node-palette-level" }
+        document["modals"] = modals
+        document["levels"] = [Any]()
+        root["document"] = document
+        let text = try #require(String(data: JSONSerialization.data(withJSONObject: root), encoding: .utf8))
+        let parsed = try Self.decode(text).document
+        #expect(parsed.declaresSheetLevels && parsed.levels.isEmpty)
+        #expect(parsed.pushLeavesSheet(to: "page-echo"))
+    }
+
+    @Test func aDocumentWithoutALevelsListKeepsEveryPushInTheSheet() throws {
+        let document = try Self.decode(String(contentsOf: Self.file("accept/badge-chrome-button.json"), encoding: .utf8)).document
+        #expect(!document.declaresSheetLevels)
+        #expect(!document.pushLeavesSheet(to: "page-echo"))
+    }
+
+    @Test func surfacesListPagesModalsAndLevelsAndTheCatalogReachesLevels() throws {
+        let document = try Self.publication("global-chrome-levels-two-levels").document
+        #expect(document.surfaces.map(\.id) == document.pages.map(\.id) + document.modals.map(\.id) + ["level-one", "level-two"])
+        let catalog = ServerUINavigationCatalog(composition: document)
+        #expect(catalog.pageIDs.suffix(2) == ["level-one", "level-two"])
+        #expect(catalog.modalIDs == ["modal-swatch"])
     }
 
     // MARK: Hides
@@ -181,7 +227,7 @@ struct ServerUIGlobalChromeTests {
 
     @Test func allFourCanLiveInOneDocument() throws {
         let publication = try Self.publication("global-chrome-all")
-        for id in ServerUIGlobalChrome.all { #expect(publication.capabilities.contains(id), "\(id)") }
+        for id in ServerUIGlobalChrome.all + [ServerUIGlobalChrome.sheetLevels] { #expect(publication.capabilities.contains(id), "\(id)") }
         #expect(publication.document.levels.count == 2)
         #expect(publication.document.navigation.tabsVisibility == .rootOnly)
         #expect(publication.document.pages[0].hides == .init(tabs: true, items: ["chrome-bell"]))
@@ -190,7 +236,10 @@ struct ServerUIGlobalChromeTests {
     // MARK: Capability ids
 
     @Test func theIdsAreAcceptedOnlyInsideTheScope() throws {
-        #expect(ServerUIGlobalChrome.all == ["sh.sheet-levels@1", "sh.page-chrome-hide@1", "sh.page-wide-open@1", "sh.tabs-visibility@1"])
+        #expect(ServerUIGlobalChrome.all == ["sh.page-chrome-hide@1", "sh.page-wide-open@1", "sh.tabs-visibility@1"])
+        // Sheet levels shipped with their runtime: published and accepted with no scope.
+        #expect(ServerUICompositionPublication.supportedCapabilities.contains(ServerUIGlobalChrome.sheetLevels))
+        #expect(ServerUIIngestedCapabilities.sheetLevels == [ServerUIGlobalChrome.sheetLevels])
         let supported = Set(ServerUICompositionPublication.supportedCapabilities)
         let ingested = Set(ServerUIIngestedCapabilities.all)
         let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: Self.corpus.appendingPathComponent("capabilities.json")))

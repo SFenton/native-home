@@ -24,7 +24,7 @@
 
   Mock.mount({
     kind: 'flow', id: 'quick-links-to-page', title: 'Quick Links to a page (sheet closes, then push)', area: 'shell', status: 'shipped',
-    summary: 'The Quick Links header button opens a large sheet of seven tiles. Rooms and Security System open inside the sheet (a pushed level with Back); every other tile closes the sheet and the page it names pushes onto the section\'s stack only after the sheet has gone, so the push never races the dismissal.',
+    summary: 'The Quick Links header button opens a large sheet of seven tiles. Rooms and Security System open inside the sheet (a pushed level with Back); every other tile names a page, so it closes every level of the sheet in one dismissal and the page pushes onto the section\'s stack only after the sheet has gone, so the push never races the dismissal. The rule is generic (owner 2026-11-18): a page link in any sheet closes the sheet and the landed page carries Quick Links, Profile and the tab navigator; only a level stays in the sheet. A page already on the stack is popped to; the page under the sheet only closes.',
     source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift'],
     spec: ['.agents/pages/rooms/ios.md', '.agents/design/direction-g.md', '.agents/patterns/modal-sheet.md', '.agents/design/motion.md'],
     patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'motion'],
@@ -68,7 +68,7 @@
     a11y: [
       { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Quick Links", then the tiles in order (Rooms, Security System, Food & Recipes, Vacuums, Media, Custom Lights, Sprinklers), then Close. Rooms and Security System are announced with the hint "Opens <title> in Quick Links"; the others "Opens the <title> page".' },
       { rule: 'Name, role, state', note: 'Each tile is a button named "<title>, <state>" (Security System, "Armed Home"; Food & Recipes, "42 Items • 3 Expiring Soon"); ids quickLinks.<id>; Close quickLinks.close.' },
-      { rule: 'Focus after the push', note: 'The sheet is gone before the page pushes, so VoiceOver announces the new page as an ordinary push.' },
+      { rule: 'Focus after the push', note: 'The sheet is gone before the page pushes, so VoiceOver announces the new page as an ordinary push, and it carries Quick Links and Profile like every page. From a level two deep the whole sheet closes at once; a form with unsaved changes asks first.' },
       { rule: 'State is not colour alone', note: 'Each navigation tile has its glyph and title; the Security System tile\'s colour follows the alarm mode and its subtitle says the mode.' },
       { rule: 'Targets and AX5', note: 'Tiles are 96 pt tall (two-line reserve) and grow with Dynamic Type; at AX5 the grid is one column. Close is the 44 pt circle.' },
       { rule: 'Light and dark', note: 'The sheet follows the system appearance; the tiles are fixed fills with white ink in both.' },

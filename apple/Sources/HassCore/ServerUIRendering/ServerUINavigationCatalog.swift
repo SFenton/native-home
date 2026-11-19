@@ -50,6 +50,6 @@ public struct ServerUINavigationCatalog: Equatable, Sendable {
             documentID: composition.id, initialPageID: composition.navigation.initialPageId,
             initialTabID: composition.navigation.initialTabId,
             tabs: composition.navigation.tabs.map { Tab(id: $0.id, label: $0.label, icon: $0.icon.name, pageId: $0.pageId) },
-            pageIDs: composition.pages.map(\.id), modalIDs: composition.modals.map(\.id))
+            pageIDs: composition.pages.map(\.id) + composition.levels.map(\.id), modalIDs: composition.modals.map(\.id))
     }
 }
