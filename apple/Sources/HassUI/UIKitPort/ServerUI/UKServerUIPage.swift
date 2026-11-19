@@ -601,13 +601,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 (entry.view as? UKServerUIBootstrapMessage)?.apply(message)
             case .text(let text):
                 if let view = entry.view as? UKServerUIText {
+                    let memories = entry.textMemories
                     view.isSectionTitle = text.style == .sectionTitle
                     view.style = UKServerUIPreflight.textStyle(text.style)
                     view.look = text.look
-                    var memory = ServerUITextMemory()  // the slot's last answer (`sh.text-keep@1`)
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer else { return }
-                        view?.apply(renderer.bindings.string(text.value, memory: &memory), unavailable: text.unavailableText)
+                        view?.apply(memories.string(text.value, slot: "value", bindings: renderer.bindings), unavailable: text.unavailableText)
                     }
                 }
             case .grid(let grid):
@@ -644,26 +644,27 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .infoBox(let value):
                 if let view = entry.view as? UKServerUIInfoBox {
+                    let memories = entry.textMemories
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer else { return }
-                        view?.apply(value, bindings: renderer.bindings)
+                        view?.apply(value, bindings: renderer.bindings, memories: memories)
                     }
                 }
             case .statusPill(let value):
                 if let view = entry.view as? UKStatusPillView {
-                    var valueMemory = ServerUITextMemory(), detailMemory = ServerUITextMemory()  // the slots' last answers (`sh.text-keep@1`)
+                    let memories = entry.textMemories
                     entry.bag.observe { [weak view, weak renderer] in
                         guard let renderer, let view else { return }
                         let text: String
                         var pending = false
                         var tone = value.resolvedTone(in: renderer.reader()).native
-                        switch renderer.bindings.string(value.value, memory: &valueMemory) {
+                        switch memories.string(value.value, slot: "value", bindings: renderer.bindings) {
                         case .ready(let value): text = value
                         case .loading: text = ""; pending = true
                         case .unavailable: text = value.unavailableText; tone = .unavailable
                         }
                         let detail: String?
-                        if case .ready(let text) = renderer.bindings.string(value.detail, memory: &detailMemory), !text.isEmpty { detail = text }
+                        if case .ready(let text) = memories.string(value.detail, slot: "detail", bindings: renderer.bindings), !text.isEmpty { detail = text }
                         else { detail = nil }
                         view.valuesPending = pending
                         view.configure(label: value.node.title, value: text, detail: detail, symbol: value.icon.drawn, tone: tone)
@@ -725,12 +726,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .stack(let stack):
                 if let view = entry.view as? UKStackView {
+                    let memories = entry.textMemories
                     let children = stack.children.map { ($0, node($0)) }
                     let reparent = view.needsReparent(children.filter { renderer.componentVisible($0.0) }.map(\.1))
                     containerChanges.append(({ if reparent { view.clear() } }, {
                         entry.bag.observe { [weak view, weak renderer, weak self] in
                             guard let view, let renderer, let self else { return }
-                            UKServerUIStyleParts.apply(stack, to: view, children: children, page: self, renderer: renderer)
+                            UKServerUIStyleParts.apply(stack, to: view, children: children, page: self, renderer: renderer, memories: memories)
                             self.body?.contentChanged(animated: false)
                         }
                     }))
@@ -893,10 +895,12 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .rowCollection(let collection):
                 if let view = entry.view as? UKServerUIRowCollection, let model = renderer.collections[collection.providerId] {
+                    let memories = entry.textMemories
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self else { return }
                         var detail: String?
-                        if let message = collection.emptyMessage, case .ready(let text) = renderer?.bindings.string(message) { detail = text }
+                        if let message = collection.emptyMessage, let bindings = renderer?.bindings,
+                           case .ready(let text) = memories.string(message, slot: "emptyMessage", bindings: bindings) { detail = text }
                         var select: ((ServerUIRowItem) -> Void)?
                         if let action = collection.rowAction {
                             select = { [weak self, weak view] _ in
@@ -910,12 +914,12 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             case .navigationTile(let tile):
                 if let view = entry.view as? UKGlassTileView {
                     var first = true
+                    let memories = entry.textMemories
                     var shownFill: D.TileFill?
-                    var subtitleMemory = ServerUITextMemory()  // the subtitle's last answer (`sh.text-keep@1`)
                     entry.bag.observe { [weak self, weak view, weak renderer] in
                         guard let self, let view, let renderer else { return }
                         let subtitle: String?
-                        switch renderer.bindings.string(tile.subtitle, memory: &subtitleMemory) {
+                        switch memories.string(tile.subtitle, slot: "subtitle", bindings: renderer.bindings) {
                         case .ready(let value): subtitle = value.isEmpty ? nil : value
                         case .loading: subtitle = nil
                         case .unavailable: subtitle = nil
@@ -1240,6 +1244,8 @@ final class UKServerUINode {
     var automaticMatch: String?
     /// What a tab container's tabs and areas and a state tile's discs last showed, so a rule that cannot be answered keeps its answer.
     var layoutMemory = UKServerUILayoutMemory()
+    /// What each of the node's `keep` text slots last answered, so kept text survives the node being drawn again (`sh.text-keep@1`).
+    let textMemories = UKServerUITextMemories()
     private let kind: Kind
     private let weatherKind: ServerUICompositionDocument.WeatherPanel.Panel?
 

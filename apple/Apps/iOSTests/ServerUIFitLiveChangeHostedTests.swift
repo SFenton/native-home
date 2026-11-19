@@ -133,7 +133,7 @@ final class ServerUIFitLiveChangeHostedTests: DemoHouseTestCase {
     private func infoBox(_ message: String, bindings: UKServerUIBindings) -> UKServerUIInfoBox {
         let box = UKServerUIInfoBox()
         box.apply(D.InfoBox(node: .init(id: "notice", title: "Heads up", span: 1), message: .literal(message), tone: .neutral,
-                            unavailableText: "Unavailable"), bindings: bindings)
+                            unavailableText: "Unavailable"), bindings: bindings, memories: UKServerUITextMemories())
         return box
     }
 
@@ -149,7 +149,7 @@ final class ServerUIFitLiveChangeHostedTests: DemoHouseTestCase {
             defer { window.isHidden = true }
             let before = live.frame.height
             live.apply(D.InfoBox(node: .init(id: "notice", title: "Heads up", span: 1), message: .literal(long), tone: .neutral,
-                                 unavailableText: "Unavailable"), bindings: bindings)
+                                 unavailableText: "Unavailable"), bindings: bindings, memories: UKServerUITextMemories())
             settle(window)
             let twin = infoBox(long, bindings: bindings).gridHeight(forWidth: inner(width))
             XCTAssertGreaterThan(live.frame.height, before + 8, "\(width): the longer message added height")

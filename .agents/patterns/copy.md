@@ -110,4 +110,4 @@ Other cover and valve words are overridable and carry the catalog's `safety` fla
 - A string that did not exist, or a default reworded to meet this record, is a visible change: [propose-first](../workflow/propose-first.md).
 - A default that breaks a rule here stays until its proposal is approved. When it is longer than its budget, its `maxLength` is its own length.
 - Whoever rewrites a file takes its literals, and retires that file's `*Copy` enum in the same change.
-- Kept text (`whenUnavailable: "keep"`) is drawn and spoken exactly as live: no glyph, grey or "last known". Before any answer, the fallback ([kept-text](../design/kept-text.md), owner 2026-11-19, option A; HIG Loading, "Show something quickly").
+- Kept text (`whenUnavailable: "keep"`) is drawn and spoken exactly as live: no glyph, grey or "last known". Before any answer, the fallback ([kept-text](../design/kept-text.md)).

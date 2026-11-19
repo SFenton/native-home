@@ -161,8 +161,16 @@ extension ServerUITileParts.Disc {
     /// `previous` said, and one that is unavailable says the authored label.
     public func resolvedLabel(read: (ServerUICompositionDocument.Read) -> ServerUIReadResult, in environment: some ServerUIReading,
                               keeping previous: String? = nil) -> String {
+        var memory = ServerUITextMemory()
+        return resolvedLabel(read: read, in: environment, keeping: previous, memory: &memory)
+    }
+
+    /// As ``resolvedLabel(read:in:keeping:)``, with this button's `memory` of the text its label slot last answered, so a `keep` slot
+    /// (`sh.text-keep@1`) says that text while its value is unavailable.
+    public func resolvedLabel(read: (ServerUICompositionDocument.Read) -> ServerUIReadResult, in environment: some ServerUIReading,
+                              keeping previous: String?, memory: inout ServerUITextMemory) -> String {
         guard let labelValue else { return label }
-        switch ServerUIStringResolver.resolve(labelValue, read: read, in: environment) {
+        switch ServerUIStringResolver.resolve(labelValue, read: read, in: environment, memory: &memory) {
         case .value(.string(let text)) where !text.trimmingCharacters(in: .whitespaces).isEmpty: return text
         case .loading: return previous ?? label
         default: return label

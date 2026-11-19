@@ -90,6 +90,8 @@ struct UKServerUILayoutMemory {
     /// The symbol and the words each rule-following disc last showed, kept while its rule is still loading (`sh.tile-disc-rules@1`).
     var discSymbols: [String: ServerUICompositionDocument.Symbol] = [:]
     var discLabels: [String: String] = [:]
+    /// The text each disc's `keep` label slot last answered (`sh.text-keep@1`).
+    var discLabelText: [String: ServerUITextMemory] = [:]
 }
 
 /// The tabs, the tab on show and the areas on show for one pass of a tab container.

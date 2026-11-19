@@ -57,8 +57,10 @@ final class UKServerUIMapControls {
         }
         // A rule that is still loading keeps what the button last showed; one that cannot answer shows its own `otherwise` (the authored words).
         let symbol = button.look.resolvedIcon(in: reader, keeping: memory.discSymbols[button.id])
+        var text = memory.discLabelText[button.id] ?? ServerUITextMemory()
         let label = button.look.resolvedLabel(read: { renderer.bindings.textResult($0) }, in: reader,
-                                              keeping: memory.discLabels[button.id])
+                                              keeping: memory.discLabels[button.id], memory: &text)
+        memory.discLabelText[button.id] = text
         memory.discSymbols[button.id] = symbol
         memory.discLabels[button.id] = label
         return UKMapControlItem(id: button.id, symbol: ServerUISymbolFallback.resolve(symbol.name), label: label, hint: button.hint,

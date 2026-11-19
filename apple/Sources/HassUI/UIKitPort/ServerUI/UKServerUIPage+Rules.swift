@@ -98,7 +98,7 @@ extension UKServerUIPage {
             }
         default:
             guard let view = entry.view as? UKServerUILocalControl else { return }
-            var subtitleMemory = ServerUITextMemory()  // the subtitle's last answer (`sh.text-keep@1`)
+            let memories = entry.textMemories
             entry.bag.observe { [weak self, weak view, weak renderer] in
                 guard let self, let view, let renderer else { return }
                 // Read so the shown value is put back when a call ends, whether or not Home Assistant echoed it.
@@ -108,7 +108,7 @@ extension UKServerUIPage {
                     self.renderer?.activate(.callService(call), from: self, source: view, control: value, site: control.node.id + "#" + slot)
                 }
                 // A row's own parts: its subtitle follows the house, and its failure words show while the failed face does.
-                binding.strings = { renderer.bindings.string($0, memory: &subtitleMemory) }
+                binding.strings = { memories.string($0, slot: "subtitle", bindings: renderer.bindings) }
                 binding.failed = renderer.callRunner.isFailed(node: control.node.id)
                 view.apply(binding, surface: self.context.surface, enabled: renderer.isEnabled(node: control.node))
             }

@@ -347,7 +347,7 @@ final class UKServerUIBindings {
     /// observation that already runs, so nothing is shared and nothing grows with the house.
     func string(_ value: D.StringValue, memory: inout ServerUITextMemory) -> UKServerUIValue<String> {
         let readValue: (D.Read) -> ServerUIReadResult = { self.textResult($0) }
-        let outcome: ServerUITextOutcome
+        let outcome: ServerUIReadResult
         if let environment = readerProvider?() {
             if case .expression(let operand, let fallback, let policy) = value {
                 outcome = ServerUIStringResolver.text(of: self.result(of: operand, in: environment), fallback: fallback, policy: policy, memory: &memory)
@@ -359,7 +359,7 @@ final class UKServerUIBindings {
         } else {
             outcome = ServerUIStringResolver.resolve(value, read: readValue, in: UKEmptyReading(), memory: &memory)
         }
-        switch outcome.result {
+        switch outcome {
         case .value(.string(let text)): return .ready(text)
         case .loading: return .loading
         case .value, .unavailable: return .unavailable

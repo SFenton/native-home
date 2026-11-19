@@ -36,33 +36,19 @@ public struct ServerUITextMemory: Equatable, Sendable {
     ///   - result: What the slot's value gave, evaluated with no fallback.
     ///   - fallback: The slot's authored fallback text.
     ///   - policy: What the slot draws while unavailable.
-    /// - Returns: The text outcome, with whether it is the remembered text.
-    public mutating func resolve(_ result: ServerUIReadResult, fallback: String?, policy: ServerUIUnavailablePolicy) -> ServerUITextOutcome {
+    /// - Returns: The text to draw, "not yet" (`loading`: the slot keeps what it showed) or `unavailable` (the slot draws its own words).
+    public mutating func resolve(_ result: ServerUIReadResult, fallback: String?, policy: ServerUIUnavailablePolicy) -> ServerUIReadResult {
         let plain = ServerUIStringResolver.text(of: result, fallback: nil)
         switch plain {
         case .loading:
-            return ServerUITextOutcome(result: .loading, isKept: false)
+            return .loading
         case .value(let value):
             if policy == .keep, case .string(let text) = value { answered = text }
-            return ServerUITextOutcome(result: plain, isKept: false)
+            return plain
         case .unavailable:
-            if policy == .keep, let answered { return ServerUITextOutcome(result: .value(.string(answered)), isKept: true) }
-            return ServerUITextOutcome(result: fallback.map { .value(.string($0)) } ?? .unavailable, isKept: false)
+            if policy == .keep, let answered { return .value(.string(answered)) }
+            return fallback.map { .value(.string($0)) } ?? .unavailable
         }
-    }
-}
-
-/// What a text slot gives once its memory has spoken: the result to draw, and whether that result is remembered text.
-public struct ServerUITextOutcome: Equatable, Sendable {
-    /// The text to draw, "not yet" (`loading`: the slot keeps what it showed) or `unavailable` (the slot draws its own words).
-    public let result: ServerUIReadResult
-    /// Whether ``result`` is the last answered text drawn while the value is unavailable, not a live answer.
-    public let isKept: Bool
-
-    /// An outcome.
-    public init(result: ServerUIReadResult, isKept: Bool) {
-        self.result = result
-        self.isKept = isKept
     }
 }
 
@@ -70,10 +56,10 @@ public extension ServerUIStringResolver {
     /// As ``resolve(_:read:in:)``, but a `keep` slot draws the last text it was answered with while its value is unavailable
     /// (`sh.text-keep@1`). `memory` is this slot instance's, and is updated.
     static func resolve(_ value: ServerUICompositionDocument.StringValue, read: (ServerUICompositionDocument.Read) -> ServerUIReadResult,
-                        in environment: some ServerUIReading, memory: inout ServerUITextMemory) -> ServerUITextOutcome {
+                        in environment: some ServerUIReading, memory: inout ServerUITextMemory) -> ServerUIReadResult {
         switch value {
         case .literal(let text):
-            return ServerUITextOutcome(result: .value(.string(text)), isKept: false)
+            return .value(.string(text))
         case .read(let source, let fallback, let policy):
             return memory.resolve(read(source), fallback: fallback, policy: policy)
         case .expression(let operand, let fallback, let policy):
@@ -83,7 +69,7 @@ public extension ServerUIStringResolver {
 
     /// As ``text(of:fallback:)``, for a caller that got the result another way, with a slot instance's `memory`.
     static func text(of result: ServerUIReadResult, fallback: String?, policy: ServerUIUnavailablePolicy,
-                     memory: inout ServerUITextMemory) -> ServerUITextOutcome {
+                     memory: inout ServerUITextMemory) -> ServerUIReadResult {
         memory.resolve(result, fallback: fallback, policy: policy)
     }
 }

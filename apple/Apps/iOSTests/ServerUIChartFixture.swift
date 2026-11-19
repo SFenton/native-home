@@ -38,7 +38,7 @@ struct ServerUIChartFixture {
 
     static func show(_ file: String, width: CGFloat, height: CGFloat = 1180, dark: Bool = false, entities: [EntityState] = [],
                      records: [JSONValue]? = nil, phase: ServerUIRowCollection.Phase = .ready, category: UIContentSizeCategory? = nil,
-                     reduceMotion: Bool? = nil, inSheet: Bool = false, dropping capability: String? = nil, edit: ([JSONValue]) -> [JSONValue] = { $0 }) throws -> Self {
+                     reduceMotion: Bool? = nil, inSheet: Bool = false, dropping capability: String? = nil, adding added: [String] = [], removing removed: [String] = [], edit: ([JSONValue]) -> [JSONValue] = { $0 }) throws -> Self {
         UKMotion.reduceMotionOverride = reduceMotion
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/accept/\(file).json")
@@ -50,6 +50,11 @@ struct ServerUIChartFixture {
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: inSheet ? .array([]) : XCTUnwrap(pages[0]["components"]))
         if let capability, let held = json["capabilities"]?.array {
             json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(held.filter { $0.string != capability }))
+        }
+        if !added.isEmpty || !removed.isEmpty, let held = json["capabilities"]?.array?.compactMap(\.string) {
+            // The manifest is exactly what the document needs, sorted: a test that changes what is drawn changes it to match.
+            let manifest = Set(held).union(added).subtracting(removed).sorted().map(JSONValue.string)
+            json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(manifest))
         }
         let publication = try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
         let store = EntityStore()

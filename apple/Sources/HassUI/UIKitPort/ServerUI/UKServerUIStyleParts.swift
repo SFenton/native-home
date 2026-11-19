@@ -15,18 +15,19 @@ enum UKServerUIStyleParts {
     typealias D = ServerUICompositionDocument
 
     /// The words of a text slot, or `fallback` while it has none.
-    private static func words(_ slot: D.StringValue?, in renderer: UKServerUIRenderer, fallback: String?) -> String? {
+    private static func words(_ slot: D.StringValue?, name: String, memories: UKServerUITextMemories, in renderer: UKServerUIRenderer,
+                              fallback: String?) -> String? {
         guard let slot else { return fallback }
-        if case .ready(let text) = renderer.bindings.string(slot), !text.trimmingCharacters(in: .whitespaces).isEmpty { return text }
+        if case .ready(let text) = memories.string(slot, slot: name, bindings: renderer.bindings), !text.trimmingCharacters(in: .whitespaces).isEmpty { return text }
         return fallback
     }
 
     /// Draws a stack around the children that are shown, with the accessibility words its slots give now.
     static func apply(_ stack: ServerUIStack, to view: UKStackView, children: [(D.Component, UIView)], page: UKServerUIPage,
-                      renderer: UKServerUIRenderer) {
+                      renderer: UKServerUIRenderer, memories: UKServerUITextMemories) {
         let shown = children.filter { renderer.componentVisible($0.0) }.map { UKStackView.Member(id: $0.0.node.id, view: $0.1) }
-        let label = words(stack.accessibility?.label, in: renderer, fallback: stack.node.title)
-        let value = words(stack.accessibility?.value, in: renderer, fallback: nil)
+        let label = words(stack.accessibility?.label, name: "label", memories: memories, in: renderer, fallback: stack.node.title)
+        let value = words(stack.accessibility?.value, name: "value", memories: memories, in: renderer, fallback: nil)
         let enabled = stack.action.map { renderer.isEnabled($0, from: page) && renderer.isEnabled(node: stack.node) } ?? false
         view.onActivate = { [weak page, weak view] in
             guard let page, let action = stack.action else { return }
@@ -38,6 +39,7 @@ enum UKServerUIStyleParts {
     /// Binds a symbol part: the symbol its rule picks from state (the last one while the rule loads), its turn and its label.
     static func bind(_ part: ServerUISymbolPart, view: UKSymbolPartView, entry: UKServerUINode, renderer: UKServerUIRenderer) {
         var shown: D.Symbol?
+        let memories = entry.textMemories
         entry.bag.observe { [weak view, weak renderer] in
             guard let view, let renderer else { return }
             let reader = renderer.reader()
@@ -50,7 +52,7 @@ enum UKServerUIStyleParts {
             }
             shown = symbol
             var label: String?
-            if case .image(let slot) = part.accessibility { label = words(slot, in: renderer, fallback: part.node.title) }
+            if case .image(let slot) = part.accessibility { label = words(slot, name: "label", memories: memories, in: renderer, fallback: part.node.title) }
             view.apply(part, label: label)
             view.show(name: ServerUISymbolFallback.resolve(symbol.name))
             if let rotate = part.rotate, case .value(.number(let degrees)) = rotate.evaluate(reader) { view.turn(by: degrees) }

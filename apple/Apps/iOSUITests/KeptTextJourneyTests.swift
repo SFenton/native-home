@@ -127,6 +127,7 @@ final class KeptTextJourneyTests: JourneyTestCase {
 
     /// Opening the sheet while live and letting the source go unavailable keeps the sheet's row and text as they were.
     func testKeptTextInASheetReadsAsLive() {
+        let launchedAt = Date()
         let app = launch(delayMs: 6000)
         expectText(live, in: app, "live")
         let sheetHosts = ["keep-sheet-row", "keep-sheet-text"]
@@ -135,7 +136,10 @@ final class KeptTextJourneyTests: JourneyTestCase {
         palette.tap()
         XCTAssertTrue(element(sheetHosts[0], in: app).appears(timeout: 10), "the sheet never opened")
         let liveFaces = sheetHosts.map { face($0, in: app) }
-        sleep(7)  // the source goes unavailable 6 s after launch, behind the sheet
+        // The source goes unavailable `delay` after launch, behind the sheet. The sheet hides the gallery's `keptText.state` marker from
+        // the tree (it reads a stale "live"), so wait for the marker or, failing that, for the launch delay plus a margin on the clock.
+        let unavailableBy = launchedAt.addingTimeInterval(6 + 2)
+        while element("keptText.state", in: app).label != "kept", Date() < unavailableBy { usleep(100_000) }
         XCTAssertEqual(sheetHosts.map { face($0, in: app) }, liveFaces, "the sheet's kept text reads and measures as live")
     }
 }

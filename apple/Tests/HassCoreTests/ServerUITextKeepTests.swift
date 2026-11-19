@@ -31,7 +31,7 @@ struct ServerUITextKeepTests {
 
     /// One draw of `value` in `reader` by a slot instance with `memory`.
     private static func draw(_ value: ServerUICompositionDocument.StringValue, _ reader: Reader,
-                             _ memory: inout ServerUITextMemory) -> ServerUITextOutcome {
+                             _ memory: inout ServerUITextMemory) -> ServerUIReadResult {
         ServerUIStringResolver.resolve(value, read: { _ in .unavailable }, in: reader, memory: &memory)
     }
 
@@ -40,41 +40,41 @@ struct ServerUITextKeepTests {
     @Test func keepBeforeAnyAnswerDrawsTheFallback() {
         var memory = ServerUITextMemory()
         let outcome = Self.draw(Self.slot(.keep), Self.gone, &memory)
-        #expect(outcome == ServerUITextOutcome(result: .value(.string("No reading")), isKept: false))
+        #expect(outcome == .value(.string("No reading")))
         #expect(memory.answered == nil)
     }
 
     @Test func keepBeforeAnyAnswerWithNoFallbackIsUnavailable() {
         var memory = ServerUITextMemory()
-        #expect(Self.draw(Self.slot(.keep, fallback: nil), Self.gone, &memory) == ServerUITextOutcome(result: .unavailable, isKept: false))
+        #expect(Self.draw(Self.slot(.keep, fallback: nil), Self.gone, &memory) == .unavailable)
     }
 
     @Test func keepAfterAnAnswerDrawsTheLastAnswerWhileUnavailable() {
         var memory = ServerUITextMemory()
         let slot = Self.slot(.keep)
-        #expect(Self.draw(slot, Self.answer("21.5"), &memory) == ServerUITextOutcome(result: .value(.string("21.5")), isKept: false))
-        #expect(Self.draw(slot, Self.gone, &memory) == ServerUITextOutcome(result: .value(.string("21.5")), isKept: true))
-        #expect(Self.draw(slot, Self.gone, &memory).isKept, "it stays kept for as long as the value is unavailable")
-        #expect(Self.draw(slot, Self.answer("22"), &memory) == ServerUITextOutcome(result: .value(.string("22")), isKept: false), "a new answer replaces it")
-        #expect(Self.draw(slot, Self.gone, &memory).result == .value(.string("22")))
+        #expect(Self.draw(slot, Self.answer("21.5"), &memory) == .value(.string("21.5")))
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("21.5")))
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("21.5")), "it stays for as long as the value is unavailable")
+        #expect(Self.draw(slot, Self.answer("22"), &memory) == .value(.string("22")), "a new answer replaces it")
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("22")))
     }
 
     @Test func keepWithNoFallbackStillKeeps() {
         var memory = ServerUITextMemory()
         let slot = Self.slot(.keep, fallback: nil)
         _ = Self.draw(slot, Self.answer("on"), &memory)
-        #expect(Self.draw(slot, Self.gone, &memory) == ServerUITextOutcome(result: .value(.string("on")), isKept: true))
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("on")))
     }
 
     @Test func theFallbackPolicyIsToday() {
         for slot in [Self.slot(.fallback), .expression(Self.temp, fallback: "No reading")] {
             var memory = ServerUITextMemory()
             _ = Self.draw(slot, Self.answer("21.5"), &memory)
-            #expect(Self.draw(slot, Self.gone, &memory) == ServerUITextOutcome(result: .value(.string("No reading")), isKept: false))
+            #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("No reading")))
             #expect(memory.answered == nil, "a slot that does not keep remembers nothing")
         }
         var memory = ServerUITextMemory()
-        #expect(Self.draw(Self.slot(.fallback, fallback: nil), Self.gone, &memory).result == .unavailable)
+        #expect(Self.draw(Self.slot(.fallback, fallback: nil), Self.gone, &memory) == .unavailable)
     }
 
     @Test func anEmptyAnswerIsAnAnswer() {
@@ -83,7 +83,7 @@ struct ServerUITextKeepTests {
         _ = Self.draw(slot, Self.answer("21.5"), &memory)
         _ = Self.draw(slot, Self.answer(""), &memory)
         #expect(memory.answered == "")
-        #expect(Self.draw(slot, Self.gone, &memory) == ServerUITextOutcome(result: .value(.string("")), isKept: true))
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("")))
     }
 
     @Test func drawingTheFallbackIsNotAnAnswer() {
@@ -93,7 +93,7 @@ struct ServerUITextKeepTests {
         #expect(memory.answered == nil)
         // The first real answer is what is kept, never the fallback drawn before it.
         _ = Self.draw(slot, Self.answer("19"), &memory)
-        #expect(Self.draw(slot, Self.gone, &memory).result == .value(.string("19")))
+        #expect(Self.draw(slot, Self.gone, &memory) == .value(.string("19")))
     }
 
     @Test func drawingTheKeptTextIsNotAnAnswerEither() {
@@ -110,7 +110,7 @@ struct ServerUITextKeepTests {
         let slot = Self.slot(policy)
         _ = Self.draw(slot, Self.answer("21.5"), &memory)
         let before = memory
-        #expect(Self.draw(slot, Self.loading, &memory) == ServerUITextOutcome(result: .loading, isKept: false), "the site keeps what it showed")
+        #expect(Self.draw(slot, Self.loading, &memory) == .loading, "the site keeps what it showed")
         #expect(memory == before, "loading neither answers nor forgets")
     }
 
@@ -119,7 +119,7 @@ struct ServerUITextKeepTests {
         let slot = Self.slot(.keep)
         _ = Self.draw(slot, Self.answer("21.5"), &memory)
         let list = Reader(states: ["temp": .value(.array([.string("a")]))])
-        #expect(Self.draw(slot, list, &memory) == ServerUITextOutcome(result: .value(.string("21.5")), isKept: true))
+        #expect(Self.draw(slot, list, &memory) == .value(.string("21.5")))
     }
 
     @Test func aNumberIsAnAnswerAsText() {
@@ -127,7 +127,7 @@ struct ServerUITextKeepTests {
         let number = Reader(states: ["temp": .value(.number(21.5))])
         let slot = ServerUICompositionDocument.StringValue.expression(.read(sourceId: "temp", path: ["state"], as: .number),
                                                                       fallback: "No reading", whenUnavailable: .keep)
-        #expect(Self.draw(slot, number, &memory).result == .value(.string("21.5")))
+        #expect(Self.draw(slot, number, &memory) == .value(.string("21.5")))
         #expect(memory.answered == "21.5")
     }
 
@@ -136,8 +136,8 @@ struct ServerUITextKeepTests {
         var first = ServerUITextMemory(), second = ServerUITextMemory()
         _ = Self.draw(slot, Self.answer("a"), &first)
         _ = Self.draw(slot, Self.answer("b"), &second)
-        #expect(Self.draw(slot, Self.gone, &first).result == .value(.string("a")))
-        #expect(Self.draw(slot, Self.gone, &second).result == .value(.string("b")))
+        #expect(Self.draw(slot, Self.gone, &first) == .value(.string("a")))
+        #expect(Self.draw(slot, Self.gone, &second) == .value(.string("b")))
     }
 
     @Test func aReadKeepsLikeAnExpression() {
@@ -145,14 +145,14 @@ struct ServerUITextKeepTests {
         let slot = ServerUICompositionDocument.StringValue.read(source, fallback: nil, whenUnavailable: .keep)
         var memory = ServerUITextMemory()
         let read: (ServerUICompositionDocument.Read) -> ServerUIReadResult = { _ in .value(.string("on")) }
-        #expect(ServerUIStringResolver.resolve(slot, read: read, in: Self.gone, memory: &memory).result == .value(.string("on")))
+        #expect(ServerUIStringResolver.resolve(slot, read: read, in: Self.gone, memory: &memory) == .value(.string("on")))
         let outcome = ServerUIStringResolver.resolve(slot, read: { _ in .unavailable }, in: Self.gone, memory: &memory)
-        #expect(outcome == ServerUITextOutcome(result: .value(.string("on")), isKept: true))
+        #expect(outcome == .value(.string("on")))
     }
 
     @Test func aLiteralHasNothingToKeep() {
         var memory = ServerUITextMemory()
-        #expect(Self.draw(.literal("A"), Self.gone, &memory) == ServerUITextOutcome(result: .value(.string("A")), isKept: false))
+        #expect(Self.draw(.literal("A"), Self.gone, &memory) == .value(.string("A")))
         #expect(memory.answered == nil)
     }
 
