@@ -62,7 +62,7 @@
    * @param {object} ctx
    * @param {{title:string, subtitle?:string, section?:string, back?:string|boolean, body?:Node|Node[], connection?:'live'|'offline'|'reconnecting',
    *   badge?:number, choresBadge?:number, flyoutOpen?:boolean, floating?:Node, scrollTop?:number, collapsed?:boolean, noTabs?:boolean, profileName?:string, bottomPad?:number}} o
-   *   section: which tab/flyout row is selected ('home'|'security'|'climate'|'chores'|'settings'); back: pushed page (label for VoiceOver);
+   *   section: which tab/flyout row is selected ('home'|'security'|'climate'|'chores'|'settings'); back: pushed page (the chevron alone; VoiceOver says "Back", the previous title is only in the long-press menu);
    *   connection: 'reconnecting' draws the arc left of Quick Links;
    *   badge: Profile attention count; choresBadge: overdue chores on the Chores tab/row; floating: a FloatingActionBar node; collapsed: the scrolled state where the large title has collapsed into
    *   the bar's inline title (it also fades in by itself as any page scrolls; the Page scroll control's Top resets it, Middle and End scroll on).
@@ -72,7 +72,7 @@
     var K = C(), d = ctx.device, barBottom = d.barTop + 44;
     var page = h('div.ui-page', { style: { '--bar-top': d.barTop + 'px', '--bar-bottom': barBottom + 'px', '--rail-w': d.rail + 'px', '--safe-top': d.safeTop + 'px' } });
     page.appendChild(h('div.ui-wall'));
-    var lead = o.back ? K.BackButton({ label: typeof o.back === 'string' ? o.back : 'Back' }) : (d.menu && !d.menuInRail ? K.HamburgerButton() : null);
+    var lead = o.back ? K.BackButton({ label: 'Back' }) : (d.menu && !d.menuInRail ? K.HamburgerButton() : null);
     var bar = h('div.ui-bar', lead);
     // The Duo's vertical bar (folded, unfolded landscape, book pose): a fixed 24 pt semibold inline title that never collapses (header-edge-fade R7 (6)).
     // Unfolded portrait has horizontal bars: it takes the iPhone chrome (large title below the bar, titleInHeader false), not this branch.

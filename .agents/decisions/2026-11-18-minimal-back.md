@@ -7,7 +7,7 @@ Gate: matches_request=yes. The owner chose the option; the Designer's HIG readin
 
 ## Options judged
 
-- A, plain `.minimal`. Won: it is exactly the system control the owner picked. HIG, Navigation bars: the standard Back button retraces the hierarchy and a bar stays uncluttered when its controls use standard symbols without text. On the glass bars the chevron sits in its own circle and leaves room for a long title at every text size, including AX5 beside two circles. Cost, measured on iOS 27 on iPhone: the system names a minimal Back "Back", not the previous page's title, so the proposal's claim that the label keeps the previous title was wrong.
+- A, plain `.minimal`. Won: it is exactly the system control the owner picked. HIG, Toolbars: the standard Back button retraces the hierarchy and a bar stays uncluttered when its controls use standard symbols without text. On the glass bars the chevron sits in its own circle and leaves room for a long title at every text size, including AX5 beside two circles. Cost, measured on iOS 27 on iPhone: the system names a minimal Back "Back", not the previous page's title, so the proposal's claim that the label keeps the previous title was wrong.
 - B, set the label on UIKit's private BackButton view. Lost: it reaches into UIKit internals that any OS update can break.
 - C, drop `.minimal` (the previous title beside the chevron, or a generic "Back" title). Lost: it contradicts pick 6; a long previous title also makes the system shorten or drop it, so the bar changes shape from page to page.
 
