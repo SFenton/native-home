@@ -30,23 +30,25 @@ public final class ReconnectingIndicator {
     ///   - delay: How long it must have been down.
     ///   - fade: How long the arc takes to fade; it leaves the bar after this.
     ///   - lead: How long the arc is placed before it lights.
+    ///   - sleep: Waits for a duration and throws when cancelled. Tests inject a gated one so no assertion races a wall clock.
     public func follow(
         isDown: Bool,
         delay: Duration = ReconnectingPolicy.delay,
         fade: Duration = ReconnectingPolicy.fade,
-        lead: Duration = ReconnectingPolicy.insertLead
+        lead: Duration = ReconnectingPolicy.insertLead,
+        sleep: (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) async {
         if isDown {
             if !isPresent {
-                guard (try? await Task.sleep(for: delay)) != nil else { return }
+                guard (try? await sleep(delay)) != nil else { return }
                 isPresent = true
-                guard (try? await Task.sleep(for: lead)) != nil else { return }
+                guard (try? await sleep(lead)) != nil else { return }
             }
             isLit = true
         } else {
             isLit = false
             guard isPresent else { return }
-            guard (try? await Task.sleep(for: fade)) != nil else { return }
+            guard (try? await sleep(fade)) != nil else { return }
             isPresent = false
         }
     }

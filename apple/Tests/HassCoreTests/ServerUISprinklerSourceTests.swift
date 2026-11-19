@@ -11,13 +11,14 @@ import Testing
 struct ServerUISprinklerSourceTests {
     typealias F = SprinklerFixture
 
-    private func make(valve: String = "closed", mode: String = "auto") -> (ServerUISprinklerSource, EntityStore, RecordingCaller) {
+    private func make(valve: String = "closed", mode: String = "auto", scheduler: any RevertScheduler = ManualScheduler())
+        -> (ServerUISprinklerSource, EntityStore, RecordingCaller) {
         var (states, attributes) = F.frontStates(valve: valve)
         states[F.front.modeEntityId] = mode
         let store = makeStore(states, attributes: attributes)
         let caller = RecordingCaller()
         let descriptor = ServerUISprinklerDescriptor(controller: F.front, lowBatteryPercent: 20, defaultStartTime: "07:00")
-        return (ServerUISprinklerSource(descriptor: descriptor, store: store, caller: caller), store, caller)
+        return (ServerUISprinklerSource(descriptor: descriptor, store: store, caller: caller, scheduler: scheduler), store, caller)
     }
 
     /// Lets Home Assistant "answer" so the optimistic overlay clears and the next gesture is accepted.
@@ -60,16 +61,27 @@ struct ServerUISprinklerSourceTests {
     }
 
     @Test func aGestureHoldsPublicationUntilItFinishes() async {
-        let (source, store, caller) = make()
+        let scheduler = ManualScheduler()
+        let (source, store, caller) = make(scheduler: scheduler)
         let task = source.start(.rainDelay(true))
         #expect(source.protectsPublication, "pinned synchronously, before the task first runs")
         #expect(await task.value)
         #expect(caller.calls.map(\.service) == ["turn_on"])
         #expect(source.protectsPublication, "the optimistic value is still pending")
+        #expect(scheduler.pending.map(\.delay) == [SprinklersConfig.optimisticRevert], "held by a revert timer that has not fired")
         set(store, F.front.rainDelayEntityId, "on")
         settle(source)
         #expect(!source.controller.hasPendingCommands)
         #expect(!source.protectsPublication)
+    }
+
+    @Test func anUnconfirmedGestureReleasesPublicationWhenItsRevertFires() async {
+        let scheduler = ManualScheduler()
+        let (source, _, _) = make(scheduler: scheduler)
+        #expect(await source.start(.rainDelay(true)).value)
+        #expect(source.protectsPublication)
+        scheduler.fireAll()
+        #expect(!source.protectsPublication, "Home Assistant never confirmed, so the optimistic value gave way")
     }
 
     @Test func eachGestureCallsItsServiceAndAnUnavailableSprinklerRefusesThem() async {
