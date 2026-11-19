@@ -68,10 +68,48 @@ struct ServerUIContractCorpusTests {
         #expect(index.cases.contains { $0.outcome == "accept" } && index.cases.contains { $0.outcome == "reject" })
     }
 
+    /// The refusals the Studio gives for a field of a capability the app has not ingested, written without declaring it
+    /// (`capability_manifest_mismatch`), by file. A shipped app does not know the field, so it refuses earlier with its own
+    /// structural issue; such a case cannot carry the pending refusal (`unsupported_capability`) because it declares no id. Each stays here
+    /// until its id is in ``ServerUIIngestedCapabilities``; from then on the exact first issue is checked like any other case.
+    nonisolated static let undeclaredUseOfAPendingId: [String: String] = [
+        "reject/component-values-capability-missing.json": "sh.component-values@1",
+        "reject/component-values-key-capability-missing.json": "sh.component-values@1",
+        "reject/fold-sides-capability-not-declared.json": "sh.fold-sides@1",
+        "reject/fold-sides-switch-capability-not-declared.json": "sh.fold-sides@1",
+        "reject/text-keep-read-missing-capability.json": "sh.text-keep@1",
+        "reject/text-keep-expr-missing-capability.json": "sh.text-keep@1",
+        "reject/profile-badges-avatar-capability-not-declared.json": "sh.avatar@1",
+        "reject/profile-badges-badge-nodes-capability-not-declared.json": "sh.badge-nodes@1",
+        "reject/profile-badges-badge-spoken-capability-not-declared.json": "sh.badge-spoken@1",
+        "reject/profile-badges-shell-profile-capability-not-declared.json": "sh.shell-profile@1",
+    ]
+
+    /// The cases above that are still held back.
+    nonisolated static func isHeldBackUntilIngested(_ file: String) -> Bool {
+        undeclaredUseOfAPendingId[file].map { !ServerUIIngestedCapabilities.all.contains($0) } ?? false
+    }
+
+    /// A pending id's field written without the id is still refused by the app (as an unknown field or variant), and every held-back case names a
+    /// case the index lists, so a renamed file cannot slip out of the gate unnoticed.
+    @Test(arguments: undeclaredUseOfAPendingId.keys.sorted().filter(isHeldBackUntilIngested))
+    func anUndeclaredUseOfAPendingIdIsStillRefused(_ file: String) throws {
+        let item = try #require(Self.cases.first { $0.file == file }, "\(file) is not in index.json")
+        #expect(item.outcome == "reject" && item.issue?.code == "capability_manifest_mismatch", "\(file)")
+        let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(file))
+        let result: Result<ServerUICompositionPublication, any Error> = HouseConfigSource.$scoped.withValue(Self.house(for: item)) {
+            Result { try ServerUICompositionPublication.decode(bytes) }
+        }
+        guard case .failure(let error) = result else { Issue.record("\(file) must be refused"); return }
+        #expect(error is ServerUICompositionError, "\(file) threw \(error)")
+    }
+
     @Test(arguments: cases)
     func fileDecodesWithTheRecordedOutcome(_ item: Case) throws {
         // A pending case whose capability a lane has since ingested is checked by that lane's own corpus suite.
         if item.pending == true, ServerUIIngestedCapabilities.all.contains(item.issue?.capability ?? "") { return }
+        // The Studio's answer to an undeclared use of a pending id needs the id; until the app has it, `anUndeclaredUseOfAPendingIdIsStillRefused` holds the case.
+        if Self.isHeldBackUntilIngested(item.file) { return }
         let bytes = try Data(contentsOf: Self.directory.appendingPathComponent(item.file))
         let result: Result<ServerUICompositionPublication, any Error> = HouseConfigSource.$scoped.withValue(Self.house(for: item)) {
             Result { try ServerUICompositionPublication.decode(bytes) }

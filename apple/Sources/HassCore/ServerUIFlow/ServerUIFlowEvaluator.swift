@@ -337,6 +337,15 @@ public enum ServerUIFlowEvaluator {
             let kind: ServerUIFlow.Annotation.Aggregate
             if case .min = step.operation { kind = .min } else { kind = .max }
             return extreme(kind, parts).map { .number($0) } ?? .null
+        case .average(let operand):
+            let items = list(value)
+            each(items)
+            var parts: [JSONValue] = []
+            for (at, item) in items.enumerated() {
+                if meter.exceeded { break }
+                parts.append(json(operand, environment.with(item: item, index: at)))
+            }
+            return mean(parts).map { .number($0) } ?? .null
         case .runningSum(let operand, let into, let propagates):
             let items = list(value)
             each(items)
@@ -387,6 +396,31 @@ public enum ServerUIFlowEvaluator {
             found = found.map { kind == .min ? Swift.min($0, number) : Swift.max($0, number) } ?? number
         }
         return found == 0 ? 0 : found
+    }
+
+    /// The mean of the finite numbers among `parts`; `nil` when there is none. A part that is not a finite number (`null`, text, a boolean, a list, a record)
+    /// is skipped, as `sum` skips it, and the answer is not rounded and never negative zero.
+    ///
+    /// The ordinary mean is the sum divided by the count, so an everyday list prints exactly as it did before. The mean of finite numbers is finite, but
+    /// their sum need not be, so when the sum overflows the parts are scaled by their greatest magnitude first. Their scaled sum is restored before
+    /// dividing when it is finite (so a list that cancels still cancels); otherwise it is divided first, and the scaled mean lies in [-1, 1], so restoring
+    /// it cannot overflow.
+    private static func mean(_ parts: [JSONValue]) -> Double? {
+        var numbers: [Double] = []
+        for part in parts {
+            if case .number(let number) = part, number.isFinite { numbers.append(number) }
+        }
+        guard !numbers.isEmpty else { return nil }
+        let count = Double(numbers.count)
+        let total = numbers.reduce(0, +)
+        var mean = total / count
+        if !total.isFinite {
+            let scale = numbers.reduce(0) { Swift.max($0, abs($1)) }
+            let scaled = numbers.reduce(0) { $0 + $1 / scale }
+            let restored = scaled * scale
+            mean = restored.isFinite ? restored / count : (scaled / count) * scale
+        }
+        return mean == 0 ? 0 : mean
     }
 
     // MARK: Run

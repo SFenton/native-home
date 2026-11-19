@@ -1,0 +1,19 @@
+# Where `ContractCorpus/` differs from the Studio's copy
+
+`ContractCorpus/` is a byte-for-byte copy of the Studio's `contract/corpus` (`SFenton/ha-native-home-app`, commit `bed1b20ca7656c8943f2233b5eae432d21116283`).
+The sync commit holds that copy alone. These files differ from it afterwards, because the app ships something the Studio's copy does not record yet. Delete
+a line here when the Studio takes the change.
+
+| File | Departure |
+|---|---|
+| `capabilities.json` | Adds `sh.flow-average@1` and `sh.tile-ink-default@1`, the two ids the app lists that the Studio still marks pending. It is regenerated from the app's list (`FENTON_REGEN_CAPABILITIES=1`), so it is sorted; the Studio's copy puts `sh.check-face@1` before `sh.chart@1`. |
+| `capabilities.pending.json` | Drops those two ids. |
+| `index.json`, `accept/flow-average-numbers.json`, `accept/tile-ink-default-*.json`, `reject/flow-average-*.json` | The promotion the corpus README describes: a compiled pending case moves to `accept/` with the `pending-` prefix dropped; a refused one keeps its file and takes the Studio's first issue as `issue`. |
+| `state-styles/built-in.json` | The app's version. The Studio's copy has none of the Robot's per-state icons (`house` when docked, `robotic.vacuum` otherwise), which the app has drawn since #122, so `ServerUIStateStyleTests` fails against it. |
+
+Cases the Studio compiles or refuses for ids the app has not ingested stay in the corpus. The tests hold them back by name until the id is in
+`ServerUIIngestedCapabilities`: the `dialctl-*`, `dial-text-place-*`, `fold-sides-*` and `badge-spoken-*` evaluation cases
+(`ServerUIExpressionCorpusTests.pendingIds`) and ten refusals that use a pending id's field without declaring it
+(`ServerUIContractCorpusTests.undeclaredUseOfAPendingId`). `sh.text-keep@1` is one of those ids; its cases stay refused.
+
+The global-chrome cases the app owns live in `GlobalChromeCorpus/`, outside the copy.

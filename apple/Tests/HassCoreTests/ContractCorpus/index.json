@@ -3681,48 +3681,24 @@
       }
     },
     {
-      "file": "reject/pending-tile-ink-default-state-tile.json",
-      "outcome": "reject",
-      "note": "A state tile with no family and no tint: its glyph and its state line draw the primary ink when idle.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/16",
-        "capability": "sh.tile-ink-default@1"
-      },
-      "pending": true
+      "file": "accept/tile-ink-default-state-tile.json",
+      "outcome": "accept",
+      "note": "A state tile with no family and no tint: its glyph and its state line draw the primary ink when idle."
     },
     {
-      "file": "reject/pending-tile-ink-default-light-group-tile.json",
-      "outcome": "reject",
-      "note": "A light group tile: the idle bulb and its \"Off\" line draw the primary ink.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/16",
-        "capability": "sh.tile-ink-default@1"
-      },
-      "pending": true
+      "file": "accept/tile-ink-default-light-group-tile.json",
+      "outcome": "accept",
+      "note": "A light group tile: the idle bulb and its \"Off\" line draw the primary ink."
     },
     {
-      "file": "reject/pending-tile-ink-default-room-overview-tile.json",
-      "outcome": "reject",
-      "note": "A room overview tile: the idle glyph and its count line draw the primary ink.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/16",
-        "capability": "sh.tile-ink-default@1"
-      },
-      "pending": true
+      "file": "accept/tile-ink-default-room-overview-tile.json",
+      "outcome": "accept",
+      "note": "A room overview tile: the idle glyph and its count line draw the primary ink."
     },
     {
-      "file": "reject/pending-tile-ink-default-action-tile.json",
-      "outcome": "reject",
-      "note": "A power action tile with the neutral family: its glyph and state line draw the primary ink when off.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/15",
-        "capability": "sh.tile-ink-default@1"
-      },
-      "pending": true
+      "file": "accept/tile-ink-default-action-tile.json",
+      "outcome": "accept",
+      "note": "A power action tile with the neutral family: its glyph and state line draw the primary ink when off."
     },
     {
       "file": "reject/pending-fold-sides-auto-strip-and-four-sections.json",
@@ -8852,27 +8828,15 @@
       }
     },
     {
-      "file": "reject/pending-flow-average-numbers.json",
-      "outcome": "reject",
-      "note": "average takes the mean of the finite numbers in a list; gaps are skipped.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.flow-average@1"
-      },
-      "pending": true
+      "file": "accept/flow-average-numbers.json",
+      "outcome": "accept",
+      "note": "average takes the mean of the finite numbers in a list; gaps are skipped."
     },
     {
       "file": "reject/flow-average-typed-text.json",
       "outcome": "reject",
       "note": "average refuses a value typed as text, exactly as min and max do.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.flow-average@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "binding_type",
         "pointer": "/document/dataSources/5/inputs/steps/1/value"
       }
@@ -8882,12 +8846,6 @@
       "outcome": "reject",
       "note": "average requires its value operand.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.flow-average@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "missing_required",
         "pointer": "/document/dataSources/5/inputs/steps/1/value"
       }
@@ -8897,12 +8855,6 @@
       "outcome": "reject",
       "note": "average has only id, op and value; it cannot round the answer.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/6",
-        "capability": "sh.flow-average@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/dataSources/5/inputs/steps/1/round"
       }

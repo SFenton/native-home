@@ -55,9 +55,9 @@ struct ServerUIStackLayoutTests {
         ])])
     }
 
-    @Test func theCorpusHoldsTheSeventeenReflowCases() {
+    @Test func theCorpusHoldsTheNineteenReflowCases() {
         let reflow = ServerUIExpressionCorpusTests.cases.filter { $0.name.hasPrefix("stack-reflow-") }
-        #expect(reflow.count == 17)
+        #expect(reflow.count == 19)
     }
 
     // MARK: Arrangement

@@ -117,6 +117,8 @@ public struct ServerUIFlow: Equatable, Sendable {
         /// The lowest and the highest number the operand gives over the list, `null` when there is none (`sh.flow-extras@1`).
         case min(ServerUIOperand)
         case max(ServerUIOperand)
+        /// The mean of the finite numbers the operand gives over the list, `null` when there is none (`sh.flow-average@1`).
+        case average(ServerUIOperand)
         /// A running total written onto every object as `into` (`sh.flow-extras@1`); with `nullPropagates` a gap makes every later total `null`.
         case runningSum(value: ServerUIOperand, into: String, nullPropagates: Bool)
         /// Each field's aggregate over the whole list, written onto every object in it (`sh.flow-extras@1`).
@@ -140,6 +142,7 @@ public struct ServerUIFlow: Equatable, Sendable {
             case .default: "default"
             case .min: "min"
             case .max: "max"
+            case .average: "average"
             case .runningSum: "running-sum"
             case .annotate: "annotate"
             }
@@ -226,7 +229,7 @@ public struct ServerUIFlow: Equatable, Sendable {
         for step in steps {
             switch step.operation {
             case .selectKey(let operand), .group(let operand), .sum(let operand), .unique(let operand), .default(_, let operand),
-                 .min(let operand), .max(let operand), .runningSum(let operand, _, _): result.append(operand)
+                 .min(let operand), .max(let operand), .average(let operand), .runningSum(let operand, _, _): result.append(operand)
             case .annotate(let fields): result += fields.values.map(\.value)
             case .sort(let keys): result += keys.map(\.value)
             case .map(let fields): result += fields.values
