@@ -83,17 +83,19 @@ enum BackdropRenderer {
     }
 
     /// Writes a render as JPEG; false when it can't. The file appears whole or not at all: every window and the next launch
-    /// read the same folder, so a half-written JPEG must never sit under a render's name.
+    /// read the same folder, so a half-written JPEG must never sit under a render's name. The JPEG is made in the system's
+    /// replacement folder for `url` (same volume, cleaned by the system), so a crash mid-write leaves nothing in the render folder.
     @discardableResult
     nonisolated static func write(_ image: CGImage, to url: URL) -> Bool {
-        let partial = url.deletingLastPathComponent().appending(path: ".\(url.lastPathComponent).\(UUID().uuidString).partial")
-        guard let destination = CGImageDestinationCreateWithURL(partial as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
-        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary)
-        guard CGImageDestinationFinalize(destination), rename(partial.path, url.path) == 0 else {
-            try? FileManager.default.removeItem(at: partial)
+        let fileManager = FileManager.default
+        guard let scratch = try? fileManager.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: url, create: true) else {
             return false
         }
-        return true
+        defer { try? fileManager.removeItem(at: scratch) }
+        let partial = scratch.appending(path: url.lastPathComponent)
+        guard let destination = CGImageDestinationCreateWithURL(partial as CFURL, UTType.jpeg.identifier as CFString, 1, nil) else { return false }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: jpegQuality] as CFDictionary)
+        return CGImageDestinationFinalize(destination) && rename(partial.path, url.path) == 0
     }
 
     /// Records which render is on screen, so the next launch can draw it before anything is measured.
