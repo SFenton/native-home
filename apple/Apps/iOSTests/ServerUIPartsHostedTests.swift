@@ -517,4 +517,266 @@ final class ServerUIPartsHostedTests: XCTestCase {
             HostedPage.hideTracked()
         }
     }
+
+    // MARK: A bed-shaped authored state tile (generic: a state-tile over a Home Assistant sensor)
+
+    /// The bed-shaped tile is no native concept: a `state-tile` over a sensor whose `line` attribute is the subtitle, with each state's longest line
+    /// as its style rule's text (the sizing declaration) and a `present` action. These tests pin what that authored shape does in the grid, per
+    /// family, with generic names ("Bed A", "Room X") and placeholder ids.
+    private func bedPage(width: CGFloat, entities: [EntityState]? = nil) throws -> (UKServerUIRenderer, UKServerUIPage) {
+        store = EntityStore()
+        store.replaceAll(entities ?? [AuthoredBedShapedTile.sensor("a", state: "heating"), AuthoredBedShapedTile.sensor("b", state: "off")])
+        let host = try UKServerUIRenderer(publication: AuthoredBedShapedTile.publication(), context: UKContext(store: store, caller: HostedCaller()),
+                                          backdrop: ServerUIRendererFixture.backdrop())
+        windows.append(HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180))))
+        HostedPage.wait(0.1)
+        let root = try ServerUIRendererFixture.root(host)
+        root.view.layoutIfNeeded()
+        return (host, root)
+    }
+
+    private func bedTile(_ side: String, in root: UKServerUIPage) throws -> UKGlassTileView {
+        try XCTUnwrap(root.nodes["bed-\(side)"]?.view as? UKGlassTileView, "tile \(side)")
+    }
+
+    /// The two tiles stack where one track cannot hold the minimum and are never squeezed below it; they share a row only where both fit.
+    func testBedShapedTilesStackOrShareByTheirMinimumAtEveryFamilyWidth() throws {
+        for width in AuthoredBedShapedTile.familyWidths {
+            let (_, root) = try bedPage(width: width)
+            let tiles = try ["a", "b"].map { try bedTile($0, in: root) }
+            let minimum = tiles[0].gridMinimumWidth
+            let rects = try frames(of: ["bed-a", "bed-b"], in: root)
+            let drawn = root.view.bounds.width
+            print("BEDSHAPE width=\(width) drawn=\(drawn) minimum=\(minimum) frames=\(rects.map { "\($0.minX),\($0.minY) \($0.width)x\($0.height)" })")
+            XCTAssertGreaterThan(minimum, DynamicGridMetrics.tileMinWidth, "the longest line asks for more than one 150 pt track (width \(width))")
+            XCTAssertEqual(minimum, tiles[1].gridMinimumWidth, accuracy: 0.5, "both sides declare the same words (width \(width))")
+            for frame in rects { XCTAssertGreaterThanOrEqual(frame.width + 0.5, minimum, "never squeezed below its minimum at \(drawn)") }
+            let shareRow = abs(rects[0].minY - rects[1].minY) < 1
+            if shareRow {
+                XCTAssertLessThanOrEqual(2 * minimum + HassTokens.Spacing.m, drawn + 1, "two tiles share a row only where both minimums fit (\(drawn))")
+            }
+            if drawn < 500 { XCTAssertFalse(shareRow, "one bed tile per row at \(drawn)") }
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// A live flip across every state word, with the line each state has, leaves the grid minimum where it was.
+    func testALiveFlipAcrossEveryStateWordLeavesTheGridMinimumUnchanged() async throws {
+        for width in AuthoredBedShapedTile.familyWidths {
+            let (_, root) = try bedPage(width: width)
+            let tile = try bedTile("a", in: root)
+            let resting = tile.gridMinimumWidth
+            var seen: [String] = []
+            for state in AuthoredBedShapedTile.states {
+                let line = AuthoredBedShapedTile.liveLines[state] ?? ""
+                store.apply([AuthoredBedShapedTile.sensor("a", state: state, line: line)])
+                let landed = await HostedPage.settle { tile.model.subtitle == line }
+                XCTAssertTrue(landed, "\(state) shows its line at \(width): \(String(describing: tile.model.subtitle))")
+                XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01, "\(state) keeps the minimum at \(width)")
+                seen.append(state)
+            }
+            XCTAssertEqual(seen, AuthoredBedShapedTile.states)
+            // The sensor going unavailable is one more state: the minimum holds there too.
+            store.apply([EntityState(entityId: AuthoredBedShapedTile.sensorId("a"), state: "unavailable")])
+            let unknown = await HostedPage.settle { tile.model.isUnavailable }
+            XCTAssertTrue(unknown, "width \(width)")
+            XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01, "unavailable keeps the minimum at \(width)")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// The gap the research named: a live line longer than every declared word is appended to the tile's sizing candidates
+    /// (`UKServerUIStateTileParts.apply`), so the minimum grows with it and the grid re-spans. The desired behaviour is expected to fail until
+    /// the explicit-lines follow-up lands; when it does this test fails as an unexpected pass, and the expectation goes.
+    func testALiveLineLongerThanEveryDeclaredWordDoesNotChangeTheMinimum() async throws {
+        let (_, root) = try bedPage(width: 390)
+        let tile = try bedTile("a", in: root)
+        let resting = tile.gridMinimumWidth
+        let long = "Both Sides • Heating • +10 • Check The Unit Water Level"
+        store.apply([AuthoredBedShapedTile.sensor("a", state: "heating", line: long)])
+        let landed = await HostedPage.settle { tile.model.subtitle == long }
+        XCTAssertTrue(landed)
+        print("BEDSHAPE longLine resting=\(resting) afterLongLine=\(tile.gridMinimumWidth)")
+        XCTExpectFailure("a live subtitle longer than the declared words re-spans the grid (explicit-lines follow-up)") {
+            XCTAssertEqual(tile.gridMinimumWidth, resting, accuracy: 0.01)
+        }
+    }
+
+    /// Tapping the body presents the authored modal; the tile has no disc of its own.
+    func testTappingABedShapedTilePresentsTheAuthoredModalAtEveryFamilyWidth() async throws {
+        for width in AuthoredBedShapedTile.familyWidths {
+            let (host, root) = try bedPage(width: width)
+            let tile = try bedTile("a", in: root)
+            XCTAssertTrue(tile.model.actions.isEmpty, "no disc: the body is the whole control (width \(width))")
+            XCTAssertEqual(tile.model.behavior, .navigate)
+            tile.sendActions(for: .touchUpInside)
+            let opened = HostedPage.until(8) { host.modal?.topViewController is UKServerUIPage }
+            XCTAssertTrue(opened, "the authored modal opened at \(width)")
+            HostedPage.settlePresentations(of: host)
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// VoiceOver reads the title, then the line; the tile is one element, at least 44 pt tall, and its line is one line at the minimum.
+    func testABedShapedTileIsSpokenAsTitleAndLineAndAtLeast44PointsTallAtEveryFamilyWidth() async throws {
+        for width in AuthoredBedShapedTile.familyWidths {
+            let (_, root) = try bedPage(width: width)
+            let tile = try bedTile("a", in: root)
+            XCTAssertEqual(tile.accessibilityLabel, "Bed A", "width \(width)")
+            XCTAssertTrue((tile.accessibilityValue ?? "").contains("Heating • +3"), "the value carries the line: \(tile.accessibilityValue ?? "nil") (width \(width))")
+            // The tile is a container of its body element (and the line's); the body is the button that opens the modal.
+            let body = (tile.accessibilityElements ?? []).compactMap { $0 as? UIAccessibilityElement }.first { $0.accessibilityIdentifier == "bed-a" }
+            XCTAssertTrue(try XCTUnwrap(body, "the body element (width \(width))").accessibilityTraits.contains(.button), "a tile that opens something is a button (width \(width))")
+            XCTAssertEqual(body?.accessibilityLabel, "Bed A")
+            XCTAssertGreaterThanOrEqual(tile.bounds.height, 44, "touch height at \(width)")
+            store.apply([AuthoredBedShapedTile.sensor("a", state: "view_only", line: "Hold · View Only")])
+            let moved = await HostedPage.settle { (tile.accessibilityValue ?? "").contains("Hold · View Only") }
+            XCTAssertTrue(moved, "the spoken value follows the live line at \(width)")
+            XCTAssertEqual(tile.accessibilityLabel, "Bed A")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// An unavailable sensor reads Unavailable, dims through the unknown class and keeps its title.
+    func testAnUnavailableBedShapedTileDimsAndSaysSoAtEveryFamilyWidth() async throws {
+        for width in AuthoredBedShapedTile.familyWidths {
+            let (_, root) = try bedPage(width: width)
+            let tile = try bedTile("a", in: root)
+            store.apply([EntityState(entityId: AuthoredBedShapedTile.sensorId("a"), state: "unavailable")])
+            let dimmed = await HostedPage.settle { tile.model.isUnavailable }
+            XCTAssertTrue(dimmed, "width \(width)")
+            XCTAssertEqual(tile.model.look?.stateClass, .unknown, "the unknown class draws the dim face (width \(width))")
+            XCTAssertEqual(tile.gridFace, .unavailable)
+            XCTAssertTrue((tile.accessibilityValue ?? "").contains("Unavailable"), "VoiceOver says Unavailable: \(tile.accessibilityValue ?? "nil")")
+            XCTAssertEqual(tile.accessibilityLabel, "Bed A")
+            HostedPage.hideTracked()
+        }
+    }
+
+    /// The countdown reads the second clock only while the state is boost and the sensor carries an end: no other state ticks.
+    func testTheBedCountdownTicksOnlyWhileBoostHolds() async throws {
+        let (host, root) = try bedPage(width: 390)
+        let source = host.bindings.appState
+        let tile = try bedTile("a", in: root)
+        let appeared = await HostedPage.settle { root.presence.isOnScreen }
+        XCTAssertTrue(appeared)
+        for state in ["heating", "cooling", "idle", "off", "view_only"] {
+            store.apply([AuthoredBedShapedTile.sensor("a", state: state, line: AuthoredBedShapedTile.liveLines[state] ?? "")])
+            _ = await HostedPage.settle(passes: 40) { false }
+            XCTAssertFalse(source.isSecondTicking, "\(state) has no countdown to tick")
+        }
+        XCTAssertEqual(source.secondTicks, 0, "no second tick was ever published")
+        let end = ServerUIAppState.clock(at: Date().addingTimeInterval(3_600)).now
+        store.apply([AuthoredBedShapedTile.sensor("a", state: "boost", line: "Boost Mode • Cooling", endsAt: end)])
+        let counting = await HostedPage.settle { source.isSecondTicking && (tile.model.subtitle ?? "").hasSuffix(" Remaining") }
+        XCTAssertTrue(counting, "boost with an end counts down: \(String(describing: tile.model.subtitle)) (ticking \(source.isSecondTicking))")
+        let first = tile.model.subtitle
+        let moved = await HostedPage.settle { tile.model.subtitle != first }
+        XCTAssertTrue(moved, "the countdown moves with the second clock: \(String(describing: first)) -> \(String(describing: tile.model.subtitle))")
+        // Boost with no end falls back to the line's own words and reads no clock.
+        store.apply([AuthoredBedShapedTile.sensor("a", state: "boost", line: "Boost Mode • Cooling")])
+        let fallback = await HostedPage.settle { tile.model.subtitle == "Boost Mode • Cooling" }
+        XCTAssertTrue(fallback, "no end: \(String(describing: tile.model.subtitle))")
+        // Back to heating: the tick stops within a tick or two and nothing publishes after.
+        store.apply([AuthoredBedShapedTile.sensor("a", state: "heating")])
+        let stopped = await HostedPage.settle(passes: 500) { !source.isSecondTicking }
+        XCTAssertTrue(stopped, "heating again: the tick stops")
+        let ticks = source.secondTicks
+        _ = await HostedPage.settle(passes: 100) { source.isSecondTicking }
+        XCTAssertEqual(source.secondTicks, ticks, "nothing publishes once the countdown is gone")
+    }
+}
+
+// MARK: - The authored bed-shaped state tile
+
+/// The Studio's bed-shaped tile as a document: a `room-section` of two `state-tile`s over generic sensors ("Bed A", "Bed B" in "Room X").
+///
+/// Each sensor's `state` is a state word, its `line` attribute the full subtitle and its `ends_at` the end of a timed mode. The style's rule texts
+/// are each state's longest line (what sizes the tile); the subtitle is the sensor's line, or a countdown to `ends_at` while the state is
+/// `boost`. No product code names a bed: nothing here is read by anything but the generic state-tile parts.
+@MainActor
+enum AuthoredBedShapedTile {
+    /// The widths of the four families: iPhone, folded Duo, iPad and unfolded Duo.
+    static let familyWidths: [CGFloat] = [390, 466, 744, 868]
+    /// The state words the sensor takes, in the order the flip walks them.
+    static let states = ["heating", "cooling", "idle", "off", "boost", "view_only"]
+    /// Each state's longest line: the style rule text.
+    static let longest: [String: String] = [
+        "heating": "Both Sides • Heating • +10", "cooling": "Both Sides • Cooling • -10", "idle": "Both Sides • Idle • 0",
+        "off": "Both Sides • Off", "boost": "Both Sides • Boost Mode • Cooling", "view_only": "Hold · View Only",
+    ]
+    /// The line each state shows live, at most as long as its declared words.
+    static let liveLines: [String: String] = [
+        "heating": "Heating • +3", "cooling": "Cooling • -5", "idle": "Idle • 0", "off": "Off",
+        "boost": "Boost Mode • Cooling", "view_only": "Hold · View Only",
+    ]
+
+    static func sensorId(_ side: String) -> String { side == "a" ? "sensor.demo_bed_a" : "sensor.demo_bed_b" }
+
+    /// The sensor for `side` in `state`; the line defaults to the state's live line.
+    static func sensor(_ side: String, state: String, line: String? = nil, endsAt: String? = nil) -> EntityState {
+        var attributes: [String: JSONValue] = ["line": .string(line ?? liveLines[state] ?? "")]
+        if let endsAt { attributes["ends_at"] = .string(endsAt) }
+        return EntityState(entityId: sensorId(side), state: state, attributes: attributes)
+    }
+
+    private static func json(_ text: String) throws -> JSONValue { try JSONDecoder().decode(JSONValue.self, from: Data(text.utf8)) }
+
+    private static func read(_ source: String, _ path: String) -> String {
+        #"{"type":"read","from":{"type":"source","sourceId":"\#(source)","path":[\#(path)]},"as":"string","missing":"unavailable"}"#
+    }
+
+    /// The tile's subtitle: the sensor's line, or `m:ss Remaining` to `ends_at` while the state is boost.
+    private static func subtitle(_ source: String) -> String {
+        """
+        {"type":"expr","fallback":"Boost Mode • Cooling","value":{"type":"choose","otherwise":\(read(source, #""attributes","line""#)),
+         "cases":[{"when":{"type":"compare","op":"eq","left":\(read(source, #""state""#)),"right":{"type":"literal","value":"boost"}},
+         "then":{"type":"format","pattern":"{s} Remaining","args":{"s":{"type":"date","op":"seconds-between","from":{"type":"clock","part":"now-second"},
+         "to":\(read(source, #""attributes","ends_at""#))}},"formats":{"s":{"duration":{"style":"minutes-seconds"}}}}}]}}
+        """
+    }
+
+    private static func rule(_ states: [String], class stateClass: String, active: Bool, icon: String, text: String, rgb: (Int, Int, Int)?) -> String {
+        let fill = rgb.map { #","fill":{"type":"solid-rgb","red":\#($0.0),"green":\#($0.1),"blue":\#($0.2)}"# } ?? ""
+        let names = states.map { "\"\($0)\"" }.joined(separator: ",")
+        return #"{"states":[\#(names)],"class":"\#(stateClass)","active":\#(active),"icon":"\#(icon)","text":"\#(text)"\#(fill)}"#
+    }
+
+    private static func tile(_ side: String, title: String) -> String {
+        """
+        {"id":"bed-\(side)","title":"\(title)","type":"state-tile","layout":{"span":1},
+         "icon":{"type":"sf-symbol","name":"bed.double","rendering":"canonical","unavailable":"fallback"},
+         "props":{"subtitle":\(subtitle("src-\(side)"))},
+         "binding":{"entityId":"\(sensorId(side))","styleId":"bed-state"},
+         "action":{"type":"present","modalId":"modal-swatch","arguments":{},"ifPresented":"reject"}}
+        """
+    }
+
+    /// The synthetic fixture with the section, the style, the two sensors as sources and the capabilities they need.
+    static func publication() throws -> ServerUICompositionPublication {
+        var root = try ServerUIRendererFixture.json()
+        var sources = try XCTUnwrap(root["document"]?["dataSources"]?.array)
+        for side in ["a", "b"] {
+            sources.append(try json(#"{"id":"src-\#(side)","kind":"ha-entity","entityId":{"type":"literal","value":"\#(sensorId(side))"}}"#))
+        }
+        root = try ServerUIRendererFixture.changing(root, path: "/document/dataSources", to: .array(sources))
+        let rules = [
+            rule(["heating"], class: "resting", active: true, icon: "flame.fill", text: longest["heating"] ?? "", rgb: (200, 90, 40)),
+            rule(["cooling"], class: "resting", active: true, icon: "snowflake", text: longest["cooling"] ?? "", rgb: (40, 110, 200)),
+            rule(["idle"], class: "resting", active: false, icon: "bed.double", text: longest["idle"] ?? "", rgb: nil),
+            rule(["off"], class: "resting", active: false, icon: "bed.double", text: longest["off"] ?? "", rgb: nil),
+            rule(["boost"], class: "in-progress", active: true, icon: "thermometer.snowflake", text: longest["boost"] ?? "", rgb: (40, 110, 200)),
+            rule(["view_only"], class: "warning", active: false, icon: "eye", text: longest["view_only"] ?? "", rgb: nil),
+            rule(["unavailable", "unknown"], class: "unknown", active: false, icon: "bed.double", text: "Unavailable", rgb: nil),
+        ].joined(separator: ",")
+        root = try ServerUIRendererFixture.changing(root, path: "/document/stateStyles", to: json(
+            #"{"type":"state-styles@1","styles":[{"id":"bed-state","name":"Bed state","domain":"sensor","rules":[\#(rules)],"fallback":{"class":"unknown","active":false}}]}"#))
+        root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/components", to: json(
+            #"[{"id":"room-x","type":"room-section","title":"Room X","layout":{"span":1},"props":{"arrangement":"grid","leadJoinsAtRegularWidth":false},"children":[\#(tile("a", title: "Bed A")),\#(tile("b", title: "Bed B"))]}]"#))
+        let needed = ["sh.room-section@1", "sh.state-style@1", "sh.state-style-fills@1", "sh.tile-parts@1", "sh.conditions@1", "sh.operands@1", "sh.rules@1",
+                      "sh.countdown@1", "sh.duration-format@1", "sh.pipeline-operands@1"]
+        let existing = try XCTUnwrap(root["capabilities"]?.array?.compactMap(\.string))
+        root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(Set(existing + needed).sorted().map(JSONValue.string)))
+        return try ServerUIRendererFixture.publication(root)
+    }
 }
