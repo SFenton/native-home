@@ -288,9 +288,12 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let inLevel = spin({ host.modal?.viewControllers.count == 2 })
         XCTAssertTrue(inLevel, "A push to a level stays in the sheet")
         let one = try XCTUnwrap(host.modal?.topViewController as? UKServerUIPage)
-        guard case .roomNavigation(_, let configuration) = host.bindings.definitions["source-room-navigation"],
-              let room = configuration.items.first(where: { $0.id == "room-b" }) else { return XCTFail("The fixture's room navigation") }
-        try host.activateRoom(room, sourceId: "source-room-navigation", from: one, source: one.view)
+        let settled = spin({ host.modal?.transitionCoordinator == nil })
+        XCTAssertTrue(settled)
+        let grid = try XCTUnwrap(one.nodes["room-grid-level"]?.view as? UKServerUIRoomNavigationGrid)
+        let room = try XCTUnwrap(grid.items.map(\.view).compactMap { $0 as? UKGlassTileView }
+            .first { $0.accessibilityIdentifier == "room-grid-level.room-b" })
+        XCTAssertTrue(room.accessibilityActivate())
         let landed = spin({ host.modal == nil && host.navigation.snapshot.presentations.isEmpty })
         XCTAssertTrue(landed, "The sheet closed")
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit", "page-lattice"], "The room page is on the section stack")
