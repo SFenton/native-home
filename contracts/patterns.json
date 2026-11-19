@@ -1328,7 +1328,9 @@
         "apple/Sources/HassUI/UIKitPort/Design/UKForm.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKSettingsSection.swift",
         "apple/Sources/HassUI/UIKitPort/Design/UKLayoutViews.swift",
-        "apple/Sources/HassDesign/InsetGrouped*.swift",
+        "apple/Sources/HassDesign/InsetGroupedMetrics.swift",
+        "apple/Sources/HassUI/UIKitPort/Features/Settings/UKSettingsStack.swift",
+        "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIPreferenceRow.swift",
         "apple/Sources/HassDesign/SettingsSection.swift"
       ],
       "guards": [],

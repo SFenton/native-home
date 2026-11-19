@@ -184,6 +184,8 @@ final class UKServerUISection: UIView, UKGridMeasuring {
                 column.setViews(children)
                 body = column
             }
+            // The list draws the group: a settings link in it is a row, not a card. In a plain section it keeps its card.
+            for case let link as UKServerUISettingsLink in children { link.cell.isListRow = value.style == .moduleList }
             self.children = children
             style = value.style
             density = value.density

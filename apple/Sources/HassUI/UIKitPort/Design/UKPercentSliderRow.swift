@@ -36,13 +36,16 @@ final class UKPercentSliderRow: UKRowView {
 
     /// - Parameter horizontalPadding: The side inset when the row sits on a card of its own (a module list); nil keeps the form style's
     ///   0, because a form cell supplies the margin.
-    init(_ title: String, value: Double, identifier: String, horizontalPadding: CGFloat? = nil, onChange: @escaping (Double) -> Void) {
+    /// - Parameter insets: Space around the whole row (a settings group's 15 pt leading, 17.5 pt trailing and 10.5 pt above and below).
+    init(_ title: String, value: Double, identifier: String, horizontalPadding: CGFloat? = nil,
+         insets: NSDirectionalEdgeInsets = .zero, onChange: @escaping (Double) -> Void) {
         self.title = title
         self.value = value
         self.identifier = identifier
         self.onChange = onChange
         var content = UKRowContent(title, value: "\(Int(value))%", style: .form)
         content.horizontalPadding = horizontalPadding
+        content.outerInsets = insets
         super.init(content)
         slider.minimumValue = 0
         slider.maximumValue = 100

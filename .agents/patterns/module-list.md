@@ -30,4 +30,6 @@ A row whose control is a switch is a `ModuleToggleRow` (`HassDesign/ModuleToggle
 - `UKMeasuredView` is the one mechanism; add no other. A bare row is 0 pt tall or a hairline and draws over its neighbours.
 - A fitting container calls `ukPrepareMeasuredViews(in:width:)`, lays out once at its width, then fits once.
 - A row's padding lives in its constraints, set when its kind changes, not in `layoutSubviews`: a fit before layout counts it.
-- A settings row in a module list carries the 16 pt side inset; a form-style 0 is for a cell that supplies the margin.
+- A row in a module list never draws its own fill, corners or hairline; the list draws one group. A hairline takes its leading and trailing insets from the row above it.
+- A row declares its hairline insets through `UKSeparatorInsetDeclaring` (`UKSeparatorInsets`); a row that declares nothing keeps the list's own inset (the scaled text inset, or 16 pt without glyphs) and a hairline flush to the trailing edge, so the other call sites do not move. Only the settings rows declare ([settings-section](settings-section.md#settings-rows-in-a-module-list)).
+- A settings link in a module-list section is a row of the group (`UKSettingsStackCell.isListRow`): clear fill, no corners, no hairline of its own, with its padding, content insets and press wash. In a plain section it keeps its card. The list's clipping rounds the wash on the first and last rows.
