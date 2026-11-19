@@ -11,8 +11,8 @@ import UIKit
 /// - `FENTON_BACKDROP_FIXTURE=1`: the page gets the same wallpaper as the shell, from the fixture photo (`FENTON_BACKDROP_BLUR`,
 ///   `FENTON_BACKDROP_PHOTO`); without it a gallery draws the plain base.
 /// - `FENTON_GALLERY_CLEAN=1`: screenshots leave the debug line out (``UKGalleryLastCallView``).
-/// - `FENTON_GALLERY_FLYOUT=1` (the port's own, for the regular-width chrome): the page stands in the flyout layout, with the
-///   menu button leading and the flyout openable, as a section root does on iPad.
+/// - `FENTON_GALLERY_FLYOUT=1` (the port's own): the menu-button chrome of the compact window and the Duo, with the
+///   menu button leading and the flyout openable, as a section root does there.
 @MainActor
 enum UKGalleryChrome {
     /// The fixture backdrop store when `FENTON_BACKDROP_FIXTURE=1` (or `FENTON_GALLERY_BACKDROP_FIXTURE=1`), built once per gallery

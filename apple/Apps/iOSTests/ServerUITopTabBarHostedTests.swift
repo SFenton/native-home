@@ -122,9 +122,11 @@ final class ServerUITopTabBarHostedTests: XCTestCase {
         XCTAssertTrue(HostedPage.until { renderer.navigation.snapshot.stacks[.tab("tab-alpha")] == ["page-orbit", "page-echo"] })
         let beta = try ServerUIRendererFixture.root(renderer, "tab-beta")
         try renderer.perform(.selectTab(tabId: "tab-beta"), from: alpha)
-        XCTAssertTrue(HostedPage.until { renderer.navigation.snapshot.selection == .tab("tab-beta") })
+        // Right after the intent, before any wait: a cut has no transition in flight.
+        XCTAssertEqual(renderer.navigation.snapshot.selection, .tab("tab-beta"))
         XCTAssertTrue(renderer.tabController.selectedViewController === renderer.stacks[.tab("tab-beta")])
-        XCTAssertNil(beta.transitionCoordinator, "A tab switch never animates")
+        XCTAssertNil(renderer.tabController.transitionCoordinator, "A tab switch never animates")
+        XCTAssertNil(beta.transitionCoordinator)
         XCTAssertEqual(renderer.navigation.snapshot.stacks[.tab("tab-alpha")], ["page-orbit", "page-echo"])
     }
 
@@ -172,9 +174,9 @@ final class ServerUITopTabBarHostedTests: XCTestCase {
         XCTAssertEqual(page.navigationItem.style, .browser, "The title leads, after Back and before the tabs")
         let trailing = (page.navigationItem.rightBarButtonItems ?? []) + page.navigationItem.trailingItemGroups.flatMap(\.barButtonItems)
         let names = trailing.compactMap(\.accessibilityIdentifier)
-        if let links = names.firstIndex(of: "quickLinks.open"), let profile = names.firstIndex(of: "nav.profile") {
-            XCTAssertLessThan(profile, links, "Items are stored trailing first; the bar draws Quick Links, then Profile")
-        }
+        let links = try XCTUnwrap(names.firstIndex(of: "quickLinks.open"), "Quick Links is in the bar")
+        let profile = try XCTUnwrap(names.firstIndex(of: "nav.profile"), "Profile is in the bar")
+        XCTAssertLessThan(profile, links, "Items are stored trailing first; the bar draws Quick Links, then Profile")
     }
 
     // MARK: Cost
