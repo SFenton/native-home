@@ -51,8 +51,140 @@ struct HouseBackdropStoreTests {
         #expect(store.image !== image)
     }
 
+    // MARK: - Background
+
+    /// Nothing renders in the background; the change made there renders on the return to the foreground.
+    @Test func aSuspendedStoreRendersOnlyOnceBackInTheForeground() async throws {
+        let (store, directory, cleanup) = try makeStore()
+        defer { cleanup() }
+        store.setSuspended(true)
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        await store.refresh()
+        #expect(store.image == nil)
+        #expect(store.renderCount == 0)
+        #expect(BackdropRenderer.loadLatest(in: directory) == nil, "nothing is stored while suspended")
+
+        store.setSuspended(false)
+        // The publication's retried preparation refreshes again: that waits for the render the return started.
+        await store.refresh()
+        #expect(store.image != nil)
+        #expect(store.renderCount == 1)
+    }
+
+    /// A change in the background (the system's snapshot layout) waits; the shown render stays until the return.
+    @Test func aChangeInTheBackgroundWaitsForTheForeground() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        await store.refresh()
+        let shown = try #require(store.image)
+
+        store.setSuspended(true)
+        store.setWindow(CGSize(width: 90, height: 60), scale: 1)
+        await store.settled()
+        #expect(store.image === shown)
+        #expect(store.renderCount == 1)
+
+        store.setSuspended(false)
+        await store.settled()
+        #expect(store.image !== shown)
+        #expect(store.renderCount == 2)
+    }
+
+    /// A render the app went to the background during may be blank: it is thrown away, not shown or stored, and made again.
+    @Test func aRenderOverlappingTheBackgroundIsDiscardedAndRedone() async throws {
+        let (store, directory, cleanup) = try makeStore()
+        defer { cleanup() }
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        let refresh = Task { await store.refresh() }
+        // The render runs off the main thread; the app leaves before it comes back.
+        try #require(await until { store.renderCount == 0 && store.isRendering })
+        store.setSuspended(true)
+        await refresh.value
+        #expect(store.image == nil, "the overlapping render is not shown")
+        #expect(store.renderCount == 0)
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(BackdropRenderer.loadLatest(in: directory) == nil, "nor stored")
+
+        store.setSuspended(false)
+        await store.settled()
+        #expect(store.image != nil)
+        #expect(store.renderCount == 1)
+    }
+
+    /// The render folder is the publication's, not the window's: the next launch shows the stored render on its first frame.
+    @Test func aRelaunchInTheSameFolderShowsTheStoredRenderAtOnce() async throws {
+        let (store, directory, cleanup) = try makeStore()
+        defer { cleanup() }
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        await store.refresh()
+        let rendered = try #require(store.image)
+        try #require(await until { BackdropRenderer.loadLatest(in: directory) != nil })
+
+        let relaunch = HouseBackdropStore(verifiedPhoto: try makePhoto(), directory: directory, blur: store.blur)
+        let first = try #require(relaunch.image, "the stored render is up before any render runs")
+        #expect(first.width == rendered.width && first.height == rendered.height)
+        relaunch.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        await relaunch.refresh()
+        #expect(relaunch.renderCount == 0, "the stored render is reused, not made again")
+    }
+
+    /// A render that fails because the app left and came back while it ran is made again at once, not on the next return.
+    @Test func aRenderThatFailsAcrossABackgroundTripIsRedoneAtOnce() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        let gate = Gate()
+        let real = store.renderWork
+        store.renderWork = { photo, digest, spec, directory in
+            guard gate.firstCall() else { return real(photo, digest, spec, directory) }
+            gate.waitForRelease()
+            return nil
+        }
+        store.setWindow(CGSize(width: 60, height: 90), scale: 1)
+        let refresh = Task { await store.refresh() }
+        try #require(await until { store.isRendering })
+        store.setSuspended(true)
+        store.setSuspended(false)
+        gate.release()
+        await refresh.value
+        #expect(store.image != nil)
+        #expect(store.renderCount == 1)
+    }
+
     // MARK: - Fixture
 
+    /// Stalls the first render off the main thread until the test releases it.
+    private final class Gate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var calls = 0
+        private var released = false
+
+        func firstCall() -> Bool { lock.withLock { calls += 1; return calls == 1 } }
+        func release() { lock.withLock { released = true } }
+        func waitForRelease() {
+            while !lock.withLock({ released }) { usleep(1_000) }
+        }
+    }
+
+    private func makeStore() throws -> (HouseBackdropStore, URL, () -> Void) {
+        let directory = URL.temporaryDirectory.appending(path: "backdrop-life-\(UUID().uuidString)")
+        let suiteName = "backdrop-life-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        let store = HouseBackdropStore(verifiedPhoto: try makePhoto(), directory: directory, blur: BackdropBlurSettings(defaults: defaults))
+        return (store, directory, {
+            try? FileManager.default.removeItem(at: directory)
+            defaults.removePersistentDomain(forName: suiteName)
+        })
+    }
+
+    private func until(_ seconds: Double = 5, _ condition: () -> Bool) async -> Bool {
+        let deadline = Date().addingTimeInterval(seconds)
+        while !condition() {
+            if Date() > deadline { return false }
+            await Task.yield()
+        }
+        return true
+    }
     private func pixels(_ image: CGImage) throws -> Data {
         let context = try #require(CGContext(
             data: nil, width: image.width, height: image.height, bitsPerComponent: 8, bytesPerRow: image.width * 4,

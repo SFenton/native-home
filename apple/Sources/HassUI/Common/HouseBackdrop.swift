@@ -17,6 +17,11 @@ import UIKit
 /// or relaunching reuses it, and the previous render stays up until a new one is ready (no blank, no flash; AGENTS.md
 /// "No reload on reopen"). Renders run off the main thread and are coalesced: while one runs, any number of changes
 /// (a slider drag, a rotation, a resized window) collapse into one more render of the latest.
+///
+/// Nothing renders while the app is in the background: iOS refuses GPU work there, so a render then fails or comes back
+/// blank. A change in the background (the system's snapshot layout, a scene connected for a background launch) waits and
+/// renders on the return to the foreground; a render that failed, or that the app went to the background during, is
+/// thrown away (never shown, never stored) and made again on that return.
 @MainActor
 @Observable
 final class HouseBackdropStore {
@@ -27,6 +32,13 @@ final class HouseBackdropStore {
     @ObservationIgnored let blur: BackdropBlurSettings
     /// Renders Core Image has drawn (stored renders that were loaded do not count).
     @ObservationIgnored private(set) var renderCount = 0
+    /// Whether rendering waits for the app to return to the foreground (``setSuspended(_:)``).
+    @ObservationIgnored private(set) var isSuspended = false
+    /// Whether a render or stored-render load is running off the main thread now.
+    @ObservationIgnored private(set) var isRendering = false
+    /// Makes or loads one render off the main thread; tests swap it to fail or stall a render.
+    @ObservationIgnored var renderWork: @Sendable (CGImage, String, BackdropRenderSpec, URL) -> (image: CGImage, rendered: Bool)? =
+        BackdropRenderer.renderOrLoad
 
     @ObservationIgnored private let directory: URL
     @ObservationIgnored private let photos: @Sendable () -> AsyncStream<CGImage>
@@ -38,6 +50,13 @@ final class HouseBackdropStore {
     @ObservationIgnored private var recent: [(name: String, image: CGImage)] = []
     @ObservationIgnored private var renderTask: Task<Void, Never>?
     @ObservationIgnored private var isDirty = false
+    /// Counts trips to the background, so a render can tell whether one began while it ran.
+    @ObservationIgnored private var suspensions = 0
+    /// A render failed in the foreground; the next return to the foreground tries again.
+    @ObservationIgnored private var needsRetry = false
+    #if os(iOS)
+    @ObservationIgnored private var lifecycle: UKObserverTokens?
+    #endif
 
     /// Uses an already downloaded, verified and decoded publication asset without another network request.
     ///
@@ -71,12 +90,39 @@ final class HouseBackdropStore {
             recent = [(latest.name, latest.image)]
         }
         blur.onChange = { [weak self] _ in self?.requestRender() }
+        #if os(iOS)
+        isSuspended = UIApplication.shared.applicationState == .background
+        let center = NotificationCenter.default
+        lifecycle = UKObserverTokens([
+            center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSuspended(true) }
+            },
+            center.addObserver(forName: UIApplication.willEnterForegroundNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.setSuspended(false) }
+            },
+        ])
+        #endif
+    }
+
+    /// Holds rendering while the app is in the background (iOS refuses GPU work there) and resumes it on the return: a change
+    /// made meanwhile, or a render that failed or was thrown away, renders then.
+    func setSuspended(_ suspended: Bool) {
+        guard suspended != isSuspended else { return }
+        isSuspended = suspended
+        if suspended {
+            suspensions += 1
+        } else if isDirty || needsRetry {
+            isDirty = false
+            needsRetry = false
+            requestRender()
+        }
     }
 
     /// Loads the photo and renders each one the pipeline yields (the cached photo, then a changed one), once per store.
-    /// Returns when the renders it asked for are done. Failures keep the render on screen.
+    /// Returns when the renders it asked for are done; a later call loads nothing and waits for the renders running then (the one
+    /// a return from the background started). Failures keep the render on screen.
     func refresh() async {
-        guard !refreshed else { return }
+        guard !refreshed else { await settled(); return }
         refreshed = true
         let directory = directory
         // Renders from an older recipe are never read again; drop them off the main thread.
@@ -108,12 +154,12 @@ final class HouseBackdropStore {
     private func requestRender() {
         guard photo != nil, window != nil else { return }
         isDirty = true
-        guard renderTask == nil else { return }
+        guard !isSuspended, renderTask == nil else { return }
         renderTask = Task { [weak self] in
-            while let self, self.isDirty {
+            while let self, self.isDirty, !self.isSuspended {
                 self.isDirty = false
                 await self.renderCurrent()
-                if self.isDirty, self.renderGap > .zero { try? await Task.sleep(for: self.renderGap) }
+                if self.isDirty, !self.isSuspended, self.renderGap > .zero { try? await Task.sleep(for: self.renderGap) }
             }
             self?.renderTask = nil
         }
@@ -130,11 +176,23 @@ final class HouseBackdropStore {
         }
         let directory = directory
         let (picture, digest) = (photo.image, photo.digest)
-        let result = await Task.detached(priority: .utility) {
-            BackdropRenderer.renderOrLoad(picture, digest: digest, spec: spec, in: directory)
-        }.value
-        guard let result else { return }
-        if result.rendered { renderCount += 1 }
+        let started = suspensions
+        let work = renderWork
+        isRendering = true
+        let result = await Task.detached(priority: .utility) { work(picture, digest, spec, directory) }.value
+        isRendering = false
+        // A render that failed, or that the app went to the background during, may be blank: it is never shown or stored,
+        // and is made again in the foreground (at once when the app is already back, else on the return). Only a failure
+        // with no trip to the background waits for the next return, so a photo that cannot render does not loop.
+        guard let result, !(result.rendered && suspensions != started) else {
+            if isSuspended || result != nil || suspensions != started { isDirty = true } else { needsRetry = true }
+            return
+        }
+        if result.rendered {
+            renderCount += 1
+            let image = result.image
+            Task.detached(priority: .utility) { BackdropRenderer.store(image, named: name, in: directory) }
+        }
         show(result.image, name: name)
     }
 
