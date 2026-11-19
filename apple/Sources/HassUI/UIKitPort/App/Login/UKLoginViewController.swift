@@ -12,8 +12,11 @@ import UIKit
 /// username and password rows, and the Sign In capsule. A session that ended shows the welcome back variant instead: the person's
 /// monogram, the server and account read-only, only the password to type. Errors are plain sentences, inline (a
 /// bad address or an address that is not Home Assistant also outlines the Server row and moves focus to it); a server that cannot
-/// be reached gets a card with the raw reason one tap away. On iPad and the unfolded Duo the form is a centred column no wider than
-/// ``SignInStyle/columnWidth``, kept off the hinge.
+/// be reached gets a card with the raw reason one tap away. The scroll view sits inside the safe area, so no control is under the
+/// Duo's system strip. In a wide window (``SignInLayoutPlan``: iPad landscape, the unfolded Duo in landscape) the header takes the
+/// leading region and the form the trailing one, each at most as wide as the column and centred on one line (the header from the
+/// mark's drawn top); elsewhere the form is a centred column no wider than
+/// ``SignInStyle/columnWidth``, kept off the hinge (`.agents/design/sign-in-layout.md`).
 ///
 /// `playsIntro` runs the launch sequence (the glow fades up, the mark springs in, the title and then the form rise) for a cold
 /// launch only; Reduce Motion cross-fades the same pieces. It shares ``LoginModel`` with the SwiftUI screen.
@@ -33,6 +36,12 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
     private let column = UIStackView()
     private let headerHolder = UIView()
     private let formHolder = UIStackView()
+    /// Use a Different Account and the footnote: they hang under Sign In and take no part in the centring of the split.
+    private let hang = UIStackView()
+    /// The span from the top of the fields to the bottom of Sign In (an inline error is inside it); the split centres it.
+    private let block = UILayoutGuide()
+    /// The column's top and bottom, centred as one in the scroll view.
+    private let columnSpan = UILayoutGuide()
     private let fields = UKLoginFieldsModule()
     private let submit = UKPrimaryButton("") {}
     private let differentAccount = UIButton(type: .custom)
@@ -41,12 +50,23 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
     private var titleViews: [UIView] = []
     private var cardView: UIView?
     private var errorView: UIView?
-    private var columnLeading: NSLayoutConstraint!
-    private var columnWidth: NSLayoutConstraint!
+    private var titleLabel: UILabel?
+    private var lineLabel: UILabel?
+    private var headerLeft: NSLayoutConstraint!
+    private var headerWidth: NSLayoutConstraint!
+    private var formLeft: NSLayoutConstraint!
+    private var formWidth: NSLayoutConstraint!
+    private var hangTop: NSLayoutConstraint!
+    /// The header's centre line in the split: lifted by half the mark's empty top so the drawn header, not its frame, is centred.
+    private var headerCentre: NSLayoutConstraint!
+    private var columnConstraints: [NSLayoutConstraint] = []
+    private var splitConstraints: [NSLayoutConstraint] = []
+    private var isSplit = false
     private var shownMode: LoginModel.Mode?
     private var lastFailure: LoginModel.Failure?
     private var didAppearOnce = false
     private var introPending: Bool
+    private var isApplyingLayout = false
     private var markScale: CGFloat = 1
 
     init(model: LoginModel, playsIntro: Bool, environment: UKShellEnvironment?, onIntroPlayed: @escaping () -> Void,
@@ -82,8 +102,10 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         scroll.contentInsetAdjustmentBehavior = .always
         view.addSubview(scroll)
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            // Inside the safe area sideways (the folded Duo's system strip, a landscape inset), so the form has no sideways range and no
+            // control is under the strip; the ground behind stays full-bleed.
+            scroll.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
+            scroll.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: view.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
         ])
@@ -97,9 +119,12 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
             content.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor),
             content.heightAnchor.constraint(greaterThanOrEqualTo: scroll.safeAreaLayoutGuide.heightAnchor),
         ])
-        buildColumn()
+        buildLayout()
         wireFields()
         bindModel()
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitHorizontalSizeClass.self]) { (controller: UKLoginViewController, _) in
+            controller.view.setNeedsLayout()
+        }
         // The screen is one named group for assistive technologies; its controls keep their own labels.
         content.accessibilityContainerType = .semanticGroup
         content.accessibilityLabel = "Sign in"
@@ -117,52 +142,62 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
 
     // MARK: Layout
 
-    private func buildColumn() {
-        column.axis = .vertical
-        column.alignment = .fill
-        column.spacing = 0
-        column.isLayoutMarginsRelativeArrangement = true
-        column.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 0, leading: HassTokens.Spacing.xl, bottom: HassTokens.Spacing.l, trailing: HassTokens.Spacing.xl)
-        column.translatesAutoresizingMaskIntoConstraints = false
-        content.addSubview(column)
-        columnLeading = column.leadingAnchor.constraint(equalTo: content.leadingAnchor)
-        columnWidth = column.widthAnchor.constraint(equalToConstant: SignInStyle.columnWidth)
-        NSLayoutConstraint.activate([
-            columnLeading, columnWidth,
-            // Centred when the content is shorter than the screen (`frame(minHeight:)` centres the column), scrolling when taller.
-            column.centerYAnchor.constraint(equalTo: content.centerYAnchor),
-            column.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor),
-            column.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
-        ])
-
-        let top = UIView()
-        top.translatesAutoresizingMaskIntoConstraints = false
-        top.heightAnchor.constraint(equalToConstant: HassTokens.Spacing.xl).isActive = true
-        column.addArrangedSubview(top)
+    /// Adds the four pieces (header, form, what hangs under Sign In) to the scroll content once, with both layouts' vertical
+    /// constraints made and one of them active. A change of layout swaps the active set; no view is removed, so a field keeps its focus.
+    private func buildLayout() {
+        let margin = HassTokens.Spacing.xl
+        let gap = HassTokens.Spacing.l
+        content.addLayoutGuide(block)
+        content.addLayoutGuide(columnSpan)
         headerHolder.translatesAutoresizingMaskIntoConstraints = false
-        column.addArrangedSubview(headerHolder)
-        let gap = UIView()
-        gap.translatesAutoresizingMaskIntoConstraints = false
-        gap.heightAnchor.constraint(equalToConstant: HassTokens.Spacing.xl + HassTokens.Spacing.s).isActive = true
-        column.addArrangedSubview(gap)
+        formHolder.translatesAutoresizingMaskIntoConstraints = false
+        hang.translatesAutoresizingMaskIntoConstraints = false
+        [headerHolder, formHolder, hang].forEach { content.addSubview($0) }
 
-        // The form, then a flexible space and the footnote; the two flexible spaces share what is left equally.
+        // The form, then what hangs under Sign In.
         formHolder.axis = .vertical
         formHolder.spacing = HassTokens.Spacing.l
         formHolder.alignment = .fill
-        column.addArrangedSubview(formHolder)
-        let middle = UIView()
-        middle.translatesAutoresizingMaskIntoConstraints = false
-        middle.heightAnchor.constraint(equalToConstant: HassTokens.Spacing.xl).isActive = true
-        let spacerSpacing = UIView()
-        spacerSpacing.translatesAutoresizingMaskIntoConstraints = false
-        spacerSpacing.heightAnchor.constraint(equalToConstant: HassTokens.Spacing.l).isActive = true
-        let footnoteGap = UIView()
-        footnoteGap.translatesAutoresizingMaskIntoConstraints = false
-        footnoteGap.heightAnchor.constraint(equalToConstant: HassTokens.Spacing.l).isActive = true
-        column.addArrangedSubview(spacerSpacing)
-        column.addArrangedSubview(middle)
-        column.addArrangedSubview(footnoteGap)
+        hang.axis = .vertical
+        hang.spacing = HassTokens.Spacing.l
+        hang.alignment = .fill
+
+        headerLeft = headerHolder.leftAnchor.constraint(equalTo: content.leftAnchor)
+        headerWidth = headerHolder.widthAnchor.constraint(equalToConstant: SignInStyle.columnWidth)
+        formLeft = formHolder.leftAnchor.constraint(equalTo: content.leftAnchor)
+        formWidth = formHolder.widthAnchor.constraint(equalToConstant: SignInStyle.columnWidth)
+        hangTop = hang.topAnchor.constraint(equalTo: formHolder.bottomAnchor, constant: gap)
+        NSLayoutConstraint.activate([
+            headerLeft, headerWidth, formLeft, formWidth, hangTop,
+            hang.leftAnchor.constraint(equalTo: formHolder.leftAnchor),
+            hang.rightAnchor.constraint(equalTo: formHolder.rightAnchor),
+        ])
+
+        // One column: its span is centred when shorter than the screen and scrolls when taller. The top and bottom margins and
+        // the header-to-form gap are the column's, as they were before the split.
+        columnConstraints = [
+            columnSpan.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            columnSpan.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor),
+            columnSpan.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor),
+            headerHolder.topAnchor.constraint(equalTo: columnSpan.topAnchor, constant: margin),
+            formHolder.topAnchor.constraint(equalTo: headerHolder.bottomAnchor, constant: margin + HassTokens.Spacing.s),
+            columnSpan.bottomAnchor.constraint(equalTo: hang.bottomAnchor, constant: gap),
+        ]
+        // Two regions: the block and the header share one centre line (high, not required); the header, the form (a failure card
+        // included) and what hangs stay inside the content, so taller content scrolls and a card that does not fit moves the form.
+        let blockCentre = block.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+        blockCentre.priority = .defaultHigh
+        headerCentre = headerHolder.centerYAnchor.constraint(equalTo: content.centerYAnchor)
+        headerCentre.priority = .defaultHigh
+        splitConstraints = [
+            blockCentre, headerCentre,
+            headerHolder.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: gap),
+            formHolder.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: gap),
+            content.bottomAnchor.constraint(greaterThanOrEqualTo: headerHolder.bottomAnchor, constant: gap),
+            content.bottomAnchor.constraint(greaterThanOrEqualTo: hang.bottomAnchor, constant: gap),
+        ]
+        NSLayoutConstraint.activate(columnConstraints)
+
         footnote.text = LoginCopy.footnote
         footnote.textColor = UIColor(rgb: HassTokens.Palette.secondaryLabel, alpha: 0.85)
         footnote.textAlignment = .center
@@ -170,7 +205,6 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         footnote.adjustsFontForContentSizeCategory = true
         footnote.font = UKShellFont.preferred(.footnote)
         footnote.accessibilityIdentifier = "login.footnote"
-        column.addArrangedSubview(footnote)
 
         submit.action = { [weak self] in self?.submitTapped() }
         submit.accessibilityIdentifier = "login.submit"
@@ -184,23 +218,69 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         differentAccount.addAction(UIAction { [weak self] _ in self?.useDifferentAccount() }, for: .touchUpInside)
         formHolder.addArrangedSubview(fields)
         formHolder.addArrangedSubview(submit)
-        formHolder.addArrangedSubview(differentAccount)
-        [formHolder, footnote].forEach { $0.alpha = playsIntro ? 0 : 1 }
+        hang.addArrangedSubview(differentAccount)
+        hang.addArrangedSubview(footnote)
+        NSLayoutConstraint.activate([
+            block.topAnchor.constraint(equalTo: fields.topAnchor),
+            block.bottomAnchor.constraint(equalTo: submit.bottomAnchor),
+        ])
+        updateHangSpacing()
+        [formHolder, hang].forEach { $0.alpha = playsIntro ? 0 : 1 }
         if playsIntro, !reduceMotion {
-            [formHolder, footnote].forEach { $0.transform = CGAffineTransform(translationX: 0, y: MotionTokens.Intro.formRise) }
+            [formHolder, hang].forEach { $0.transform = CGAffineTransform(translationX: 0, y: MotionTokens.Intro.formRise) }
         }
     }
 
+    /// Where the sign-in's header and form go for the scroll view's frame now (``SignInLayoutPlan``). Decided here, after the scroll
+    /// view has its frame, and applied as constraint constants: the same views move, nothing is rebuilt.
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // Centred, and moved off the hinge only where it crosses the form (unfolded Duo, landscape).
-        let width = content.bounds.width
-        let columnWidth = min(SignInStyle.columnWidth, width)
-        let hinge = environment?.windowHinge
-        let band = HingeAvoidance.band(in: view.convert(view.bounds, to: nil), hinge: hinge)
-        let place = HingeAvoidance.placement(objectWidth: columnWidth, containerWidth: width, band: band)
-        self.columnWidth.constant = place.width
-        columnLeading.constant = place.x
+        guard !isApplyingLayout else { return }
+        let plan = SignInLayoutPlan.resolve(
+            container: view.convert(scroll.frame, to: nil), isRegularWidth: traitCollection.horizontalSizeClass == .regular,
+            hinge: environment?.windowHinge, isAccessibilityText: traitCollection.preferredContentSizeCategory.isAccessibilityCategory,
+            isRightToLeft: view.effectiveUserInterfaceLayoutDirection == .rightToLeft)
+        let margin = HassTokens.Spacing.xl
+        headerLeft.constant = plan.header.x + margin
+        headerWidth.constant = max(plan.header.width - 2 * margin, 0)
+        formLeft.constant = plan.form.x + margin
+        formWidth.constant = max(plan.form.width - 2 * margin, 0)
+        guard plan.isSplit != isSplit else { return }
+        isSplit = plan.isSplit
+        let swap = {
+            NSLayoutConstraint.deactivate(plan.isSplit ? self.columnConstraints : self.splitConstraints)
+            NSLayoutConstraint.activate(plan.isSplit ? self.splitConstraints : self.columnConstraints)
+            self.updateHangSpacing()
+            self.styleHeader()
+            self.view.layoutIfNeeded()
+        }
+        isApplyingLayout = true
+        defer { isApplyingLayout = false }
+        guard didAppearOnce else { swap(); return }
+        // The same views glide to the other layout (`MotionTokens.standard`; `quick` under Reduce Motion).
+        if reduceMotion {
+            UIView.animate(withDuration: MotionTokens.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: swap)
+        } else {
+            UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: swap)
+        }
+    }
+
+    /// The gaps under Sign In: 16 pt to what hangs and 16 pt between the two in the split; the column keeps its 56 pt to the footnote
+    /// (16 to Use a Different Account, which then has the 56 under it).
+    private func updateHangSpacing() {
+        let gap = HassTokens.Spacing.l
+        let columnGap = HassTokens.Spacing.xl + 2 * gap
+        hang.setCustomSpacing(isSplit ? gap : columnGap, after: differentAccount)
+        hangTop.constant = isSplit || !differentAccount.isHidden ? gap : columnGap
+    }
+
+    /// The VoiceOver order, the same in both layouts: header, failure card, Server, Username, Password, inline error, Sign In,
+    /// Use a Different Account, footnote. Set explicitly because the split puts the header beside the form, where reading order by
+    /// position would not be the column's.
+    private func updateAccessibilityOrder() {
+        let ordered: [UIView?] = titleViews.map { Optional($0) } + [cardView] + fields.accessibilityOrder.map { Optional($0) }
+            + [errorView, submit, differentAccount, footnote]
+        content.accessibilityElements = ordered.compactMap { $0 }.filter { !$0.isHidden }
     }
 
     // MARK: Header
@@ -246,7 +326,6 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         title.textAlignment = .center
         title.numberOfLines = 0
         title.adjustsFontForContentSizeCategory = true
-        title.font = UKShellFont.preferred(.largeTitle, weight: .bold)
         title.accessibilityTraits = .header
         title.accessibilityIdentifier = "login.title"
         if case .fresh = mode { title.accessibilityLabel = AppBranding.spokenName }
@@ -254,18 +333,37 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         line.text = subtitle
         line.textColor = UIColor(rgb: HassTokens.Palette.secondaryLabel, alpha: 0.85)
         line.textAlignment = .center
+        line.accessibilityIdentifier = "login.line"
         line.numberOfLines = 0
         line.adjustsFontForContentSizeCategory = true
-        line.font = UKShellFont.preferred(.body)
         stack.addArrangedSubview(title)
         stack.addArrangedSubview(line)
         titleViews = [title, line]
+        titleLabel = title
+        lineLabel = line
+        styleHeader()
+        updateAccessibilityOrder()
         stack.accessibilityContainerType = .semanticGroup
         if introPending {
             mark.alpha = 0
             mark.transform = CGAffineTransform(scaleX: MotionTokens.Intro.markStart, y: MotionTokens.Intro.markStart)
             titleViews.forEach { $0.alpha = 0; $0.transform = CGAffineTransform(translationX: 0, y: reduceMotion ? 0 : MotionTokens.Intro.titleRise) }
         }
+    }
+
+    /// The header's sizes for the layout: mark 96 pt, name Large Title, line Body in the column; mark 112 pt, name 40 pt bold scaled
+    /// with Large Title, line Title 3 beside the form. The same views, restyled in place.
+    private func styleHeader() {
+        let split = isSplit
+        if let mark = markView as? UKSignInMarkView { mark.size = split ? 112 : 96 }
+        if let monogram = markView as? UKSignInMonogramView { monogram.sizeScale = split ? 112.0 / 96.0 : 1 }
+        titleLabel?.font = split
+            ? UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: .systemFont(ofSize: 40, weight: .bold))
+            : UKShellFont.preferred(.largeTitle, weight: .bold)
+        lineLabel?.font = UKShellFont.preferred(split ? .title3 : .body)
+        // Optical centre: the header is centred from the mark's drawn top to the line's bottom (the monogram disc fills its frame).
+        let inkTopInset = (markView as? UKSignInMarkView)?.inkTopInset ?? 0
+        headerCentre.constant = split ? -inkTopInset / 2 : 0
     }
 
     private var reduceMotion: Bool { UKMotion.reduceMotion }
@@ -330,6 +428,8 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
             }
             self.fields.configure(mode: mode, username: username, server: server)
             if case .welcomeBack = mode { self.differentAccount.isHidden = false } else { self.differentAccount.isHidden = true }
+            self.updateHangSpacing()
+            self.updateAccessibilityOrder()
         }
         bag.observe { [weak self] in
             guard let self else { return }
@@ -361,6 +461,12 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         bag.observe { [weak self] in
             guard let self else { return }
             self.showFailure(self.model.failure)
+        }
+        bag.observe { [weak self] in
+            // A fold or unfold moves the hinge: lay the screen out again against the new band.
+            guard let self else { return }
+            _ = self.environment?.windowHinge
+            self.view.setNeedsLayout()
         }
         bag.observe { [weak self] in
             guard let self else { return }
@@ -405,6 +511,7 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
             formHolder.insertArrangedSubview(error, at: formHolder.arrangedSubviews.firstIndex(of: fields).map { $0 + 1 } ?? 1)
             errorView = error
         }
+        updateAccessibilityOrder()
         if didAppearOnce {
             UIView.animate(withDuration: MotionTokens.quickDuration, delay: 0, options: .curveEaseOut) { self.view.layoutIfNeeded() }
         }
@@ -456,7 +563,7 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         Telemetry.beginTracked(Telemetry.Name.intro)
         let mark = markView
         let titles = titleViews
-        let form = [formHolder, footnote]
+        let form = [formHolder, hang]
         if reduceMotion {
             UIView.animate(withDuration: MotionTokens.crossFadeDuration, delay: 0, options: .curveEaseInOut, animations: {
                 self.ground.glowAlpha = 1

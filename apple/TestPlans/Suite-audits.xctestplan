@@ -42,6 +42,7 @@
         "LoginJourneyTests/testRejectedRecoveryPassesAccessibilityAudit()",
         "LoginJourneyTests/testTheServerRowPassesTheAudit()",
         "LoginJourneyTests/testTheWelcomeBackScreenPassesTheAudit()",
+        "LoginJourneyTests/testTheWideLayoutPassesTheAudit()",
         "LoginJourneyTests/testUnpublishedRecoveryPassesAccessibilityAudit()",
         "MotionJourneyTests/testGalleryPassesTheAccessibilityAudit()",
         "NotificationSettingsJourneyTests/testNotificationSettingsDeniedOnPassesAccessibilityAudit()",

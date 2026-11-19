@@ -2418,6 +2418,14 @@
    ]
   },
   {
+   "prefix": "apple/Apps/iOSTests/HostedScrollInvariants",
+   "swift": [],
+   "journeys": [],
+   "hosted": [
+    "UKHostedLoginTests"
+   ]
+  },
+  {
    "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/",
    "swift": [],
    "journeys": [],

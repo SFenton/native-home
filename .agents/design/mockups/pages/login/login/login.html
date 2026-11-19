@@ -45,7 +45,7 @@
 
   Mock.mount({
     kind: 'page', id: 'login', title: 'Sign in (fresh and welcome back)', area: 'login', status: 'shipped',
-    summary: 'The root layer a signed-out phone shows: a bare house-and-heart mark, the name, one line, a glass module with Server, Username and Password, the Sign In capsule and a footnote. A session that ended shows Welcome back instead. Always dark; on iPad and the unfolded Duo the form is a column of at most 460 pt.',
+    summary: 'The root layer a signed-out phone shows: a bare house-and-heart mark, the name, one line, a glass module with Server, Username and Password, the Sign In capsule and a footnote. A session that ended shows Welcome back instead. Always dark. One column of at most 460 pt in portrait, on iPhone and on the folded Duo; in a wide window (unfolded Duo landscape, iPad landscape) the header is in the leading region and the form in the trailing region. The form stays inside the safe area; the ground fills the window.',
     source: ['apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/Features/Login/LoginModel.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassUI/Features/Login/LoginCopy.swift', 'apple/Sources/HassUI/Features/Login/SignInStyle.swift',
       'apple/Sources/HassDesign/HouseHeartShape.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift'],
     spec: ['.agents/platforms/apple/auth.md', '.agents/design/direction-g.md', '.agents/design/motion.md'],
@@ -77,7 +77,8 @@
       'intro-mid': { title: 'Intro at 0.6 s', note: 'glow up, header fading in and rising, form still held back', render: frameAt(600) },
       'intro-late': { title: 'Intro at 0.9 s', note: 'header settled, form rising 28 pt', render: frameAt(900) },
       'long-text': { title: 'Long first name and long username', render: S({ mode: 'welcome', first: 'Bartholomew-Alexander', name: 'Bartholomew-Alexander Fenton-Whitaker', username: 'bartholomew.alexander.fenton-whitaker@example.com', password: 6 }) },
-      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'labels sit above the fields, the form scrolls, the button stays reachable at the end of the scroll', render: S({ username: 'alex', password: 10, failure: { kind: 'wrong' } }) },
+      'typing-keyboard': { title: 'Typing the password, keyboard up', note: 'the scroll view ends at the keyboard: a wide window centres both regions above it on one line, a column centres there or scrolls; the field x positions do not change', render: S({ username: 'alex', password: 6, focus: 'password', keyboard: true }) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'no split at accessibility sizes; labels sit above the fields, the form scrolls, the button stays reachable at the end of the scroll', render: S({ username: 'alex', password: 10, failure: { kind: 'wrong' } }) },
     },
 
     motion: [
@@ -152,14 +153,15 @@
     notes: [
       'refreshing, empty and reconnecting: not applicable. The sign-in layer runs before any HassConnection or snapshot exists; there is nothing saved to refresh, no list to be empty and no connection to lose. (A server that cannot be reached is the offline state here.)',
       'Intro mark: LoginView puts opacity(stage.title) on the whole LoginHeader, and the mark is inside it, so the mark cannot be seen before 0.46 s. The mark\'s own rise (0.86 to 1.03 over 0.28 s from 0.15 s) therefore plays unseen and only the settle (1.03 to 1) shows, while direction-g and motion.md describe the mark springing in first. Drawn as the code runs; confirm with a simulator frame capture before changing either.',
-      'Unfolded Duo landscape: RootView applies readsWindowHinge to MainTabView only, so the sign-in column is centred in the 951 pt window and the 460 pt column (x 245 to 705) crosses the hinge band (455 to 496). Not run on a device ("unfolded Duo portrait was not run", duo.md); shown as drawn.',
+      'Wide windows (owner, 2026-11-19): header in the leading region, form in the trailing region, from SplitPolicy over the scroll view (pinned to the safe area horizontally); the fields-to-Sign-In block is centred and the header centres on it, measured from the top of the mark's drawn shape; the footnote, Use a Different Account and the failure card hang outside that block. Geometry and sizes: flows/launch-cold-signed-out notes. Accessibility text sizes keep the column, in the leading region while the Duo is partly folded.',
       'Docs vs code: split-view.md lists sign-in as a full-screen modal; it is a root layer under RootView (inventory-notes item 5). The footnote at the bottom is pushed by two flexible spacers, so on a tall iPad the header sits near the top third and the footnote at the bottom.',
-      'Folded Duo (466 pt) is wider than the 460 pt column cap: the column is capped there too, 3 pt each side.',
+      'Folded Duo: the scroll view is 382 pt wide (the window less the 84 pt system strip, measured), so the column is 382 pt and the fields 334 pt, x 24 to 358. The dashed line marking the strip is annotation.',
       'Promote to kit: Mock.LL.screen (the sign-in layer), LL.mark (HouseHeartShape), LL.introAt / LL.arrivalAt (sampled timelines), LL.launchGround. They live in pages/login/_login-launch-flows.js. Symbols added there: location.circle, location.slash, scope, figure.walk.arrival.',
       'Debug builds only: FENTON_SIGNIN_STUB, FENTON_EXPIRED_ACCOUNT, FENTON_SKIP_INTRO and FENTON_AUTOSIGNIN drive these states in journeys (auth.md); not product behaviour.',
-      'The keyboard, the system password-autofill bar and the caret blink are not drawn.',
+      'The keyboard is drawn in the typing-keyboard state only (230 pt on the folded Duo and 373 pt on iPad landscape are measured, the other heights are stand-ins); the caret blink is not drawn.',
     ],
-    changelog: [{ date: REVIEW_DATE, note: 'First pass: fresh, welcome back, working, wrong password, unreachable, failed, two-step, intro frames, AX5, six devices.' }],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: fresh, welcome back, working, wrong password, unreachable, failed, two-step, intro frames, AX5, six devices.' },
+      { date: '2026-11-19', note: 'Wide windows show the header beside the form (A2); the form sits inside the safe area on the Duo (folded fields 334 pt); typing-keyboard state added.' }],
   });
 })();
 </script></body></html>

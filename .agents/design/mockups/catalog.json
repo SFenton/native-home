@@ -1363,8 +1363,10 @@
         "wrong-credentials (inline)",
         "unreachable (failure card + details, no server hairline)",
         "intro-playing",
+        "typing-keyboard",
         "ax5",
-        "ipad-centred-column"
+        "wide-split (header leading, form trailing)",
+        "duo-folded-safe-area (fields 334 pt)"
       ],
       "motionHint": [
         "intro per flows/launch-cold-signed-out",
@@ -8326,7 +8328,10 @@
         "mark-springs-in",
         "title-rise",
         "form-rise",
-        "reduce-motion"
+        "reduce-motion",
+        "typing",
+        "wide-split (header leading, form trailing)",
+        "duo-folded-safe-area (fields 334 pt)"
       ],
       "motionHint": [
         "launch ground cross-fades out in 0.2 s (`quick`)",
@@ -8534,7 +8539,9 @@
       "statesHint": [
         "rejected-token",
         "welcome-back",
-        "use-different-account"
+        "use-different-account",
+        "typing",
+        "wide-split (header leading, form trailing)"
       ],
       "motionHint": [
         "cross-fade between root layers (`crossFade` 0.35 s); failure card appears with `quick`"
