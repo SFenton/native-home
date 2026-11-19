@@ -125,7 +125,9 @@ struct ServerUITextKeepTests {
     @Test func aNumberIsAnAnswerAsText() {
         var memory = ServerUITextMemory()
         let number = Reader(states: ["temp": .value(.number(21.5))])
-        #expect(Self.draw(Self.slot(.keep), number, &memory).result == .value(.string("21.5")))
+        let slot = ServerUICompositionDocument.StringValue.expression(.read(sourceId: "temp", path: ["state"], as: .number),
+                                                                      fallback: "No reading", whenUnavailable: .keep)
+        #expect(Self.draw(slot, number, &memory).result == .value(.string("21.5")))
         #expect(memory.answered == "21.5")
     }
 
