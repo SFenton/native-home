@@ -18,18 +18,6 @@ enum UKServerUIValue<Value> {
     }
 }
 
-// MARK: - Kept text presentation (T-text-keep)
-
-/// What a text slot instance gives: the value to draw, and whether it is remembered text drawn while the live value is unavailable.
-///
-/// ``isKept`` is carried to every render site that owns a slot instance, which draws and speaks it as ``ServerUIKeptTextTreatment`` says.
-struct UKServerUIStringAnswer {
-    /// The value to draw.
-    let value: UKServerUIValue<String>
-    /// Whether ``value`` is the last answered text, kept because the slot's `whenUnavailable` is `keep` (`sh.text-keep@1`).
-    let isKept: Bool
-}
-
 /// Per-document source adapters. Views still observe only the EntityBoxes and overlays they read.
 @MainActor
 final class UKServerUIBindings {
@@ -348,15 +336,16 @@ final class UKServerUIBindings {
     /// uses ``string(_:memory:)`` instead.
     func string(_ value: D.StringValue) -> UKServerUIValue<String> {
         var memory = ServerUITextMemory()
-        return string(value, memory: &memory).value
+        return string(value, memory: &memory)
     }
 
     /// A text slot's value for one slot instance, with that instance's `memory` (`sh.text-keep@1`): a `keep` slot draws the last text it
-    /// was answered with while its value is unavailable, and says so in ``UKServerUIStringAnswer/isKept``.
+    /// was answered with while its value is unavailable, and before any answer its fallback (or the usual unknown text). Kept text is
+    /// drawn and spoken exactly as live text, so nothing here says which it is.
     ///
     /// The memory is a value the render site holds beside its view and passes in; it is written only for a `keep` slot, inside the
     /// observation that already runs, so nothing is shared and nothing grows with the house.
-    func string(_ value: D.StringValue, memory: inout ServerUITextMemory) -> UKServerUIStringAnswer {
+    func string(_ value: D.StringValue, memory: inout ServerUITextMemory) -> UKServerUIValue<String> {
         let readValue: (D.Read) -> ServerUIReadResult = { self.textResult($0) }
         let outcome: ServerUITextOutcome
         if let environment = readerProvider?() {
@@ -366,14 +355,14 @@ final class UKServerUIBindings {
                 outcome = ServerUIStringResolver.resolve(value, read: readValue, in: environment, memory: &memory)
             }
         } else if case .expression = value {
-            return UKServerUIStringAnswer(value: .unavailable, isKept: false)
+            return .unavailable
         } else {
             outcome = ServerUIStringResolver.resolve(value, read: readValue, in: UKEmptyReading(), memory: &memory)
         }
         switch outcome.result {
-        case .value(.string(let text)): return UKServerUIStringAnswer(value: .ready(text), isKept: outcome.isKept)
-        case .loading: return UKServerUIStringAnswer(value: .loading, isKept: false)
-        case .value, .unavailable: return UKServerUIStringAnswer(value: .unavailable, isKept: false)
+        case .value(.string(let text)): return .ready(text)
+        case .loading: return .loading
+        case .value, .unavailable: return .unavailable
         }
     }
 

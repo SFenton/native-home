@@ -47,8 +47,6 @@ struct UKTileFaceContent: Equatable {
     var textFit: TileTextFit = .natural
     /// Names the ticker probes for UI tests (the tile's identifier).
     var probeIdentifier: String?
-    /// The subtitle is the last answered text, drawn while its value is unavailable (`sh.text-keep@1`; ``ServerUIKeptTextTreatment``).
-    var subtitleIsKept = false
 
     init(title: String, subtitle: String? = nil, symbol: String, tint: UIColor? = nil, family: ColorFamily? = nil, fillRGB: UInt32? = nil,
          fillDarkRGB: UInt32? = nil, glyphTint: AppearanceFill? = nil, softFillInk: Bool = false, isActive: Bool, isUnavailable: Bool = false, isError: Bool = false, isWarning: Bool = false, showsArc: Bool = false,
@@ -324,8 +322,7 @@ final class UKGlassTileFaceView: UIView {
         let animate = animated && window != nil
         let work = { [self] in
             titleLabel.textColor = primary
-            subtitleLiveInk = secondary
-            drawSubtitle(showsPending: content.subtitle != nil && environment.valuesPending)
+            subtitleLabel.textColor = secondary
             titleTicker?.textColor = primary
             subtitleTicker?.textColor = secondary
             glyphView.tintColor = glyphColor
@@ -360,21 +357,6 @@ final class UKGlassTileFaceView: UIView {
         invalidateIntrinsicContentSize()
     }
 
-    /// The state line's ink before kept text steps it (`ServerUIKeptTextTreatment`).
-    private var subtitleLiveInk = UIColor.secondaryLabel
-
-    /// Draws the state line: as it is live, or as kept text (`sh.text-keep@1`). The unavailable grey replaces only a neutral ink; a lit,
-    /// filled, coloured or authored face keeps its own ink and the glyph alone marks the text.
-    private func drawSubtitle(showsPending: Bool) {
-        let neutral: Bool
-        switch style {
-        case .off, .tinted: neutral = !content.softFillInk && content.fillRGB == nil
-        default: neutral = false
-        }
-        UKKeptText.apply(to: subtitleLabel, text: showsPending ? nil : content.subtitle, kept: content.subtitleIsKept && !showsPending,
-                         liveInk: subtitleLiveInk, neutral: neutral, textStyle: .footnote)
-    }
-
     /// Sets the labels' fonts and text, the glyph and the pending bar: everything that decides the face's size.
     private func updateTextAndGlyph(symbolTransition: Bool = false) {
         let content = content
@@ -384,7 +366,7 @@ final class UKGlassTileFaceView: UIView {
         subtitleLabel.font = UKFont.preferred(.footnote, monospacedDigit: true, traits: traits)
         titleLabel.text = content.title
         let showsPending = content.subtitle != nil && environment.valuesPending
-        drawSubtitle(showsPending: showsPending)
+        subtitleLabel.text = showsPending ? nil : content.subtitle
         pendingBar.isHidden = !showsPending
         switch fit {
         case .natural:

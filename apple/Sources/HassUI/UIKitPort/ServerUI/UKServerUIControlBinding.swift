@@ -89,7 +89,7 @@ struct UKServerUIBoundBinding: UKServerUIControlBinding {
     let control: D.BoundControl
     let reader: UKServerUIReader
     /// What a string slot says (the row's subtitle); `nil` when the control has none to resolve.
-    var strings: ((D.StringValue) -> UKServerUIStringAnswer)?
+    var strings: ((D.StringValue) -> UKServerUIValue<String>)?
     /// Whether the last call from the control failed (the row's failure words show under it).
     var failed = false
     /// Sends one authored call with the control's new value (the slot names which of the control's calls it is).
@@ -137,9 +137,7 @@ struct UKServerUIBoundBinding: UKServerUIControlBinding {
         guard row != nil else { return nil }
         var details = UKServerUIRowDetails(failed: failed)
         if let subtitle = control.row.subtitle {
-            let answer = strings?(subtitle) ?? UKServerUIStringAnswer(value: .unavailable, isKept: false)
-            details.subtitleIsKept = answer.isKept
-            switch answer.value {
+            switch strings?(subtitle) ?? .unavailable {
             case .ready(let text): details.subtitle = text
             case .loading: details.keepsSubtitle = true
             case .unavailable: break

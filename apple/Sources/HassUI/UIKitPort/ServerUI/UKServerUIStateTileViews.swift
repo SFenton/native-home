@@ -84,8 +84,7 @@ enum UKServerUIStateTileViews {
     static func bind(_ tile: D.StateTile, view: UKGlassTileView, bag: UKObservationBag, page: UKServerUIPage, renderer: UKServerUIRenderer,
                      node: UKServerUINode? = nil) {
         var first = true
-        // The subtitle's last answer, kept beside the tile (`sh.text-keep@1`).
-        var subtitleMemory = ServerUITextMemory()
+        var subtitleMemory = ServerUITextMemory()  // the subtitle's last answer (`sh.text-keep@1`)
         let swipe = UKServerUITileSwipeBinding(tile: tile, view: view, page: page, renderer: renderer)
         bag.observe { [weak view, weak page, weak renderer] in
             guard let view, let page, let renderer else { return }
@@ -107,18 +106,12 @@ enum UKServerUIStateTileViews {
                 face.model.actions = face.spec.map { [$0].items } ?? []
             }
             var subtitle: String?
-            var subtitleIsKept = false
-            // MARK: - Kept text presentation (T-text-keep)
-            if let value = tile.parts.subtitle {
-                let answer = renderer.bindings.string(value, memory: &subtitleMemory)
-                if case .ready(let text) = answer.value { subtitle = text; subtitleIsKept = answer.isKept && !text.isEmpty }
-            }
+            if let value = tile.parts.subtitle, case .ready(let text) = renderer.bindings.string(value, memory: &subtitleMemory) { subtitle = text }
             var discMemory = node?.layoutMemory ?? UKServerUILayoutMemory()
             UKServerUIStateTileParts.apply(tile, to: &face.model, reader: renderer.reader(), subtitle: subtitle,
                                            unknown: hidden || loading || unavailable, busy: busy,
                                            read: { renderer.bindings.textResult($0) }, memory: &discMemory)
             node?.layoutMemory = discMemory
-            face.model.subtitleIsKept = subtitleIsKept && face.model.subtitle != nil
             swipe?.apply(to: &face.model, allowed: allowed, unknown: hidden || loading || unavailable, failed: failed)
             // A drag holds its tile: the latest model waits for the finger to lift (C8).
             let configure: () -> Void = { [first] in view.configure(face.model, environment: UKTileEnvironment(context: page.context), animated: !first,

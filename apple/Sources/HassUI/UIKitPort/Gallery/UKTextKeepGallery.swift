@@ -5,11 +5,10 @@ import UIKit
 
 // MARK: - Kept text gallery (T-text-keep)
 
-/// Gallery page for the kept-text proposal (`FENTON_GALLERY=text-keep`; options A, B and C of `ServerUIKeptTextTreatment`): a real composition
-/// with one `keep` slot per host the contract reaches, on synthetic entities, whose source a button row drives.
+/// Gallery page for kept text (`FENTON_GALLERY=text-keep`; `sh.text-keep@1`): a real composition with one `keep` slot per host the contract
+/// reaches, on synthetic entities, whose source a button row drives. Kept text is drawn and spoken exactly as live text.
 ///
 /// Launch with:
-/// - `FENTON_GALLERY_KEPT_TEXT_TREATMENT=plain|spoken|marked` (or `-FentonKeptTextTreatment <name>`): the option drawn.
 /// - `FENTON_GALLERY_KEPT_TEXT_STATE=live|kept|before|loading`: where the source starts. `kept` answers first and goes unavailable after
 ///   `FENTON_GALLERY_KEPT_TEXT_DELAY_MS` (400 by default, so a journey can open a sheet while live); `before` is unavailable with no answer
 ///   yet; `loading` has heard nothing yet.
@@ -29,10 +28,21 @@ enum UKTextKeepSourceState: String, CaseIterable {
 
 @MainActor
 final class UKTextKeepGalleryViewController: UIViewController {
-    private let store = EntityStore()
+    /// The synthetic entities' store; a test reads its freshness.
+    let store = EntityStore()
     private var renderer: UKServerUIRenderer?
     private let stateMarker = UILabel()
     private let environment = ProcessInfo.processInfo.environment
+    private let startState: UKTextKeepSourceState
+
+    /// A gallery page.
+    /// - Parameter start: Where the source starts; `nil` reads `FENTON_GALLERY_KEPT_TEXT_STATE` (live by default).
+    init(start: UKTextKeepSourceState? = nil) {
+        startState = start ?? ProcessInfo.processInfo.environment["FENTON_GALLERY_KEPT_TEXT_STATE"].flatMap(UKTextKeepSourceState.init(rawValue:)) ?? .live
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable) required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
     /// The answered values, then what an unavailable sensor reads.
     private static let answers: [(id: String, state: String)] = [
@@ -43,7 +53,7 @@ final class UKTextKeepGalleryViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = UKBackdropView.base
-        let start = environment["FENTON_GALLERY_KEPT_TEXT_STATE"].flatMap(UKTextKeepSourceState.init(rawValue:)) ?? .live
+        let start = startState
         do {
             var context = UKContext(store: store)
             context.valuesPending = true
@@ -121,8 +131,9 @@ final class UKTextKeepGalleryViewController: UIViewController {
         case .live, .recover:
             _ = store.replaceAll(Self.answers.map { EntityState(entityId: $0.id, state: $0.state) })
         case .kept, .before:
-            // Unavailable: after an answer the slots keep it; before one they draw their fallback.
-            _ = store.apply(Self.answers.map { EntityState(entityId: $0.id, state: "unavailable") })
+            // Unavailable: after an answer the slots keep it; before one they draw their fallback. The whole state is handed over, so the
+            // store has heard from the server: `apply` alone leaves an empty store empty, and every slot reads "not heard yet" (loading).
+            _ = store.replaceAll(Self.answers.map { EntityState(entityId: $0.id, state: "unavailable") })
         case .loading:
             store.reset()
         }

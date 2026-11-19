@@ -98,8 +98,7 @@ extension UKServerUIPage {
             }
         default:
             guard let view = entry.view as? UKServerUILocalControl else { return }
-            // The row subtitle's last answer, kept beside the view (`sh.text-keep@1`).
-            var subtitleMemory = ServerUITextMemory()
+            var subtitleMemory = ServerUITextMemory()  // the subtitle's last answer (`sh.text-keep@1`)
             entry.bag.observe { [weak self, weak view, weak renderer] in
                 guard let self, let view, let renderer else { return }
                 // Read so the shown value is put back when a call ends, whether or not Home Assistant echoed it.

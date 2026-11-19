@@ -58,8 +58,6 @@ struct UKGlassTileModel {
     var spokenLabel: String?
     /// The hint on the body control only (`tileHint(_:)`): a navigation tile with a disc says "Opens <title>" here, never on the disc.
     var bodyHint: String?
-    /// The subtitle is the last answered text, drawn while its value is unavailable (`sh.text-keep@1`; ``ServerUIKeptTextTreatment``).
-    var subtitleIsKept = false
     /// Whether the tile announces its own error face (`tileAnnouncesFailure(_:)`).
     var announcesFailure = true
     /// `EntityStore.reapplyGeneration`, read inside the observation: a change of action set in the moments after the whole state is handed
@@ -129,7 +127,7 @@ struct UKGlassTileModel {
 
     /// The face's content with the accessory's room reserved.
     func faceContent(trailingInset: CGFloat, bottomInset: CGFloat, hidesGlyph: Bool = false, textFit: TileTextFit = .natural) -> UKTileFaceContent {
-        var content = UKTileFaceContent(
+        UKTileFaceContent(
             title: title, subtitle: subtitle, symbol: symbol, tint: tint, family: family, fillRGB: fillRGB, fillDarkRGB: fillDarkRGB,
             // An unavailable tile draws the muted grey at 50%, as the old atom did: the tint is not applied then (`sh.tile-ink@1`).
             glyphTint: isUnavailable ? nil : glyphTint, softFillInk: softFillInk, isActive: isActive,
@@ -137,17 +135,13 @@ struct UKGlassTileModel {
             showsArc: look?.showsArc == true && !usesItems, showsChevron: behavior == .navigate, level: progress,
             levelTint: progressTint, wash: wash, trailingInset: trailingInset, bottomInset: bottomInset, hidesGlyph: hidesGlyph, isFlat: isInert,
             textFit: textFit, probeIdentifier: identifier)
-        content.subtitleIsKept = subtitleIsKept
-        return content
     }
 
     /// What VoiceOver reads for the value (`GlassTile.accessibilityValue`).
     func accessibilityValue(valuesPending: Bool) -> String {
         let base = baseAccessibilityValue(valuesPending: valuesPending)
-        let spoken: String
-        if let look, !valuesPending { spoken = StateTileLook.spokenValue(text: base, stateClass: look.stateClass) } else { spoken = base }
-        // Kept text adds its cue once, after whatever the tile already says (`ServerUIKeptTextTreatment`).
-        return UKKeptText.spoken(spoken, drawn: spoken, kept: subtitleIsKept && !valuesPending) ?? spoken
+        guard let look, !valuesPending else { return base }
+        return StateTileLook.spokenValue(text: base, stateClass: look.stateClass)
     }
 
     private func baseAccessibilityValue(valuesPending: Bool) -> String {
@@ -163,9 +157,7 @@ struct UKGlassTileModel {
 
     /// The state line as its own text element reads: a line break (two-line tiles) reads as a pause, and the audit finds no raw break in a label.
     var spokenSubtitle: String? {
-        let words = subtitle?.split(whereSeparator: \.isNewline).joined(separator: ", ")
-        guard let words else { return nil }
-        return UKKeptText.spoken(words, drawn: words, kept: subtitleIsKept) ?? words
+        subtitle?.split(whereSeparator: \.isNewline).joined(separator: ", ")
     }
 }
 

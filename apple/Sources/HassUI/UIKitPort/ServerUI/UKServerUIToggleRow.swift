@@ -18,10 +18,6 @@ struct UKServerUIRowDetails: Equatable {
     var failed = false
     /// The subtitle is still loading: the row keeps the line it showed.
     var keepsSubtitle = false
-    /// The subtitle is the last answered text, drawn while its value is unavailable (`sh.text-keep@1`).
-    ///
-    /// // MARK: - Kept text presentation (T-text-keep): carried, not yet drawn differently.
-    var subtitleIsKept = false
 }
 
 extension UKServerUIControlSpec {
