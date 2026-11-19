@@ -42,12 +42,12 @@ enum UKKeptText {
     static let thinSpace = "\u{2009}"
 
     /// The value an element speaks: `spoken` (or its drawn text) with the cue once, when the treatment speaks it and something is kept.
-    static func spoken(_ spoken: String?, drawn: String, kept: Bool, treatment: ServerUIKeptTextTreatment = .current) -> String? {
+    nonisolated static func spoken(_ spoken: String?, drawn: String, kept: Bool, treatment: ServerUIKeptTextTreatment = .current) -> String? {
         ServerUIKeptTextCue.value(spoken: spoken, drawn: drawn, kept: kept && treatment.speaksCue)
     }
 
     /// The value of an element that reads its text in its label (a row's title and subtitle): `spoken`, or the cue alone, with the cue once.
-    static func value(appendingTo spoken: String?, kept: Bool, treatment: ServerUIKeptTextTreatment = .current) -> String? {
+    nonisolated static func value(appendingTo spoken: String?, kept: Bool, treatment: ServerUIKeptTextTreatment = .current) -> String? {
         ServerUIKeptTextCue.value(appendingTo: spoken, kept: kept && treatment.speaksCue)
     }
 
