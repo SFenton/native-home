@@ -30,6 +30,7 @@
   A `ScrollView` nested in a page's `ScrollView` writes its offset through the page's view graph on every frame, and that cost grows with the page around it, not the chips (main-thread samples 6,020 to 2,943 on 120 tiles).
   Rule: keep a row that scrolls sideways inside a page out of SwiftUI's `ScrollView`; the other nested horizontal scrolls are in [performance](../testing/apple/performance.md), Round 2.
   The hinge inset is measured only by a wrapped rail in a window that has a hinge, because a window-space frame is recomputed on every scrolled frame.
+  A rail on a server-driven page follows the fold itself (`UKChipRailView.followsFold`, the same `UKHinge.didChange` publish and one-turn hop as `UKDynamicGridView.followsFold`), so a live posture change reaches it with no re-render; the scrolling rail's applied inset stays 0 in both poses.
 - **Accessibility sizes wrap.** `ChipRailMode.resolve(isAccessibilitySize:)` returns `.wrap` at an accessibility Dynamic Type size on any width, the only wrap: chips are nearly screen-wide there, so a sideways row would show one with the rest off screen and no cue.
   The state line under a chip's title is `.subheadline`.
 

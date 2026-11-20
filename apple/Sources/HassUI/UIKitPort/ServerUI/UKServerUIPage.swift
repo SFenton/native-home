@@ -389,7 +389,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 }
             case .statusRail(let rail):
                 if let view = entry.view as? UKChipRailView {
-                    view.hinge = context.shell?.windowHinge
+                    view.followsFold = true
                     view.edgeInset = UKChipRailView.edgeInset(pagePadding: min(body.padding.left, body.padding.right))
                     let children = rail.children.map(node)
                     if entry.childViews != children {
