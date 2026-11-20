@@ -259,13 +259,18 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         defer { isApplyingLayout = false }
         guard didAppearOnce else { swap(); return }
         // The same views glide to the other layout (`MotionTokens.standard`; `quick` under Reduce Motion), one `LayoutChange` interval
-        // from the switch to the animation settling (`.agents/testing/apple/performance.md`, Layout changes).
+        // from the switch to the token's due time, as `UKStateTileTransition` ends its own: a spring's completion reports its settle,
+        // which runs past the token (`.agents/testing/apple/performance.md`, Layout changes).
         let interval = Telemetry.begin(Telemetry.Name.layoutChange, page: "SignIn.layout", reduceMotion ? "reduced" : "animated")
-        let settled: (Bool) -> Void = { _ in Telemetry.end(interval) }
+        let token = reduceMotion ? MotionTokens.quickDuration : MotionTokens.standardDuration
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(token))
+            Telemetry.end(interval)
+        }
         if reduceMotion {
-            UIView.animate(withDuration: MotionTokens.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: swap, completion: settled)
+            UIView.animate(withDuration: token, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: swap)
         } else {
-            UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: swap, completion: settled)
+            UIView.animate(springDuration: token, bounce: 0, options: [.allowUserInteraction], animations: swap)
         }
     }
 
