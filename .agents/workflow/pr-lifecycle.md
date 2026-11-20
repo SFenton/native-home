@@ -31,8 +31,8 @@
 ## Landing
 
 - Nothing reaches `main` without an independent `pass` recorded for the exact head, at any round; a later commit voids it. `pr_land.sh`, `lane_land.py` and the `ai-review` check accept nothing else.
-- The author never reviews it or records its verdict.
-- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then arms a squash merge pinned to the reviewed head ([ci](ci.md#merge-gate)).
+- The author of a change never reviews it or records its verdict.
+- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then arms a squash merge ([ci](ci.md#merge-gate)).
 - A self-change lane without a pull request lands through `tools/lane_land.py` ([eval-gate](eval-gate.md#self-change)).
 - `tools/hooks/merge_guard.py` refuses an agent command that merges any other way, pushes to `main` or edits merge rules.
 - A kill-switch file stops landing; the tool names it.
