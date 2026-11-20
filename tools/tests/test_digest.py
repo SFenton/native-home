@@ -182,24 +182,36 @@ class DigestTests(unittest.TestCase):
         self.assertIn("RESULT: INFRA", log_digest.digest_text("bg_run: hold timeout, killed after 1800s\n", exit_code=124))
         self.assertIn("RESULT: INFRA", log_digest.digest_text(real, exit_code=75))
 
+    #: Trimmed from two real stress logs (a 6-iteration hosted run killed by a 16 minute hold): test lines with app log lines between them.
+    PROGRESSING = (
+        "Test Case '-[FentonHomeTests.ServerUISheetOriginHostedTests testAHomedPage]' passed (0.450 seconds).\n"
+        "Test Case '-[FentonHomeTests.ServerUISheetOriginHostedTests testAHomedPage]' started (Iteration 4 of 6).\n"
+        "2026-11-19 20:05:35.629142-0800 FentonHome[76627:282463923] [API] cannot add handler to 0 from 0 - dropping\n"
+        "2026-11-19 20:05:35.629264-0800 FentonHome[76627:282463923] [API] cannot add handler to 0 from 0 - dropping\n"
+        "2026-11-19 20:05:35.962353-0800 FentonHome[76627:282463923] Unbalanced calls to begin/end appearance transitions for <HassUI.UKServerUIPage: 0x702a238800>.\n"
+        "Test Case '-[FentonHomeTests.ServerUISheetOriginHostedTests testAHomedPage]' passed (0.429 seconds).\n"
+        "Test Case '-[FentonHomeTests.ServerUISheetOriginHostedTests testAHomedPage]' started (Iteration 5 of 6).\n"
+        "2026-11-19 20:05:36.515635-0800 FentonHome[76627:282463923] [API] cannot add handler to 0 from 0 - dropping\n"
+        "2026-11-19 20:05:36.515749-0800 FentonHome[76627:282463923] [API] cannot add handler to 0 from 0 - dropping\n"
+        "\n"
+        "devcap: HOLD TIMEOUT: held iphone,simulator longer than 16m; releasing.\n")
+
     def test_a_hold_timeout_while_tests_were_passing_says_to_raise_the_hold(self):
-        log = ("Test Case '-[FentonHomeTests.AlphaTests testA]' passed (0.5 seconds).\n"
-               "Test Case '-[FentonHomeTests.AlphaTests testB]' started.\n"
-               "Iteration 4 of 6\n"
-               "\ndevcap: HOLD TIMEOUT: held iphone longer than 16m; killing the command\n")
-        out = log_digest.digest_text(log, exit_code=124)
+        out = log_digest.digest_text(self.PROGRESSING, exit_code=124)
         self.assertIn("RESULT: INFRA", out)
         self.assertIn("hold ran out while tests were still passing; raise `FENTON_DEVCAP_HOLD`", out)
-        self.assertIn("Iteration 4 of 6", out)
+        self.assertIn("Iteration 5 of 6", out)
         self.assertNotIn("hung run", out)
 
-    def test_a_hold_timeout_with_no_test_output_before_it_keeps_the_hung_advice(self):
-        log = ("Test Case '-[FentonHomeTests.AlphaTests testA]' passed (0.5 seconds).\n"
-               "xcodebuild: waiting for the simulator\n"
-               "\ndevcap: HOLD TIMEOUT: held iphone longer than 16m; killing the command\n")
-        out = log_digest.digest_text(log, exit_code=124)
+    def test_a_stalled_run_keeps_the_hung_advice(self):
+        """The same run, but the last test line is followed by non-test output and nothing more: no progress at the end."""
+        stalled = (self.PROGRESSING.split("\ndevcap:")[0]
+                   + "".join("xcodebuild: waiting for the simulator (%d)\n" % i for i in range(6))
+                   + "\ndevcap: HOLD TIMEOUT: held iphone,simulator longer than 16m; releasing.\n")
+        out = log_digest.digest_text(stalled, exit_code=124)
         self.assertIn("hung run", out)
         self.assertNotIn("FENTON_DEVCAP_HOLD", out)
+        self.assertIn("hung run", log_digest.digest_text("\ndevcap: HOLD TIMEOUT: held iphone longer than 16m; releasing.\n", exit_code=124))
 
     def test_a_printed_hold_timeout_line_does_not_hide_failed_tests(self):
         """A test fixture that prints the words 'hold timeout' and then fails reads FAIL with the id, not INFRA."""

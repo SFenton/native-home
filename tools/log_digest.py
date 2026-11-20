@@ -39,6 +39,10 @@ COMPILE_ERROR = re.compile(r"(?P<where>/?[^\s:]+\.swift:\d+):\d+: error: (?P<msg
 #: A line that shows tests still running: a result, a start, or the stress loop's "Iteration 4 of 6".
 ITERATION = re.compile(r"\bIteration (?P<n>\d+) of (?P<total>\d+)\b")
 PROGRESS = re.compile(r"Test Case '-\[[\w.]+ \w+\]' (?:started|passed|failed)|^[✔✘] Test \S|\bIteration \d+ of \d+\b")
+#: An app or simulator log line (`2026-11-19 19:42:21.384926-0800 FentonHome[60056:282347932] ...`): chatter between test lines, not a sign of either state.
+APP_LOG = re.compile(r"^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d\.\d+[-+]\d{4} \S+\[\d+:\w+\]")
+#: Other lines allowed between the last progress line and the hold timeout before the run reads as stalled.
+STALL_LINES = 5
 HOLD_RAN_OUT = "hold ran out while tests were still passing; raise `FENTON_DEVCAP_HOLD`"
 
 #: The two lines devcap and bg_run print when they kill a run. They count only at the start of a line and only when the run
@@ -135,7 +139,8 @@ class Digest:
         self.markers: "OrderedDict[str, None]" = OrderedDict()  # `INFRA: …` lines xc_watch.py and ios_uitest.sh print
         self.products: "OrderedDict[str, None]" = OrderedDict()  # `products: hit|built KEY …` from tools/products_cache.py
         self.tail: List[str] = []
-        self.prev_progress = False  # the last non-blank line was test output (logs carry no clock, so "recent" is "the last thing printed")
+        self.seen_progress = False  # a test or Iteration line has been printed (logs carry no clock, so "recent" is "near the end of the log")
+        self.since_progress = 0  # lines other than app log chatter printed since the last such line
         self.hold_progress = False  # a hold timeout line followed test output: the run was progressing when the hold ended
         self.iteration: Optional[Tuple[int, int]] = None  # the last "Iteration N of M" line
 
@@ -154,8 +159,11 @@ class Digest:
     def _line(self, line: str) -> None:
         if line.strip():
             if HOLD_TIMEOUT.search(line):
-                self.hold_progress = self.prev_progress
-            self.prev_progress = bool(PROGRESS.search(line))
+                self.hold_progress = self.seen_progress and self.since_progress < STALL_LINES
+            if PROGRESS.search(line):
+                self.seen_progress, self.since_progress = True, 0
+            elif not APP_LOG.match(line):
+                self.since_progress += 1
             if found := ITERATION.search(line):
                 self.iteration = (int(found["n"]), int(found["total"]))
         if match := ST_RUN.search(line):
