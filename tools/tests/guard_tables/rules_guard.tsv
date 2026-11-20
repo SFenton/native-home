@@ -29,7 +29,7 @@
 @write .agents/workflow/zz-table.md # T\n\nA case moves to the retired folder; the flag is used to select a mode.	allow	ordinary rule words
 @write .agents/workflow/zz-table.md # T\n\nThe runner pushes a lane the Reviewer passed; a landed lane is reaped.	allow	present-tense landing words
 @write PROGRESS.md # Plan\n\nShipped 2026-11-10 in PR 72.	allow	the state layer carries dates
-@write .agents/decisions/2026-11-10-zz-table.md # T\n\nDecision: the owner decided on 2026-11-10 (PR 72).	allow	the record layer carries why and when
+@write .agents/archive/zz-table.md # T\n\nThe owner decided on 2026-11-10 (PR 72).	allow	the record layer carries why and when
 @write evals/zz/notes.md # T\n\nMeasured 2026-11-10.	allow	unchecked by the contract: eval data
 @write .claude/skills/swiftui-pro/zz.md # T\n\nUpdated 2026-11-10.	allow	unchecked by the contract: vendored skill
 @write build/notes/zz.md # T\n\nRun of 2026-11-10, PR 72.	allow	a path git ignores is not part of the repository

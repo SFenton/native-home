@@ -412,7 +412,7 @@ class AgentFilesTests(unittest.TestCase):
                     self.assertIn(heading, text)
                 self.assertIn("agent-roster.md#contracts", text)  # the ending links the status-block contract, never restates it
                 for link in re.findall(r"\]\(([^)#\s]+)", text):
-                    if not link.startswith("http") and "/.agents/workflow/" not in link and "/.agents/decisions" not in link:
+                    if not link.startswith("http") and "/.agents/workflow/" not in link:
                         self.assertTrue((agents / link).resolve().exists(), f"{name}: {link}")
                 self.assertLess(len(text.splitlines()), 90)
 

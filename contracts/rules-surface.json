@@ -83,7 +83,6 @@
    ],
    "exclude": [
     ".agents/design/mockups/**",
-    ".agents/decisions/**",
     ".agents/archive/**"
    ],
    "max_words": 1500,
@@ -115,7 +114,6 @@
   },
   "record": {
    "globs": [
-    ".agents/decisions/*.md",
     ".agents/archive/**/*.md"
    ],
    "max_words": null,
@@ -184,7 +182,7 @@
    ".claude/agents/orchestrator.md"
   ]
  },
- "decision_link_allowed": [
+ "archive_link_allowed": [
   ".agents/workflow/docs-conventions.md"
  ],
  "forbidden": [
@@ -193,14 +191,14 @@
    "regex": "\\b20\\d\\d-\\d\\d-\\d\\d\\b|\\b20\\d\\d/\\d\\d/\\d\\d\\b|\\b\\d{1,2}/\\d{1,2}/20\\d\\d\\b",
    "skip_code": false,
    "why": "a rule carries no date",
-   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+   "home": "the PR description (why and when); never the rule text"
   },
   {
    "id": "date_words",
    "regex": "\\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?,?\\s+20\\d\\d\\b|\\b\\d{1,2}(?:st|nd|rd|th)?\\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?(?=[\\s,.:;)]|$)(?:\\s+20\\d\\d\\b)?|\\b(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\.?\\s+20\\d\\d\\b|\\b20\\d\\d-(?:0[1-9]|1[0-2])\\b(?!-)",
    "skip_code": true,
    "why": "a rule carries no date",
-   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+   "home": "the PR description (why and when); never the rule text"
   },
   {
    "id": "attribution",
@@ -208,7 +206,7 @@
    "ignorecase": true,
    "skip_code": true,
    "why": "a rule carries no who-decided attribution",
-   "home": "the PR description or .agents/decisions/<YYYY-MM-DD>-<slug>.md (why and when); never the rule text"
+   "home": "the PR description (why and when); never the rule text"
   },
   {
    "id": "reference",
@@ -230,7 +228,7 @@
    "ignorecase": true,
    "skip_code": true,
    "why": "a rule states the present default, not what it replaced",
-   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git and the PR",
    "skip_quotes": true
   },
   {
@@ -239,7 +237,7 @@
    "ignorecase": true,
    "skip_code": true,
    "why": "a rule uses no words of change",
-   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git and the PR",
    "skip_quotes": true
   },
   {
@@ -248,12 +246,12 @@
    "ignorecase": true,
    "skip_code": true,
    "why": "a rule states the present default, not a before and after",
-   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git, the PR and .agents/decisions/",
+   "home": "rewrite the rule in place as the present default and delete the old wording; history stays in git and the PR",
    "skip_quotes": true
   }
  ],
  "homes": {
-  "decision": ".agents/decisions/<YYYY-MM-DD>-<slug>.md and the PR description",
+  "decision": "the PR description",
   "status": "PROGRESS.md or an issue",
   "narrow exception": "the enforcing tool's config or allow-list with a reason; prose never",
   "incident": "a test or one eval case per class, and the PR description",

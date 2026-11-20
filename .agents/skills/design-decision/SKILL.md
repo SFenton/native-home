@@ -11,9 +11,9 @@ description: Decides a design question the owner has not settled, by owner choic
 3. When the precedence, a registered pattern or a detail inside an option the owner picked settles it: decide, write the resulting rule in the owning doc, and tell the owner in the thread or the pull request.
 4. Otherwise run the app-UI gate: `python3 tools/jev_gate.py --plan-file <plan>`. On `gate: park` do not pick ([autonomy](../../workflow/autonomy.md#app-ui-gate)).
 5. Build up to 3 options, capture screenshots and behaviour on the affected families, and judge them from that evidence.
-6. Record the decision as a new file `.agents/decisions/<YYYY-MM-DD>-<slug>.md` with these lines:
+6. Put the decision in the pull-request description and in the task's git-ignored `build/decisions/<task>.md`, with these lines:
    - `Decision:` the options judged, the pick and why each other lost;
-   - `Replaces:` the rule or decision it replaces, or `none`;
+   - `Replaces:` the rule it replaces, or `none`;
    - `Rule home:` the file that holds the resulting rule;
    - `Gate:` `app_wide=no` for agent-initiated work, or `matches_request=yes` for owner-requested work.
 7. Write only the resulting rule, undated, in its rule home, and delete the wording it replaces.
