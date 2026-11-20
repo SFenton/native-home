@@ -20,7 +20,7 @@ struct ServerUILayoutCorpusTests {
         let studioIssue: ServerUIContractCorpusTests.Case.Issue?
         var testDescription: String { file }
     }
-    private struct Index: Decodable { let cases: [Case] }
+    struct Index: Decodable { let cases: [Case] }
     private struct Envelope: Decodable { let capabilities: [String] }
 
     nonisolated static let cases: [Case] = {
@@ -32,6 +32,15 @@ struct ServerUILayoutCorpusTests {
             return families.contains { stem.hasPrefix($0) }
         }
     }()
+
+    /// The index entries whose file stem (without `pending-`) passes `picks`.
+    nonisolated static func allCases(_ picks: (String) -> Bool) -> [Case] {
+        let url = ServerUIContractCorpusTests.directory.appendingPathComponent("index.json")
+        guard let data = try? Data(contentsOf: url), let index = try? JSONDecoder().decode(Index.self, from: data) else { return [] }
+        return index.cases.filter { item in
+            picks(item.file.split(separator: "/").last.map(String.init)?.replacingOccurrences(of: "pending-", with: "") ?? "")
+        }
+    }
 
     @Test func theFamilyHasCases() { #expect(Self.cases.count >= 59) }
 

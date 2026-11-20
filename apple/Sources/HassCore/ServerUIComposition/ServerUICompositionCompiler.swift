@@ -368,10 +368,15 @@ struct ServerUICompositionCompiler {
         if try c.s("type") == "unbounded" { return .unbounded }
         return try .points(c.n("value"))
     }
-    private func body(_ c: Cursor) throws -> D.BodyLayout {
-        try .init(padding: insets(c.field("padding")), spacing: space(c.field("spacing")),
-                  maxWidth: width(c.field("maxWidth")), scroll: c.e("scroll"),
-                  chrome: c.e("chrome"), ground: c.e("ground"))
+    private mutating func body(_ c: Cursor) throws -> D.BodyLayout {
+        var layout = try D.BodyLayout(padding: insets(c.field("padding")), spacing: space(c.field("spacing")),
+                                      maxWidth: width(c.field("maxWidth")), scroll: c.e("scroll"),
+                                      chrome: c.e("chrome"), ground: c.e("ground"))
+        if c.value["foldSides"] != nil {
+            require("fold-sides")
+            layout.foldSides = true
+        }
+        return layout
     }
 
     // MARK: - Shell and presentation
@@ -459,6 +464,11 @@ struct ServerUICompositionCompiler {
         require("page")
         let titleSource = try c.optionalString("titleSourceId")
         let children = try components(c.field("components"), depth: 1, gridChild: false)
+        if surfaceKind == .page {
+            // `span` is Across the Top: it has to come before the first component that takes a side.
+            let inputs = children.map { ServerUIFoldSides.Input(kind: $0.foldKind, said: $0.node.foldSide) }
+            for late in ServerUIFoldSides.lateSpans(inputs) { add(.invalidCombination, c.path("components") + "/\(late)/layout/foldSide") }
+        }
         func containsSource(_ nodes: [D.Component], id: String) -> Bool {
             nodes.contains {
                 if case .bedroom(let value) = $0, value.sourceId == id { return true }
@@ -1412,6 +1422,12 @@ struct ServerUICompositionCompiler {
         if !gridChild, span != 1 { add(.invalidCombination, c.path("layout") + "/span") }
         var node = try D.Node(id: id, title: c.s("title"), span: span, visibleWhen: visibility(c), enabledWhen: enabled(c))
         try badge(of: c, into: &node)
+        // The side of the hinge a page's top-level component sits on (`sh.fold-sides@1`): nothing nested says it, nor a sheet, nor a saved component's body.
+        if c.value["layout"]?["foldSide"] != nil {
+            require("fold-sides")
+            node.foldSide = try c.field("layout").e("foldSide")
+            if depth != 1 || surfaceKind != .page { add(.invalidCombination, c.path("layout") + "/foldSide") }
+        }
         let props = try c.field("props")
         if depth > 1, ["form", "pinned-actions"].contains(try c.s("type")) {
             add(.invalidCombination, c.path("type"))

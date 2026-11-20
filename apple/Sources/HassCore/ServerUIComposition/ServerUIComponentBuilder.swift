@@ -227,6 +227,8 @@ extension ServerUIComponentExpansion {
             object["id"] = .string(root ? referenceId : "\(referenceId)~\(innerId)")
             if root, case .object(var layout)? = object["layout"] {
                 layout["span"] = reference["layout"]?["span"] ?? .number(1)
+                // The place says where the component sits (`sh.fold-sides@1`); the body's own side is not read.
+                layout["foldSide"] = reference["layout"]?["foldSide"]
                 object["layout"] = .object(layout)
             }
             return .object(object)

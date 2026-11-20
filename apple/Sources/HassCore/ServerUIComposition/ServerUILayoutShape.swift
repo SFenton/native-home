@@ -14,7 +14,10 @@ extension ServerUICompositionShape {
     }()
 
     /// A node's `layout`: its column span is optional, and unset leaves the width to the grid (`layout.span`).
-    static let layoutSpan: Shape = object(["span": .optional(.number(1, 4, integer: true))])
+    static let layoutSpan: Shape = object(["span": .optional(.number(1, 4, integer: true)), "foldSide": .optional(foldSide)])
+
+    /// A top-level component's side of the hinge (`sh.fold-sides@1`).
+    static let foldSide: Shape = .choice(ServerUIFoldSide.allCases.map(\.rawValue))
 
     /// `props.tabBar` of a tab container (`sh.tab-bar@1`).
     static let tabBar: Shape = {

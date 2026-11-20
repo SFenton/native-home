@@ -31,7 +31,7 @@ extension ServerUICompositionShape {
         ])
         return object([
             "id": id, "title": title, "type": fixed("room-device-control"),
-            "layout": object(["span": .number(1, 4, integer: true)]), "icon": symbol,
+            "layout": object(["span": .number(1, 4, integer: true), "foldSide": .optional(foldSide)]), "icon": symbol,
             "binding": object(["sourceId": id]),
             "props": object([
                 "control": .choice(ServerUIRoomDeviceControl.Kind.allCases.map(\.rawValue)),

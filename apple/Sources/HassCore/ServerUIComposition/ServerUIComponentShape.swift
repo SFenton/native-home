@@ -15,7 +15,7 @@ extension ServerUICompositionShape {
     static let componentRef: Shape = {
         object([
             "id": id, "type": fixed("component-ref"), "componentId": id,
-            "layout": object(["span": .optional(.number(1, 4, integer: true))]),
+            "layout": layoutSpan,
             "args": .optional(.dictionary(.text(80, blank: true), .text(240, blank: false), ComponentLimits.arguments))
         ])
     }()
