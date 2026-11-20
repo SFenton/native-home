@@ -63,6 +63,7 @@ for family in iphone duo ipad; do
   "${DEVCAP[@]}" --sim "$udid" --shutdown-on-timeout --purpose "Fenton motionperf $family ($LANE)" -- \
     xcodebuild test-without-building -project FentonHome.xcodeproj -scheme FentonHome \
       -destination "platform=iOS Simulator,id=$udid" -only-testing:"FentonHomeUITests/LayoutChangePerformanceTests" -only-testing:"FentonHomeUITests/HouseLayoutRevealPerformanceTests" \
+      -only-testing:"FentonHomeTests/UKHostedSignInLayoutPerformanceTests" \
       -resultBundlePath ".build/motionperf-$family.xcresult" ${EXTRA[@]+"${EXTRA[@]}"} > "$log" 2>&1 || STATUS=1
   # The metrics' averages print as "Test Case ... measured [CPU Time, s] average: ..." lines.
   grep -E "Test Case .* (passed|failed|skipped)|error:|measured \[|average:" "$log" | sed 's/^/  /' >&2 || true

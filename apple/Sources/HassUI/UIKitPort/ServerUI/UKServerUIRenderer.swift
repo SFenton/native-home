@@ -45,7 +45,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The tab bar controller whose tabs are the document's tabs; a tab rule changes its members in place.
     let tabController = UITabBarController()
     private(set) var stacks: [ServerUINavigationState.Root: UINavigationController] = [:]
-    private var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
+    /// Whether the last change to the tab navigator's visibility animated, for a test to read; `nil` before it has changed.
+    var lastTabBarMoveAnimated: Bool?
+    private(set) var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
     /// The open sheet. ``isEnabled(_:from:)`` reads it, so every change bumps ``busyState``: a swipe-down dismissal ends with no
     /// flight, and without this the controls that present (disabled while the sheet was open) would stay disabled.
     private(set) var modal: UKHassModalController? { didSet { if modal !== oldValue { busyState.changed() } } }
@@ -824,11 +826,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if environment.chrome != chrome { environment.chrome = chrome }
         edgePan?.isEnabled = chrome.edgeSwipe
         // The tab bar is never hidden for style: a regular-width window gets the system's top bar (`.tabBar`, never the sidebar).
-        let hidden = publication.document.navigation.tabs.isEmpty
-        if UKGlassEra.hasIOS18, #available(iOS 18.0, *) {
-            if tabController.mode != .tabBar { tabController.mode = .tabBar }
-            if tabController.isTabBarHidden != hidden { tabController.setTabBarHidden(hidden, animated: false) }
-        } else { tabController.tabBar.isHidden = hidden }
+        if UKGlassEra.hasIOS18, #available(iOS 18.0, *), tabController.mode != .tabBar { tabController.mode = .tabBar }
+        setTabBarHidden(publication.document.navigation.tabs.isEmpty || selectedPageHidesTabs, animated: false)
         if !chrome.showsMenuButton, flyoutOpen { closeMenu() }
         // The top tab bar has no way to open the flyout, so its off-screen rows and Close target stay out of the accessibility tree.
         let flyoutGone = style == .topTabBar
@@ -961,12 +960,21 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             }
         }
         let host = hostIndex.map { pages[$0] }
+        // Each page drops the header items it hides; the columns share the host's one bar, so there the page opened last decides.
+        for page in pages { page.chromeHides = publication.document.pages.first { $0.id == page.surfaceID }?.hides }
+        if let host, let last = pages.last, last !== host {
+            host.chromeHides = publication.document.pages.first { $0.id == last.surfaceID }?.hides
+        }
         for page in pages where page !== host { page.columns?.setWide(false) }
         if let index = hostIndex, let host {
             host.loadViewIfNeeded()
             let prefix: [UIViewController] = Array(pages.prefix(index + 1))
             let onDemand = publication.document.pages.first { $0.id == host.surfaceID }?.columnsOnDemand == true
             host.columns?.setWide(!onDemand || pages.count > index + 1 || adaptive?.owner === host)
+            // A push in columns never reaches the stack's `willShow`, so the bar moves here, alongside the columns' own transition.
+            if animated, host.view.window != nil, host.root == navigation.snapshot.selection {
+                setTabBarHidden(hidesTabs(whileTop: pages.last), animated: true)
+            }
             if nav.viewControllers != prefix { nav.setViewControllers(prefix, animated: false) }
             let tail = Array(pages.dropFirst(index + 1))
             host.columns?.reconcile(tags: tail.map { AnyHashable($0.surfaceID) }, make: { key in
@@ -1015,6 +1023,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             try navigation.trimVisiblePath(toDepth: page.depth + kept, onRoot: true)
+            // The column's own Back and Close call this right after they start the column's animated removal, so the bar moves with it; an edge swipe
+            // reports only once the column has gone, so there the bar follows it.
+            let remaining = logicalStacks[page.root]?.prefix(page.depth + kept + 1).last
+            if page.root == navigation.snapshot.selection { setTabBarHidden(hidesTabs(whileTop: remaining), animated: true) }
             reconcile(animated: false, updateBodies: false)
         } catch { onError(blocked()) }
     }
@@ -1028,7 +1040,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let symbol: String
     }
 
-    private var activeAlert: UIViewController? {
+    /// The alert or dialog presented over the current surface, which blocks every intent until it is gone.
+    var activeAlert: UIViewController? {
         if let modal {
             return modal.topViewController?.presentedViewController ?? modal.presentedViewController
         }
@@ -1063,6 +1076,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         modalFlight || handoff || delegates.values.contains { $0.isTransitioning }
             || logicalStacks.values.joined().contains { $0.columns?.isTransitioning == true }
     }
+
+    /// The error the last discard replay (``activate(_:from:source:symbol:control:site:confirmed:)`` after "Discard Changes") threw, before it became
+    /// the sanitized `interaction_blocked`. Diagnostic only, for hosted tests: nothing in the app reads it.
+    private(set) var lastDiscardReplayError: Error?
 
     private func blocked(_ pointer: String = "/document/navigation") -> UKServerUIRendererError {
         UKServerUIRendererError(code: .interactionBlocked, pointer: pointer)
@@ -1121,16 +1138,70 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             guard !leaving.contains(where: \.blocksExit) else { onError(blocked()); return }
             UKDiscardGuard.confirm(from: page, source: source.map(UKPopoverSource.view) ?? .none) { [weak self, weak page] in
                 guard let self, let page else { return }
-                do {
-                    for form in leaving { try form.discard() }
-                    try self.perform(action, from: page, source: source, symbol: symbol)
-                } catch { self.onError(self.blocked()) }
+                self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol)
             }
             return
         }
         do { try perform(action, from: page, source: source, symbol: symbol, control: control, site: site, confirmed: confirmed) }
         catch let error as UKServerUIRendererError { onError(error) }
         catch { onError(blocked()) }
+    }
+
+    /// Runs `body` exactly once: when `coordinator`'s transition has finished, or at once when the coordinator refuses the completion.
+    ///
+    /// `animate(alongsideTransition:completion:)` returns `false` when it cannot run its completion (no transition in flight, or a non-animated one), so a
+    /// Discard never waits on a completion that never comes. A completion that does fire afterwards finds the body done.
+    /// - Parameters:
+    ///   - coordinator: The transition to wait for.
+    ///   - body: What to run once it is over. Its argument is `true` when the transition really finished, `false` when the coordinator refused.
+    static func afterTransition(of coordinator: UIViewControllerTransitionCoordinator, _ body: @escaping (_ waited: Bool) -> Void) {
+        var ran = false
+        let once = { (waited: Bool) in guard !ran else { return }; ran = true; body(waited) }
+        if !coordinator.animate(alongsideTransition: nil, completion: { _ in once(true) }) { once(false) }
+    }
+
+    /// Replays an action after the person chose Discard: drops the drafts of the forms it leaves, then performs it.
+    ///
+    /// The replay first waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform` refuses
+    /// every intent while an alert is up, and the discard dialog's own dismissal can still be running when its completion fires, which left the person
+    /// where they were with the draft discarded. After a transition that really finished it looks again (another alert may
+    /// be in flight); when the coordinator refuses the completion it runs the tail at once and never looks again, so a coordinator that always refuses
+    /// cannot make it recurse.
+    /// - Parameters:
+    ///   - leaving: The forms the action leaves behind.
+    ///   - action: The action to replay.
+    ///   - page: The page that sent it.
+    ///   - source: The sending view.
+    ///   - symbol: The sending symbol.
+    ///   - coordinatorOf: The transition coordinator of the alert on screen; a hosted test supplies its own.
+    func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String,
+                       coordinatorOf: @escaping (UIViewController) -> UIViewControllerTransitionCoordinator? = {
+                           $0.transitionCoordinator ?? $0.presentingViewController?.transitionCoordinator
+                       }) {
+        lastDiscardReplayError = nil
+        if let alert = activeAlert, let coordinator = coordinatorOf(alert) {
+            Self.afterTransition(of: coordinator) { [weak self, weak page, weak source] waited in
+                guard let self, let page else { return }
+                // A transition that really finished may have left another alert in flight: look again. A refusal never looks again, so a coordinator
+                // that always refuses cannot recurse; every re-entry follows a transition that completed.
+                if waited { self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol, coordinatorOf: coordinatorOf) }
+                else { self.performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol) }
+            }
+            return
+        }
+        performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol)
+    }
+
+    /// The tail of ``replayDiscard(_:action:from:source:symbol:coordinatorOf:)``: discards the drafts and performs the action once.
+    private func performDiscardReplay(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String) {
+        do {
+            for form in leaving { try form.discard() }
+            try perform(action, from: page, source: source, symbol: symbol)
+        } catch {
+            // The sanitized blocked reason below is all a person or the error sink sees; the real error stays here for a hosted test.
+            lastDiscardReplayError = error
+            onError(blocked())
+        }
     }
 
     /// The same intent boundary is available to hosted tests and the parent's integration adapter.
@@ -1252,7 +1323,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - action: The resolved action.
     ///   - page: The page that sent it.
     /// - Returns: The distinct forms, each once.
-    private func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
+    func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
         let pages: [UKServerUIPage]
         switch action {
         case .push(let push) where page.presentationID == nil && homeTabToLeaveFor(push.pageId) != nil:
@@ -1692,6 +1763,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         navigationMeasurement?.settled()
         navigationMeasurement = nil
         guard let top = nav.topViewController as? UKServerUIPage else { return }
+        defer { if top.presentationID == nil { settleTabBar() } }
         if top.columns?.isWide == true {
             refreshNavigation()
             releaseTouchesWhenSettled()
@@ -2076,6 +2148,9 @@ final class UKServerUIStackDelegate: NSObject, UINavigationControllerDelegate {
                                    previous: settledPages, coordinator: navigationController.transitionCoordinator)
         }
         modal?.navigationController(navigationController, willShow: viewController, animated: animated)
+        if let page = viewController as? UKServerUIPage, page.presentationID == nil {
+            renderer?.tabBarFollows(page, animated: animated, coordinator: navigationController.transitionCoordinator)
+        }
     }
 
     /// Reports a shown page to the renderer.

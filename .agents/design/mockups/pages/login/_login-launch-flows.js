@@ -3,7 +3,8 @@
  * Not part of the kit. Load it with a relative <script src> straight after kit.js. Everything here is a stand-in drawn from the SwiftUI in
  * apple/Sources/HassUI/Features/{Login,Location}, App/RootView.swift and App/Motion; "promote to kit" candidates are listed in each
  * mockup's notes:
- *   Mock.LL.screen        the sign-in root layer (LoginView) on every device
+ *   Mock.LL.screen        the sign-in root layer (UKLoginViewController) on every device: one column, or header and form side by side in wide windows
+ *   Mock.LL.splitGeometry / safeInset / keyboard   the wide-window regions, the Duo's side safe-area inset and a drawn keyboard
  *   Mock.LL.mark / monogram / header / fields / failureCard / inlineError / signInButton   LoginView's parts
  *   Mock.LL.introAt/run   the launch intro timeline (MotionTokens.Intro), sampled so the same maths draws static frames and plays
  *   Mock.LL.arrivalAt     the Home arrival timeline (MotionTokens.Arrival, HomeArrival, ArrivalChromeProbe)
@@ -61,6 +62,26 @@
     '.ll-btn .ui-primary{transition:transform .12s ease-out,opacity var(--t-quick) var(--ease-quick)}',
     '.ll-btn .ui-primary.pressed{transform:scale(.96)}',
     '.ll-launch{position:absolute;inset:0;background:#121722;z-index:50}',
+    /* Wide windows (SplitPolicy on the scroll's safe width): header in the leading region, form in the trailing region. */
+    '.ll-split{position:relative;box-sizing:border-box;min-height:100%}',
+    '.ll-pane{position:absolute;top:0;bottom:0;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;align-items:center}',
+    '.ll-pane.lead{padding:0 24px}',
+    '.ll-pane.lead .ll-titlewrap{width:100%;max-width:412px}',
+    '.ll-block{position:relative;flex:none;box-sizing:border-box;width:100%;padding:0 24px}',
+    '.ll-hang{position:absolute;left:24px;right:24px;display:flex;flex-direction:column;gap:16px}',
+    '.ll-hang.below{top:100%;padding-top:16px}',
+    '.ll-hang.above{bottom:100%;padding-bottom:16px}',
+    '.ll-header.split .ll-line{font-size:var(--fs-t3)}',
+    /* The system strip of the Duo's vertical bar (annotation, like the hinge band): the ground runs under it, the form stays out. */
+    '.ll-strip{position:absolute;top:0;bottom:0;right:0;box-sizing:border-box;border-left:1px dashed rgba(255,255,255,.16);pointer-events:none;z-index:1}',
+    '.ll-strip span{position:absolute;right:6px;bottom:28px;writing-mode:vertical-rl;font:600 9px/1 var(--mono);letter-spacing:.06em;color:rgba(255,255,255,.34)}',
+    '.ll-kb{position:absolute;left:0;right:0;bottom:0;z-index:40;box-sizing:border-box;padding:0 6px 26px;display:flex;flex-direction:column;gap:9px;background:rgba(38,40,48,.97);border-top:.5px solid rgba(255,255,255,.16);border-radius:22px 22px 0 0}',
+    '.ll-kb .bar{flex:none;height:42px;display:flex;align-items:center;justify-content:center;font:500 15px/1 var(--font);color:rgba(255,255,255,.82)}',
+    '.ll-kb .r{display:flex;gap:7px;justify-content:center;flex:1 1 0}',
+    '.ll-kb .k{flex:1 1 0;border-radius:8px;background:rgba(255,255,255,.2);display:grid;place-items:center;font:400 20px/1 var(--font);color:#fff}',
+    '.ll-kb .k.fn{background:rgba(255,255,255,.1);font-size:15px;flex:1.5 1 0}',
+    '.ll-kb .k.sp{flex:6 1 0;font-size:13px;color:rgba(255,255,255,.6)}',
+    '.ll-kb .k.go{background:#0A84FF;flex:1.8 1 0;font-size:16px;font-weight:600}',
     '.ll-swatch{border-radius:16px;padding:14px;min-width:0;color:#fff;background:#121722 radial-gradient(150% 120% at 50% 20%,#3A4E73 0,#1E2A44 50%,#121722 100%)}',
     '.ll-swatch .k-cap{font:600 11px var(--mono);letter-spacing:.04em;margin-bottom:10px;opacity:.65}',
     '.ll-swatch .in{display:flex;flex-direction:column;gap:12px;align-items:stretch}',
@@ -253,11 +274,19 @@
     return h('span', { 'aria-hidden': 'true', style: { width: size + 'px', height: size + 'px', borderRadius: '50%', background: ic.glyph, color: ic.tint, display: 'grid', placeItems: 'center', font: '600 var(--fs-t1)/1 ui-rounded, "SF Pro Rounded", var(--font)' } },
       ini || h('span', { html: I('person', { fill: true, size: 'var(--fs-t1)' }) }));
   };
-  /** LoginHeader. mode 'fresh' | 'welcome'. */
+  /** The split layout's header sizes (wide windows only): mark 112 pt (fixed), name 40 pt bold scaled with Large Title, line Title 3 (20 pt). */
+  LL.splitHeader = { mark: 112, name: 40, monogram: 103 };
+  /** LoginHeader. mode 'fresh' | 'welcome'. `split` draws the wide-window sizes (LL.splitHeader); the single column keeps 96 / 34 / 17 pt. */
   LL.header = function (o) {
-    var c = LL.copy, ic = o.icon || 'navySky';
-    if (o.mode === 'welcome') return h('div.ll-header', { role: 'group' }, h('div.ll-mark', LL.monogram({ name: o.name, icon: ic, lt: o.lt })), h('h1.ll-name', { style: { textAlign: 'center' } }, 'Welcome back, ' + (o.first || 'Alex')), h('p.ll-line', c.welcomeSubtitle));
-    return h('div.ll-header', { role: 'group' }, h('div.ll-mark', LL.mark({ color: LL.icons[ic].glyph })), h('h1.ll-name', { 'aria-label': 'S and H' }, c.appName), h('p.ll-line', c.subtitle));
+    var c = LL.copy, ic = o.icon || 'navySky', lt = o.lt || 1, sp = o.split ? LL.splitHeader : null;
+    var nameStyle = sp ? { fontSize: (sp.name * lt) + 'px' } : {};
+    var cls = 'div.ll-header' + (sp ? '.split' : '');
+    if (o.mode === 'welcome') {
+      var mono = LL.monogram({ name: o.name, icon: ic, lt: sp ? lt * sp.monogram / 88 : o.lt });
+      if (sp) mono.style.fontSize = (28 * lt * sp.monogram / 88) + 'px';
+      return h(cls, { role: 'group' }, h('div.ll-mark', mono), h('h1.ll-name', { style: Object.assign({ textAlign: 'center' }, nameStyle) }, 'Welcome back, ' + (o.first || 'Alex')), h('p.ll-line', c.welcomeSubtitle));
+    }
+    return h(cls, { role: 'group' }, h('div.ll-mark', LL.mark({ size: sp ? sp.mark : 96, color: LL.icons[ic].glyph })), h('h1.ll-name', { 'aria-label': 'S and H', style: nameStyle }, c.appName), h('p.ll-line', c.subtitle));
   };
   function row(label, field, o) {
     return h('div.ll-row' + (o && o.ax ? '.ax' : ''), h('span.lb', { 'aria-hidden': 'true' }, label), field, o && o.redline ? h('span.ll-redline' + (o.redline === 'top' ? '.top' : ''), { 'aria-hidden': 'true' }) : null);
@@ -311,9 +340,46 @@
   };
 
   /**
-   * The sign-in root layer (LoginView) for a device. o:
+   * The window's side safe-area inset on the sign-in layer: the strip of the Duo's vertical bar (status bar, Dynamic Island), trailing here.
+   * 84 pt was measured on the folded Duo's sign-in (UIWindow.safeAreaInsets.right); the unfolded landscape Duo measures the same 84 pt
+   * (flat and partly folded). The app reads safeAreaLayoutGuide and never a number; the strip can be on the leading edge.
+   */
+  LL.safeInset = function (ctx) { return ctx.device.verticalBar ? 84 : 0; };
+  /**
+   * SplitPolicy.geometry over the sign-in scroll view's frame, which is pinned to the safe area horizontally: regular width, wider than tall,
+   * each region at least 360 pt; on the hinge band while the Duo is partly folded, else a 1 pt band at the midpoint. No split at accessibility
+   * text sizes. Returns {leading, band, trailing} widths in the scroll's coordinates, or null (one column).
+   */
+  LL.splitGeometry = function (ctx) {
+    var d = ctx.device, w = d.w - LL.safeInset(ctx);
+    if (ctx.axSize || !d.regular || w <= d.h) return null;
+    return Mock.splitFrame(w, ctx.hinge, ctx.posture);
+  };
+  /** Software keyboard heights. The folded Duo's (230 pt) and iPad landscape's (373 pt) are measured; the others are stand-ins: the app follows keyboardLayoutGuide, not a number. */
+  LL.keyboardHeights = { 'iphone': 336, 'duo-folded': 230, 'duo-unfolded-portrait': 300, 'duo-unfolded-landscape': 290, 'ipad-portrait': 340, 'ipad-landscape': 373 };
+  LL.keyboard = function (ctx) {
+    var height = LL.keyboardHeights[ctx.key] || 300, measured = ctx.key === 'duo-folded' || ctx.key === 'ipad-landscape';
+    function keys(t) { return t.split('').map(function (ch) { return h('span.k', ch); }); }
+    return h('div.ll-kb', { 'aria-hidden': 'true', dataset: { ll: 'keyboard' }, style: { height: height + 'px' } },
+      h('div.bar', 'Passwords'),
+      h('div.r', keys('qwertyuiop')),
+      h('div.r', keys('asdfghjkl')),
+      h('div.r', h('span.k.fn', 'shift'), keys('zxcvbnm'), h('span.k.fn', 'delete')),
+      h('div.r', h('span.k.fn', '123'), h('span.k.sp', measured ? 'keyboard · ' + height + ' pt' : 'stand-in keyboard · height not measured'), h('span.k.go', 'go')));
+  };
+
+  /**
+   * The sign-in root layer (UKLoginViewController) for a device. o:
    *   mode 'fresh'|'welcome', server, username, password (number of dots, or a string), focus, working, failure {kind:'wrong'|'unreachable'|'failed'|'twostep', detail, expanded},
-   *   name, first, icon, intro (a time in ms, or undefined for the finished screen), glow, noFootnote
+   *   name, first, icon, intro (a time in ms, or undefined for the finished screen), glow, noFootnote, keyboard (true draws the keyboard up)
+   *
+   * The ground and glow fill the window; the scroll view sits inside the safe area horizontally (LL.safeInset) and above the keyboard.
+   * One column (min(460, scroll width), off the hinge while partly folded) unless LL.splitGeometry splits the scroll: then the header is centred
+   * in the leading region and the form in the trailing region, each min(460, region width) wide less its 24 pt margins. Split alignment: the block from the top of the glass module to the bottom of Sign In
+   * is centred in the scroll's height and the header's centre sits on the same line, measured from the top of the mark's drawn shape (the house starts
+   * 12% of the mark's side below its frame; the monogram disc fills its frame) to the bottom of the line; the failure card hangs 16 pt above that block, Use a Different
+   * Account and the footnote hang 16 pt below it, and none of the three moves the block or the header (a card too tall for the space above
+   * pushes the form down; the header stays).
    */
   LL.screen = function (ctx, o) {
     o = o || {}; var c = LL.copy, dev = ctx.device, ax = !!ctx.axSize, lt = LL.scale(ctx, 'lt');
@@ -321,23 +387,53 @@
     var r = Math.round(0.95 * Math.max(dev.w, dev.h));
     root.appendChild(h('div.ll-ground', { 'aria-hidden': 'true' }));
     root.appendChild(h('div.ll-glow', { 'aria-hidden': 'true', style: { background: 'radial-gradient(circle ' + r + 'px at 50% 20%, ' + LL.style.glowCentre + ' 0%, ' + LL.style.glowMiddle + ' 50%, ' + LL.style.base + ' 100%)' } }));
+    var inset = LL.safeInset(ctx), scrollW = dev.w - inset, g = LL.splitGeometry(ctx);
+    if (inset) root.appendChild(h('div.ll-strip', { 'aria-hidden': 'true', title: 'System strip (vertical bar safe area), ' + inset + ' pt: the ground runs under it, the form stays inside the safe area', style: { width: inset + 'px' } }, h('span', 'SAFE AREA EDGE')));
     var f = o.failure && o.failure.kind, mode = o.mode || 'fresh';
     var canSubmit = !o.working && o.server !== '' && (mode === 'welcome' || (o.username || '').trim()) && (typeof o.password === 'number' ? o.password > 0 : !!o.password);
     var title = o.working ? c.busy : (f === 'unreachable' || f === 'failed' ? c.retry : c.signIn);
+    var card = null;
+    if (f === 'unreachable') card = LL.failureCard({ title: c.unreachableTitle, message: c.unreachableBody, detail: o.failure.detail || 'HTTP 502: Bad Gateway', expanded: o.failure.expanded });
+    if (f === 'failed') card = LL.failureCard({ title: c.failedTitle, message: c.failedBody, detail: o.failure.detail || 'The operation couldn’t be completed. (HassCore.HassLoginFlow.LoginError error 2.)', expanded: o.failure.expanded });
     var form = h('div.ll-form');
-    if (f === 'unreachable') form.appendChild(LL.failureCard({ title: c.unreachableTitle, message: c.unreachableBody, detail: o.failure.detail || 'HTTP 502: Bad Gateway', expanded: o.failure.expanded }));
-    if (f === 'failed') form.appendChild(LL.failureCard({ title: c.failedTitle, message: c.failedBody, detail: o.failure.detail || 'The operation couldn’t be completed. (HassCore.HassLoginFlow.LoginError error 2.)', expanded: o.failure.expanded }));
+    if (card && !g) form.appendChild(card);
     form.appendChild(LL.fields({ mode: mode, server: o.server, badServer: f === 'badaddress' || f === 'nothomeassistant', username: o.username, password: o.password, focus: o.focus, working: o.working, wrong: f === 'wrong', ax: ax }));
     if (f === 'wrong') form.appendChild(LL.inlineError(c.wrong));
     if (f === 'twostep') form.appendChild(LL.inlineError(c.twoStep));
     if (f === 'badaddress') form.appendChild(LL.inlineError(c.badAddress));
     if (f === 'nothomeassistant') form.appendChild(LL.inlineError(c.notHomeAssistant));
     form.appendChild(LL.signInButton({ title: title, working: o.working, disabled: !canSubmit && !o.working }));
-    if (mode === 'welcome') { var l = h('button.ll-link', { type: 'button' }, c.different); if (o.working) l.disabled = true; form.appendChild(l); }
-    var titlewrap = h('div.ll-titlewrap', LL.header({ mode: mode, name: o.name || 'Alex Morgan', first: o.first || 'Alex', icon: o.icon, lt: lt }));
-    var formwrap = h('div.ll-formwrap', form, h('div.ll-sp', { style: { flex: '1 1 0', minHeight: '24px' } }), o.noFootnote ? null : h('p.ll-foot', c.footnote));
-    var col = h('div.ll-col', h('div.ll-sp'), titlewrap, h('div', { style: { height: '32px', flex: 'none' } }), formwrap);
-    root.appendChild(h('div.ll-scroll', col));
+    var link = null;
+    if (mode === 'welcome') { link = h('button.ll-link', { type: 'button' }, c.different); if (o.working) link.disabled = true; }
+    var foot = o.noFootnote ? null : h('p.ll-foot', c.footnote);
+    var titlewrap = h('div.ll-titlewrap', LL.header({ mode: mode, name: o.name || 'Alex Morgan', first: o.first || 'Alex', icon: o.icon, lt: lt, split: !!g }));
+    // The header centres on what is drawn: the house starts 12% of the mark's side below its frame, so the frame's empty top takes no part.
+    if (g && mode !== 'welcome') titlewrap.style.marginTop = -(0.12 * LL.splitHeader.mark) + 'px';
+    var body;
+    if (g) {
+      var formwrap = h('div.ll-formwrap.ll-block', { style: { maxWidth: Math.min(LL.style.columnWidth, g.trailing) + 'px' } },
+        card ? h('div.ll-hang.above', card) : null, form, link || foot ? h('div.ll-hang.below', link, foot) : null);
+      body = h('div.ll-split', { dataset: { ll: 'split' } },
+        h('div.ll-pane.lead', { style: { left: 0, width: g.leading + 'px' } }, titlewrap),
+        h('div.ll-pane.trail', { style: { left: (g.leading + g.band) + 'px', width: g.trailing + 'px' } }, formwrap));
+    } else {
+      if (link) form.appendChild(link);
+      var colwrap = h('div.ll-formwrap', form, h('div.ll-sp', { style: { flex: '1 1 0', minHeight: '24px' } }), foot);
+      body = h('div.ll-col', h('div.ll-sp'), titlewrap, h('div', { style: { height: '32px', flex: 'none' } }), colwrap);
+      // HingeAvoidance.placement: centred in the scroll, or in the leading region where the partly folded hinge band crosses it.
+      var cw = Math.min(LL.style.columnWidth, scrollW), cx = (scrollW - cw) / 2;
+      if (ctx.hinge && ctx.posture === 'part' && cx < ctx.hinge.x + ctx.hinge.w && cx + cw > ctx.hinge.x) { cw = Math.min(cw, ctx.hinge.x); cx = (ctx.hinge.x - cw) / 2; }
+      body.style.maxWidth = cw + 'px'; body.style.margin = '0'; body.style.marginLeft = cx + 'px';
+    }
+    var scroll = h('div.ll-scroll', { style: { right: inset + 'px' } }, body);
+    if (o.keyboard) { var kb = LL.keyboard(ctx); scroll.style.bottom = kb.style.height; scroll.style.paddingBottom = '0px'; }
+    root.appendChild(scroll);
+    if (o.keyboard) root.appendChild(kb);
+    // A failure card too tall to hang above the centred block: the form moves down just far enough to keep the card 8 pt under the safe-area top.
+    if (g && card) Mock.whenAttached(root, function () {
+      var k = root.getBoundingClientRect().height / dev.h || 1, top = (card.getBoundingClientRect().top - root.getBoundingClientRect().top) / k, min = dev.safeTop + 8;
+      if (top < min) formwrap.style.top = (min - top) + 'px';
+    });
     if (o.intro != null) Mock.whenAttached(root, function () { LL.introAt(root, o.intro, ctx.reduceMotion); });
     return root;
   };

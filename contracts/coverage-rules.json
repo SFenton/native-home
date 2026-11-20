@@ -28,7 +28,8 @@
       "apple/Sources/HassUI/App/Shell/PageChromeTitle.swift",
       "apple/Sources/HassUI/App/Shell/ProfileButton.swift",
       "apple/Sources/HassUI/App/Shell/ShellAttention.swift",
-      "apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift"
+      "apple/Sources/HassUI/App/Shell/ShellHeaderGrouping.swift",
+      "apple/Sources/HassUI/Features/Login/SignInLayoutPlan.swift"
     ],
     "unmeasured": [
       "apple/Sources/HassDesign/**/*.swift",

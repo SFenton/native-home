@@ -45,6 +45,11 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// The scope of each repeat cell, kept across publications so a cell keeps its record and its views.
     private var cellScopes: [String: UKServerUICellScope] = [:]
     private var inheritedGroups: [D.ChromeGroup]
+    /// What the bar leaves out of the inherited groups (`sh.page-chrome-hide@1`): this page's own hides, or, for the page that hosts columns in a wide window, those
+    /// of the page opened last, because the columns share one bar.
+    var chromeHides: D.PageHides? {
+        didSet { if chromeHides != oldValue, isViewLoaded { refreshChrome() } }
+    }
     private var closePolicy: D.Close?
     private lazy var chrome = UKServerUIChrome(page: self)
     private let layoutBag = UKObservationBag()
@@ -287,7 +292,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     func refreshChrome() {
         let groups: [D.ChromeGroup]
         switch definition.toolbar {
-        case .inherit: groups = inheritedGroups
+        case .inherit: groups = ServerUIChromeHide.groups(inheritedGroups, applying: chromeHides)
         case .replace(let value): groups = value
         }
         chrome.apply(groups: groups, close: closePolicy)

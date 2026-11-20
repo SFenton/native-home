@@ -276,7 +276,12 @@ class RevertGuardTests(unittest.TestCase):
 
 class HooksPathTests(unittest.TestCase):
     def hooks(self, clone):
-        return lane(clone, "check", "--only", "hooks")
+        """The check with no ``setup.sh`` beside the script, so it can only refuse (the repair is tested in HooksRepairTests)."""
+        bare = Path(clone).parent / "norepair"
+        bare.mkdir(exist_ok=True)
+        (bare / "lane_check.py").write_text(LANE_CHECK.read_text())
+        return subprocess.run([sys.executable, str(bare / "lane_check.py"), "check", "--only", "hooks"], cwd=clone, env=ENV,
+                              capture_output=True, text=True)
 
     def test_relative_and_absolute_forms_of_the_repos_own_githooks_pass(self):
         """Fails if: either `.githooks` or the absolute path to this worktree's own .githooks is refused."""
@@ -310,6 +315,109 @@ class HooksPathTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             clone, _ = make_repo(tmp)
             self.assertEqual(self.hooks(clone).returncode, 1)
+
+
+class HooksRepairTests(unittest.TestCase):
+    """A foreign, absolute or missing hooks path is repaired once by ``tools/setup.sh``; the rewrite is announced and logged."""
+
+    def flips(self, clone):
+        log = Path(git(clone, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks-path-flips"
+        return log.read_text().splitlines() if log.is_file() else []
+
+    def test_a_path_into_another_checkout_is_rewritten_announced_and_logged(self):
+        """Fails if: a foreign absolute hooks path is not rewritten to .githooks, the one-line notice is missing, or the old value
+        and time are not appended to hooks-path-flips."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            foreign = str(other_checkout_hooks(tmp, clone))
+            git(clone, "config", "core.hooksPath", foreign)
+            done = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+            self.assertIn(f"rewritten from {foreign} to .githooks", done.stdout)
+            rows = self.flips(clone)
+            self.assertEqual(len(rows), 1, rows)
+            when, old, where = rows[0].split("\t")
+            self.assertEqual((old, where), (foreign, str(clone.resolve())))
+            self.assertRegex(when, r"^\d{4}-\d\d-\d\dT")
+
+    def test_an_absolute_path_to_a_missing_folder_is_rewritten(self):
+        """Fails if: an absolute path that leads nowhere is left for the owner to fix by hand."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "config", "core.hooksPath", "/nonexistent/other-checkout/.githooks")
+            self.assertEqual(lane(clone, "check", "--only", "hooks").returncode, 0)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+
+    def with_setup(self, clone, script):
+        """A copy of lane_check with a stub ``setup.sh`` beside it; returns the check's result."""
+        folder = Path(clone).parent / "stubbed"
+        folder.mkdir(exist_ok=True)
+        (folder / "lane_check.py").write_text(LANE_CHECK.read_text())
+        (folder / "setup.sh").write_text(script)
+        return subprocess.run([sys.executable, str(folder / "lane_check.py"), "check", "--only", "hooks"], cwd=clone, env=ENV,
+                              capture_output=True, text=True)
+
+    def test_a_repair_that_does_not_take_still_refuses_and_says_it_ran(self):
+        """Fails if: a setup.sh that exits 0 without fixing the path lets the check pass, logs a flip or prints the rewrite line, or the
+        refusal still tells the agent to run tools/setup.sh (it just ran)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            foreign = "/elsewhere/.githooks"
+            git(clone, "config", "core.hooksPath", foreign)
+            done = self.with_setup(clone, "#!/bin/sh\nexit 0\n")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), foreign)
+            self.assertNotIn("rewritten", done.stdout + done.stderr)
+            self.assertEqual(self.flips(clone), [])
+            self.assertIn("tools/setup.sh ran", done.stderr)
+            self.assertNotIn("Run tools/setup.sh", done.stderr)
+            # push_guard refuses any command naming the key, so advice containing it would send an agent in a loop.
+            self.assertNotIn("hooksPath", done.stderr)
+            self.assertNotIn("--show-origin", done.stderr)
+            self.assertIn("blocked", done.stderr)
+
+    def test_a_busy_config_lock_is_named_in_the_refusal(self):
+        """Fails if: a setup.sh that hit git's config lock is reported as an override instead of a busy lock, or passes."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "config", "core.hooksPath", "/elsewhere/.githooks")
+            done = self.with_setup(clone, "#!/bin/sh\necho 'error: could not lock config file .git/config: File exists' >&2\nexit 255\n")
+            self.assertEqual(done.returncode, 1)
+            self.assertIn("config lock was busy", done.stderr)
+            self.assertEqual(self.flips(clone), [])
+
+    def test_a_higher_precedence_override_still_refuses_with_the_real_setup(self):
+        """Fails if: the check passes, or logs a flip, while an environment-level setting keeps the wrong path in force."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            env = {**ENV, "GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "core.hooksPath", "GIT_CONFIG_VALUE_0": "/elsewhere/.githooks"}
+            done = lane(clone, "check", "--only", "hooks", env=env)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("higher-precedence", done.stderr)
+            self.assertEqual(self.flips(clone), [])
+
+    def test_an_unset_path_is_repaired_and_logged_as_unset(self):
+        """Fails if: the unset case is not repaired by setup.sh, or the flip row does not record the old value as (unset)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            done = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+            self.assertIn("rewritten from (unset) to .githooks", done.stdout)
+            self.assertEqual(self.flips(clone)[0].split("\t")[1], "(unset)")
+
+    def test_a_correct_path_runs_nothing_and_logs_nothing(self):
+        """Fails if: a good absolute path is rewritten or logged (setup.sh must run only after a failed check)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            absolute = str(clone / ".githooks")
+            git(clone, "config", "core.hooksPath", absolute)
+            done = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(done.returncode, 0)
+            self.assertNotIn("rewritten", done.stdout)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), absolute)
+            self.assertEqual(self.flips(clone), [])
 
 
 class ScanTests(unittest.TestCase):

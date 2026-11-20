@@ -5,8 +5,8 @@ Blocks the stop (JSON ``decision: block``, whose reason goes back to the agent) 
 
 - the last assistant message has no parseable ``status`` block with a valid ``status`` value; or
 - the status is ``done`` and an ``acceptance`` value is ``fail``; or
-- a ``coder`` reports ``blocked`` with more than ``DIRTY_LIMIT`` dirty files in its worktree and a ``blocked_reason``
-  that does not start with ``waiting_bg:`` (an unfinished, uncommitted hand-back looks the same as a dead agent).
+- a ``coder`` reports ``blocked`` with more than ``DIRTY_LIMIT`` dirty files in its worktree (an unfinished, uncommitted
+  hand-back looks the same as a dead agent).
 
 Each case blocks once: when ``stop_hook_active`` is true (the agent is already continuing because of a stop hook)
 the stop is allowed, with a warning on stderr, so a hook never traps an agent. Only the roster agent types in
@@ -37,8 +37,7 @@ FAILING = (
     "Then print the status block again."
 )
 UNCOMMITTED = (
-    "commit your work (WIP) before handing back. If your own tools/bg_run.py job is still running, report `blocked` "
-    'with "blocked_reason": "waiting_bg: <label>" instead. Then print the status block again.'
+    "commit your work (WIP) before handing back. Then print the status block again."
 )
 
 
@@ -74,8 +73,7 @@ def problem(text: str, agent_type: str = "", cwd: str = "") -> Optional[str]:
     if data["status"] == "done" and isinstance(acceptance, dict) and "fail" in acceptance.values():
         return FAILING
     if agent_type == "coder" and data["status"] == "blocked":
-        reason = str(data.get("blocked_reason") or "")
-        if not reason.startswith("waiting_bg:") and dirty_count(cwd) > DIRTY_LIMIT:
+        if dirty_count(cwd) > DIRTY_LIMIT:
             return UNCOMMITTED
     return None
 

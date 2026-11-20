@@ -172,6 +172,86 @@ final class LoginJourneyTests: JourneyTestCase {
         }
     }
 
+    // MARK: - Safe area and the split
+
+    /// Rotates an iPad to landscape (the one family that rotates on request) and waits for the layout.
+    private func rotateWideIfPossible() {
+        guard FentonHomeApp.family == .iPad else { return }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        settleScreen()
+    }
+
+    /// Whether the window is one the sign-in splits in: wider than tall with each region at least 360 pt (`SplitPolicy`).
+    private func windowSplits(_ app: XCUIApplication) -> Bool {
+        let window = app.windows.firstMatch.frame
+        return window.width > window.height && window.width / 2 >= 360 && FentonHomeApp.family != .iPhone
+    }
+
+    /// Every family: the fields start where they started wherever the keyboard goes. Focusing each field and dismissing the keyboard
+    /// leaves every field's minX unchanged (the folded Duo's form used to slide 57 pt under its system strip).
+    func testFocusingEachFieldNeverMovesTheFormSideways() {
+        let app = launch()
+        let ids = ["login.server", "login.username", "login.password"]
+        XCTAssertTrue(app.textFields["login.username"].appears(timeout: 10))
+        func minXs() -> [CGFloat] { ids.map { element($0, in: app).frame.minX } }
+        let rest = minXs()
+        for id in ids {
+            element(id, in: app).tap()
+            XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 5), "keyboard for \(id)")
+            usleep(600_000)
+            for (now, before) in zip(minXs(), rest) { XCTAssertEqual(now, before, accuracy: 1, "focus on \(id)") }
+        }
+        // Dismiss: Go on the password sends the form away from the keyboard without a sign-in (the button is disabled).
+        app.scrollViews.firstMatch.swipeDown()
+        if app.keyboards.firstMatch.exists { app.typeText("\n") }
+        usleep(600_000)
+        for (now, before) in zip(minXs(), rest) { XCTAssertEqual(now, before, accuracy: 1, "after the keyboard goes") }
+    }
+
+    /// A wide window (iPad landscape, the unfolded Duo in landscape) shows the header on the leading side and the form on the
+    /// trailing side with the header and the fields-to-Sign-In block on one line, the footnote under Sign In; anywhere else the
+    /// header is centred over the form.
+    func testWideWindowsPutTheHeaderBesideTheForm() {
+        let app = launch()
+        XCTAssertTrue(app.textFields["login.username"].appears(timeout: 10))
+        rotateWideIfPossible()
+        let title = element("login.title", in: app), user = app.textFields["login.username"]
+        let server = app.textFields["login.server"], submit = app.buttons["login.submit"], footnote = element("login.footnote", in: app)
+        if windowSplits(app) {
+            XCTAssertLessThan(title.frame.maxX, user.frame.minX, "the header is beside the form, on the leading side")
+            let blockMid = (server.frame.minY + submit.frame.maxY) / 2
+            XCTAssertEqual(element("login.line", in: app).frame.midY, blockMid, accuracy: 140, "the header sits on the block's line")
+            XCTAssertGreaterThanOrEqual(footnote.frame.minY, submit.frame.maxY + 8, "the footnote hangs under Sign In")
+            XCTAssertLessThanOrEqual(user.frame.width, 460)
+        } else {
+            XCTAssertEqual(title.frame.midX, user.frame.midX, accuracy: 2, "the header is centred over the form")
+        }
+    }
+
+    /// The wide layout keeps its labels, targets and audit.
+    func testTheWideLayoutPassesTheAudit() throws {
+        let app = launch()
+        XCTAssertTrue(app.textFields["login.username"].appears(timeout: 10))
+        rotateWideIfPossible()
+        for field in [app.textFields["login.server"], app.textFields["login.username"], app.secureTextFields["login.password"]] {
+            assertTarget(field)
+        }
+        assertTarget(app.buttons["login.submit"])
+        try FentonHomeApp.audit(app, ax5Page: { self.launch(arguments: FentonHomeApp.ax5) })
+    }
+
+    /// VoiceOver reads the header, then Server, Username, Password, Sign In and the footnote, in the column and in two regions.
+    func testVoiceOverReadsTheHeaderThenTheFormThenTheFootnote() {
+        let app = launch()
+        XCTAssertTrue(app.textFields["login.username"].appears(timeout: 10))
+        rotateWideIfPossible()
+        let wanted = ["login.title", "login.line", "login.server", "login.username", "login.password", "login.submit", "login.footnote"]
+        let order = app.descendants(matching: .any).allElementsBoundByAccessibilityElement.map(\.identifier).filter { wanted.contains($0) }
+        var seen: [String] = []
+        for id in order where !seen.contains(id) { seen.append(id) }
+        XCTAssertEqual(seen, wanted, "the accessibility order")
+    }
+
     // MARK: - Errors
 
     func testAWrongPasswordIsSaidPlainlyAndKeepsTheUsername() {

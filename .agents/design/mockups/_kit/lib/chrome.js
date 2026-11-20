@@ -61,8 +61,9 @@
    * A page (tab root or pushed): wallpaper, scrolling body with large title, header buttons, tab bar or rail or flyout.
    * @param {object} ctx
    * @param {{title:string, subtitle?:string, section?:string, back?:string|boolean, body?:Node|Node[], connection?:'live'|'offline'|'reconnecting',
-   *   badge?:number, choresBadge?:number, flyoutOpen?:boolean, floating?:Node, scrollTop?:number, collapsed?:boolean, noTabs?:boolean, profileName?:string, bottomPad?:number}} o
+   *   badge?:number, choresBadge?:number, flyoutOpen?:boolean, floating?:Node, scrollTop?:number, collapsed?:boolean, noTabs?:boolean, noHeaderButtons?:boolean, profileName?:string, bottomPad?:number}} o
    *   section: which tab/flyout row is selected ('home'|'security'|'climate'|'chores'|'settings'); back: pushed page (the chevron alone; VoiceOver says "Back", the previous title is only in the long-press menu);
+   *   noTabs and noHeaderButtons: a page that hides the tab navigator and the Quick Links and Profile items (pages[].hides, sh.page-chrome-hide@1); Back stays;
    *   connection: 'reconnecting' draws the arc left of Quick Links;
    *   badge: Profile attention count; choresBadge: overdue chores on the Chores tab/row; floating: a FloatingActionBar node; collapsed: the scrolled state where the large title has collapsed into
    *   the bar's inline title (it also fades in by itself as any page scrolls; the Page scroll control's Top resets it, Middle and End scroll on).
@@ -87,14 +88,14 @@
     if (d.tabs === 'top' && !o.noTabs) bar.appendChild(K.TabBar({ selected: o.section || 'home', badges: { chores: o.choresBadge }, orientation: 'top' }));
     if (d.tabs === 'top') bar.appendChild(h('div.sp'));
     if (o.connection === 'reconnecting') bar.appendChild(K.ReconnectingArc({ on: true }));
-    if (!d.rail) {
+    if (!d.rail && !o.noHeaderButtons) {
       bar.appendChild(K.QuickLinksButton());
       bar.appendChild(K.ProfileButton({ badge: o.badge, offline: o.connection === 'offline', name: o.profileName }));
     }
     page.appendChild(bar);
 
     var scroll = h('div.ui-scroll');
-    var bottom = (d.tabs === 'floating' ? 110 : 24) + (o.floating ? 64 : 0) + (o.bottomPad || 0);
+    var bottom = (d.tabs === 'floating' && !o.noTabs ? 110 : 24) + (o.floating ? 64 : 0) + (o.bottomPad || 0);
     scroll.style.setProperty('--bottom-pad', bottom + 'px');
     if (!d.titleInHeader) scroll.appendChild(h('div.ui-title-wrap', h('h1.ui-t-large', o.title), o.subtitle ? h('p.sub', o.subtitle) : null));
     else scroll.appendChild(h('div', { style: { height: '4px' } }));
@@ -123,7 +124,7 @@
     if (d.rail) {
       var rail = h('div.ui-rail');
       if (d.menuInRail && d.menu) rail.appendChild(K.HamburgerButton({ inRail: true }));
-      rail.appendChild(K.RailGroup({ badge: o.badge }));
+      if (!o.noHeaderButtons) rail.appendChild(K.RailGroup({ badge: o.badge }));
       rail.appendChild(h('div.grow'));
       if (d.tabs === 'rail' && !o.noTabs) rail.appendChild(K.TabBar({ selected: o.section || 'home', orientation: 'vertical', badges: { chores: o.choresBadge } }));
       page.appendChild(rail);

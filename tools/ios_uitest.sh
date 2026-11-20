@@ -49,7 +49,7 @@
 #   --quick skips `xcodegen` when project.yml is unchanged (the compile is skipped by the products cache whenever the code is
 #   unchanged). Use it when iterating on one test. The device hold is sized from the selected test count (tools/uitest_support.py): 120 s per test method + 5 minutes,
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).
-#   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` with run_in_background and end the turn: you get a digest, not a log.
+#   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` for a digest, not a log: foreground in a sub-agent, run_in_background in the main session.
 #   FENTON_DERIVED_DATA=DIR builds and tests with -derivedDataPath DIR (CI gives each run its own and deletes it; unset = Xcode's default).
 #   --hosted runs only the app-hosted unit tests, FentonHomeTests. FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
 #   --tests does not select hosted tests (they are not UI tests); use FENTON_HOSTED_FILTER.
@@ -170,7 +170,7 @@ if [[ $HOSTED == 1 ]]; then
   # Sized from the hosted test count (uitest_support.py hosted-hold): a fixed 1800 s ended the full suite part way and left its
   # app running into the journeys that followed.
   # shellcheck disable=SC2086  # FENTON_HOSTED_FILTER is a list of class names
-  export FENTON_DEVCAP_HOLD="${FENTON_DEVCAP_HOLD:-$(python3 "$ROOT/tools/uitest_support.py" hosted-hold ${FENTON_HOSTED_FILTER:-})}"
+  export FENTON_DEVCAP_HOLD="${FENTON_DEVCAP_HOLD:-$(python3 "$ROOT/tools/uitest_support.py" hosted-hold ${FENTON_HOSTED_FILTER:-} -- ${EXTRA[@]+"${EXTRA[@]}"})}"
 fi
 case "$PLAN" in Gate|Smoke|Capture|Perf|Live) ;; *) echo "ios_uitest: unknown --plan '$PLAN' (Gate, Smoke, Capture, Perf or Live)" >&2; exit 2 ;; esac
 # The plan applies when its file exists; before lane B's plans land the scheme's own selection runs.
@@ -303,7 +303,7 @@ SELECTED="$(python3 "$ROOT/tools/uitest_support.py" count ${PLAN_ARGS:+--plan "$
 # The watchdog gets the EXACT count (plan selection, skips and both filters applied; empty when it cannot be exact), not the hold estimate above.
 EXPECTED=""
 [[ -n "$PLAN_ARGS" ]] && EXPECTED="$(python3 "$ROOT/tools/uitest_support.py" exact --plan "$PLAN_FILE" ${FILTERS[@]+"${FILTERS[@]}"} ${SKIPS[@]+"${SKIPS[@]}"})"
-DEFAULT_HOLD="$(python3 "$ROOT/tools/uitest_support.py" hold "$SELECTED")"
+DEFAULT_HOLD="$(python3 "$ROOT/tools/uitest_support.py" hold "$SELECTED" ${EXTRA[@]+"${EXTRA[@]}"})"
 if [[ "${FENTON_UITEST_PRINT_HOLD:-}" == 1 ]]; then echo "${FENTON_DEVCAP_HOLD:-$DEFAULT_HOLD}"; exit 0; fi
 if [[ $FULL_SUITE == 1 && $FULL == 0 ]]; then
   echo "ios_uitest: an unfiltered run is the nightly/release tier. Pick a smaller one:" >&2
