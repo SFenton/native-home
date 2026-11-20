@@ -371,8 +371,11 @@ class HooksRepairTests(unittest.TestCase):
             self.assertNotIn("rewritten", done.stdout + done.stderr)
             self.assertEqual(self.flips(clone), [])
             self.assertIn("tools/setup.sh ran", done.stderr)
-            self.assertIn("--show-origin", done.stderr)
             self.assertNotIn("Run tools/setup.sh", done.stderr)
+            # push_guard refuses any command naming the key, so advice containing it would send an agent in a loop.
+            self.assertNotIn("hooksPath", done.stderr)
+            self.assertNotIn("--show-origin", done.stderr)
+            self.assertIn("blocked", done.stderr)
 
     def test_a_busy_config_lock_is_named_in_the_refusal(self):
         """Fails if: a setup.sh that hit git's config lock is reported as an override instead of a busy lock, or passes."""

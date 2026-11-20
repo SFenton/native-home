@@ -129,7 +129,7 @@ if [[ -f "$RV" ]]; then ORIGIN_KIND="$(python3 "$RV" remote "$(git remote get-ur
 case "$ORIGIN_KIND" in
   other|local) ;;
   native-home)
-    python3 "$LC" check --only hooks || { echo "ship: nothing was pushed; core.hooksPath does not lead to this repo's .githooks (relative or absolute), so git's pre-push hook (the house denylist) would not run. Run tools/setup.sh." >&2; exit 1; } ;;
+    python3 "$LC" check --only hooks || { echo "ship: nothing was pushed; the hooks path does not lead to this repo's .githooks (relative or absolute), so git's pre-push hook (the house denylist) would not run. lane_check already ran tools/setup.sh once; if it said so above, stop and report this as blocked." >&2; exit 1; } ;;
   *) echo "ship: origin is not a readable GitHub URL (or review_verdict.py is missing); nothing was pushed." >&2; exit 1 ;;
 esac
 

@@ -227,11 +227,12 @@ def repair_hooks(why: Optional[str]) -> Optional[str]:
     still = check_hooks()
     if still:
         busy = "lock" in (done.stderr + done.stdout).lower()
-        cause = ("git's config lock was busy (another git command was writing the config); run it again in a moment, and report it if it repeats"
+        # No git setting key and no config command in this text: push_guard refuses any command that names the key, so advice to run one loops.
+        cause = ("git's config lock was busy (another git command was writing the config); run the check again in a moment, and stop and "
+                 "report it as blocked if it repeats"
                  if busy else
-                 "a higher-precedence setting probably overrides it (see `git config --show-origin --get-all core.hooksPath`); report it")
-        return (f"tools/setup.sh ran to repair core.hooksPath (was {old}) and it is still not this worktree's own .githooks: {cause}. "
-                f"{still.split(' Run tools/setup.sh')[0]}")
+                 "a higher-precedence config overrides it. Stop and report this as blocked: the owner finds the override")
+        return f"tools/setup.sh ran and the hooks path is still wrong (it was {old}), so git's pre-push hook would not run from this worktree: {cause}."
     print(f"lane_check: core.hooksPath was rewritten from {old} to .githooks (tools/setup.sh)")
     flips = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks-path-flips"
     with flips.open("a") as fh:
