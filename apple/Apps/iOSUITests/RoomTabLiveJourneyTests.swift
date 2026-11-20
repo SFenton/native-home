@@ -45,11 +45,24 @@ final class RoomTabLiveJourneyTests: JourneyTestCase {
         keepScreenshot(app, "room-tab-\(family)-\(step)")
     }
 
+    /// Opens Settings. iPad draws the tabs in a top bar with no "Settings" navigation bar, so there the `tab-settings` item is tapped and
+    /// checked (selected, and the Settings page's first row, `settings-vacation`, on screen); iPhone and Duo keep the shared account-navigation path.
+    private func openSettings(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
+        guard family == "ipad" else { app.openAccountSettings(file: file, line: line); return }
+        let item = app.buttons["tab-settings"].firstMatch
+        XCTAssertTrue(item.appears(timeout: 10), "No Settings tab in the top bar", file: file, line: line)
+        if !item.isSelected { item.tap() }
+        let selected = NSPredicate(format: "isSelected == true")
+        wait(for: [expectation(for: selected, evaluatedWith: item)], timeout: 10)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "settings-vacation").firstMatch.appears(timeout: 10),
+                      "Settings did not open", file: file, line: line)
+    }
+
     /// A signed-in launch that stops on Settings, the tab the journeys start from.
     private func launchOnSettings(arguments: [String] = []) throws -> XCUIApplication {
         let app = try FentonHomeApp.launchSignedIn(arguments: arguments, readyIdentifier: "nav.profile")
         dump(app, "launched")
-        app.openAccountSettings()
+        openSettings(app)
         settleScreen()
         dump(app, "settings")
         return app
@@ -164,7 +177,7 @@ final class RoomTabLiveJourneyTests: JourneyTestCase {
     }
 
     private func assertSettingsAsLeft(_ app: XCUIApplication, _ what: String) {
-        app.openAccountSettings()
+        openSettings(app)
         XCTAssertTrue(app.navigationBars["Settings"].appears(timeout: 10), "\(what): Settings shows no page")
         XCTAssertFalse(sheetIsOpen(app), "\(what): a sheet is still over Settings")
         XCTAssertTrue(app.buttons["quickLinks.open"].isHittable, "\(what): Settings has no Quick Links")
@@ -255,7 +268,7 @@ final class RoomTabLiveJourneyTests: JourneyTestCase {
         settleScreen()
         assertHomeRoot(app, "Back from the control")
 
-        app.openAccountSettings()
+        openSettings(app)
         openRoom(app)
         waitForLanding(app, "room from Settings")
         shot(app, "2-room-from-settings")

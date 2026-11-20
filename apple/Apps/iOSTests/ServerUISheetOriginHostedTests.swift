@@ -230,17 +230,20 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
 
     // MARK: Unsaved changes
 
-    /// A host whose sheet holds an editable form and the palette tile; `homed` homes `page-echo` on `tab-beta`.
-    private func formHost(homed: Bool = false) throws -> (UKServerUIRenderer, ServerUIValueForm) {
+    /// A host with an editable form and the palette tile; `homed` homes `page-echo` on `tab-beta`.
+    ///
+    /// The form sits in the sheet, or with `formOnPage` on the first tab's root page (the tab a link leaves), leaving the sheet the tile alone.
+    private func formHost(homed: Bool = false, homedOn: String = "tab-beta", formOnPage: Bool = false) throws -> (UKServerUIRenderer, ServerUIValueForm) {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let fragment = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: apple.appendingPathComponent("Tests/HassCoreTests/ServerUIRecordsFixture.json")))
         let components = try XCTUnwrap(fragment["components"]?.array).filter { $0["type"]?.string != "recipe-part" }
         var json = try ServerUIRendererFixture.json()
         let tile = try XCTUnwrap(json["document"]?["modals"]?.array?.first?["components"]?.array?.first { $0["id"]?.string == "node-palette-local" })
         let form = try XCTUnwrap(components.first { $0["type"]?.string == "form" })
-        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components.filter { $0["type"]?.string != "form" }))
+        let pageComponents = formOnPage ? components : components.filter { $0["type"]?.string != "form" }
+        json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(pageComponents))
         json = try ServerUIRendererFixture.changing(json, path: "/document/navigation/chrome/groups/1/items/0/priority", to: .string("normal"))
-        json = try ServerUIRendererFixture.changing(json, path: "/document/modals/0/components", to: .array([form, tile]))
+        json = try ServerUIRendererFixture.changing(json, path: "/document/modals/0/components", to: .array(formOnPage ? [tile] : [form, tile]))
         json = try ServerUIRendererFixture.changing(json, path: "/document/levels", to: .array([]))
         json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(
             (ServerUICompositionPublication.firstSliceCapabilities.filter { $0 != "sh.grid@1" }
@@ -253,7 +256,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         if homed {
             json = try ServerUIRendererFixture.changing(json, path: "/document/extensions", to: .object([
                 "type": .string("native-extensions@1"), "watch": .string("stub@1"), "cameras": .array([]),
-                "routes": .array([.object(["id": .string("route-echo"), "path": .string("echo"), "pageId": .string(Self.echo), "tabId": .string("tab-beta"),
+                "routes": .array([.object(["id": .string("route-echo"), "path": .string("echo"), "pageId": .string(Self.echo), "tabId": .string(homedOn),
                                            "title": .string("Echo"), "summary": .string("Opens echo"), "icon": .string("house.fill")])])]))
             let kept = try XCTUnwrap(json["capabilities"]?.array).compactMap(\.string) + ["sh.native-extensions@1"]
             json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(Set(kept).sorted().map(JSONValue.string)))
@@ -400,6 +403,83 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         XCTAssertNotNil(host.modal, "Cancel keeps the sheet")
         XCTAssertEqual(host.navigation.snapshot.selection, Self.tab, "Cancel keeps the tab")
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice"])
+    }
+
+    // MARK: Unsaved changes on the tab being left
+
+    /// The first tab's root page with a dirty form, and the sheet over it.
+    private func dirtyLeavingTab(homedOn: String = "tab-beta") throws -> (UKServerUIRenderer, UKServerUIPage, UKServerUIPage, ServerUIValueForm) {
+        let (host, draft) = try formHost(homed: true, homedOn: homedOn, formOnPage: true)
+        let root = try ServerUIRendererFixture.root(host)
+        let session = spin({ root.formView?.session === draft })
+        XCTAssertTrue(session, "The root page opened the form")
+        try draft.set(.string("Edited"), group: "item", field: "name")
+        return (host, root, try openSheet(host, from: root), draft)
+    }
+
+    private func askedAlert(from page: UKServerUIPage) throws -> UIAlertController {
+        let asked = spin({ page.presentedViewController is UIAlertController })
+        XCTAssertTrue(asked, "Unsaved changes on the tab being left ask first")
+        return try XCTUnwrap(page.presentedViewController as? UIAlertController)
+    }
+
+    /// Cancel keeps the sheet, the tab and the edit; Discard lets the link through to the home tab.
+    private func assertAsksThenLands(_ host: UKServerUIRenderer, alert: UIAlertController, draft: ServerUIValueForm, sheetOpen: Bool) throws {
+        FeatureHost.answer(alert, try XCTUnwrap(alert.actions.first { $0.style == .cancel }?.title))
+        HostedPage.wait(0.3)
+        XCTAssertEqual(host.modal != nil, sheetOpen, "Cancel keeps the sheet as it was")
+        XCTAssertEqual(host.navigation.snapshot.selection, Self.tab, "Cancel keeps the tab")
+        XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice"])
+        XCTAssertTrue(draft.hasChanges, "Cancel keeps the edit")
+    }
+
+    func testADirtyFormOnTheLeavingTabAsksBeforeASheetLinkReachesAnotherTabsPage() throws {
+        let (host, root, sheet, draft) = try dirtyLeavingTab()
+        host.activate(push(Self.echo), from: sheet)
+        try assertAsksThenLands(host, alert: try askedAlert(from: sheet), draft: draft, sheetOpen: true)
+        host.activate(push(Self.echo), from: sheet)
+        let alert = try askedAlert(from: sheet)
+        FeatureHost.answer(alert, try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title), dismissing: false)
+        let landed = spin({ host.modal == nil && host.navigation.snapshot.presentations.isEmpty && host.navigation.snapshot.selection == Self.beta })
+        XCTAssertTrue(landed, "Discard closes the sheet and lands on the home tab")
+        XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice", Self.echo])
+        XCTAssertFalse(draft.hasChanges, "The leaving tab's edit was discarded")
+        XCTAssertNotNil(root.view)
+    }
+
+    func testADirtyFormOnTheLeavingTabAsksBeforeAPushReachesAnotherTabsPage() throws {
+        let (host, draft) = try formHost(homed: true, formOnPage: true)
+        let root = try ServerUIRendererFixture.root(host)
+        let session = spin({ root.formView?.session === draft })
+        XCTAssertTrue(session)
+        try draft.set(.string("Edited"), group: "item", field: "name")
+        host.activate(push(Self.echo), from: root)
+        try assertAsksThenLands(host, alert: try askedAlert(from: root), draft: draft, sheetOpen: false)
+        host.activate(push(Self.echo), from: root)
+        let alert = try askedAlert(from: root)
+        FeatureHost.answer(alert, try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title), dismissing: false)
+        let landed = spin({ host.navigation.snapshot.selection == Self.beta })
+        XCTAssertTrue(landed, "Discard lands on the home tab")
+        XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice", Self.echo])
+        XCTAssertFalse(draft.hasChanges)
+    }
+
+    /// The control: a page homed on the tab showing, or on no tab, is a same-tab push and keeps the leaving form out of the exit.
+    func testADirtyFormOnTheTabShowingDoesNotAskForASameTabLink() throws {
+        let (host, root, sheet, draft) = try dirtyLeavingTab(homedOn: "tab-alpha")
+        host.activate(push(Self.echo), from: sheet)
+        let landed = settledOnPage(host, Self.echo)
+        XCTAssertTrue(landed, "The sheet closed with no prompt")
+        XCTAssertEqual(host.navigation.snapshot.selection, Self.tab)
+        XCTAssertTrue(draft.hasChanges, "The tab was not left, so its edit stays")
+        XCTAssertNil(root.presentedViewController)
+        let (flat, flatDraft) = try formHost(homed: true, homedOn: "tab-alpha", formOnPage: true)
+        let flatRoot = try ServerUIRendererFixture.root(flat)
+        let opened = spin({ flatRoot.formView?.session === flatDraft })
+        XCTAssertTrue(opened)
+        try flatDraft.set(.string("Edited"), group: "item", field: "name")
+        try flat.perform(push(Self.echo), from: flatRoot)
+        XCTAssertEqual(flat.navigation.snapshot.stacks[Self.tab], ["page-orbit", Self.echo], "A push on the tab showing needs no prompt")
     }
 
     func testBackFromTheLandedPagePopsWithinHomeAndSettingsKeepsItsPageWithNoSheet() throws {

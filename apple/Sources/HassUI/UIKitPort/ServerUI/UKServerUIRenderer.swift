@@ -1244,6 +1244,14 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         return .dismissThenPush(push)
     }
 
+    /// The forms an action leaves behind, which must be saved, asked about or discarded before it runs.
+    ///
+    /// A `push` or `dismiss-then-push` to a page homed on another tab also leaves the tab being left (the stack the sheet was presented from, and any
+    /// adaptive pages), the same exit as ``selectTab``; same-tab and unhomed paths leave only the sheet or the pages above the sender.
+    /// - Parameters:
+    ///   - action: The resolved action.
+    ///   - page: The page that sent it.
+    /// - Returns: The distinct forms, each once.
     private func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
         let pages: [UKServerUIPage]
         switch action {
@@ -1257,14 +1265,20 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             pages = (logicalStacks[page.root] ?? []) + (adaptive?.pages ?? [])
         case .back:
             pages = [page]
-        case .dismiss, .dismissThenPush:
+        case .dismissThenPush(let push):
+            let sheet = modal?.viewControllers.compactMap { $0 as? UKServerUIPage } ?? adaptive?.pages ?? []
+            // The page opens on its home tab: the tab the sheet was presented from is left too, so its forms ask before the sheet closes.
+            let tab = navigation.snapshot.presentations.last.map { logicalStacks[$0.root] ?? [] } ?? []
+            pages = homeTabToLeaveFor(push.pageId) == nil ? sheet : sheet + tab + (adaptive?.pages ?? [])
+        case .dismiss:
             pages = modal?.viewControllers.compactMap { $0 as? UKServerUIPage } ?? adaptive?.pages ?? []
         case .present(let id, _, let policy):
             pages = policy == .replace ? modal?.viewControllers.compactMap { $0 as? UKServerUIPage } ?? adaptive?.pages ?? []
                 : publication.document.modals.first(where: { $0.id == id })?.presentation.adaptive == true ? adaptive?.pages ?? [] : []
         case .domain, .setLocal, .callService, .conditional: pages = []
         }
-        return pages.compactMap(\.formView)
+        var seen = Set<ObjectIdentifier>()
+        return pages.compactMap(\.formView).filter { seen.insert(ObjectIdentifier($0)).inserted }
     }
 
     /// Whether `action` names the destination that is currently selected (a tab or the current page), for selected states.
