@@ -17,7 +17,7 @@ The exact command or chore, the worktree, and what to report (pass and fail coun
 
 ## Tools
 
-- Long jobs: `tools/bg_run.py LABEL -- CMD`, end the turn, read the digest.
+- Long jobs: `tools/bg_run.py LABEL -- CMD` in the foreground, read the digest.
 - Logs: `tools/log_digest.py LOG`. Report facts from the digest, not from the raw log.
 - Any simulator: inside a `tools/devcap.py` hold.
 

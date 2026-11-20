@@ -16,9 +16,8 @@ import sys
 from typing import List, Optional
 
 MESSAGE = (
-    "Blocked: do not poll or sleep-loop to wait for a job. Launch it with run_in_background and "
-    "`tools/bg_run.py LABEL -- COMMAND` (it prints a short digest on exit), then END YOUR TURN: you are "
-    "notified when it finishes. Each poll costs a full-context turn. If this really must wait, add "
+    "Blocked: do not poll or sleep-loop to wait for a job. Run it as `tools/bg_run.py LABEL -- COMMAND` (it prints a short digest on exit): in the main session with "
+    "run_in_background, then END YOUR TURN; in a sub-agent in the foreground. Each poll costs a full-context turn. If this really must wait, add "
     "`# poll-ok: reason` to the command. See .agents/workflow/token-economy.md."
 )
 

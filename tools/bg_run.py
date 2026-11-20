@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Run a long command and print only its digest when it exits.
 
-Launch it with the Bash tool's ``run_in_background: true`` and end the turn: the harness notifies you when it
+In the main session launch it with the Bash tool's ``run_in_background: true`` and end the turn; a sub-agent runs it in the
+foreground (its background jobs die with its turn). The harness notifies the main session when it
 exits, and the notification carries the digest, not the log. Never poll the log with ``until … sleep``.
 
     tools/bg_run.py LABEL [--timeout SECONDS] [--expect-minutes N] [--dir DIR] [--allow-empty] -- COMMAND [ARG …]

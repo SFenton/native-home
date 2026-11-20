@@ -191,9 +191,9 @@ class SubagentReportTests(unittest.TestCase):
         self.assertIn("commit your work (WIP) before handing back", json.loads(out)["reason"])
         self.assertEqual(self._blocked(active=True)[1], "")
 
-    def test_dirty_send_back_names_the_waiting_bg_option_and_the_reprint(self):
+    def test_dirty_send_back_asks_for_the_reprint(self):
         reason = json.loads(self._blocked()[1])["reason"]
-        self.assertIn("waiting_bg:", reason)
+        self.assertNotIn("waiting_bg", reason)
         self.assertIn("Then print the status block again", reason)
 
     def test_payload_cwd_reaches_the_dirty_count(self):
@@ -202,8 +202,8 @@ class SubagentReportTests(unittest.TestCase):
                                   "last_assistant_message": '```status\n{"status": "blocked"}\n```'})
         count.assert_called_once_with("/the/worktree")
 
-    def test_blocked_and_dirty_waiting_bg_passes(self):
-        self.assertEqual(self._blocked("waiting_bg: unit")[1], "")
+    def test_blocked_and_dirty_waiting_bg_is_sent_back(self):
+        self.assertIn("commit your work", self._blocked("waiting_bg: unit")[1])
 
     def test_blocked_and_clean_passes(self):
         self.assertEqual(self._blocked(dirty=3)[1], "")

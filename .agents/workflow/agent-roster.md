@@ -32,7 +32,7 @@ Status block fields:
 | `task`, `summary`, `artifacts` | Ledger id, at most 250 words, paths written |
 | `acceptance` | `pass`, `fail` or `not_run` per check id |
 | `question` | Required for `needs_research` and `needs_decision` |
-| `blocked_reason` | For `blocked`; `waiting_bg: <label>` and `slot_wait: <gate>` are the two waits ([waiting](token-economy.md#waiting)) |
+| `blocked_reason` | For `blocked`; `slot_wait: <gate>` is the wait ([waiting](token-economy.md#waiting)) |
 | `decision.owner_only` | Set only when the owner must decide ([levels](autonomy.md#levels)) |
 | `research_requests`, `implementation_specs`, `hub_republish` | Advisor requests; the last asks for a mockup hub republish |
 

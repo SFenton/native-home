@@ -6,13 +6,12 @@ Cost is turns times context; a turn that only waits costs as much as one that wo
 
 ## Waiting
 
-- **Never poll or sleep-loop.** Run a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and end the turn; the completion notice carries a digest. `tools/hooks/no_poll.py` refuses the loops.
+- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest. A sub-agent's background job dies with its turn: it runs in the foreground (`timeout` up to 600000, a piece per call) or is reported `blocked`. `no_poll.py` and `bg_timeout_guard.py` enforce this.
 - **Read the digest, not the log.** Open the log only for a failure the digest cannot explain.
 - **Infra is the machine, not the test.** Rerun once, then report it.
 - **Long jobs carry a timeout.** `tools/bg_run.py --expect-minutes` prints the value; `tools/hooks/bg_timeout_guard.py` refuses a long background test run without one.
 - **Wait silently.** Woken with nothing new to say, end the turn with no text. A waiting stop is said once.
-- **Commit before a background job.** An agent makes a work-in-progress commit before launching one.
-- **A turn that ends on a running job is `blocked`** with `blocked_reason: "waiting_bg: <label>"`. The orchestrator treats that worktree as live and messages the agent instead of dispatching another.
+- **Commit before a long job.** An agent makes a work-in-progress commit before launching one.
 - **A headless session cannot be woken,** so `tools/hooks/stop_continue_guard.py` refuses to end it while its background job or agent runs.
 - **A session carries its task to the end.** Context size and turn count are never reasons to hand off.
 
