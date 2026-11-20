@@ -45,6 +45,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The tab bar controller whose tabs are the document's tabs; a tab rule changes its members in place.
     let tabController = UITabBarController()
     private(set) var stacks: [ServerUINavigationState.Root: UINavigationController] = [:]
+    /// Whether the last change to the tab navigator's visibility animated, for a test to read; `nil` before it has changed.
+    var lastTabBarMoveAnimated: Bool?
     private(set) var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
     /// The open sheet. ``isEnabled(_:from:)`` reads it, so every change bumps ``busyState``: a swipe-down dismissal ends with no
     /// flight, and without this the controls that present (disabled while the sheet was open) would stay disabled.
@@ -969,6 +971,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             let prefix: [UIViewController] = Array(pages.prefix(index + 1))
             let onDemand = publication.document.pages.first { $0.id == host.surfaceID }?.columnsOnDemand == true
             host.columns?.setWide(!onDemand || pages.count > index + 1 || adaptive?.owner === host)
+            // A push in columns never reaches the stack's `willShow`, so the bar moves here, alongside the columns' own transition.
+            if animated, host.view.window != nil, host.root == navigation.snapshot.selection {
+                setTabBarHidden(hidesTabs(whileTop: pages.last), animated: true)
+            }
             if nav.viewControllers != prefix { nav.setViewControllers(prefix, animated: false) }
             let tail = Array(pages.dropFirst(index + 1))
             host.columns?.reconcile(tags: tail.map { AnyHashable($0.surfaceID) }, make: { key in
@@ -1017,6 +1023,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             try navigation.trimVisiblePath(toDepth: page.depth + kept, onRoot: true)
+            // The column has already slid away: the bar returns alongside it, not after.
+            let remaining = logicalStacks[page.root]?.prefix(page.depth + kept + 1).last
+            if page.root == navigation.snapshot.selection { setTabBarHidden(hidesTabs(whileTop: remaining), animated: true) }
             reconcile(animated: false, updateBodies: false)
         } catch { onError(blocked()) }
     }

@@ -37,7 +37,7 @@
   /* A page that hides the tabs and Quick Links (pages[].hides, sh.page-chrome-hide@1): Back stays, the bar leaves with the push and returns with Back. */
   states['page-hides-chrome'] = { title: 'A page that hides the tabs and Quick Links', note: 'hides { tabs: true, items: [Quick Links and Profile] } on the pushed page; the root keeps both',
     render: function (ctx) {
-      /* On the Duo's vertical bar the app draws Back in the rail, under the status column (device evidence, gc-chrome-hide); Mock.page still draws it in the header row for every pushed page, so this state moves it. */
+      /* On the Duo's vertical bar the app draws Back in the rail, under the status column; Mock.page still draws it in the header row for every pushed page, so this state moves it. */
       function hidden(c) {
         var page = SN.pushedPage(c, { title: 'Kitchen', page: { noTabs: true, noHeaderButtons: true } });
         var rail = page.querySelector('.ui-rail'), back = page.querySelector('.ui-bar > button');

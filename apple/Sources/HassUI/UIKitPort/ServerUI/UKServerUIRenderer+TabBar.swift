@@ -31,6 +31,7 @@ extension UKServerUIRenderer {
     func setTabBarHidden(_ hidden: Bool, animated: Bool) {
         if UKGlassEra.hasIOS18, #available(iOS 18.0, *) {
             guard tabController.isTabBarHidden != hidden else { return }
+            lastTabBarMoveAnimated = animated && !UKMotion.reduceMotion
             tabController.setTabBarHidden(hidden, animated: animated && !UKMotion.reduceMotion)
         } else { tabController.tabBar.isHidden = hidden }
     }
