@@ -237,7 +237,7 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         super.viewDidLayoutSubviews()
         guard !isApplyingLayout else { return }
         let plan = SignInLayoutPlan.resolve(
-            container: SignInLayoutPlan.decisionFrame(scroll: view.convert(scroll.frame, to: nil), safeHeight: view.safeAreaLayoutGuide.layoutFrame.height),
+            container: SignInLayoutPlan.decisionFrame(scroll: view.convert(scroll.frame, to: nil), keyboardFreeHeight: view.bounds.height),
             isRegularWidth: traitCollection.horizontalSizeClass == .regular,
             hinge: environment?.windowHinge, isAccessibilityText: traitCollection.preferredContentSizeCategory.isAccessibilityCategory,
             isRightToLeft: view.effectiveUserInterfaceLayoutDirection == .rightToLeft)

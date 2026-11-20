@@ -24,17 +24,17 @@ struct SignInLayoutPlan: Equatable {
     ///
     /// The scroll view ends at the keyboard, so its own height changes when a field takes focus; the decision must not, or a regular
     /// window taller than wide by less than the keyboard would flip to two regions as the keyboard rose. Width and position stay the
-    /// scroll view's (the hinge band is measured against them); the height is the safe area's.
+    /// scroll view's (the hinge band is measured against them); the height is the window's own, which neither the keyboard nor the safe-area insets change (``SplitPolicy`` reads the window's size).
     /// - Parameters:
     ///   - scroll: The scroll view's frame in window coordinates.
-    ///   - safeHeight: The height of the view's safe area, keyboard excluded.
-    static func decisionFrame(scroll: CGRect, safeHeight: CGFloat) -> CGRect {
-        CGRect(x: scroll.minX, y: scroll.minY, width: scroll.width, height: safeHeight)
+    ///   - keyboardFreeHeight: The height of the view, keyboard excluded.
+    static func decisionFrame(scroll: CGRect, keyboardFreeHeight: CGFloat) -> CGRect {
+        CGRect(x: scroll.minX, y: scroll.minY, width: scroll.width, height: keyboardFreeHeight)
     }
 
     /// Resolves the layout for a scroll view.
     /// - Parameters:
-    ///   - container: The keyboard-free frame (``decisionFrame(scroll:safeHeight:)``) in window coordinates (the hinge band is measured against it, not the window).
+    ///   - container: The keyboard-free frame (``decisionFrame(scroll:keyboardFreeHeight:)``) in window coordinates (the hinge band is measured against it, not the window).
     ///   - isRegularWidth: The horizontal size class is regular.
     ///   - hinge: The device's division frame in window coordinates, if any.
     ///   - isAccessibilityText: The content size category is an accessibility size.
