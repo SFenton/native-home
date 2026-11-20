@@ -3,13 +3,13 @@
 
 ``tools/hooks/merge_guard.py`` lets an agent run ``tools/pr_land.sh N`` only from a checkout whose landing files equal
 ``origin/<base>``'s. A session checkout that fell behind, or holds other sessions' edits, fails that check, and nothing here repairs it.
-This tool keeps one detached worktree of ``origin/main`` in a shared folder beside the session worktrees: it fetches, moves the
+This tool keeps one detached worktree of ``origin/main`` at ``build/land-main`` of the checkout it runs from (git-ignored, and inside the main session's working directories, where a
+``cd`` persists): it fetches, moves the
 tree to ``origin/main`` (recreating it when it is missing, broken or has local edits), and checks it with the guard's own
 :func:`merge_guard.pr_land_matches_base`. The last line is ``land from: <path>``, or ``land from: failed`` (exit 1) when the fetch
 did not work or the tree still differs. Then, in the main session: ``cd <path>``, ``tools/pr_land.sh N``.
 
-Usage: ``python3 tools/land_checkout.py [--dir PATH] [--remote origin] [--branch BASE]``. ``--dir`` defaults to ``land-origin-main`` beside the
-checkout this runs from (``LAND_CHECKOUT_DIR`` overrides it); ``--branch`` defaults to the guard's first base branch.
+Usage: ``python3 tools/land_checkout.py [--path PATH] [--remote origin] [--branch BASE]``. ``--path`` overrides the tree; ``--branch`` defaults to the guard's first base branch.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "hooks"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import merge_guard  # noqa: E402  (the byte-check this tree must pass)
 
-DEFAULT_NAME = "land-origin-main"
+DEFAULT_SUBPATH = Path("build") / "land-main"
 #: Variables that would point git at another repository.
 _SELECTORS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES")
 
@@ -53,9 +53,9 @@ def need(where: Path, *args: str, hardened: bool = False) -> str:
     return proc.stdout.strip()
 
 
-def default_dir(top: Path) -> Path:
-    """The shared land folder: beside the session worktrees, which are siblings of ``top``."""
-    return Path(os.environ.get("LAND_CHECKOUT_DIR") or top.parent / DEFAULT_NAME)
+def default_path(top: Path) -> Path:
+    """The land tree inside the caller's checkout, under git-ignored ``build/``: the main session's ``cd`` persists only there."""
+    return top / DEFAULT_SUBPATH
 
 
 def is_clean_worktree(tree: Path, common: Path) -> bool:
@@ -104,14 +104,14 @@ def prepare(top: Path, tree: Path, remote: str, base: str) -> Tuple[Path, str]:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """Print ``land from: <path>`` (exit 0) or ``land from: failed`` after the reason on stderr (exit 1)."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--dir", help="the land tree (default: land-origin-main beside this checkout, or $LAND_CHECKOUT_DIR)")
+    parser.add_argument("--path", help="the land tree (default: build/land-main in this checkout)")
     parser.add_argument("--remote", default="origin")
     parser.add_argument("--branch", help="the base branch (default: the merge guard's first base)")
     args = parser.parse_args(argv)
     try:
         top = Path(need(Path.cwd(), "rev-parse", "--show-toplevel"))
         base = args.branch or merge_guard.base_refs()[0]
-        tree, action = prepare(top, Path(args.dir) if args.dir else default_dir(top), args.remote, base)
+        tree, action = prepare(top, Path(args.path) if args.path else default_path(top), args.remote, base)
     except LandCheckoutError as exc:
         print(f"land_checkout: {exc}", file=sys.stderr)
         print("land from: failed")

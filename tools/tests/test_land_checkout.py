@@ -52,7 +52,8 @@ class LandFixture(unittest.TestCase):
         git(self.root, "clone", "-q", str(self.origin), str(self.primary))
         self.advance(45)
         (self.primary / "tools" / "pr_land.py").write_text("another session's conflicting edit\n")
-        self.land = self.root / "sessions" / "land-origin-main"
+        (self.primary / ".gitignore").write_text("build/\n")
+        self.land = self.primary / "build" / "land-main"
 
     def advance(self, commits):
         """Move origin's main on by ``commits`` commits, each editing ``tools/pr_land.py``."""
@@ -67,7 +68,7 @@ class LandFixture(unittest.TestCase):
         before = os.getcwd()
         os.chdir(self.primary)
         try:
-            with redirect_stdout(out), redirect_stderr(err), mock.patch.dict(os.environ, {"LAND_CHECKOUT_DIR": ""}):
+            with redirect_stdout(out), redirect_stderr(err):
                 code = land_checkout.main(list(extra))
         finally:
             os.chdir(before)
@@ -110,7 +111,7 @@ class LandCheckoutTests(LandFixture):
         self.assertTrue(merge_guard.pr_land_matches_base("tools/pr_land.sh 5", str(self.land / "tools" / "pr_land.sh")))
 
     def test_a_folder_that_is_not_a_worktree_is_replaced(self):
-        self.land.mkdir()
+        self.land.mkdir(parents=True)
         (self.land / "junk").write_text("x\n")
         code, lines, _ = self.run_tool()
         self.assertEqual((code, lines[-1]), (0, f"land from: {self.land}"))
@@ -130,9 +131,16 @@ class LandCheckoutTests(LandFixture):
         self.assertEqual((code, lines), (1, ["land from: failed"]))
         self.assertIn("still differ", err)
 
-    def test_dir_option_overrides_the_default(self):
+    def test_the_nested_tree_is_not_in_the_callers_git_status(self):
+        self.run_tool()
+        self.assertTrue(self.land.is_dir())
+        status = git(self.primary, "status", "--porcelain", "--untracked-files=all")
+        self.assertNotIn("build", status)
+        self.assertIn("tools/pr_land.py", status)  # the caller's own edit still shows
+
+    def test_path_option_overrides_the_default(self):
         elsewhere = self.root / "elsewhere"
-        code, lines, _ = self.run_tool("--dir", str(elsewhere))
+        code, lines, _ = self.run_tool("--path", str(elsewhere))
         self.assertEqual((code, lines[-1]), (0, f"land from: {elsewhere}"))
 
 
