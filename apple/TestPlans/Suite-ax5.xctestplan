@@ -20,6 +20,11 @@
       },
       "parallelizable": false,
       "selectedTests": [
+        "ChromeHideJourneyTests/testAPageThatHidesBothAtAX5()",
+        "ChromeHideJourneyTests/testATabsOnlyPageAtAX5()",
+        "ChromeHideJourneyTests/testAnItemsOnlyPageAtAX5()",
+        "ChromeHideJourneyTests/testColumnsAtAX5()",
+        "ChromeHideJourneyTests/testRootOnlyAtAX5()",
         "HeaderButtonsJourneyTests/testBarKeepsItsSizesAtAX5()",
         "HeaderButtonsJourneyTests/testPhotoButtonKeepsItsSizeAtAX5()",
         "KeptTextJourneyTests/testKeptTextAtAX5()",
