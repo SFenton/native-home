@@ -223,10 +223,15 @@ def repair_hooks(why: Optional[str]) -> Optional[str]:
         return why
     top = toplevel()
     old = git("config", "core.hooksPath", check=False) or "(unset)"
-    run(["sh", str(setup)], check=False, timeout=120)  # its exit code also reflects the denylist; the re-check below decides
+    done = run(["sh", str(setup)], check=False, timeout=120)  # its exit code also reflects the denylist; the re-check below decides
     still = check_hooks()
     if still:
-        return still
+        busy = "lock" in (done.stderr + done.stdout).lower()
+        cause = ("git's config lock was busy (another git command was writing the config); run it again in a moment, and report it if it repeats"
+                 if busy else
+                 "a higher-precedence setting probably overrides it (see `git config --show-origin --get-all core.hooksPath`); report it")
+        return (f"tools/setup.sh ran to repair core.hooksPath (was {old}) and it is still not this worktree's own .githooks: {cause}. "
+                f"{still.split(' Run tools/setup.sh')[0]}")
     print(f"lane_check: core.hooksPath was rewritten from {old} to .githooks (tools/setup.sh)")
     flips = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks-path-flips"
     with flips.open("a") as fh:

@@ -377,8 +377,10 @@ class ShipPushThenReviewTests(unittest.TestCase):
             git(clone, "commit", "-q", "-m", "Add a")
             if passed:
                 record_pass(home, git(clone, "rev-parse", "HEAD"))
-            if setup:
+            if setup is True:
                 shutil.copy(TOOLS / "setup.sh", clone / "tools" / "setup.sh")
+            elif setup:  # a stub script that does not fix the path
+                (clone / "tools" / "setup.sh").write_text(setup)
             if hooks:
                 value = {True: ".githooks", "absolute": str(clone / ".githooks")}.get(hooks, hooks)
                 git(clone, "config", "core.hooksPath", value)
@@ -428,6 +430,16 @@ class ShipPushThenReviewTests(unittest.TestCase):
                 self.assertIn(f"rewritten from {foreign} to .githooks", done.stdout + done.stderr)
                 self.assertEqual(len(self.flip_rows), 1)
                 self.assertEqual(self.flip_rows[0].split("\t")[1], foreign)
+
+    def test_a_repair_that_does_not_take_pushes_nothing(self):
+        """Fails if: ship.sh pushes after setup.sh ran but the hooks path still points elsewhere."""
+        done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False, hooks="/elsewhere/.githooks",
+                                     setup="#!/bin/sh\nexit 0\n")
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertFalse(self.pushed)
+        self.assertEqual(self.final_path, "/elsewhere/.githooks")
+        self.assertEqual(self.flip_rows, [])
+        self.assertIn("nothing was pushed", done.stderr)
 
     def test_an_unreadable_origin_fails_closed(self):
         done = self.ship_with_origin("nonsense", passed=True)

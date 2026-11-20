@@ -2,7 +2,7 @@
 
 Wiring: ship.sh calls ``ship_guard.sh`` before every commit and push, the guard keeps every pattern, ``commit_guard`` is
 registered, and the owner-only lists name the three guard files but not ship.sh. Behaviour: both guards in a temp repo.
-This file is itself owner-only (``tools/lane_land.py`` DEFAULT_PROTECTED and ``tools/triage/config.json``).
+Since 2026-11-07 the guard files, this file included, are not in the fixed protected set (``test_the_guard_files_are_unlocked_but_ship_must_still_call_them``).
 """
 
 import io
