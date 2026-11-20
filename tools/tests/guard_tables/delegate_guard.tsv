@@ -1,0 +1,25 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).  @delegate ROLE TEXT is a T3 delegate_task (ROLE - = no role).
+# delegate_guard is a TRIPWIRE: it reads the role and the prompt text, nothing about what the child does. The role field is `role`, the prompt is `task` (T3 app.asar, delegate_task input).
+@delegate implementation Implement the lane. Read .claude/agents/coder.md first. End with the status block.	allow	a Coder lane: implementation, names coder.md and the status block
+@delegate implementation Follow .claude/agents/coder.md and end with a STATUS BLOCK.	allow	the status block match ignores case
+@delegate implementation Brief: fix X. See ../../.claude/agents/coder.md; reply with the status block JSON.	allow	a path that ends in the coder.md path still names it
+@delegate implementation Lines\nRead .claude/agents/coder.md\nthen finish with the status block	allow	a multi-line prompt
+@delegate implementation Per .claude/agents/coder.md: add the control, tests too. Final message: status block (done|blocked).	allow	a longer coder brief
+@delegate research Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	role research stays on a Claude role, even with a full coder brief
+@delegate review Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	role review stays on a Claude role, even with a full coder brief
+@delegate design Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	role design stays on a Claude role, even with a full coder brief
+@delegate test Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	role test stays on a Claude role, even with a full coder brief
+@delegate general Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	role general stays on a Claude role, even with a full coder brief
+@delegate - Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	no role is refused: the default is not a Coder lane
+@delegate Implementation Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	the role is matched exactly, not case-folded
+@delegate implementation Implement the lane and end with the status block.	block	missing the coder.md path
+@delegate implementation Read .claude/agents/coder.md and implement the lane.	block	missing the status block contract
+@delegate implementation Implement the lane.	block	names neither coder.md nor the status block
+@delegate implementation Read .claude/agents/reviewer.md and end with the status block.	block	names another role file, not coder.md
+@delegate implementation Read coder.md and end with the status block.	block	a bare coder.md is not the .claude/agents path
+@delegate implementation Read .claude/agents/coder.md and end with the report.	block	the contract is the status block, not a report
+@delegate review Review the lane. Implement the lane. Read .claude/agents/coder.md first. End with the status block.	block	a review brief that also quotes coder.md is still a review
+git status	allow	a non-delegate Bash call is ignored
+git push origin agents/x	allow	a non-delegate Bash call is ignored, whatever the text
+@write notes.md .claude/agents/coder.md status block	allow	a non-delegate Write is ignored
+python3 tools/agent_eval.py	allow	a non-delegate Bash call is ignored

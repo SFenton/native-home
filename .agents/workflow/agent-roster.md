@@ -4,10 +4,10 @@
 
 ## Roles
 
-Roles: [AGENTS.md](../../AGENTS.md#roles). Each `.claude/agents/<role>.md` states the role's scope, what it writes and what it never does; model and effort live only in its frontmatter ([models](token-economy.md#models)).
+Roles: [AGENTS.md](../../AGENTS.md#roles). Each `.claude/agents/<role>.md` states the role's scope and limits; model and effort live only in its frontmatter ([models](token-economy.md#models)).
 
 - **Entry.** Every session in the repo starts as the orchestrator (`"agent"` in `.claude/settings.json`) unless an explicit `--agent` names another role.
-- **One dispatcher.** Only the orchestrator spawns agents that write. Researcher and Designer are advisors: they return `research_requests` and `implementation_specs` in their status block and the orchestrator dispatches them.
+- **One dispatcher.** Only the orchestrator spawns agents that write. Researcher and Designer are advisors: they return `research_requests` and `implementation_specs`; the orchestrator dispatches them.
 - **Read-only helpers.** The Researcher may spawn only read-only helpers, each with a cheap model named on the call.
 - **Independent review.** The Reviewer is never the author and never runs on the orchestrator's model.
 - **No other roles.** Area, platform and release knowledge lives in skills and scripts.
@@ -53,6 +53,8 @@ A guard is a tripwire for accident and habit. Answer a refusal by changing the w
 | `mockup_hub_guard.py` | A session with mockup changes ends with a hub publish |
 | `rules_guard.py` | [What a rule is](docs-conventions.md#what-a-rule-is), at write time |
 | `triage_session.py`, `triage_deny.py` | A headless session's deny list ([triage-agent](triage-agent.md)) |
+
+`delegate_task` carries only Coder lanes; its prompt names `.claude/agents/coder.md` and the status-block contract (`tools/hooks/delegate_guard.py`).
 
 A change to a guard hook ships with block and allow rows in `tools/tests/guard_tables/`, and its brief says whether the guard is a tripwire or a wall.
 
