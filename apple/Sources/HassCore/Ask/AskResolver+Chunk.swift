@@ -157,7 +157,7 @@ extension AskResolver {
         }.joined(separator: " ")
         let qualifier = chunk.contains { index.configuration.qualifierWords.contains($0) }
         let plural = chunk.contains { w in
-            w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") && (kindStems[AskText.stem(w)] != nil)
+            w.count > 3 && w.hasSuffix("s") && !w.hasSuffix("ss") && (kindStems[AskText.stem(w)] != nil || w == "sensors")
         } && !chunk.contains("was")
         let whole = chunk.contains { AskLexicon.houseWords.contains($0) && $0 != "home" }
             || chunk.contains("everywhere") || chunk.contains("altogether")

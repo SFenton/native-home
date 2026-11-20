@@ -52,6 +52,8 @@ public struct AskResolver: Sendable {
         known.formUnion(kindStems.keys)
         known.formUnion(valueStems.keys)
         known.formUnion(AskLexicon.personWords)
+        // The device words a name rarely carries but a person says ("the den presence sensor"): `kindWords` matches them.
+        known.formUnion(["sensor", "switch", "cover"])
         known.formUnion(syn.values.flatMap { AskText.words($0) })
         knownWords = known
     }
