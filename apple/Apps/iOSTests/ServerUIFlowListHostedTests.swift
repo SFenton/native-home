@@ -17,13 +17,8 @@ final class ServerUIFlowListHostedTests: XCTestCase {
     private static let widths: [CGFloat] = [390, 744, 1024]
     private static let clock = ServerUIClock(now: "2026-11-16T09:00:00", utcOffsetMinutes: 0)
 
-    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
-    /// `viewDidDisappear`, which rests the page's node observations (`UKServerUIPage.restNodes()`), so the list stops drawing.
-    private var windows: [UIWindow] = []
-
     override func tearDown() async throws {
         HostedPage.hideTracked()
-        windows.removeAll()
         HostedPage.resetGlobals()
         try await super.tearDown()
     }
@@ -104,7 +99,7 @@ final class ServerUIFlowListHostedTests: XCTestCase {
         store.replaceAll([EntityState(entityId: "switch.demo_lamp", state: "off")])
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: store, caller: HostedCaller()),
                                           backdrop: ServerUIRendererFixture.backdrop(), collections: [id: session.collection])
-        windows.append(HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180))))
+        _ = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180)))
         HostedPage.wait(0.1)
         let root = try ServerUIRendererFixture.root(host)
         root.view.layoutIfNeeded()

@@ -11,12 +11,14 @@ import XCTest
 /// Run unchanged on iPhone, iPhone Duo and iPad.
 @MainActor
 final class ServerUISheetOriginHostedTests: XCTestCase {
-    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
-    /// `viewDidDisappear`, which rests the page's node observations, so the page stops drawing and following the store.
-    private var windows: [UIWindow] = []
+    /// What the renderer reported through `onError` since ``formHost(homed:homedOn:formOnPage:)`` built it.
+    private var reported: [UKServerUIRendererError] = []
+    /// The speed of the hosted window's layer tree (1 is real time): below 1 every animation, including an alert's presentation and dismissal, takes proportionally longer.
+    private var animationSpeed: Float = 1
 
     override func tearDown() async throws {
-        windows.removeAll()
+        reported = []
+        animationSpeed = 1
         HostedPage.hideTracked()
         HostedPage.resetGlobals()
         try await super.tearDown()
@@ -84,7 +86,6 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let renderer = try UKServerUIRenderer(publication: publication(adaptive: adaptive, homed: homed, hideBeta: hideBeta), context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), shellHeader: source)
         let window = HostedPage.show(renderer, size: adaptive ? HostedPage.splitSize : nil)
-        windows.append(window)
         if adaptive { renderer.setOverrideTraitCollection(UITraitCollection(horizontalSizeClass: .regular), forChild: renderer.tabController) }
         HostedPage.wait(0.1)
         return (renderer, window)
@@ -271,9 +272,39 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUIRendererFixture.publication(document) }
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), records: records)
-        windows.append(HostedPage.show(host))
+        host.onError = { [weak self] in self?.reported.append($0) }
+        let window = HostedPage.show(host)
+        window.layer.speed = animationSpeed
         HostedPage.wait(0.1)
         return (host, draft)
+    }
+
+    /// What blocks an intent right now, for an assertion message: the presented controllers, the pending alert, the forms the link leaves, the
+    /// selected tab and its stack, and the error the discard replay swallowed.
+    private func guardState(_ host: UKServerUIRenderer, page: UKServerUIPage, link: ServerUICompositionDocument.Action) -> String {
+        func name(_ controller: UIViewController?) -> String { controller.map { String(describing: type(of: $0)) + ($0.isBeingPresented ? "(presenting)" : $0.isBeingDismissed ? "(dismissing)" : "") } ?? "none" }
+        let forms = host.exitForms(link, from: page).map { "needsDiscard=\($0.needsDiscard) blocksExit=\($0.blocksExit)" }
+        return "page.presented=\(name(page.presentedViewController)) modal.presented=\(name(host.modal?.presentedViewController)) "
+            + "activeAlert=\(name(host.activeAlert)) exitForms=\(forms) selection=\(host.navigation.snapshot.selection) "
+            + "stacks=\(host.navigation.snapshot.stacks) presentations=\(host.navigation.snapshot.presentations.count) modal=\(host.modal != nil) "
+            + "replayError=\(String(describing: host.lastDiscardReplayError)) reported=\(reported.map(\.description))"
+    }
+
+    /// Answers a "Discard changes?" alert with Discard and waits for the replayed `link` to land; the one place every discard-replay test
+    /// asserts, so a failure prints the guard state and the replay's error (``guardState(_:page:link:)``).
+    /// - Parameters:
+    ///   - settled: Wait for the alert to finish presenting before answering it (a person cannot tap an alert that is not up yet).
+    ///   - landed: What the replay must have done.
+    @discardableResult
+    private func discardAndExpect(_ host: UKServerUIRenderer, alert: UIAlertController, from page: UKServerUIPage, link: ServerUICompositionDocument.Action,
+                                  settled: Bool = true, _ message: String, file: StaticString = #filePath, line: UInt = #line,
+                                  until landed: () -> Bool) throws -> Bool {
+        if settled { XCTAssertTrue(spin({ !HostedPage.isTransitioning(page) }), "The alert finished presenting", file: file, line: line) }
+        let discard = try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title)
+        FeatureHost.answer(alert, discard, dismissing: false)
+        let done = spin(landed)
+        XCTAssertTrue(done, message + " | " + guardState(host, page: page, link: link), file: file, line: line)
+        return done
     }
 
     func testAFormWithUnsavedChangesAsksBeforeTheSheetCloses() throws {
@@ -282,26 +313,29 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let session = spin({ sheet.formView?.session === draft })
         XCTAssertTrue(session)
         try draft.set(.string("Edited"), group: "item", field: "name")
-        host.activate(push(Self.echo), from: sheet)
+        let link = push(Self.echo)
+        host.activate(link, from: sheet)
         let asked = spin({ sheet.presentedViewController is UIAlertController })
         XCTAssertTrue(asked, "Unsaved changes ask before the sheet closes")
         XCTAssertNotNil(host.modal)
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit"])
-        // Keeping the edit leaves everything as it was.
+        // Keeping the edit leaves everything as it was. The alert is answered once it has finished presenting and the answer waits for it
+        // to be gone: a dismissal asked of a presentation still in flight lands late on a loaded machine.
         let alert = try XCTUnwrap(sheet.presentedViewController as? UIAlertController)
+        XCTAssertTrue(spin({ !HostedPage.isTransitioning(sheet) }), "The first alert finished presenting")
         let keep = try XCTUnwrap(alert.actions.first { $0.style == .cancel }?.title)
-        let discard = try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title)
         FeatureHost.answer(alert, keep)
+        XCTAssertTrue(spin({ sheet.presentedViewController == nil && !HostedPage.isTransitioning(sheet) }), "Keep Editing closed the first alert")
         HostedPage.wait(0.3)
         XCTAssertNotNil(host.modal)
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit"])
         // Discarding it lets the same link go through.
-        host.activate(push(Self.echo), from: sheet)
+        host.activate(link, from: sheet)
         let again = spin({ sheet.presentedViewController is UIAlertController })
         XCTAssertTrue(again, "The same link asks again")
-        FeatureHost.answer(try XCTUnwrap(sheet.presentedViewController as? UIAlertController), discard, dismissing: false)
-        let landed = settledOnPage(host, Self.echo)
-        XCTAssertTrue(landed)
+        try discardAndExpect(host, alert: try XCTUnwrap(sheet.presentedViewController as? UIAlertController), from: sheet, link: link, "The link lands on the page") {
+            self.settledOnPage(host, Self.echo)
+        }
     }
 
     // MARK: Room navigation
@@ -445,9 +479,9 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         try assertAsksThenLands(host, alert: try askedAlert(from: sheet), draft: draft, sheetOpen: true)
         host.activate(push(Self.echo), from: sheet)
         let alert = try askedAlert(from: sheet)
-        FeatureHost.answer(alert, try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title), dismissing: false)
-        let landed = spin({ host.modal == nil && host.navigation.snapshot.presentations.isEmpty && host.navigation.snapshot.selection == Self.beta })
-        XCTAssertTrue(landed, "Discard closes the sheet and lands on the home tab")
+        try discardAndExpect(host, alert: alert, from: sheet, link: push(Self.echo), "Discard closes the sheet and lands on the home tab") {
+            host.modal == nil && host.navigation.snapshot.presentations.isEmpty && host.navigation.snapshot.selection == Self.beta
+        }
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice", Self.echo])
         XCTAssertFalse(draft.hasChanges, "The leaving tab's edit was discarded")
         XCTAssertNotNil(root.view)
@@ -463,11 +497,93 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         try assertAsksThenLands(host, alert: try askedAlert(from: root), draft: draft, sheetOpen: false)
         host.activate(push(Self.echo), from: root)
         let alert = try askedAlert(from: root)
-        FeatureHost.answer(alert, try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title), dismissing: false)
-        let landed = spin({ host.navigation.snapshot.selection == Self.beta })
-        XCTAssertTrue(landed, "Discard lands on the home tab")
-        XCTAssertEqual(host.navigation.snapshot.stacks[Self.beta], ["page-lattice", Self.echo])
+        try discardAndExpect(host, alert: alert, from: root, link: push(Self.echo), "Discard lands on the home tab and the page") {
+            host.navigation.snapshot.selection == Self.beta && host.navigation.snapshot.stacks[Self.beta] == ["page-lattice", Self.echo]
+        }
         XCTAssertFalse(draft.hasChanges)
+    }
+
+    /// `afterTransition(of:_:)` runs its body exactly once whether the coordinator takes the completion or refuses it (`animate` returns `false`),
+    /// so Discard never waits on a completion that never comes and never replays twice.
+    func testAfterTransitionRunsTheBodyOnceWhetherOrNotTheCoordinatorTakesTheCompletion() {
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var runs = 0
+        UKServerUIRenderer.afterTransition(of: refusing) { waited in XCTAssertFalse(waited); runs += 1 }
+        XCTAssertEqual(runs, 1, "A refused completion runs the body at once")
+        refusing.finish()
+        XCTAssertEqual(runs, 1, "A late completion does not run it again")
+
+        let accepting = StubTransitionCoordinator(accepts: true)
+        var accepted = 0
+        UKServerUIRenderer.afterTransition(of: accepting) { waited in XCTAssertTrue(waited); accepted += 1 }
+        XCTAssertEqual(accepted, 0, "An accepted completion waits for the transition")
+        accepting.finish()
+        accepting.finish()
+        XCTAssertEqual(accepted, 1, "and runs the body once however often it fires")
+    }
+
+    /// A page with a dirty form, an alert up over it, and the action that leaves it: what `replayDiscard` needs.
+    private func replayFixture() throws -> (host: UKServerUIRenderer, root: UKServerUIPage, alert: UIAlertController, leaving: [UKServerUIFormView]) {
+        let (host, draft) = try formHost(homed: true, formOnPage: true)
+        let root = try ServerUIRendererFixture.root(host)
+        XCTAssertTrue(spin({ root.formView?.session === draft }))
+        try draft.set(.string("Edited"), group: "item", field: "name")
+        let alert = UIAlertController(title: "Other alert", message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+        root.present(alert, animated: false)
+        XCTAssertTrue(spin({ root.presentedViewController === alert && !HostedPage.isTransitioning(root) }), "An alert is up")
+        return (host, root, alert, host.exitForms(push(Self.echo), from: root))
+    }
+
+    /// A coordinator that always refuses the completion, under `replayDiscard` itself: the replay asks for it once, runs its tail once and ends,
+    /// with the sanitized blocked error because the alert is still up (no recursion, no second replay).
+    func testAReplayUnderACoordinatorThatRefusesRunsOnceAndReportsBlockedWhileAnAlertIsUp() throws {
+        let (host, root, _, leaving) = try replayFixture()
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var asked = 0
+        host.replayDiscard(leaving, action: push(Self.echo), from: root, source: nil, symbol: "") { _ in asked += 1; return refusing }
+        refusing.finish()
+        XCTAssertEqual(asked, 1, "The wait is entered once, never again")
+        XCTAssertEqual(reported.count, 1, "The replay ran once and was blocked: \(reported.map(\.description))")
+        XCTAssertEqual(reported.first?.description, "interaction_blocked at /document/navigation")
+        XCTAssertNotNil(host.lastDiscardReplayError)
+        XCTAssertEqual(host.navigation.snapshot.selection, Self.tab, "Nothing navigated")
+    }
+
+    /// The same refusing coordinator when nothing blocks the replay once the alert is gone: the page lands, once.
+    func testAReplayUnderACoordinatorThatRefusesLandsTheLinkWhenNothingBlocksIt() throws {
+        let (host, root, alert, leaving) = try replayFixture()
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var asked = 0
+        host.replayDiscard(leaving, action: push(Self.echo), from: root, source: nil, symbol: "") { _ in
+            asked += 1
+            alert.dismiss(animated: false)
+            _ = self.spin({ root.presentedViewController == nil })
+            return refusing
+        }
+        refusing.finish()
+        XCTAssertEqual(asked, 1, "The wait is entered once, never again")
+        XCTAssertTrue(spin({ host.navigation.snapshot.selection == Self.beta && host.navigation.snapshot.stacks[Self.beta] == ["page-lattice", Self.echo] }),
+                      guardState(host, page: root, link: push(Self.echo)))
+        XCTAssertTrue(reported.isEmpty, "\(reported.map(\.description))")
+    }
+
+    /// The same Discard with every animation slowed to a tenth, and the alert answered the moment it is up: the replay must still land
+    /// once the alert's dismissal finishes, however long that takes.
+    func testDiscardOnASlowlyDismissedAlertStillLandsTheLink() throws {
+        animationSpeed = 0.1
+        let (host, draft) = try formHost(homed: true, formOnPage: true)
+        let root = try ServerUIRendererFixture.root(host)
+        let session = spin({ root.formView?.session === draft })
+        XCTAssertTrue(session)
+        try draft.set(.string("Edited"), group: "item", field: "name")
+        host.activate(push(Self.echo), from: root)
+        try assertAsksThenLands(host, alert: try askedAlert(from: root), draft: draft, sheetOpen: false)
+        host.activate(push(Self.echo), from: root)
+        let alert = try askedAlert(from: root)
+        try discardAndExpect(host, alert: alert, from: root, link: push(Self.echo), settled: false, "A slow Discard lands on the home tab and the page") {
+            host.navigation.snapshot.selection == Self.beta && host.navigation.snapshot.stacks[Self.beta] == ["page-lattice", Self.echo]
+        }
     }
 
     /// The control: a page homed on the tab showing, or on no tab, is a same-tab push and keeps the leaving form out of the exit.
@@ -560,11 +676,51 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIRendererFixture.publication(json)
         XCTAssertFalse(publication.document.declaresSheetLevels)
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()), backdrop: ServerUIRendererFixture.backdrop())
-        windows.append(HostedPage.show(host))
+        _ = HostedPage.show(host)
         HostedPage.wait(0.1)
         let sheet = try openSheet(host, from: ServerUIRendererFixture.root(host))
         host.activate(push(Self.echo), from: sheet)
         let stayed = spin({ host.modal?.viewControllers.count == 2 })
         XCTAssertTrue(stayed, "A lowered document's drill stays in the sheet, as on a build before the capability")
     }
+}
+
+// MARK: - Fixture
+
+/// A transition coordinator whose `animate(alongsideTransition:completion:)` accepts the completion (and runs it on ``finish()``) or refuses it.
+private final class StubTransitionCoordinator: NSObject, UIViewControllerTransitionCoordinator {
+    private let accepts: Bool
+    private var completions: [(UIViewControllerTransitionCoordinatorContext) -> Void] = []
+
+    init(accepts: Bool) { self.accepts = accepts }
+
+    /// Runs every completion taken so far, as the end of the transition does.
+    func finish() { completions.forEach { $0(self) } }
+
+    func animate(alongsideTransition animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
+                 completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)? = nil) -> Bool {
+        // A refusing coordinator still keeps the completion, as a UIKit one may call it late: ``finish()`` then proves a late call runs nothing twice.
+        if let completion { completions.append(completion) }
+        return accepts
+    }
+
+    func animateAlongsideTransition(in view: UIView?, animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
+                                    completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)? = nil) -> Bool { accepts }
+    func notifyWhenInteractionEnds(_ handler: @escaping (UIViewControllerTransitionCoordinatorContext) -> Void) {}
+    func notifyWhenInteractionChanges(_ handler: @escaping (UIViewControllerTransitionCoordinatorContext) -> Void) {}
+
+    var isAnimated: Bool { accepts }
+    var presentationStyle: UIModalPresentationStyle { .none }
+    var initiallyInteractive: Bool { false }
+    var isInterruptible: Bool { false }
+    var isInteractive: Bool { false }
+    var isCancelled: Bool { false }
+    var transitionDuration: TimeInterval { 0 }
+    var percentComplete: CGFloat { 0 }
+    var completionVelocity: CGFloat { 0 }
+    var completionCurve: UIView.AnimationCurve { .linear }
+    var containerView: UIView { UIView() }
+    var targetTransform: CGAffineTransform { .identity }
+    func viewController(forKey key: UITransitionContextViewControllerKey) -> UIViewController? { nil }
+    func view(forKey key: UITransitionContextViewKey) -> UIView? { nil }
 }

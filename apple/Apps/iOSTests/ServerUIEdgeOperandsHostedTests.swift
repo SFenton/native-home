@@ -16,12 +16,8 @@ final class ServerUIEdgeOperandsHostedTests: XCTestCase {
     /// The widths of the three families: iPhone, folded Duo and iPad.
     private static let widths: [CGFloat] = [390, 744, 1024]
 
-    /// The windows this test opened (``HostedPage/show(_:size:inScene:)`` says why the caller holds them).
-    private var windows: [UIWindow] = []
-
     override func tearDown() async throws {
         HostedPage.hideTracked()
-        windows.removeAll()
         HostedPage.resetGlobals()
         try await super.tearDown()
     }
@@ -66,7 +62,7 @@ final class ServerUIEdgeOperandsHostedTests: XCTestCase {
         store.replaceAll(entities)
         let host = try UKServerUIRenderer(publication: custom ?? publication(file), context: UKContext(store: store, caller: HostedCaller()),
                                           backdrop: ServerUIRendererFixture.backdrop())
-        windows.append(HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180))))
+        _ = HostedPage.show(host, size: HostedPage.inScene(CGSize(width: width, height: 1180)))
         HostedPage.wait(0.1)
         let root = try ServerUIRendererFixture.root(host)
         root.view.layoutIfNeeded()
