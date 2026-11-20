@@ -45,7 +45,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The tab bar controller whose tabs are the document's tabs; a tab rule changes its members in place.
     let tabController = UITabBarController()
     private(set) var stacks: [ServerUINavigationState.Root: UINavigationController] = [:]
-    private var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
+    private(set) var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
     /// The open sheet. ``isEnabled(_:from:)`` reads it, so every change bumps ``busyState``: a swipe-down dismissal ends with no
     /// flight, and without this the controls that present (disabled while the sheet was open) would stay disabled.
     private(set) var modal: UKHassModalController? { didSet { if modal !== oldValue { busyState.changed() } } }
@@ -824,11 +824,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if environment.chrome != chrome { environment.chrome = chrome }
         edgePan?.isEnabled = chrome.edgeSwipe
         // The tab bar is never hidden for style: a regular-width window gets the system's top bar (`.tabBar`, never the sidebar).
-        let hidden = publication.document.navigation.tabs.isEmpty
-        if UKGlassEra.hasIOS18, #available(iOS 18.0, *) {
-            if tabController.mode != .tabBar { tabController.mode = .tabBar }
-            if tabController.isTabBarHidden != hidden { tabController.setTabBarHidden(hidden, animated: false) }
-        } else { tabController.tabBar.isHidden = hidden }
+        if UKGlassEra.hasIOS18, #available(iOS 18.0, *), tabController.mode != .tabBar { tabController.mode = .tabBar }
+        setTabBarHidden(publication.document.navigation.tabs.isEmpty || selectedPageHidesTabs, animated: false)
         if !chrome.showsMenuButton, flyoutOpen { closeMenu() }
         // The top tab bar has no way to open the flyout, so its off-screen rows and Close target stay out of the accessibility tree.
         let flyoutGone = style == .topTabBar
@@ -921,13 +918,16 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 onError(UKServerUIRendererError(code: .differentDocument, pointer: "/document/pages"))
                 return
             }
+            // A page drops the header items it hides; a sheet's pages inherit the sheet's own chrome untouched (`sh.page-chrome-hide@1`).
+            let groups = presentation == nil
+                ? ServerUIChromeHide.groups(inherited, applying: publication.document.pages.first { $0.id == id }?.hides) : inherited
             if depth < existing.count, let page = existing[depth] as? UKServerUIPage,
                page.surfaceID == id, desired.count == depth {
-                if updateBodies { page.update(surface, inheritedGroups: inherited, close: close) }
+                if updateBodies { page.update(surface, inheritedGroups: groups, close: close) }
                 desired.append(page)
             } else {
                 desired.append(UKServerUIPage(surface: surface, context: context, root: root, presentationID: presentation,
-                    depth: depth, inheritedGroups: inherited, close: close, renderer: self,
+                    depth: depth, inheritedGroups: groups, close: close, renderer: self,
                     columnPlaceholder: presentation == nil ? publication.document.pages.first { $0.id == id }?.columnPlaceholder : nil))
             }
         }
@@ -1644,6 +1644,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         navigationMeasurement?.settled()
         navigationMeasurement = nil
         guard let top = nav.topViewController as? UKServerUIPage else { return }
+        defer { if top.presentationID == nil { settleTabBar() } }
         if top.columns?.isWide == true {
             refreshNavigation()
             releaseTouchesWhenSettled()
@@ -2028,6 +2029,9 @@ final class UKServerUIStackDelegate: NSObject, UINavigationControllerDelegate {
                                    previous: settledPages, coordinator: navigationController.transitionCoordinator)
         }
         modal?.navigationController(navigationController, willShow: viewController, animated: animated)
+        if let page = viewController as? UKServerUIPage, page.presentationID == nil {
+            renderer?.tabBarFollows(page, animated: animated, coordinator: navigationController.transitionCoordinator)
+        }
     }
 
     /// Reports a shown page to the renderer.
