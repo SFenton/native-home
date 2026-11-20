@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -667,7 +668,28 @@ class StressLedgerTests(unittest.TestCase):
         out = self.run_ledger("-only-testing:A/B", "ledger_inputs iphone")
         self.assertEqual(out, ["filter: -only-testing:A/B | plan: plan | env hash: envhash | sim: Sim iphone | tree: tree123"])
 
-    def test_the_script_records_a_pass_only_outside_a_stress_run(self):
-        text = SCRIPT.read_text()
-        self.assertIn('if ! stress_run "$family"; then', text)
-        self.assertIn("never skipped, never recorded", text)
+    def test_a_stress_run_leaves_no_record_and_a_plain_run_does(self):
+        """On a real temporary ledger: record_run writes a plain pass (which then skips a repeat) and nothing for a stress block."""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "tools").mkdir()
+            shutil.copy(SCRIPT.parent / "affected_tests.py", Path(tmp) / "tools" / "affected_tests.py")
+            text = SCRIPT.read_text()
+            start = text.index("family_args() {")
+            body = text[start:text.index('if [[ "${FENTON_UITEST_PRINT_FILTERS:-}"', start)]
+            head = (f'ROOT="{tmp}"\nCHANGED=0\nSELECTING=0\nFORCE=0\nFULL_SUITE=0\nPLAN_ARGS=plan\nENV_HASH=envhash\n'
+                    f'device_name() {{ echo "Sim $1"; }}\n')
+            ledger = Path(tmp) / "build" / "testruns"
+
+            def run(extra, calls):
+                script = f'{head}BASE_EXTRA=({extra})\n{body}\nTREE_HASH=tree123\n{calls}'
+                done = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+                return done.stdout.strip() + done.stderr
+
+            stress = "-only-testing:A/B -test-iterations 15"
+            run(stress, "record_run iphone pass")
+            self.assertFalse(list(ledger.glob("*.json")))
+            self.assertEqual(run(stress, "already_passed iphone && echo skipped || echo runs"), "runs")
+            said = run("-only-testing:A/B", "record_run iphone pass")
+            self.assertEqual(len(list(ledger.glob("*.json"))), 1, said)
+            self.assertEqual(run("-only-testing:A/B", "already_passed iphone && echo skipped || echo runs"), "skipped")
+            self.assertEqual(run(stress, "already_passed iphone && echo skipped || echo runs"), "runs")

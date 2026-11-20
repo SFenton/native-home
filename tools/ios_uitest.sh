@@ -475,6 +475,10 @@ recorded_skipped() {  # family -> 0 when the ledger holds a `skipped` record (ne
   if stress_run "$1"; then return 1; fi
   [[ "$(python3 "$ROOT/tools/affected_tests.py" result --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")")" == skipped ]]
 }
+record_run() {  # family result -> write the ledger record; a stress block is never recorded (a later one-pass run must not stand in for it)
+  if stress_run "$1"; then return 0; fi
+  python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")" --result "$2"
+}
 if [[ "${FENTON_UITEST_PRINT_FILTERS:-}" == 1 ]]; then  # dry run for the tool tests: what each family would run
   for family in iphone duo ipad; do wanted "$family" || continue; family_args "$family"; echo "$family: ${FAMILY_ARGS[*]-}"; done
   finish 0
@@ -575,9 +579,7 @@ process_family() {
     # a later run (--only that family) past the run-level EMPTY check.
     local result=pass
     python3 "$ROOT/tools/uitest_support.py" tally-ran "$FENTON_TALLY" "xcodebuild_$family" || result=skipped
-    if ! stress_run "$family"; then  # a stress block is never recorded: a later one-pass run must not stand in for it
-      python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$family" --filter "$(run_key "$family")" --result "$result" || status=1
-    fi
+    record_run "$family" "$result" || status=1
   fi
   return $status
 }

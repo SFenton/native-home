@@ -563,6 +563,15 @@ class StressSkipTests(unittest.TestCase):
         self.assertTrue(out.startswith("RESULT: MISMATCH"), out)
         self.assertIn("STRESS RUN INCOMPLETE: asked for 15 iterations", out)
 
+    def test_a_stress_skip_does_not_blame_a_dropped_exit_status(self):
+        out = log_digest.digest_text(STRESS_SKIPPED_BLOCK, exit_code=0)
+        self.assertNotIn("a wrapper dropped the real status", out)
+        self.assertEqual(out.count("iterations, block"), 2)
+
+    def test_a_real_failure_with_exit_0_keeps_the_wrapper_line(self):
+        out = log_digest.digest_text(XCTEST_FAIL, exit_code=0)
+        self.assertIn("a wrapper dropped the real status", out)
+
     def test_one_iteration_line_per_block(self):
         out = log_digest.digest_text(STRESS_SKIPPED_BLOCK, exit_code=0)
         self.assertIn("iterations, block 1 (iphone 15x part 1): iteration 15 of 15", out)
