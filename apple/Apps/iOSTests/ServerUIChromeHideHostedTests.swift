@@ -8,7 +8,7 @@ import XCTest
 /// Hosted UX and accessibility checks for `pages[].hides` and `navigation.tabsVisibility` (`sh.page-chrome-hide@1`, `sh.tabs-visibility@1`, global
 /// chrome pick 4, 2026-11-18).
 ///
-/// Every document is a case of the app's own global-chrome corpus (`GlobalChromeCorpus/`), decoded with the compiler's global-chrome rules on, with
+/// Every document is a case of the app's own global-chrome corpus (`GlobalChromeCorpus/`), decoded as a shipped build does, with
 /// the page's `hides` set in memory. The renderer decides by the window's size class, never by device, so each test sets the size class on the
 /// renderer itself: the same code runs on the iPhone (floating bar), the Duo (rail or bar) and the iPad (top bar) simulators and checks every
 /// style. Navigation is the fixture's own: `page-orbit` pushes `page-echo`, and `chrome-bell` is a header button every page shows.
@@ -34,7 +34,7 @@ final class ServerUIChromeHideHostedTests: XCTestCase {
     private func publication(root: JSONValue? = nil, echo: JSONValue? = nil, visibility: String? = nil,
                               columns: Bool = false) throws -> ServerUICompositionPublication {
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-        let url = apple.appendingPathComponent("Tests/HassCoreTests/GlobalChromeCorpus/reject/pending-global-chrome-hides-both.json")
+        let url = apple.appendingPathComponent("Tests/HassCoreTests/GlobalChromeCorpus/accept/global-chrome-hides-both.json")
         var json = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
         var capabilities = Set(json["capabilities"]?.array?.compactMap(\.string) ?? [])
         guard case .object(var envelope) = json, case .object(var document)? = envelope["document"],
@@ -60,7 +60,7 @@ final class ServerUIChromeHideHostedTests: XCTestCase {
         envelope["capabilities"] = .array(capabilities.sorted().map(JSONValue.string))
         json = .object(envelope)
         let data = try JSONEncoder().encode(json)
-        return try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUICompositionPublication.decode(data) }
+        return try ServerUICompositionPublication.decode(data)
     }
 
     private static func hides(tabs: Bool = false, items: [String] = []) -> JSONValue {

@@ -26,7 +26,7 @@ enum UKGalleryRouter {
         guard let page = ComponentGallery.requested else { return nil }
         GalleryHouse.install()
         let lanes: [(ComponentGallery.Page) -> UIViewController?] = [
-            UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.components, UKGallery.setup, UKGallery.liveActivity, UKGallery.sheetOrigin,
+            UKGallery.design, UKGallery.designLists, UKGallery.designControls, UKGallery.shell, UKGallery.components, UKGallery.setup, UKGallery.liveActivity, UKGallery.sheetOrigin, UKGallery.chromeHide,
         ]
         for lane in lanes {
             if let controller = lane(page) { return controller }

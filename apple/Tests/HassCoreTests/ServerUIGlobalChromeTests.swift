@@ -16,7 +16,7 @@ struct ServerUIGlobalChromeTests {
 
     private static func file(_ name: String) -> URL {
         if name.contains("/") { return corpus.appendingPathComponent(name) }
-        // A promoted case (`sh.sheet-levels@1`) is an ordinary accept or reject; the rest are still pending.
+        // A promoted case (levels, hides, tabs visibility) is an ordinary accept or reject; the rest are still pending.
         let candidates = ["accept/\(name).json", "reject/\(name).json", "reject/pending-\(name).json"]
         let found = candidates.first { FileManager.default.fileExists(atPath: corpus.appendingPathComponent($0).path) }
         return corpus.appendingPathComponent(found ?? candidates[2])
@@ -63,7 +63,7 @@ struct ServerUIGlobalChromeTests {
         struct Index: Decodable { let cases: [Promoted] }
         guard let data = try? Data(contentsOf: corpus.appendingPathComponent("index.json")),
               let index = try? JSONDecoder().decode(Index.self, from: data) else { return [] }
-        return index.cases.filter { $0.file.contains("global-chrome-levels-") && !$0.file.contains("/pending-") }
+        return index.cases.filter { !$0.file.contains("/pending-") }
     }()
 
     // MARK: Corpus
@@ -81,7 +81,7 @@ struct ServerUIGlobalChromeTests {
         }
     }
 
-    /// The promoted `sh.sheet-levels@1` cases are ordinary accepts and rejects: no scope, the Studio's first issue for a refusal.
+    /// The promoted cases (`sh.sheet-levels@1`, `sh.page-chrome-hide@1`, `sh.tabs-visibility@1`) are ordinary accepts and rejects: no scope, the Studio's first issue for a refusal.
     @Test(arguments: promoted)
     func eachPromotedCaseGivesItsAnswerWithNoScope(_ item: Promoted) throws {
         let data = try Data(contentsOf: Self.file(item.file))
@@ -94,9 +94,9 @@ struct ServerUIGlobalChromeTests {
         }
     }
 
-    /// The `levels` cases were promoted with `sh.sheet-levels@1`; the other three ids still hold their cases as pending (20 at promotion).
+    /// The `levels`, `hides` and `tabs-visibility` cases were promoted with their ids; the wide-open cases and the all-ids document stay pending.
     @Test func theCorpusHoldsTheUnshippedCasesAsPending() {
-        #expect(Self.held.count >= 20 && Self.promoted.count == 17 && Self.held.allSatisfy { $0.pending == true })
+        #expect(Self.held.count >= 5 && Self.promoted.count == 31 && Self.held.allSatisfy { $0.pending == true })
     }
 
     // MARK: Production
@@ -118,7 +118,7 @@ struct ServerUIGlobalChromeTests {
 
     @Test func aDocumentThatUsesAFieldMustDeclareItsId() throws {
         let text = try String(contentsOf: Self.file("global-chrome-all"), encoding: .utf8)
-        for id in ServerUIGlobalChrome.all + [ServerUIGlobalChrome.sheetLevels] {
+        for id in ServerUIGlobalChrome.all + ServerUIIngestedCapabilities.sheetLevels + ServerUIIngestedCapabilities.pageChrome {
             let without = text.replacingOccurrences(of: "\"\(id)\",", with: "").replacingOccurrences(of: ",\n    \"\(id)\"", with: "")
             do {
                 _ = try Self.decode(without)
@@ -255,7 +255,7 @@ struct ServerUIGlobalChromeTests {
 
     @Test func allFourCanLiveInOneDocument() throws {
         let publication = try Self.publication("global-chrome-all")
-        for id in ServerUIGlobalChrome.all + [ServerUIGlobalChrome.sheetLevels] { #expect(publication.capabilities.contains(id), "\(id)") }
+        for id in ServerUIGlobalChrome.all + ServerUIIngestedCapabilities.sheetLevels + ServerUIIngestedCapabilities.pageChrome { #expect(publication.capabilities.contains(id), "\(id)") }
         #expect(publication.document.levels.count == 2)
         #expect(publication.document.navigation.tabsVisibility == .rootOnly)
         #expect(publication.document.pages[0].hides == .init(tabs: true, items: ["chrome-bell"]))
@@ -264,10 +264,14 @@ struct ServerUIGlobalChromeTests {
     // MARK: Capability ids
 
     @Test func theIdsAreAcceptedOnlyInsideTheScope() throws {
-        #expect(ServerUIGlobalChrome.all == ["sh.page-chrome-hide@1", "sh.page-wide-open@1", "sh.tabs-visibility@1"])
+        #expect(ServerUIGlobalChrome.all == ["sh.page-wide-open@1"])
         // Sheet levels shipped with their runtime: published and accepted with no scope.
         #expect(ServerUICompositionPublication.supportedCapabilities.contains(ServerUIGlobalChrome.sheetLevels))
         #expect(ServerUIIngestedCapabilities.sheetLevels == [ServerUIGlobalChrome.sheetLevels])
+        // The hides and the tab visibility shipped with their runtime too.
+        #expect(ServerUIIngestedCapabilities.pageChrome == [ServerUIGlobalChrome.pageChromeHide, ServerUIGlobalChrome.tabsVisibility])
+        #expect(ServerUICompositionPublication.supportedCapabilities.contains(ServerUIGlobalChrome.pageChromeHide))
+        #expect(ServerUICompositionPublication.supportedCapabilities.contains(ServerUIGlobalChrome.tabsVisibility))
         let supported = Set(ServerUICompositionPublication.supportedCapabilities)
         let ingested = Set(ServerUIIngestedCapabilities.all)
         let published = try JSONDecoder().decode([String].self, from: Data(contentsOf: ServerUIContractCorpusTests.directory.appendingPathComponent("capabilities.json")))

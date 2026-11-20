@@ -4,8 +4,8 @@ import Foundation
 
 /// The contract additions of the global-chrome rule: sheet levels, a page's own chrome hides, a page's wide-window open and the tab bar's visibility.
 ///
-/// Sheet levels shipped with their runtime (``ServerUIIngestedCapabilities/sheetLevels``). For the other three the compiler holds the decode and validation
-/// rules, but a shipped build refuses a publication that uses them as `unsupported_capability`: they are not in
+/// Sheet levels (``ServerUIIngestedCapabilities/sheetLevels``) and the hides and tab visibility (``ServerUIIngestedCapabilities/pageChrome``) shipped with their
+/// runtime. For the wide-window open the compiler holds the decode and validation rules, but a shipped build refuses a publication that uses them as `unsupported_capability`: they are not in
 /// ``ServerUICompositionPublication/supportedCapabilities``, the list the app tells the server it can draw, and no runtime draws them yet. The rules run only
 /// inside ``understood`` (a test scope). An id moves from ``all`` to ``ServerUIIngestedCapabilities`` in the change that lands its runtime (the owner's
 /// capability rule), `capabilities.json` is regenerated then, and the scope goes with the last id.
@@ -15,15 +15,15 @@ public enum ServerUIGlobalChrome {
 
     /// Top-level `levels[]`: surfaces a sheet's `push` reaches without leaving the sheet. Published: see ``ServerUIIngestedCapabilities/sheetLevels``.
     public static let sheetLevels = "sh.sheet-levels@1"
-    /// `pages[].hides`: chrome a page hides for itself.
+    /// `pages[].hides`: chrome a page hides for itself. Published: see ``ServerUIIngestedCapabilities/pageChrome``.
     public static let pageChromeHide = "sh.page-chrome-hide@1"
     /// `pages[].wideOpen`: how a page opens in a window wide enough for two columns.
     public static let pageWideOpen = "sh.page-wide-open@1"
-    /// `navigation.tabsVisibility`: whether the tab bar shows on every page or only on a root page.
+    /// `navigation.tabsVisibility`: whether the tab bar shows on every page or only on a root page. Published: see ``ServerUIIngestedCapabilities/pageChrome``.
     public static let tabsVisibility = "sh.tabs-visibility@1"
 
     /// The ids the compiler understands and the app does not yet publish.
-    public static let all: [String] = [pageChromeHide, pageWideOpen, tabsVisibility]
+    public static let all: [String] = [pageWideOpen]
 }
 
 // MARK: - Model

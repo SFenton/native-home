@@ -6,15 +6,15 @@ import Testing
 
 /// The pure rule behind `pages[].hides` and `navigation.tabsVisibility`: which header items a page drops and when the tab navigator hides.
 ///
-/// Documents are the app's own global-chrome corpus, decoded with the compiler's global-chrome rules on.
+/// Documents are the app's own global-chrome corpus, decoded with no scope, as a shipped build does.
 @Suite(.timeLimit(.minutes(1)))
 struct ServerUIChromeHideTests {
     typealias D = ServerUICompositionDocument
 
     private static func document(_ name: String) throws -> D {
-        let corpus = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("GlobalChromeCorpus/reject", isDirectory: true)
-        let data = try Data(contentsOf: corpus.appendingPathComponent("pending-global-chrome-\(name).json"))
-        return try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUICompositionPublication.decode(data) }.document
+        let corpus = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("GlobalChromeCorpus/accept", isDirectory: true)
+        let data = try Data(contentsOf: corpus.appendingPathComponent("global-chrome-\(name).json"))
+        return try ServerUICompositionPublication.decode(data).document
     }
 
     private static func ids(_ groups: [D.ChromeGroup]) -> [String] { groups.flatMap(\.items).map(\.id) }
