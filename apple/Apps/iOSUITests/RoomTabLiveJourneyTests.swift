@@ -1,6 +1,6 @@
 import XCTest
 
-/// A homed page opens under its home tab (`.agents/decisions/2026-11-19-homed-page-tab.md`): from Settings, Quick Links, the Rooms tile and a
+/// A homed page opens under its home tab (`.agents/patterns/modal-sheet.md#a-page-link-closes-the-sheet`): from Settings, Quick Links, the Rooms tile and a
 /// room, the sheet closes and the room lands on top of Home's stack, with Back and the same chrome as the room opened from Home (the live publication decides whether a room page draws Quick Links and Profile); Back leads to the page below it on Home
 /// and Settings is where it was left, with no sheet. A second room appends to Home's stack, and Food, authored under Home, lands there too.
 ///

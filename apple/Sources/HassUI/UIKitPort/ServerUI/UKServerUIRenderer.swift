@@ -1126,6 +1126,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             guard !leaving.contains(where: \.blocksExit) else { onError(blocked()); return }
             UKDiscardGuard.confirm(from: page, source: source.map(UKPopoverSource.view) ?? .none) { [weak self, weak page] in
                 guard let self, let page else { return }
+                self.lastDiscardReplayError = nil
                 do {
                     for form in leaving { try form.discard() }
                     try self.perform(action, from: page, source: source, symbol: symbol)
