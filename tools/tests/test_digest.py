@@ -182,6 +182,25 @@ class DigestTests(unittest.TestCase):
         self.assertIn("RESULT: INFRA", log_digest.digest_text("bg_run: hold timeout, killed after 1800s\n", exit_code=124))
         self.assertIn("RESULT: INFRA", log_digest.digest_text(real, exit_code=75))
 
+    def test_a_hold_timeout_while_tests_were_passing_says_to_raise_the_hold(self):
+        log = ("Test Case '-[FentonHomeTests.AlphaTests testA]' passed (0.5 seconds).\n"
+               "Test Case '-[FentonHomeTests.AlphaTests testB]' started.\n"
+               "Iteration 4 of 6\n"
+               "\ndevcap: HOLD TIMEOUT: held iphone longer than 16m; killing the command\n")
+        out = log_digest.digest_text(log, exit_code=124)
+        self.assertIn("RESULT: INFRA", out)
+        self.assertIn("hold ran out while tests were still passing; raise `FENTON_DEVCAP_HOLD`", out)
+        self.assertIn("Iteration 4 of 6", out)
+        self.assertNotIn("hung run", out)
+
+    def test_a_hold_timeout_with_no_test_output_before_it_keeps_the_hung_advice(self):
+        log = ("Test Case '-[FentonHomeTests.AlphaTests testA]' passed (0.5 seconds).\n"
+               "xcodebuild: waiting for the simulator\n"
+               "\ndevcap: HOLD TIMEOUT: held iphone longer than 16m; killing the command\n")
+        out = log_digest.digest_text(log, exit_code=124)
+        self.assertIn("hung run", out)
+        self.assertNotIn("FENTON_DEVCAP_HOLD", out)
+
     def test_a_printed_hold_timeout_line_does_not_hide_failed_tests(self):
         """A test fixture that prints the words 'hold timeout' and then fails reads FAIL with the id, not INFRA."""
         log = ("test_hold_timeout_is_labelled (test_devcap.HoldTests.test_hold_timeout_is_labelled) ...\n"

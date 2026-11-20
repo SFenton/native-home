@@ -185,17 +185,27 @@ def exact_count(args: List[str], plan: Optional[Path], root: Path = ROOT) -> Opt
     return len(chosen)
 
 
-def hold_for(tests: int) -> int:
-    """120 s per test plus five minutes, never under ten minutes or over 7200 s."""
-    return max(HOLD_FLOOR, min(HOLD_CAP, SECONDS_PER_TEST * tests + HOLD_BASE))
+def iterations_in(args: List[str]) -> int:
+    """The `-test-iterations N` value in a run's arguments (also `-test-iterations=N`); 1 when absent or not a positive integer."""
+    for i, arg in enumerate(args):
+        value = arg.split("=", 1)[1] if arg.startswith("-test-iterations=") else args[i + 1] if arg == "-test-iterations" and i + 1 < len(args) else ""
+        if value.isdigit() and int(value) > 0:
+            return int(value)
+    return 1
 
 
-def hosted_hold(classes: List[str], root: Path = ROOT) -> int:
+def hold_for(tests: int, iterations: int = 1) -> int:
+    """120 s per test per iteration plus five minutes, never under ten minutes or over 7200 s."""
+    return max(HOLD_FLOOR, min(HOLD_CAP, SECONDS_PER_TEST * tests * max(1, iterations) + HOLD_BASE))
+
+
+def hosted_hold(classes: List[str], root: Path = ROOT, iterations: int = 1) -> int:
     """Device hold for the app-hosted unit tests: all of them, or only `classes` (``FENTON_HOSTED_FILTER``). The measured 3.1 s a test
-    times 1.5 plus ten minutes, never under 900 s or over 7200 s; a class the sources do not have counts as ``UNKNOWN_CLASS`` tests."""
+    times 1.5 plus ten minutes, never under 900 s or over 7200 s; a class the sources do not have counts as ``UNKNOWN_CLASS`` tests.
+    The per-test part is multiplied by ``iterations`` (`-test-iterations N`): a stress run repeats every test."""
     found = tests_by_class(root, HOSTED_DIR)
     tests = sum(len(found.get(name, [])) or UNKNOWN_CLASS for name in classes) if classes else sum(map(len, found.values()))
-    return max(HOSTED_FLOOR, min(HOLD_CAP, math.ceil(HOSTED_MEASURED_SECONDS * HOSTED_MARGIN * tests) + HOSTED_BASE))
+    return max(HOSTED_FLOOR, min(HOLD_CAP, math.ceil(HOSTED_MEASURED_SECONDS * HOSTED_MARGIN * tests * max(1, iterations)) + HOSTED_BASE))
 
 
 def git(*args: str, root: Path = ROOT) -> str:
@@ -257,9 +267,12 @@ def main(argv: Optional[List[str]] = None) -> int:
         for group in split_parts(Path(rest[1]), int(rest[2]), root):
             print(" ".join(group))
     elif command == "hold":
-        print(hold_for(int(rest[0])))
-    elif command == "hosted-hold":
-        print(hosted_hold(rest, root))
+        print(hold_for(int(rest[0]), iterations_in(rest[1:])))
+    elif command == "iterations":
+        print(iterations_in(rest))
+    elif command == "hosted-hold":  # CLASS... [-- RUN ARGS]: the run's arguments carry `-test-iterations N`
+        classes, extra = (rest[:rest.index("--")], rest[rest.index("--") + 1:]) if "--" in rest else (rest, [])
+        print(hosted_hold(classes, root, iterations_in(extra)))
     elif command == "tally":
         status, lines = tally_verdict(Path(rest[0]).read_text(encoding="utf-8") if Path(rest[0]).is_file() else "")
         print("\n".join(lines))

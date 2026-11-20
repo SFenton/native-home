@@ -36,6 +36,11 @@ ST_RUN_ISSUES = re.compile(r"Test run with \d+ tests?.*? with (?P<n>\d+) issues?
 ST_RUN = re.compile(r"[✔✘] Test run with (?P<n>\d+) tests?.*?(?P<state>passed|failed)")
 COMPILE_ERROR = re.compile(r"(?P<where>/?[^\s:]+\.swift:\d+):\d+: error: (?P<msg>.*)")
 
+#: A line that shows tests still running: a result, a start, or the stress loop's "Iteration 4 of 6".
+ITERATION = re.compile(r"\bIteration (?P<n>\d+) of (?P<total>\d+)\b")
+PROGRESS = re.compile(r"Test Case '-\[[\w.]+ \w+\]' (?:started|passed|failed)|^[✔✘] Test \S|\bIteration \d+ of \d+\b")
+HOLD_RAN_OUT = "hold ran out while tests were still passing; raise `FENTON_DEVCAP_HOLD`"
+
 #: The two lines devcap and bg_run print when they kill a run. They count only at the start of a line and only when the run
 #: exited with `HOLD_TIMEOUT_EXITS`: a test that prints the words, or a log that quotes them, is not an infrastructure death.
 HOLD_TIMEOUT = re.compile(r"^(?:devcap: HOLD TIMEOUT:|bg_run: hold timeout)")
@@ -130,6 +135,9 @@ class Digest:
         self.markers: "OrderedDict[str, None]" = OrderedDict()  # `INFRA: …` lines xc_watch.py and ios_uitest.sh print
         self.products: "OrderedDict[str, None]" = OrderedDict()  # `products: hit|built KEY …` from tools/products_cache.py
         self.tail: List[str] = []
+        self.prev_progress = False  # the last non-blank line was test output (logs carry no clock, so "recent" is "the last thing printed")
+        self.hold_progress = False  # a hold timeout line followed test output: the run was progressing when the hold ended
+        self.iteration: Optional[Tuple[int, int]] = None  # the last "Iteration N of M" line
 
     def feed(self, lines: Iterable[str]) -> None:
         """Read every line of a log."""
@@ -144,6 +152,12 @@ class Digest:
         self.tail = recent
 
     def _line(self, line: str) -> None:
+        if line.strip():
+            if HOLD_TIMEOUT.search(line):
+                self.hold_progress = self.prev_progress
+            self.prev_progress = bool(PROGRESS.search(line))
+            if found := ITERATION.search(line):
+                self.iteration = (int(found["n"]), int(found["total"]))
         if match := ST_RUN.search(line):
             self.st_run = (int(match["n"]), match["state"])
             if issues := ST_RUN_ISSUES.search(line):
@@ -331,6 +345,8 @@ class Digest:
         if self.infra:
             for label_, pattern, advice in INFRA:
                 if label_ in self.infra:
+                    if label_ == "hold timeout" and self.hold_progress:
+                        advice = HOLD_RAN_OUT + (f" (Iteration {self.iteration[0]} of {self.iteration[1]})" if self.iteration else "")
                     if label_ in MARKED:
                         out.append(f"  -> {advice}")
                         continue
