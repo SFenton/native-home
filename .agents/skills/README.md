@@ -5,7 +5,7 @@
 | Skill | Use for |
 |---|---|
 | [add-control](add-control/SKILL.md) | A new reusable control |
-| [design-decision](design-decision/SKILL.md) | A design choice the owner has not made, and its decision record |
+| [design-decision](design-decision/SKILL.md) | A design choice the owner has not made |
 | [fix-reported-issue](fix-reported-issue/SKILL.md) | A bug or feature from the request repo |
 | [land-pr](land-pr/SKILL.md) | Shipping a branch: pull request, review, verdict, arming the merge, waiting on CI |
 | [mockup-hub](mockup-hub/SKILL.md) | Publishing the mockup atlas to the hub Artifact |

@@ -1,6 +1,6 @@
 # Swipe to adjust a tile (proposal)
 > **What:** the design for swipe to adjust on any tile: absolute tracking, the band and bubble, detents, one call on release. **Read when:** you need the reasons behind the tile swipe.
-- Mockup: [tile-swipe.html](tile-swipe.html) · status decided · decision: the tile-swipe decision record
+- Mockup: [tile-swipe.html](tile-swipe.html) · status decided
 - Asked for: swipe on a tile to adjust it, configured in the Studio, off by default
 - Decided: absolute tracking; the tile's own band is the value at rest and in a drag; a bubble always shown while dragging; a selection tick per detent; one call on release; no in-drag cancel gesture
 - Rejected: relative tracking (cannot reach the ends in one drag, the band stops being the thumb)

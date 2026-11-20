@@ -1,6 +1,6 @@
 # State-styled tile: where the in-progress arc sits (proposal)
 > **What:** the owner's pick for the in-progress arc on the state-styled tile (D: the arc replaces the disc), with the three rejected placements. **Read when:** you need the reasons behind the tile's disc and arc.
-- Mockup: [state-tile-indicator.html](state-tile-indicator.html) · status decided · decision: the state-styled-tile record in `.agents/decisions/`
+- Mockup: [state-tile-indicator.html](state-tile-indicator.html) · status decided
 - Picked: D, the disc fades out and a smaller arc stands in its place while a tap does nothing; a state that still takes a tap keeps its disc
 - Rejected: A in the disc, B beside the state text, C a ring round the disc
 - Also decided: alarm pending, lock open and vacuum paused default to warning

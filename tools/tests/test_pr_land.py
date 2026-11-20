@@ -286,7 +286,7 @@ class ArmTests(unittest.TestCase):
         self.assertIn("app-UI gate (gate)", line)
         self.assertIn("the owner's approval of this exact head on GitHub answers this park, then the lander is run again", line)
         self.assertFalse(self.merge_calls(calls))
-        (code, line), _ = self.land(gate=pr_land.GateRefused("no design decision record", "design"))
+        (code, line), _ = self.land(gate=pr_land.GateRefused("the lane's own words record Gate: app_wide=no", "gate"))
         self.assertNotIn("answers this park", line)
 
     def test_an_approval_of_the_head_lifts_the_needs_decision_label_only(self):
@@ -303,11 +303,10 @@ class ArmTests(unittest.TestCase):
             self.assertEqual((code, "Needs Decision" in line), (1, True), line)
 
     def test_an_approval_never_answers_anything_but_a_park_or_the_label(self):
-        """Fails if: an approval answers the owner-only path set, a missing design record, a contradicting Gate line, the denylist, a
+        """Fails if: an approval answers the owner-only path set, a contradicting Gate line, the denylist, a
         missing review pass, a ruleset problem, the author and fork check, a conflict, another base, a closed PR or the kill switch."""
         rows = {
             "owner-only set": ({"gate": pr_land.GateRefused("the pull request changes the owner-only set: tools/pr_land.py", "paths")}, "owner-only set"),
-            "missing design record": ({"gate": pr_land.GateRefused("no design decision record", "design")}, "(design)"),
             "contradicting gate line": ({"gate": pr_land.GateRefused("records Gate: app_wide=no but Jev answered yes")}, "Gate:"),
             "gate crash": ({"gate": OSError("disk")}, "failed closed"),
             "denylist": ({"denylist": "denylist: 1 new hit"}, "denylist: 1 new hit"),
@@ -485,7 +484,7 @@ class ArmTests(unittest.TestCase):
         missing when the block is the owner's alone (code-owner review, draft, the owner-kept set)."""
         owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
         for name, kw in (("no pass", {"passed": False}), ("ruleset", {"ruleset": ["no ruleset"]}), ("denylist", {"denylist": "hit"}),
-                         ("app-UI", {"gate": pr_land.GateRefused("no design record")})):
+                         ("app-UI", {"gate": pr_land.GateRefused("Jev answered design.app_wide=yes")})):
             with self.subTest(name):
                 result, text, _calls = self.printed(info=owned, **kw)
                 self.assertEqual(result[0], 1)
@@ -703,7 +702,7 @@ class UiGateInLandTests(unittest.TestCase):
             self.assertIn(field, view[-1])
 
     def test_a_refusal_an_error_or_a_missing_gate_blocks_and_nothing_merges(self):
-        for raised in (pr_land.GateRefused("Jev answered design.app_wide=unsure"), pr_land.GateRefused("no record", "design"),
+        for raised in (pr_land.GateRefused("Jev answered design.app_wide=unsure"), pr_land.GateRefused("the lane's own words record Gate: app_wide=no", "gate"),
                        RuntimeError("git fetch failed"), OSError("disk"), KeyError("files")):
             with self.subTest(raised=repr(raised)):
                 def boom(n, info, raised=raised):

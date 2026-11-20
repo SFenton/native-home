@@ -51,6 +51,6 @@ The owner alone decides and merges changes to:
 - A parked change builds only the owner's options. The Designer never picks a change the gate parked.
 - A plan quotes the owner's words on an `Owner's request:` line.
 - At merge a request counts as the owner's only when the runner vouches for the request issue or the quote sits in a prompt the owner typed (`tools/hooks/owner_prompt_log.py`); agent-written text never does.
-- A merged app-UI change carries or cites a design decision record or pattern ([propose-first](propose-first.md#record)).
+- A merged app-UI change passes Jev's check ([propose-first](propose-first.md#record)).
 - A mockup edit drawing the same is not app UI.
 - At plan time the gate only hints ([jev](jev.md)).

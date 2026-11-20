@@ -100,7 +100,7 @@ def judge(contract: Dict[str, Any], layer: str, rel: str, before: str, after: st
         lines.append(f"  ... and {len(fresh) - 5} more")
     homes = list(dict.fromkeys(f.home for f in fresh if f.home))
     lines += [f"Home for that content: {home}" for home in homes[:4]]
-    lines.append("Rewrite the rule in place and delete the old wording; history lives in git, the PR and .agents/decisions/. "
+    lines.append("Rewrite the rule in place and delete the old wording; history lives in git and the PR. "
                  "There is no way to ignore a line.")
     return lines
 

@@ -1,5 +1,5 @@
 /* Mock.SB: the recovery boundary the server-driven root shows before a published layout is on screen
- * (decision: .agents/decisions/2026-11-14-server-ui-boundary.md; rules: .agents/design/server-ui-boundary.md).
+ * (rules: .agents/design/server-ui-boundary.md).
  * Not part of the kit. Loaded with <script src="..."> after kit.js; nothing here edits the kit. Promote to kit when a second surface needs a bare ground.
  *
  *   SB.screen(ctx, key, { copy?: 'built' | 'proposed', alert?: 'clear' | 'signOut' | 'signOutFailed', leadingOnHinge?: boolean })

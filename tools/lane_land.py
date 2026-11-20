@@ -1075,21 +1075,16 @@ def remote_head(clone: Path, base: str) -> str:
     return line.split()[0] if line else ""
 
 
-#: App UI (owner, 2026-11-03): views and the mockup atlas. A lane that changes them records which options were judged.
+#: App UI (owner, 2026-11-03): views and the mockup atlas. A lane that changes them is judged by Jev.
 APP_UI_PATHS: Tuple[str, ...] = (
     "apple/Sources/HassUI/**/*.swift", "apple/Sources/HassDesign/**/*.swift", "apple/Sources/FentonActivityViews/**",
     # The app, widget, Live Activity, notification-content and watchOS targets, with their asset catalogs (AppIcon, AccentColor).
     "apple/Apps/**", "**/*.xcassets/**", ".agents/design/mockups/**")
 #: Under APP_UI_PATHS but not app UI: test targets and privacy manifests.
 APP_UI_EXCLUDED: Tuple[str, ...] = ("apple/Apps/*Tests/**", "apple/Apps/**/*.xcprivacy")
-#: Where a design pick is recorded: a new file, dated by its name, with a ``Decision:`` front line (``.agents/decisions/README.md``).
-DESIGN_RECORDS = ".agents/decisions/*.md"
-DECISION_FILE = re.compile(r"^\.agents/decisions/\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$")
-#: Records already on the base that a lane may cite with ``Design: <path>``.
-CITABLE_PREFIXES = (".agents/design/", ".agents/patterns/", ".agents/decisions/")
-DECISION_LINE = re.compile(r"^[\s>*_-]*Decision\*{0,2}:\*{0,2}.*$", re.M | re.I)
-DECISION_OPTIONS = re.compile(r"\boptions?\s+[A-C]\b|\b[A-C]\s*(?:,|and|/|vs\.?)\s*[A-C]\b", re.I)
-#: The recorded app-UI gate outcome (``tools/jev_gate.py``), a line in the design record. Agent-initiated work (every
+#: Docs already on the base that a lane may cite with ``Design: <path>``.
+CITABLE_PREFIXES = (".agents/design/", ".agents/patterns/")
+#: The recorded app-UI gate outcome (``tools/jev_gate.py``), a line in a commit message or the PR description. Agent-initiated work (every
 #: ``agents/*`` lane) needs ``app_wide=no``; work from an owner request needs ``matches_request=yes`` and the commit
 #: message names the request with ``Owner-Request: <ref>``. Anything else parks for the owner.
 GATE_LINE = re.compile(r"^[\s>*_-]*Gate\*{0,2}:\*{0,2}[ \t]*(app_wide=(?:yes|no|unsure)|matches_request=(?:yes|no|unsure))\b", re.M | re.I)
@@ -1140,11 +1135,6 @@ def no_request(trusted: Path, ref: str) -> Optional[str]:
 
 
 DESIGN_CITE = re.compile(r"^Design: *(\S+)\s*$", re.M)
-
-
-def has_decision(text: str) -> bool:
-    """A ``Decision:`` line that names the judged options (``Option B``, ``A, B and C``). The date is the file name's."""
-    return any(DECISION_OPTIONS.search(m.group(0)) for m in DECISION_LINE.finditer(text))
 
 
 def app_ui_paths(rows: Sequence[Tuple[str, str, str, str]]) -> List[str]:
@@ -1330,19 +1320,14 @@ def prompt_reader(root: Path) -> Callable[[str], Optional[str]]:
     return lambda quote: logged_owner_prompt(root / "owner-prompts", quote)
 
 
-def added_lines(clone: Path, base: str, sha: str, path: str) -> str:
-    """The lines this lane added to ``path`` (from the diff against ``origin/<base>``, never the file's older text)."""
-    diff = git(clone, "diff", "-U0", f"refs/remotes/origin/{base}...{sha}", "--", path).stdout
-    return "\n".join(line[1:] for line in diff.splitlines() if line.startswith("+") and not line.startswith("+++"))
-
-
 def gate_input(clone: Path, base: str, sha: str, ui: Sequence[str], added: str) -> str:
-    """What Jev is shown about the change: the trusted facts first (the app-UI paths and the diff stat, from git), then only the
-    design-record lines this lane added. Capped, so a long record cannot push the facts out."""
+    """What Jev is shown about the change: the trusted facts first (the app-UI paths and the diff stat, from git), then the
+    lane's own words (``added``: its commit messages and the PR description, or a note that it cites a doc on the base).
+    Capped, so a long text cannot push the facts out."""
     stat = git(clone, "diff", "--stat", f"refs/remotes/origin/{base}...{sha}").stdout.strip()
     head = "App UI files changed:\n" + "\n".join(ui[:25]) + (f"\n(+{len(ui) - 25} more)" if len(ui) > 25 else "") + \
         "\n\nDiff stat:\n" + stat
-    return f"{head[:GATE_HEAD_CHARS]}\n\nDesign record, lines this lane added:\n{added.strip()[:GATE_ADDED_CHARS]}"
+    return f"{head[:GATE_HEAD_CHARS]}\n\nThe lane's own account (commit messages and PR description):\n{added.strip()[:GATE_ADDED_CHARS]}"
 
 
 def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path], ask: JevAsk, reader: RequestReader,
@@ -1350,8 +1335,8 @@ def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path
     """Ask Jev (the lander, not the lane) whether this app-UI change may land without the owner. With ``Owner-Request: <ref>``
     in a commit message and a request text the runner vouches for (its pickup snapshot of the issue this session was started
     for; a ref naming any other issue reads as nothing): ``design.matches_request``, landing on a yes at ``p >= 0.8``.
-    Otherwise ``design.app_wide``, landing on a confident no (``p < 0.3``). Jev unavailable or a ``Gate:`` line in the design
-    record that contradicts Jev refuse with kind ``gate``. Runs before any lane code.
+    Otherwise ``design.app_wide``, landing on a confident no (``p < 0.3``). Jev unavailable or a ``Gate:`` line in the lane's
+    own words that contradicts Jev refuse with kind ``gate``. Runs before any lane code.
 
     ``prompts`` (interactive PR gate only; owner, 2026-11-04): an ``Owner's request: "<quote>"`` line whose quote is in a prompt
     the owner typed in the last 14 days (:func:`logged_owner_prompt`) is the request text too, asked as ``design.matches_request``
@@ -1371,7 +1356,7 @@ def verify_gate(path: str, change: str, log: str, trusted_for: Callable[[], Path
     word = "yes" if p_yes >= YES_ABOVE else "no" if p_yes < NO_BELOW else "unsure"
     forged = [g.lower() for g in GATE_LINE.findall(record) if g.lower().startswith(key + "=") and g.lower() != f"{key}={word}"]
     if forged:
-        raise Refused(f"{path} records `Gate: {forged[0]}` but Jev answered {qid}={word} (p={p_yes:.2f}); the lane's gate line "
+        raise Refused(f"the lane's own words record `Gate: {forged[0]}` but Jev answered {qid}={word} (p={p_yes:.2f}); the lane's gate line "
                       "must agree with Jev", "gate")
     if (key == "matches_request" and word != "yes") or (key == "app_wide" and word != "no"):
         raise Refused(f"Jev answered {qid}={word} (p={p_yes:.2f}) for the app-UI change ({path}): "
@@ -1383,38 +1368,25 @@ def check_design_record(clone: Path, base: str, sha: str, rows: Sequence[Tuple[s
                         trusted_for: Optional[Callable[[], Path]] = None, ask: JevAsk = ask_jev,
                         reader: RequestReader = no_request, extra_log: str = "",
                         prompts: Optional[Callable[[str], Optional[str]]] = None) -> None:
-    """A lane that changes app UI adds a design decision record, or cites an existing one (``Design: <path>``),
-    and Jev is asked about it either way (:func:`verify_gate`; the lane's ``Gate:`` line only documents the answer).
+    """A lane that changes app UI is judged by Jev (:func:`verify_gate`; a ``Gate:`` line in the lane's words only documents the answer).
 
-    The record is a **new** file ``.agents/decisions/<YYYY-MM-DD>-<slug>.md`` whose ``Decision:`` line names the judged options
-    (a line added to a design doc, or an old record the lane merely touches, does not count). A lane that only fixes a bug back
-    to documented design may cite a decision, design or pattern doc that exists on ``origin/<base>`` (``Design: <path>``; never a
-    file the lane adds); Jev still judges
-    the diff. Closes the gap where app UI landed without the Designer's recorded pick or the app-wide check.
+    Jev is shown the trusted facts from git plus the lane's own words: its commit messages and, for a product PR, its description
+    (``extra_log``: ``Owner-Request:`` and ``Design:`` lines are read from it too). No design file is required or accepted as a
+    new record. A lane that only fixes a bug back to documented design may cite a design or pattern doc that exists on
+    ``origin/<base>`` (``Design: <path>``; never a file the lane adds); the doc is named to Jev, which still judges the diff.
 
-    ``extra_log`` is more text read like commit messages (``Owner-Request:`` and ``Design:`` lines): a product PR passes its
-    description, so ``tools/pr_land.sh`` and the lander share this one check (:func:`pr_gate`)."""
+    ``extra_log`` is more text read like commit messages: a product PR passes its description, so ``tools/pr_land.sh`` and the
+    lander share this one check (:func:`pr_gate`)."""
     ui = rendered_ui_paths(clone, rows)
     if not ui:
         return
     log = git(clone, "log", "--format=%B", f"refs/remotes/origin/{base}..{sha}").stdout
     if extra_log:
         log += "\n" + extra_log
-    for status, path, _old, new in rows:
-        if status != "A" or not DECISION_FILE.match(path):
-            continue
-        added = added_lines(clone, base, sha, path)
-        if has_decision(added):
-            verify_gate(path, gate_input(clone, base, sha, ui, added), log, trusted_for, ask, reader, record=added, prompts=prompts)
-            return
-    for cited in DESIGN_CITE.findall(log):
-        if cited.startswith(CITABLE_PREFIXES) and _exists(clone, f"refs/remotes/origin/{base}", cited):
-            verify_gate(cited, gate_input(clone, base, sha, ui, f"(cites {cited} on the base; no new record)"), log,
-                        trusted_for, ask, reader, prompts=prompts)
-            return
-    raise Refused(f"the lane changes app UI ({ui[0]}) without a design decision record: add "
-                  "a new file .agents/decisions/<YYYY-MM-DD>-<slug>.md with a `Decision:` line naming the judged options (a line in a design doc "
-                  "does not count), or cite an existing record or pattern on the base in a commit message (`Design: <path>`)", "design")
+    cited = next((c for c in DESIGN_CITE.findall(log)
+                  if c.startswith(CITABLE_PREFIXES) and _exists(clone, f"refs/remotes/origin/{base}", c)), None)
+    account = log.strip() + (f"\n(cites {cited} on the base)" if cited else "")
+    verify_gate(cited or ui[0], gate_input(clone, base, sha, ui, account), log, trusted_for, ask, reader, record=log, prompts=prompts)
 
 
 # MARK: - The same gate for product pull requests
@@ -1598,7 +1570,7 @@ def pr_gate(number: str, info: dict, *, root: Path, cfg: dict, gh: GH, origin: C
     """The app-UI gate for product pull request ``number`` (``info`` is ``gh pr view --json files,body,title,author,baseRefName,
     headRefOid``): the check the lander runs on a lane, with the same thresholds, through :func:`check_design_record`.
 
-    A PR that touches :data:`APP_UI_PATHS` needs a design decision record (or a cited one) and Jev's verdict from trusted code:
+    A PR that touches :data:`APP_UI_PATHS` needs Jev's verdict from trusted code:
     ``design.matches_request`` against the request the session is vouched for, otherwise ``design.app_wide``. Headless
     (runner) sessions are vouched by the pickup snapshot only; interactive sessions by a linked request-repo issue the owner
     filed (never the PR's own text: agents open PRs under the owner's login). Fails closed: missing data, a fetch error or an unreadable Jev raise :class:`Refused`. Returns a short

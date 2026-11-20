@@ -222,10 +222,10 @@
         play: function (stage) { var n = stage.querySelector('.ll-err'); return n ? A.fade(n) : Mock.sleep(200); } },
     ],
     a11y: [
-      { rule: 'Server field', note: 'Labels, identifiers and reading order: decision record, Identifiers and labels.' },
+      { rule: 'Server field', note: 'Labels, identifiers and reading order: Identifiers and labels in the design doc.' },
       { rule: 'Errors', note: 'The red line is announced (as the wrong-password line is) and carries the warning glyph, so it does not rest on colour alone; focus returns to the Server field.' },
-      { rule: 'Skeleton', note: 'One element for the whole skeleton, shapes hidden; its label and identifiers are in the decision record. The header arc keeps its own label.' },
-      { rule: 'State message', note: 'Title is a heading; the glyph is hidden; the action is a 50 pt PrimaryButton with its own identifier (decision record). VoiceOver moves to the message when it replaces the skeleton (layoutChanged).' },
+      { rule: 'Skeleton', note: 'One element for the whole skeleton, shapes hidden; its label and identifiers are in the design doc. The header arc keeps its own label.' },
+      { rule: 'State message', note: 'Title is a heading; the glyph is hidden; the action is a 50 pt PrimaryButton with its own identifier (design doc). VoiceOver moves to the message when it replaces the skeleton (layoutChanged).' },
       { rule: 'Targets and AX5', note: 'Rows stay 52 pt (scaled), Change and link buttons 44 pt; at AX5 labels sit above fields and the message scrolls.' },
     ],
     reviews: {
@@ -247,14 +247,14 @@
     },
     notes: [
       'Decision: 2026-11-06, judged sign-in Options A, B and C; picked A. Judged missing-layout Options A, B and C; picked A. Reasons, copy and the rules: .agents/design/house-config-states.md.',
-      'Evidence: these live-size drawings and the code (owner tier for the migration: no simulator captures per change). The end-of-migration capture pass on GitHub Actions captures the list in the decision record.',
+      'Evidence: these live-size drawings and the code (owner tier for the migration: no simulator captures per change). The end-of-migration capture pass on GitHub Actions captures the list in the design doc.',
       'Not yet built: login.html and home.html map the app as it is; the implementing PR updates them (Server row, the new errors, skeleton and state messages) and sets this proposal\'s shippedIn.',
       'refreshing, empty and reconnecting: refreshing is the default state here (a saved layout draws as usual), empty is the state messages, reconnecting is unchanged from home.html.',
       'long-text: a long server address scrolls inside its field while editing and truncates in the middle when read-only; drawn short here.',
       'Kit limit: the StateMessage is drawn with the kit ContentUnavailableView, which is the same glyph, heading, text and PrimaryButton stack as UKStateMessageView.',
       'Sample server ha.example.com and the placeholder homeassistant.local:8123 are generic; the integration name follows its manifest (HouseConfigCopy.integrationName).',
     ],
-    changelog: [{ date: '2026-11-06', note: 'Proposal and decision (house-config-design-states, plan steps 6 and 10).' }, { date: '2026-11-06', note: 'Integration name corrected to its manifest name, S+H Home Integration.' }, { date: '2026-11-06', note: 'Review round 1: demo person and demo entity ids; identifiers and labels moved to the decision record.' }],
+    changelog: [{ date: '2026-11-06', note: 'Proposal and decision (house-config-design-states, plan steps 6 and 10).' }, { date: '2026-11-06', note: 'Integration name corrected to its manifest name, S+H Home Integration.' }, { date: '2026-11-06', note: 'Review round 1: demo person and demo entity ids; identifiers and labels moved to the design doc.' }],
   });
 })();
 </script></body></html>
