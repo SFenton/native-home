@@ -68,7 +68,9 @@ struct AskResolverTests {
     }
 
     @Test func aVerbLikeRecordingDoesNotMeanNone() {
-        #expect(resolver.resolve("are any cameras recording").route == .found || resolver.resolve("are any cameras recording").route == .group)
+        let result = resolver.resolve("are any cameras recording")
+        #expect(result.route == .group)
+        #expect(result.entityIds == ["camera.demo_driveway"])
     }
 
     @Test func twoEntitiesWithTheSameNameAsk() {

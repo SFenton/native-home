@@ -71,7 +71,7 @@ struct AskSupportTests {
     @Test func aSmallSliceKeepsEveryLine() {
         let builder = AskSliceBuilder(budget: AskBudget(), tokenCount: { $0.count / 4 })
         let slice = builder.build(instructions: "x", header: ["H"], entityLines: ["a", "b"], causeLines: ["c"], annotatorLines: ["n"], question: "q")
-        #expect(slice.prompt.contains("a") && slice.prompt.contains("CAUSE") == false || slice.prompt.contains("c"))
+        #expect(slice.prompt == "H\na\nb\nn\nc\nQuestion: q")
         #expect(slice.collapsed == false)
         #expect(slice.overCap == false)
     }

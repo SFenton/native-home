@@ -59,7 +59,6 @@ public struct AskDurationResolver: Sendable {
         // The first point is the window's baseline (the state at its start), not a change, when it sits at the window start.
         let reachedWindowStart = startIndex == 0 && sorted[0].at <= from.addingTimeInterval(60)
         let begin = reachedWindowStart ? from : sorted[startIndex].at
-        let since = begin
         return AskDuration(seconds: now.timeIntervalSince(begin), since: begin, atLeast: reachedWindowStart, source: .history)
     }
 

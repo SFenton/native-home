@@ -5,8 +5,7 @@ import Foundation
 /// The instructions the on-device model gets, and the slice grammar they describe.
 ///
 /// The model only phrases: code has already chosen the entities, read the states and decided what the cause was. The
-/// wording is the Mac spike's tuned v3 (an instruction about missing causes once made the model say "no record" while a
-/// cause was supplied, and a group answered as "which one?"), adapted to the lines ``AskSliceBuilder`` writes.
+/// wording describes the lines ``AskSliceBuilder`` writes.
 public enum AskInstructions {
     /// The instructions for a home called `houseName`.
     public static func text(houseName: String) -> String {
