@@ -435,7 +435,7 @@ def land(number: str, dry_run: bool, review_path: Optional[str] = None, keep_wor
     try:
         gate = ui_gate(number, info)
     except GateRefused as exc:
-        if not (exc.park and approval()):  # only a park is answered; the owner-kept set, the rest stay refused
+        if not (exc.park and approval()):  # only a park is answered; the owner-kept set and the rest stay refused
             if OWNER_KEPT in str(exc):
                 print_owner_recipe(number, info)
             return 1, (f"blocked #{number}: app-UI gate ({exc.kind}): {exc}" + (

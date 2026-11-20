@@ -702,7 +702,7 @@ class UiGateInLandTests(unittest.TestCase):
             self.assertIn(field, view[-1])
 
     def test_a_refusal_an_error_or_a_missing_gate_blocks_and_nothing_merges(self):
-        for raised in (pr_land.GateRefused("Jev answered design.app_wide=unsure"), pr_land.GateRefused("no record", "design"),
+        for raised in (pr_land.GateRefused("Jev answered design.app_wide=unsure"), pr_land.GateRefused("the lane's own words record Gate: app_wide=no", "gate"),
                        RuntimeError("git fetch failed"), OSError("disk"), KeyError("files")):
             with self.subTest(raised=repr(raised)):
                 def boom(n, info, raised=raised):
