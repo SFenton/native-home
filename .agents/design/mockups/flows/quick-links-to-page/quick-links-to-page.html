@@ -24,11 +24,11 @@
 
   Mock.mount({
     kind: 'flow', id: 'quick-links-to-page', title: 'Quick Links to a page (sheet closes, then push)', area: 'shell', status: 'shipped',
-    summary: 'The Quick Links header button opens a large sheet of seven tiles. Rooms and Security System open inside the sheet (a pushed level with Back); every other tile names a page, so it closes every level of the sheet in one dismissal and the page pushes onto the section\'s stack only after the sheet has gone, so the push never races the dismissal. The rule is generic (owner 2026-11-18): a page link in any sheet closes the sheet and the landed page carries Quick Links, Profile and the tab navigator; only a level stays in the sheet. A page already on the stack is popped to; the page under the sheet only closes.',
+    summary: 'The Quick Links header button opens a large sheet of seven tiles. Rooms and Security System open inside the sheet (a pushed level with Back); every other tile names a page, so it closes every level of the sheet in one dismissal and the page pushes onto the section\'s stack only after the sheet has gone, so the push never races the dismissal. The rule is generic (owner 2026-11-18): a page link in any sheet closes the sheet and the landed page carries Quick Links, Profile and the tab navigator; only a level stays in the sheet. A page already on the stack is popped to; the page under the sheet only closes. A page homed under a tab (rooms, Food, Vacuums, Media and Custom Lights under Home) opens under that tab from any tab: after the sheet closes the tab changes as a cut with the page already on top of the home tab\'s stack, Back pops within that tab, and the tab left behind keeps the page the sheet opened over.',
     source: ['apple/Sources/HassUI/UIKitPort/App/Shell/UKShellHeaderItems.swift', 'apple/Sources/HassCore/Rooms/RoomNavigation.swift'],
     spec: ['.agents/pages/rooms/ios.md', '.agents/design/direction-g.md', '.agents/patterns/modal-sheet.md', '.agents/design/motion.md'],
     patterns: ['modal-sheet', 'entity-tile', 'dynamic-grid', 'motion'],
-    hig: ['Sheets', 'Navigation and search', 'Toolbars'],
+    hig: ['Sheets', 'Navigation and search', 'Toolbars', 'Tab bars', 'Motion'],
     kitComponents: ['GlassTile', 'TileGrid', 'HassModal', 'NavigationGlass', 'SheetCloseItem'],
     devices: ['iphone', 'duo-folded', 'duo-unfolded-portrait', 'duo-unfolded-landscape', 'ipad-portrait', 'ipad-landscape'],
     states: {
@@ -39,6 +39,9 @@
       'sheet-dismisses': { title: '4. The sheet dismisses (half way)', note: 'onNavigate stores the route, dismiss() runs; nothing pushes yet', render: function (c) { return midDown(ql(c), 45); } },
       'page-pushes-after-dismissal': { title: '5. The page pushes, after onDismiss', note: 'quickLinksDismissed / pushPending appends the route to the section path: the system push, Back leading', render: function (c) { return vacuums(c); } },
       'room-chosen': { title: '5b. A room chosen from Rooms: the room page pushes', note: 'RoomNavigation.recordVisit counts the visit, then the same close-then-push', render: function (c) { return SN.pushedPage(c, { title: 'Kitchen' }); } },
+      'other-tab-rooms-in-sheet': { title: '6. From Settings: Rooms inside Quick Links', note: 'Quick Links opens over the tab that is showing; Settings is selected and its page sits under the sheet', render: function (c) { return press(c, SN.quickLinksSheet(c, { detail: 'rooms', presenter: SN.rootPage(c, 'settings') }), '[data-room="kitchen"]', 'tap Kitchen'); } },
+      'other-tab-room-on-home-tab': { title: '7. The room lands under Home', note: 'after the sheet has gone the tab changes as a cut: Home is selected and Kitchen is already on top of Home\'s stack, above whatever Home held; no push is drawn. Back pops within Home', render: function (c) { return SN.pushedPage(c, { title: 'Kitchen' }); } },
+      'other-tab-left-unchanged': { title: '8. Back on Settings: as it was left', note: 'Settings keeps its stack: the page the sheet opened over, the sheet closed', render: function (c) { return SN.rootPage(c, 'settings'); } },
       'sprinklers-hidden': { title: 'Six tiles: Sprinklers hidden', note: 'QuickLinks.visible: shown only while its visibility entity is on', render: function (c) { return SN.quickLinksSheet(c, { sprinklers: false, presenter: home(c) }); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column of tiles, two-line titles wrap, the sheet scrolls', render: function (c) { return ql(c); } },
     },
@@ -49,6 +52,13 @@
           var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = vacuums(ctx);
           return Mock.sleep(500).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; var pres = host.querySelector('.ui-presenter'); a.style.transform = ''; stage.insertBefore(a, host); stage.insertBefore(b, a.nextSibling); return Mock.sleep(80); })
             .then(function () { return Mock.anim.push(a, b); }).then(function () { return Mock.sleep(600); });
+        } },
+      { id: 'sheet-then-tab-cut', what: 'From another tab, a homed page: the sheet slides away, then the tab changes with the page already in place. Nothing slides or fades after the sheet', token: 'system sheet dismiss (about 0.5 s), then a cut (motion.md 4.1); the page is put on the home tab\'s stack while that tab is hidden', state: 'other-tab-rooms-in-sheet',
+        source: 'UKServerUIRenderer perform(.push, .dismissThenPush); ServerUIExtensionRoutes homeTab(of:)', reduce: 'the dismissal becomes a cross-fade; the cut is unchanged',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = SN.pushedPage(ctx, { title: 'Kitchen' });
+          return Mock.sleep(500).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; a.style.transform = ''; stage.insertBefore(a, host); return Mock.sleep(80); })
+            .then(function () { stage.insertBefore(b, a); a.hidden = true; return Mock.sleep(900); });
         } },
       { id: 'sheet-present', what: 'Quick Links slides up to its large detent; Home scales back and dims', token: 'system sheet; content present on arrival', state: 'home',
         source: 'ShellSheets .sheet(isPresented: quickLinksSection)', reduce: 'cross-fade',
@@ -64,11 +74,17 @@
           var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = vacuums(ctx);
           return Mock.sleep(400).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; a.style.transform = ''; stage.insertBefore(a, host); stage.insertBefore(b, a.nextSibling); return Mock.sleep(80); }).then(function () { return Mock.anim.push(a, b); }).then(function () { return Mock.sleep(600); });
         } },
+      { from: 'Quick Links on Settings', to: 'Home tab, Kitchen', kind: 'cut', state: 'other-tab-rooms-in-sheet', note: 'A homed page chosen on another tab: the sheet dismisses first, then the selection moves to the page\'s home tab as a cut, the page on top of that tab\'s stack as it stood (a page already in it is popped to). Back pops within Home; Settings keeps the page the sheet opened over. A page with no home tab, or whose home tab is hidden, pushes on the tab showing.',
+        play: function (stage) {
+          var ctx = Mock.current, host = stage.querySelector('.ui-host'), a = host.querySelector('.ui-presenter .ui-page'), b = SN.pushedPage(ctx, { title: 'Kitchen' });
+          return Mock.sleep(400).then(function () { return Mock.anim.sheet(host, 'out'); }).then(function () { host.hidden = true; a.style.transform = ''; stage.insertBefore(a, host); return Mock.sleep(80); }).then(function () { stage.insertBefore(b, a); a.hidden = true; return Mock.sleep(900); });
+        } },
     ],
     a11y: [
       { rule: 'Reading order', note: 'The sheet is modal: focus lands on the title "Quick Links", then the tiles in order (Rooms, Security System, Food & Recipes, Vacuums, Media, Custom Lights, Sprinklers), then Close. Rooms and Security System are announced with the hint "Opens <title> in Quick Links"; the others "Opens the <title> page".' },
       { rule: 'Name, role, state', note: 'Each tile is a button named "<title>, <state>" (Security System, "Armed Home"; Food & Recipes, "42 Items • 3 Expiring Soon"); ids quickLinks.<id>; Close quickLinks.close.' },
       { rule: 'Focus after the push', note: 'The sheet is gone before the page pushes, so VoiceOver announces the new page as an ordinary push, and it carries Quick Links and Profile like every page. From a level two deep the whole sheet closes at once; a form with unsaved changes asks first.' },
+      { rule: 'Focus after a tab change', note: 'When the page lands under another tab, VoiceOver gets a screen change and reads the landed page\'s title; the tab navigator reports the home tab as selected. The tab change is not signalled by motion alone.' },
       { rule: 'State is not colour alone', note: 'Each navigation tile has its glyph and title; the Security System tile\'s colour follows the alarm mode and its subtitle says the mode.' },
       { rule: 'Targets and AX5', note: 'Tiles are 96 pt tall (two-line reserve) and grow with Dynamic Type; at AX5 the grid is one column. Close is the 44 pt circle.' },
       { rule: 'Light and dark', note: 'The sheet follows the system appearance; the tiles are fixed fills with white ink in both.' },
@@ -94,7 +110,7 @@
       'Sprinklers is shown by default; the real tile is hidden unless SprinklersConfig.visibilityEntityId is on (state sprinklers-hidden). Food & Recipes carries a brown wash on the web; the app uses the food family fill.',
       'On iPad and the unfolded Duo the sheet is a page sheet (704 pt) centred over the page; on the folded Duo it is the iPhone-like large detent.',
     ],
-    changelog: [{ date: '2026-10-23', note: 'First pass: open, Rooms detail, choose, dismiss, push after dismissal, six tiles, AX5.' }],
+    changelog: [{ date: '2026-10-23', note: 'First pass: open, Rooms detail, choose, dismiss, push after dismissal, six tiles, AX5.' }, { date: '2026-11-19', note: 'A homed page opens under its home tab from any tab: three states, the sheet-then-cut motion and its transition.' }],
   });
 })();
 </script></body></html>

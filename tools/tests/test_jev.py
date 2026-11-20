@@ -698,7 +698,6 @@ class GeneratedQuestionTests(Isolated):
             if path != "none":
                 self.assertTrue((REPO / path).is_file(), path)
         self.assertNotIn(".agents/design/mockups", " ".join(criteria))
-        self.assertNotIn(".agents/decisions", " ".join(criteria))  # the record is never a home for a rule
         self.assertNotIn(".agents/archive", " ".join(criteria))
         self.assertIn(".agents/workflow/jev.md", criteria)
 

@@ -22,7 +22,6 @@ Owner: "modals should have standards across all modals." Every modal in the app 
 14. **Accessibility.** The system presents the sheet as modal (the page behind is hidden from VoiceOver). VoiceOver Escape (two-finger scrub) goes back one page, else closes, asking first when the form is guarded (`UKHassModalController.accessibilityPerformEscape`; SwiftUI sheets get it from the system). Close is named "Close", Cancel and Save are named, every target is 44 pt or more, the title is a header, identifiers are stable. Initial focus lands on the title; closing returns focus to the opener. Works at AX5.
 15. **Discard guard.** A form that holds user-generated content asks before Cancel, Back, Close or a swipe down drops an edited draft (`DiscardChangesCopy`; `SheetCancelItem(hasChanges:)` / `.discardGuard`, UIKit `UKSheetItems.cancel(hasChanges:)` and `UKDiscardGuard.apply`). Selection-only sheets are not guarded.
 
-- Web hash routes (`#lights-overview`) map to a `HomeSheet` enum driving `.sheet(item:)`. The URL hash is not needed natively.
 - Container: `HassDesign/HassModal.swift`. **Every sheet is built on it**: `HassModal(title, closeIdentifier:) { content }` for one page; `HassPathModal(title, path:) { root } page: { $0.navigationDestination(...) }` for a sheet that pushes pages. `page:` receives the chromed page (`ModalPage`), so a section bar (`modalTabBar`), a subtitle, a destination or a `.toolbar` (a Cancel and Save form passes `showsClose: false`) goes on the page and never around the container; other parameters: `closeEnabled`, `closeStaysInBar`, `appearance: .dark` (live video), `title: nil` when the page sets its own. Do not assemble `NavigationStack` + `modalChrome()` + `SheetCloseItem` + `followsSystemAppearance()` by hand. Exempt: the Weather sheet (its own photo backdrop and header fade, no `modalChrome`) and pages pushed inside a sheet, which carry `SheetCloseItem` themselves.
 - Close: the circle-X `SheetCloseItem` at the top trailing edge (`Button(role: .close)` on iOS 26), never text "Done" or "Close" (HIG Toolbars). A saving sheet keeps its Save or Add button; Cancel stays only where it discards an edit.
 - **Close chrome.** `SheetCloseItem` sits in `.primaryAction`, not `.confirmationAction`: Close confirms nothing, and on the iPhone Duo's vertical bar a confirming slot sorts as the prominent action below Back. `.primaryAction` is still trailing on iPhone and iPad, so top-right stands. A sheet whose only toolbar item is Close (`HassModal`, Security System, the camera viewer) adds `.keepsCloseInSheetBar()` (`toolbarVerticalBehavior(.disabled)`, iOS 27.1 and later) so the Duo keeps it in the sheet bar; Duo run pending. **`.hassSheet(_, height: .full)` hides the grabber** (`DragIndicator.visibility(for:)`): one detent, nothing to resize; swipe down still dismisses, except a form-width one in iPad portrait ([motion](../design/motion.md), Modal row). `OptionPickerSheet` and the other hand-built Close users share the one item.
@@ -54,13 +53,13 @@ A form either keeps a draft for everything it shows (Save or Apply writes it, Ca
 
 ## A page link closes the sheet
 
-A `push` to a page from inside a sheet closes the sheet, then pushes on the section stack that is showing, so the landed page draws the global chrome ([page-base](page-base.md)). A push to a level (`levels[]`, `sh.sheet-levels@1`) stays in the sheet.
+A `push` to a page from inside a sheet closes the sheet, then pushes on the stack of the page's home tab (its route's `tabId`; the same from a page) or else the tab showing, so the landed page draws the global chrome ([page-base](page-base.md)). A push to a level (`levels[]`, `sh.sheet-levels@1`) stays in the sheet.
 
 - **One dismissal.** Every level closes together. `UKServerUIRenderer` turns the push into `dismiss-then-push`.
 - **Guards first.** A form with unsaved changes asks "Discard changes?"; Cancel keeps the sheet.
 - **On the stack.** A page already on the stack is popped to; the page under the sheet only closes.
 - **A column.** An adaptive column is removed and the page opens by the columns' rule.
-- **Back** leads to the page under the sheet, closed.
+- **Back** leads to the page beneath it on that stack; the sheet stays closed.
 - **No levels.** A document without `levels` keeps its pushes in the sheet.
 
 ## Guards

@@ -28,6 +28,7 @@ A path matches a route's `path` first, then one of its `aliases`.
 - `visibleWhen` takes viewer rules only, because the catalog is built without entity state.
 - Top level: `extensions.linkPrefixes`, 1 to 8 slugs. Until authored, three migration slugs apply.
 - The new fields need `sh.route-links@1`.
+- A route's `tabId` is also its page's home tab: an in-app link opens the page there ([modal-sheet](modal-sheet.md#a-page-link-closes-the-sheet)).
 - The Studio edits them under Routes; "Import legacy aliases" seeds the old alias table.
 
 ## The catalog

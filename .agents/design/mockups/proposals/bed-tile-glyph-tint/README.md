@@ -1,6 +1,6 @@
 # Bed tile as a state tile: the icon colour when off (proposal)
 > **What:** the owner's pick for the bed icon's colour on the dark face once the bed tiles are generic state tiles (C: the state style sets it per state), with the two rejected options. **Read when:** you build the bed tiles as state tiles, or need the reason behind the pick.
-- Mockup: [bed-tile-glyph-tint.html](bed-tile-glyph-tint.html) · status decided · decision: the state-glyph-tint record in `.agents/decisions/` · rule: `.agents/design/state-glyph-tint.md`
+- Mockup: [bed-tile-glyph-tint.html](bed-tile-glyph-tint.html) · status decided · rule: `.agents/design/state-glyph-tint.md`
 - Picked: C, the state style sets the icon colour per state; Studio schema plus a small generic native change
 - Rejected: A grey icon, B one fixed icon colour per bed
 - Only the off and read-only faces differ; heating, cooling, boost and unavailable draw the same in all three

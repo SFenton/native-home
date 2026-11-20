@@ -1419,7 +1419,6 @@
       ],
       "docs": [
         ".agents/design/server-ui-boundary.md",
-        ".agents/decisions/2026-11-14-server-ui-boundary.md",
         ".agents/platforms/apple/architecture.md"
       ],
       "patterns": [
@@ -8496,10 +8495,12 @@
         "rooms-detail-pushed-in-sheet",
         "choose-page",
         "sheet-dismisses",
-        "page-pushes-after-dismissal"
+        "page-pushes-after-dismissal",
+        "other-tab-room-on-home-tab"
       ],
       "motionHint": [
-        "sheet dismisses first; the push runs after `onDismiss` so the two never race"
+        "sheet dismisses first; the push runs after `onDismiss` so the two never race",
+        "a homed page chosen on another tab: the sheet dismisses, then the tab changes as a cut with the page on top of its home tab's stack"
       ],
       "inFlight": null,
       "owner": "shell-navigation",
@@ -9407,8 +9408,7 @@
       ],
       "status": "decided",
       "mockup": "proposals/live-activity-problem-notice/live-activity-problem-notice.html",
-      "note": "R-43 (agent-initiated, gate app_wide=no). Decided 2026-11-10: judged B (in place of the instruction) and C (own line) from captures; picked B. A (beside the buttons) was not built. Current design: live-activity-problem-card, state notice.",
-      "decision": ".agents/decisions/2026-11-10-problem-card-notice.md"
+      "note": "R-43 (agent-initiated, gate app_wide=no). Decided 2026-11-10: judged B (in place of the instruction) and C (own line) from captures; picked B. A (beside the buttons) was not built. Current design: live-activity-problem-card, state notice."
     },
     {
       "id": "state-styled-tile",
@@ -9458,8 +9458,7 @@
       "sources": [],
       "status": "decided",
       "mockup": "proposals/state-tile-indicator/state-tile-indicator.html",
-      "note": "Owner picked D (2026-11-14): the arc replaces the disc while a tap does nothing. A, B and C are the rejected record. Alarm pending, lock open and vacuum paused default to warning. Built in lane L7a.",
-      "decision": ".agents/decisions/2026-11-14-state-styled-tile.md"
+      "note": "Owner picked D (2026-11-14): the arc replaces the disc while a tap does nothing. A, B and C are the rejected record. Alarm pending, lock open and vacuum paused default to warning. Built in lane L7a."
     },
     {
       "id": "core-grammar-surfaces",
@@ -9474,8 +9473,7 @@
       ],
       "status": "decided",
       "mockup": "proposals/core-grammar-surfaces/core-grammar-surfaces.html",
-      "note": "Owner answers 2026-11-14: a disabled reason on the control's own status line; chips as the wrapping grid; pending as the optimistic value, then the arc after an optimism timeout until a change, with per-control settings. Rules: .agents/design/core-grammar-surfaces.md and pending-controls.md. Not built (lane L0).",
-      "decision": ".agents/decisions/2026-11-14-core-grammar-surfaces-owner-picks.md"
+      "note": "Owner answers 2026-11-14: a disabled reason on the control's own status line; chips as the wrapping grid; pending as the optimistic value, then the arc after an optimism timeout until a change, with per-control settings. Rules: .agents/design/core-grammar-surfaces.md and pending-controls.md. Not built (lane L0)."
     },
     {
       "id": "server-ui-boundary-copy",
@@ -9488,9 +9486,8 @@
         "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift"
       ],
       "status": "decided",
-      "decision": ".agents/decisions/2026-11-14-server-ui-boundary.md",
       "mockup": "proposals/server-ui-boundary-copy/server-ui-boundary-copy.html",
-      "note": "Owner picked A on 2026-11-15: the built strings stay, with the two approved rewordings. Record: .agents/decisions/2026-11-14-server-ui-boundary.md."
+      "note": "Owner picked A on 2026-11-15: the built strings stay, with the two approved rewordings."
     },
     {
       "id": "tile-swipe",
@@ -9506,7 +9503,6 @@
       "status": "decided",
       "mockup": "proposals/tile-swipe/tile-swipe.html",
       "note": "Owner request 2026-11-16: swipe to adjust on any tile, configured in the Studio, off by default. Decided: absolute tracking, band and bubble, selection tick per detent, one call on release. Built as sh.tile-swipe@1 (lanes TC6 and NT6). Current design: brightness-tile and state-styled-tile. Includes the Studio (web) inspector.",
-      "decision": ".agents/decisions/2026-11-16-tile-swipe.md",
       "shippedIn": "#122"
     },
     {
@@ -9526,7 +9522,6 @@
       "status": "decided",
       "mockup": "proposals/sim-fidelity-contract/sim-fidelity-contract.html",
       "note": "Owner requests 2026-11-16 (task sim-fidelity): white tile icons and text by default, customizable state strings, group by state on any grid. The owner picked ink option A (uncoloured icons and every state line in the primary ink) and heading option A (title only); the state words fold was picked under the gate. Built as sh.tile-ink-default@1, sh.state-words@1 and sh.grid-state-groups@1 (lanes TC7 and NT7). Current design: brightness-tile, state-styled-tile and dynamic-grid-layout. Includes the Studio (web) inspector.",
-      "decision": ".agents/decisions/2026-11-16-tile-swipe.md",
       "shippedIn": "#122"
     },
     {
@@ -9574,8 +9569,7 @@
       ],
       "status": "decided",
       "mockup": "proposals/bed-tile-glyph-tint/bed-tile-glyph-tint.html",
-      "note": "Task bed-tile-span. Parked by the app-UI gate (route=session); the owner picked C (colour by state) on 2026-11-19 over A (grey) and B (one fixed colour per bed). A state style rule gains an optional glyphTint (sh.state-style-glyph-tint@1): Studio schema plus a small generic native change. Rule: .agents/design/state-glyph-tint.md. Built: lane claude/state-glyph-tint.",
-      "decision": ".agents/decisions/2026-11-19-state-glyph-tint.md"
+      "note": "Task bed-tile-span. Parked by the app-UI gate (route=session); the owner picked C (colour by state) on 2026-11-19 over A (grey) and B (one fixed colour per bed). A state style rule gains an optional glyphTint (sh.state-style-glyph-tint@1): Studio schema plus a small generic native change. Rule: .agents/design/state-glyph-tint.md. Built: lane claude/state-glyph-tint."
     }
   ]
 }

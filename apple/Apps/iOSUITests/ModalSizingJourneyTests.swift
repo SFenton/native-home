@@ -213,14 +213,14 @@ final class ModalSizingJourneyTests: JourneyTestCase {
 
     func testDragDownDismissesAShortSheetInPortrait() { assertDragDownDismisses(landscape: false) }
     func testDragDownDismissesAShortSheetInLandscape() { assertDragDownDismisses(landscape: true) }
-    // The full-height form sheet closes by Close in iPad portrait, not by a drag: `.agents/decisions/2026-11-16-ipad-full-form-sheet.md`.
+    // The full-height form sheet closes by Close in iPad portrait, not by a drag: `.agents/design/motion.md` section 2, Modal row.
     func testDragDownDismissesAFullHeightFormSheetInLandscape() { assertDragDownDismisses(landscape: true, kind: "fullForm") }
 
     // MARK: - Close exit
 
     /// The full-height form sheet is centred on the iPad and the system keeps it there in portrait, so Close is its exit: it exists, can be
     /// hit, sits at the sheet's top trailing corner, has a 44 pt hit target, and closes the sheet
-    /// (`.agents/decisions/2026-11-16-ipad-full-form-sheet.md`; HIG Buttons, minimum hit region; HIG Modality, an obvious dismissal).
+    /// (`.agents/design/motion.md` section 2, Modal row; HIG Buttons, minimum hit region; HIG Modality, an obvious dismissal).
     /// The system's `.close` bar item draws at 36 pt (38 on the folded Duo) and XCUITest reports that drawn frame, so the 44 pt target is
     /// asserted the way `HeaderButtonsJourneyTests.testBothButtonsHaveA44PointTarget` does: a tap 19 pt off centre (inside 44, outside
     /// the frame) still closes the sheet. Left, right and below stay inside the bar; each tap gets a fresh sheet. The Duo does not rotate

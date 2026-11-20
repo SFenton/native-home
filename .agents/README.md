@@ -51,5 +51,4 @@ Architecture for all of them: [architecture](platforms/apple/architecture.md).
 | [patterns/](patterns/README.md) | Cross-screen behavior with one canonical component each |
 | [skills/](skills/README.md) | Repeatable procedures |
 | [testing/](testing/README.md) | Test phases and tooling |
-| [decisions/](decisions/README.md) | Why and when a rule changed; never required reading |
 | [archive/](archive/README.md) | History only; never rules |

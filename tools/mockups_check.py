@@ -7,7 +7,7 @@ Checks: every mockup folder (pages/<area>/<id>, modals/<area>/<id>, components/<
 at most 40 lines (proposals excepted: frozen records); a Mock.mount config names source, spec, states, a11y and reviews (the runtime Mock.lint banner checks the rest); _kit/components matches
 Mock.COMPONENTS; catalog.json ({items:[{id,path,mockup,sources,status}]}) lists every mockup on disk, proposals included, sets `mockup` once the file exists and names existing sources.
 
-Lifecycle (README.md, "Lifecycle"): `status` is one of shipped, proposed, decided (needs `decision`: an existing repo path or "PR #n"), superseded (needs `supersededBy`:
+Lifecycle (README.md, "Lifecycle"): `status` is one of shipped, proposed, decided (an optional `decision`, when given, is an existing repo path or "PR #n"), superseded (needs `supersededBy`:
 a catalogued id), designed-not-wired, placeholder. An `inFlight.branch` fails when it is `main`, is the PR's own head branch (`GITHUB_HEAD_REF`, else the checked-out branch: the merging PR clears it),
 is merged into the base or is gone from origin, squash merges included. The base is `origin/$GITHUB_BASE_REF` in CI; locally it is the branch's recorded `sh-base`, then the remote default, then
 origin/main. Results depend on `git fetch --prune origin` (a merged, deleted or own-branch marker means the entry is stale: set `inFlight` to null and `status` to shipped). A Mock.mount `source:` list fails on a path that does not exist. Any .html under the atlas that
@@ -98,9 +98,7 @@ def check_status(entry):
         bad(f"catalog.json: {entry['id']} status `{status}` is not one of {sorted(STATUSES)}")
     if status == "decided":
         decision = entry.get("decision") or ""
-        if not decision:
-            bad(f"catalog.json: {entry['id']} is decided but has no `decision` link")
-        elif not re.match(r"PR #\d+$", decision) and not (REPO / decision).exists() and not (ROOT / decision).exists():
+        if decision and not re.match(r"PR #\d+$", decision) and not (REPO / decision).exists() and not (ROOT / decision).exists():
             bad(f"catalog.json: {entry['id']} decision `{decision}` does not exist")
     if status == "superseded" and not entry.get("supersededBy"):
         bad(f"catalog.json: {entry['id']} is superseded but has no `supersededBy`")

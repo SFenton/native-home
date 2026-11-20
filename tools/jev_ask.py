@@ -694,7 +694,7 @@ def doc_summary(path: Path, root: Path) -> tuple[str, str]:
 def learning_criteria(root: Path = ROOT) -> dict[str, str]:
     """One criterion per durable doc a learning can live in: `AGENTS.md` and `.agents/**/*.md` (no archive, no decisions, no mockups).
 
-    Mockups, the archive and decision records are not homes for rules; `none` stands for "no existing document fits".
+    Mockups and the archive are not homes for rules; `none` stands for "no existing document fits".
     """
     paths = [root / "AGENTS.md"] if (root / "AGENTS.md").is_file() else []
     base = root / ".agents"

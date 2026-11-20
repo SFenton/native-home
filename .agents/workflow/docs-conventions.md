@@ -13,7 +13,7 @@
 | procedure | `.agents/skills/` | Steps for one task; no policy |
 | reference | The other `.agents` folders | Surface, platform and test rules |
 | state | `PROGRESS.md` | What is being built and what is next |
-| record | `.agents/decisions/`, `.agents/archive/` | Why and when; append-only; never required reading |
+| record | `.agents/archive/` | History only; append-only; never required reading |
 
 Word budgets per file, per line and per role's spawn load are in `contracts/rules-surface.json`. The owner approves growing one.
 
@@ -31,10 +31,10 @@ Word budgets per file, per line and per role's spawn load are in `contracts/rule
 
 | Event | Home |
 |---|---|
-| Broad behavior changes | Rewrite the rule in place and delete the old wording in the same change; one entry in `.agents/decisions/` |
+| Broad behavior changes | Rewrite the rule in place and delete the old wording in the same change |
 | An exception that names an instance | The enforcing tool's configuration or allow-list, with a reason. With no enforcing tool it is not kept |
 | An incident, bug or flake | A test or one eval case per class; the pull-request description |
-| Why and when | `.agents/decisions/` and the pull-request description |
+| Why and when | The pull-request description |
 | Status, plans, lanes, backlog | `PROGRESS.md`; issues |
 | Numbers and names a tool reads | `contracts/` or the tool; prose names the file |
 | How a tool works | The tool's `--help` and refusal messages |

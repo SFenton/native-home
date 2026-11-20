@@ -37,4 +37,17 @@ public extension ServerUICompositionDocument {
         let modalId = request.anchor.flatMap { anchor in route.anchors?.first { $0.fragment == anchor }?.modalId }
         return RouteTarget(pageId: route.pageId, tabId: route.tabId, modalId: modalId)
     }
+
+    /// The tab a page belongs to, read from the authored routes that name it (`extensions.routes[].tabId`).
+    ///
+    /// A page link opened from another tab lands on this tab's stack, as the previous app opened a room under Home. A route with no
+    /// `tabId` says nothing. The page is not homed (nil) when no route names a tab for it, when its routes name different tabs,
+    /// or when the named tab is not one of the publication's tabs.
+    /// - Parameter pageId: The destination page.
+    /// - Returns: The home tab's id, or nil.
+    func homeTab(of pageId: String) -> String? {
+        let named = Set((extensions?.routes ?? []).filter { $0.pageId == pageId }.compactMap(\.tabId))
+        guard named.count == 1, let tab = named.first, navigation.tabs.contains(where: { $0.id == tab }) else { return nil }
+        return tab
+    }
 }

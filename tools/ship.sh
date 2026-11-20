@@ -176,7 +176,7 @@ elif [[ $PR == 1 ]]; then
   PR_NUM="$(gh pr view "$BRANCH" --json number --jq .number 2>/dev/null || true)"
   # native-home: arm through pr_land.py, which runs what GitHub cannot (kill switch, app-UI gate and owner-kept set, denylist, author and fork,
   # the reviewer's pass for the exact head, the live ruleset) and pins the auto-merge to the head. A UI PR may be parked by the app-UI gate
-  # here (no design record yet): a notice, armed later with tools/pr_land.sh N. Never changes ship's exit code.
+  # here (Jev did not confirm it): a notice, armed later with tools/pr_land.sh N. Never changes ship's exit code.
   if [[ -n "$PR_NUM" && -f "$(dirname "$0")/pr_land.py" ]]; then
     REPO="$(gh repo view --json nameWithOwner --jq .nameWithOwner 2>/dev/null || true)"
     if [[ "$REPO" == "SFenton/native-home" ]]; then

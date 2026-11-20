@@ -1082,7 +1082,7 @@
   ".agents/platforms/apple/auth.md": {
    "forbidden": 10,
    "long_lines": 9,
-   "over_words": 529
+   "over_words": 527
   },
   ".agents/platforms/apple/badge.md": {
    "forbidden": 2,
