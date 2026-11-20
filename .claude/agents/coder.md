@@ -26,7 +26,7 @@ Code, tests and docs, only in the lane worktree and the files the brief names.
 - A fix round reruns only the failed tests plus `tools/ios_uitest.sh --changed`. Which families run locally: [tests](../../.agents/workflow/token-economy.md#tests).
 - Small commits ending with a `Release-Note:` trailer ([versioning](../../.agents/workflow/versioning.md)) and the co-author trailer.
 - Before a `tools/bg_run.py` job make a WIP commit (`git add -A && git commit -m "WIP: <step>"`; it needs no trailer), then run it in the foreground ([token-economy](../../.agents/workflow/token-economy.md#waiting)).
-- Run devcap holds with `--max-wait 300`, and scripts with their own (`ios_uitest.sh`, `uikit_build.sh`, perf) with `FENTON_DEVCAP_MAX_WAIT=300`, so the wait and the run fit one 600 s call. On give-up, yield; no retry ([token-economy](../../.agents/workflow/token-economy.md#capacity)).
+- Hold waits and yields: [token-economy](../../.agents/workflow/token-economy.md#capacity).
 - Flip a check you proved: `python3 tools/tasks.py flip <task> <check> --evidence PATH`.
 - Last step: `python3 tools/lane_check.py check`. Squash only with `lane_check.py squash`.
 
