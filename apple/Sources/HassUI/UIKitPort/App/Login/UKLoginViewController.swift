@@ -237,7 +237,8 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         super.viewDidLayoutSubviews()
         guard !isApplyingLayout else { return }
         let plan = SignInLayoutPlan.resolve(
-            container: view.convert(scroll.frame, to: nil), isRegularWidth: traitCollection.horizontalSizeClass == .regular,
+            container: SignInLayoutPlan.decisionFrame(scroll: view.convert(scroll.frame, to: nil), safeHeight: view.safeAreaLayoutGuide.layoutFrame.height),
+            isRegularWidth: traitCollection.horizontalSizeClass == .regular,
             hinge: environment?.windowHinge, isAccessibilityText: traitCollection.preferredContentSizeCategory.isAccessibilityCategory,
             isRightToLeft: view.effectiveUserInterfaceLayoutDirection == .rightToLeft)
         let margin = HassTokens.Spacing.xl
@@ -257,11 +258,14 @@ final class UKLoginViewController: UIViewController, UITextFieldDelegate {
         isApplyingLayout = true
         defer { isApplyingLayout = false }
         guard didAppearOnce else { swap(); return }
-        // The same views glide to the other layout (`MotionTokens.standard`; `quick` under Reduce Motion).
+        // The same views glide to the other layout (`MotionTokens.standard`; `quick` under Reduce Motion), one `LayoutChange` interval
+        // from the switch to the animation settling (`.agents/testing/apple/performance.md`, Layout changes).
+        let interval = Telemetry.begin(Telemetry.Name.layoutChange, page: "SignIn.layout", reduceMotion ? "reduced" : "animated")
+        let settled: (Bool) -> Void = { _ in Telemetry.end(interval) }
         if reduceMotion {
-            UIView.animate(withDuration: MotionTokens.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: swap)
+            UIView.animate(withDuration: MotionTokens.quickDuration, delay: 0, options: [.curveEaseOut, .allowUserInteraction], animations: swap, completion: settled)
         } else {
-            UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: swap)
+            UIView.animate(springDuration: MotionTokens.standardDuration, bounce: 0, options: [.allowUserInteraction], animations: swap, completion: settled)
         }
     }
 

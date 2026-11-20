@@ -346,6 +346,30 @@ final class UKHostedLoginTests: XCTestCase {
         for (a, b) in zip(after, rest) { XCTAssertEqual(a, b, accuracy: 0.5, "after dismissing") }
     }
 
+    /// A software keyboard shortens the scroll view, never the decision: a regular 1032 x 1376 window (iPad 13-inch portrait) is a column
+    /// with the keyboard up as it is without, the fields keep their minX and no layout animation starts.
+    func testAKeyboardInATallRegularWindowDoesNotFlipTheColumnToTwoRegions() {
+        let (page, window, _) = hostedPage(size: CGSize(width: 1032, height: 1376), regular: true)
+        defer { window.isHidden = true }
+        let ids = ["login.server", "login.username", "login.password"]
+        let rest = ids.map { element($0, in: page).map { frame(of: $0, in: page).minX } ?? -1 }
+        guard let title = element("login.title", in: page), let fields = element("login.fields", in: page) else { return XCTFail("missing") }
+        XCTAssertLessThan(frame(of: title, in: page).maxY, frame(of: fields, in: page).minY + 1, "at rest: the header is above the form")
+        // The scroll view ends 400 pt above the bottom, where the keyboard layout guide leaves it with a 400 pt keyboard; the safe area keeps its height.
+        let scroll = scrollView(page)
+        guard let bottom = page.view.constraints.first(where: { $0.firstItem === scroll && $0.firstAttribute == .bottom }) else { return XCTFail("no bottom constraint") }
+        bottom.isActive = false
+        scroll.bottomAnchor.constraint(equalTo: page.view.bottomAnchor, constant: -400).isActive = true
+        page.view.setNeedsLayout()
+        page.view.layoutIfNeeded()
+        XCTAssertEqual(scroll.frame.height, 976, accuracy: 1, "the keyboard shortened the scroll view to wider than tall")
+        XCTAssertGreaterThan(scroll.frame.width, scroll.frame.height)
+        for holder in holders(page) { XCTAssertTrue(holder.layer.animationKeys()?.isEmpty ?? true, "no layout animation starts") }
+        let up = ids.map { element($0, in: page).map { frame(of: $0, in: page).minX } ?? -1 }
+        for (a, b) in zip(up, rest) { XCTAssertEqual(a, b, accuracy: 0.5, "the fields keep their minX") }
+        XCTAssertLessThan(frame(of: title, in: page).maxY, frame(of: fields, in: page).minY + 1, "with the keyboard up: still a column")
+    }
+
     /// VoiceOver reads the header, the failure card, Server, Username, Password, the inline error, Sign In, Use a Different Account
     /// and the footnote, in the column and in two regions.
     func testVoiceOverOrderIsTheSameInBothLayouts() {

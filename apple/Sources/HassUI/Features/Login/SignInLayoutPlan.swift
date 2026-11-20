@@ -20,9 +20,21 @@ struct SignInLayoutPlan: Equatable {
     /// The form's box, margins included: the column, or the form centred in its region at most ``SignInStyle/columnWidth`` wide.
     let form: Span
 
+    /// The frame the column-or-split decision reads: the scroll view's frame with the height the keyboard has not shortened.
+    ///
+    /// The scroll view ends at the keyboard, so its own height changes when a field takes focus; the decision must not, or a regular
+    /// window taller than wide by less than the keyboard would flip to two regions as the keyboard rose. Width and position stay the
+    /// scroll view's (the hinge band is measured against them); the height is the safe area's.
+    /// - Parameters:
+    ///   - scroll: The scroll view's frame in window coordinates.
+    ///   - safeHeight: The height of the view's safe area, keyboard excluded.
+    static func decisionFrame(scroll: CGRect, safeHeight: CGFloat) -> CGRect {
+        CGRect(x: scroll.minX, y: scroll.minY, width: scroll.width, height: safeHeight)
+    }
+
     /// Resolves the layout for a scroll view.
     /// - Parameters:
-    ///   - container: The scroll view's frame in window coordinates (the hinge band is measured against it, not the window).
+    ///   - container: The keyboard-free frame (``decisionFrame(scroll:safeHeight:)``) in window coordinates (the hinge band is measured against it, not the window).
     ///   - isRegularWidth: The horizontal size class is regular.
     ///   - hinge: The device's division frame in window coordinates, if any.
     ///   - isAccessibilityText: The content size category is an accessibility size.

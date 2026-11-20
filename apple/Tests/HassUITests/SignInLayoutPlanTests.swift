@@ -18,6 +18,19 @@ struct SignInLayoutPlanTests {
         #expect(pad.form == SignInLayoutPlan.Span(x: 187, width: 460), "centred, at most 460 pt")
     }
 
+    @Test func theDecisionReadsTheKeyboardFreeHeight() {
+        // iPad 13-inch portrait, 1032 x 1376: a 400 pt keyboard shortens the scroll view to 976, which alone would make it wider than tall.
+        let scroll = CGRect(x: 0, y: 0, width: 1032, height: 976)
+        #expect(plan(scroll).isSplit, "the keyboard-shortened frame alone would flip to two regions")
+        let frame = SignInLayoutPlan.decisionFrame(scroll: scroll, safeHeight: 1376)
+        #expect(frame == CGRect(x: 0, y: 0, width: 1032, height: 1376), "width and origin from the scroll view, height from the safe area")
+        #expect(!plan(frame).isSplit, "with the keyboard up or down the portrait window keeps the column")
+        #expect(plan(frame) == plan(SignInLayoutPlan.decisionFrame(scroll: CGRect(x: 0, y: 0, width: 1032, height: 1376), safeHeight: 1376)))
+        // A landscape window keeps its split with the keyboard up.
+        let wide = SignInLayoutPlan.decisionFrame(scroll: CGRect(x: 0, y: 0, width: 1194, height: 434), safeHeight: 834)
+        #expect(plan(wide).isSplit)
+    }
+
     @Test func theFoldedDuoColumnFillsTheSafeWidth() {
         // 466 pt window, the system strip takes 84 pt: the scroll view is the 382 pt left of it.
         let folded = plan(CGRect(x: 0, y: 0, width: 382, height: 678), regular: false)
