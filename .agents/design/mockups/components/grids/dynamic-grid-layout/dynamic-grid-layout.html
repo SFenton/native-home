@@ -48,7 +48,7 @@
     id: 'dynamic-grid-layout', title: 'DynamicGridLayout (spans, headers)', area: 'design', status: 'shipped',
     summary: 'The one responsive grid: columns = floor((width + spacing) / (min cell + spacing)) clamped to 1 to max; leftover width is shared; a short row fills its section (one row: equal shares; more rows: whole tracks on the track lines; never across the band; duo-widths, in flight); the minimum scales with Dynamic Type (one column at AX5); equalRowHeights lifts every row to the tallest tile; gridSpan and gridHeader place wide items and section titles; the unfolded Duo rounds the count down to an even number. A grid authored with state groups (sh.grid-state-groups@1) puts its tiles under title-only headings by the face they draw and drops an empty group.',
     source: ['apple/Sources/HassDesign/DynamicGridLayout.swift', 'apple/Sources/HassCore/ServerUIComposition/ServerUIGridGroups.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIGridGrouping.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileView.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKGlassTileFaceView.swift', 'apple/Sources/HassUI/Features/Home/CameraGrid.swift'],
-    spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md', '.agents/design/motion.md', '.agents/decisions/2026-11-16-tile-swipe.md'],
+    spec: ['.agents/patterns/dynamic-grid.md', '.agents/design/direction-g.md', '.agents/design/motion.md'],
     patterns: ['dynamic-grid', 'entity-tile', 'status-pill'],
     hig: ['Layout', 'Collections', 'Dynamic Type', 'Split views', 'VoiceOver', 'Designing for iPhone Duo'],
     kitComponents: ['TileGrid', 'GlassTile', 'PageSectionHeader', 'CameraTile'],

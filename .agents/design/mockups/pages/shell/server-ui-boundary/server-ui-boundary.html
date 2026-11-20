@@ -17,7 +17,7 @@
     kind: 'page', id: 'server-ui-boundary', title: 'Layout recovery boundary (no published layout on screen)', area: 'shell', status: 'shipped',
     summary: 'What the server-driven root shows in place of a page while no layout is on screen: waiting for the layout, nothing published, a layout this version cannot read, or a layout that could not load. A glyph, a title, a message and at most one primary action, with Clear on the failed state and Sign Out on every state. With a last good layout it never shows.',
     source: ['apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRecoveryBoundary.swift', 'apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIProductionHost.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKStateMessage.swift'],
-    spec: ['.agents/design/server-ui-boundary.md', '.agents/decisions/2026-11-14-server-ui-boundary.md', '.agents/platforms/apple/architecture.md'],
+    spec: ['.agents/design/server-ui-boundary.md', '.agents/platforms/apple/architecture.md'],
     patterns: ['state-message', 'copy', 'alerts', 'hinge-avoidance'],
     hig: ['Loading', 'Feedback', 'Writing', 'Buttons', 'Alerts', 'Progress indicators', 'Designing for iPhone Duo'],
     kitComponents: ['ContentUnavailableView', 'PrimaryButton', 'Alert'],

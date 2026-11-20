@@ -210,13 +210,15 @@ class CatalogRuleTests(unittest.TestCase):
         os.environ.pop("GITHUB_HEAD_REF", None)
         mockups_check.problems.clear()
 
-    def test_decided_needs_a_decision_and_superseded_a_successor(self):
+    def test_decided_needs_no_decision_link_and_superseded_a_successor(self):
         mockups_check.check_status({"id": "a", "status": "decided"})
         mockups_check.check_status({"id": "b", "status": "decided", "decision": "PR #12"})
+        self.assertEqual(mockups_check.problems, [])
+        mockups_check.check_status({"id": "e", "status": "decided", "decision": ".agents/design/no-such-doc.md"})
         mockups_check.check_status({"id": "c", "status": "superseded"})
         mockups_check.check_status({"id": "d", "status": "wat"})
         self.assertEqual(len(mockups_check.problems), 3)
-        self.assertTrue(any("a is decided" in p for p in mockups_check.problems))
+        self.assertTrue(any("e decision" in p for p in mockups_check.problems))
 
     def test_in_flight_on_main_or_a_deleted_branch_fails(self):
         mockups_check.check_in_flight({"id": "a", "inFlight": {"branch": "main"}})
