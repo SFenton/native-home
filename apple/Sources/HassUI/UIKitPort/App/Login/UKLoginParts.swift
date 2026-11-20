@@ -54,14 +54,33 @@ final class UKSignInGroundView: UIView {
 /// of the house, so the ground shows through it (``SignInMark``).
 final class UKSignInMarkView: UIView {
     private let shape = CAShapeLayer()
+    private var widthConstraint: NSLayoutConstraint!
+    private var heightConstraint: NSLayoutConstraint!
+
+    /// The mark's side: 96 pt in the column, 112 pt beside the form (`.agents/design/sign-in-layout.md`).
+    var size: CGFloat {
+        didSet {
+            guard size != oldValue else { return }
+            widthConstraint.constant = size
+            heightConstraint.constant = size
+            setNeedsLayout()
+        }
+    }
+
+    /// How far below the view's top the drawn house starts, read from the shape's path (12% of the side: 13.4 pt at 112 pt). The
+    /// split centres the header from this line, not from the empty frame above it.
+    var inkTopInset: CGFloat {
+        HouseHeartShape().path(in: CGRect(origin: .zero, size: CGSize(width: size, height: size))).cgPath.boundingBoxOfPath.minY
+    }
 
     init(icon: AppIconChoice, size: CGFloat = 96) {
+        self.size = size
         super.init(frame: CGRect(x: 0, y: 0, width: size, height: size))
         translatesAutoresizingMaskIntoConstraints = false
-        widthAnchor.constraint(equalToConstant: size).isActive = true
-        heightAnchor.constraint(equalToConstant: size).isActive = true
+        widthConstraint = widthAnchor.constraint(equalToConstant: size)
+        heightConstraint = heightAnchor.constraint(equalToConstant: size)
+        NSLayoutConstraint.activate([widthConstraint, heightConstraint])
         shape.fillColor = UIColor(rgb: icon.glyph).cgColor
-        shape.path = HouseHeartShape().path(in: CGRect(x: 0, y: 0, width: size, height: size)).cgPath
         layer.addSublayer(shape)
         isAccessibilityElement = false
         accessibilityElementsHidden = true
@@ -69,6 +88,15 @@ final class UKSignInMarkView: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        shape.frame = bounds
+        shape.path = HouseHeartShape().path(in: CGRect(origin: .zero, size: bounds.size)).cgPath
+        CATransaction.commit()
+    }
 }
 
 /// The person's monogram on a disc in the icon's colours, for the welcome back sign-in (``SignInMonogram``).
@@ -78,6 +106,9 @@ final class UKSignInMonogramView: UIView {
     private var size: NSLayoutConstraint!
     private var heightConstraint: NSLayoutConstraint!
     private let initials: String?
+
+    /// The disc's size relative to the column's 88 pt one: 112 / 96 beside the form, so it keeps the mark's ratio.
+    var sizeScale: CGFloat = 1 { didSet { if sizeScale != oldValue { restyle() } } }
 
     init(name: String?, icon choice: AppIconChoice) {
         initials = ProfileButton.initials(name)
@@ -108,7 +139,7 @@ final class UKSignInMonogramView: UIView {
 
     /// The disc grows with the text size, like the initials in it.
     private func restyle() {
-        let diameter = UKShellFont.scaled(88, relativeTo: .largeTitle, traits: traitCollection)
+        let diameter = UKShellFont.scaled(88 * sizeScale, relativeTo: .largeTitle, traits: traitCollection)
         size.constant = diameter
         heightConstraint.constant = diameter
         label.font = UKShellFont.preferred(.title1, weight: .semibold, design: .rounded, traits: traitCollection)
@@ -298,6 +329,7 @@ final class UKLoginFieldsModule: UIView {
         addSubview(module)
         module.ukPin(to: self)
         clipsToBounds = false
+        accessibilityIdentifier = "login.fields"
 
         serverField.keyboardType = .URL
         serverField.textContentType = .URL
@@ -361,6 +393,11 @@ final class UKLoginFieldsModule: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// The rows VoiceOver reads, in order: the three fields, or the two read-only rows and the password in a welcome back.
+    var accessibilityOrder: [UIView] {
+        serverReadonlyRow.isHidden ? [serverField, usernameField, passwordField] : [serverReadonlyRow, readonlyRow, passwordField]
+    }
 
     /// Whether the red hairline is drawn round the Server row.
     var showsServerOutline: Bool { !serverOutline.isHidden }

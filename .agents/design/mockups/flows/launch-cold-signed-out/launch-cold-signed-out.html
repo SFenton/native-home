@@ -24,7 +24,7 @@
 
   Mock.mount({
     kind: 'flow', id: 'launch-cold-signed-out', title: 'Cold launch, signed out (intro)', area: 'shell', status: 'shipped',
-    summary: 'A signed-out phone is opened: the launch ground, then the intro (about 1.2 s): the glow fades up, the header comes in, the form rises. It plays once per session (and again after a sign-out); Reduce Motion shows one 0.35 s cross-fade. No keyboard comes up.',
+    summary: 'A signed-out phone is opened: the launch ground, then the intro (about 1.2 s): the glow fades up, the header comes in, the form rises. It plays once per session (and again after a sign-out); Reduce Motion shows one 0.35 s cross-fade. No keyboard comes up. In a wide window (unfolded Duo landscape, flat or partly folded, and iPad landscape) the header is in the leading region and the form in the trailing region; the same pieces play with the same timings.',
     source: ['apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift', 'apple/Sources/HassDesign/Motion/MotionTokens.swift', 'apple/Sources/HassUI/App/Motion/MotionPolicy.swift'],
     spec: ['.agents/design/motion.md', '.agents/design/direction-g.md', '.agents/platforms/apple/auth.md'],
     patterns: ['motion', 'telemetry'],
@@ -41,7 +41,9 @@
       'default': { title: '1.16 s · Intro done: ready to type', note: 'no keyboard has come up', render: frame(LL.INTRO_MS) },
       'reduce-motion': { title: 'Reduce Motion · 0.17 s into the cross-fade', note: 'everything at about half opacity at once: no rise, no scale, no spring', render: frame(175, null, true) },
       'reduce-motion-end': { title: 'Reduce Motion · done at 0.35 s', render: frame(350, null, true) },
-      'ax5': { title: 'Accessibility 5 text size (intro done)', override: { ts: 'ax5' }, render: frame(LL.INTRO_MS) },
+      'typing': { title: 'Typing: keyboard up', note: 'the scroll view ends at the keyboard; a wide window centres both regions in the space above it on one line, a column centres there or scrolls; nothing moves sideways', render: function (ctx) { return LL.screen(ctx, { username: 'alex', password: 6, focus: 'password', keyboard: true, glow: 1 }); } },
+      'xxxl': { title: 'xxxLarge text size (intro done)', override: { ts: 'xxxl' }, note: 'a wide window still splits; the split header scales with Large Title and Title 3', render: frame(LL.INTRO_MS) },
+      'ax5': { title: 'Accessibility 5 text size (intro done)', override: { ts: 'ax5' }, note: 'no split at accessibility sizes: one scrolling column, in the leading region while the Duo is partly folded', render: frame(LL.INTRO_MS) },
     },
 
     motion: [
@@ -58,11 +60,13 @@
     transitions: [
       { from: 'Launch ground', to: 'Sign-in intro', kind: 'fade', state: 'launch-ground', note: 'The ground fades out over 0.2 s while the intro plays on the sign-in layer under it. Nothing else is shown first: no splash, no logo.',
         play: function (stage) { var g = stage.querySelector('.ll-launch'); LL.run(LL.INTRO_MS, function (t) { LL.introAt(root(stage), t, Mock.settings.reduceMotion); }); return Mock.sleep(300).then(function () { return A.fade(g, { from: 1, to: 0, ms: A.ms.quick() }); }).then(function () { return Mock.sleep(LL.INTRO_MS); }); } },
-      { from: 'Intro done', to: 'Typing', kind: 'cut', state: 'default', note: 'The form is a plain screen from here on: tapping a row focuses its field and brings up the keyboard; the intro never plays again this session (MotionPolicy), until a sign-out resets it.',
+      { from: 'Intro done', to: 'Typing', kind: 'cut', state: 'default', note: 'The form is a plain screen from here on: tapping a row focuses its field and brings up the keyboard (state typing): the layout moves up with the keyboard and never sideways; the intro never plays again this session (MotionPolicy), until a sign-out resets it.',
         play: function () { return Mock.sleep(600); } },
     ],
 
     a11y: [
+      { rule: 'Reading order', note: 'Header (name, line), then the failure card when there is one, Server, Username, Password, the inline error, Sign In, Use a Different Account, the footnote: the same order in the column and in the wide layout, whichever side the regions are on.' },
+      { rule: 'Safe area', note: 'Every field and button is inside the safe area: on the Duo the system strip beside the screen (dashed line) holds the status bar, and only the ground runs under it. The form never scrolls sideways.' },
       { rule: 'Content is there from the start', note: 'The intro only changes opacity and offset; every element is in the accessibility tree from the first frame, so VoiceOver can read the form while it rises. The sign-in layer announces "Sign in".' },
       { rule: 'Reduce Motion', note: 'One 0.35 s cross-fade (MotionTokens.reducedMoment): no rise, no scale, no spring. The glow still fades because opacity is not motion.' },
       { rule: 'No keyboard', note: 'The intro does not focus a field, so the keyboard does not rise into the middle of the animation.' },
@@ -88,13 +92,18 @@
     },
 
     notes: [
+      'Wide windows (owner, 2026-11-19): SplitPolicy over the scroll view, which is pinned to the safe area horizontally. iPad landscape 596 / 1 / 597 pt (605 / 605 pt in the 1210 pt window of the 11-inch iPad Pro); unfolded Duo landscape flat 433 / 1 / 433 pt; partly folded 455.3 / 40.4 / 371.3 pt (the form is 371 pt wide there, its fields 323 pt). The block from the top of the fields to the bottom of Sign In is centred in the height and the header centres on the same line, measured from the top of the house (13 pt below the top of the mark's 112 pt frame) or of the monogram disc to the bottom of the line; the footnote hangs 16 pt under Sign In and moves nothing. The header, like the form, is at most 460 pt wide less its 24 pt margins (412 pt of text on iPad). The header and the form keep at least 16 pt from the top and bottom of the scrolling content. Header in this layout: mark 112 pt, name 40 pt bold (Large Title scaling), line Title 3.',
+      'Lying flat, the regions meet at the midpoint of the safe width, so the fold line (455 to 496 pt) runs through the leading edge of the form; nothing avoids the hinge while flat (split-view.md).',
+      'Folded Duo: the scroll view is 382 pt wide (466 less the 84 pt strip, measured), the fields 334 pt, x 24 to 358. The unfolded landscape Duo measures the same 84 pt strip, flat and partly folded (scroll view 867 pt). The dashed line and its label are annotation, not drawn by the app. The kit still draws the status bar across the top of the Duo.',
+      'Keyboard heights: 230 pt on the folded Duo and 373 pt on iPad landscape are measured; the others are stand-ins (the unfolded Duo's simulator draws no software keyboard). The app follows the keyboard layout guide.',
       'Mark in the intro: LoginView applies opacity(stage.title) to the whole LoginHeader and the mark is inside it, so the 0.15 to 0.43 s rise is invisible and the mark appears together with the title (0.46 to 0.86 s) while settling 1.03 to 1. direction-g.md and motion.md say the mark springs in before the title; the code does not show that. Drawn as the code runs.',
       'refreshing, loading, error, offline: not applicable to the intro itself. The sign-in layer has no connection; a server that cannot be reached is a Sign In result (pages/login, offline state).',
       'A sign-out resets MotionPolicy, so the same intro plays again on the signed-out screen; a session that expires does the same (AppSession.sessionExpired calls signOut), so the welcome back screen also plays the full intro; see flows/session-expired-welcome-back.',
       'Debug builds only: FENTON_SKIP_INTRO=1 skips the intro for journeys; FENTON_LAUNCHCOST measures the window.',
       'Promote to kit: Mock.LL.introAt and LL.run (a sampled timeline: the same maths draws each frame and plays it), LL.launchGround.',
     ],
-    changelog: [{ date: REVIEW_DATE, note: 'First pass: seven frames of the intro, Reduce Motion, AX5, six devices, play and play (reduced).' }],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: seven frames of the intro, Reduce Motion, AX5, six devices, play and play (reduced).' },
+      { date: '2026-11-19', note: 'Wide windows show the header beside the form (A2); the form sits inside the safe area on the Duo (folded fields 334 pt); typing and xxxLarge states added.' }],
   });
 })();
 </script></body></html>

@@ -3,7 +3,7 @@
 - Mockup: [session-expired-welcome-back.html](session-expired-welcome-back.html) · status shipped · reviewed 2026-10-23
 - Source: `apple/Sources/HassUI/App/AppSession.swift`, `RootView.swift`, `Features/Login/LoginModel.swift`, `LoginView.swift`, `LoginHeader.swift`
 - Spec: `.agents/platforms/apple/auth.md`, `.agents/design/motion.md` · Patterns: motion
-- States covered: rejected token, the layer swap, welcome back (finished, intro frame, working), wrong password, unreachable, use a different account, plain form, long-text, AX5
+- States covered: rejected token, the layer swap, welcome back (finished, intro frame, working), wrong password, unreachable, use a different account, plain form, long-text, typing (keyboard up), AX5
 - Motion: layers cross-fade (0.35 s), intro again, failure appears (quick), different account (quick)
-- Devices: iPhone, Duo folded and unfolded, iPad
+- Devices: iPhone, Duo folded and unfolded, iPad; wide windows put the monogram, title and line in the leading region and the rows, Sign In, Use a Different Account and the footnote in the trailing region
 - Open notes: the expiry replays the full intro and the next arrival (signOut resets MotionPolicy; undocumented); the window colour behind the fade is not confirmed

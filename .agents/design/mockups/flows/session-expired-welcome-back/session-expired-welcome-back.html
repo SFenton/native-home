@@ -21,7 +21,7 @@
 
   Mock.mount({
     kind: 'flow', id: 'session-expired-welcome-back', title: 'Session expired, welcome back sign-in', area: 'shell', status: 'shipped',
-    summary: 'Home Assistant refuses the saved sign-in (the connection status becomes rejected): the app ends the session, keeps who it was, and the sign-in layer fades in as Welcome back, Alex with only the password to type. Use a Different Account goes to the plain form.',
+    summary: 'Home Assistant refuses the saved sign-in (the connection status becomes rejected): the app ends the session, keeps who it was, and the sign-in layer fades in as Welcome back, Alex with only the password to type. Use a Different Account goes to the plain form. In a wide window the monogram, title and line are in the leading region and the rows, Sign In, Use a Different Account and the footnote in the trailing region.',
     source: ['apple/Sources/HassUI/App/AppSession.swift', 'apple/Sources/HassUI/UIKitPort/App/UKRootViewController.swift', 'apple/Sources/HassUI/Features/Login/LoginModel.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginViewController.swift', 'apple/Sources/HassUI/UIKitPort/App/Login/UKLoginParts.swift'],
     spec: ['.agents/platforms/apple/auth.md', '.agents/design/motion.md'],
     patterns: ['motion'],
@@ -40,7 +40,8 @@
       'use-different-account': { title: '4 · Use a Different Account', note: 'forgetExpiredAccount() clears the remembered username and name: the plain form, username empty', render: S({ username: '', password: 0 }) },
       'plain-form': { title: 'No remembered account: the plain form', note: 'a phone signed in before the app remembered a username, or one that signed out deliberately: the username is kept to fill the form (a deliberate sign-out is not a welcome back)', render: S({ username: 'alex', password: 0, focus: 'password' }) },
       'long-text': { title: 'Long first name', render: S({ mode: 'welcome', first: 'Bartholomew-Alexander', name: 'Bartholomew-Alexander Fenton-Whitaker', username: 'bartholomew.alexander.fenton-whitaker@example.com', password: 6 }) },
-      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: S(Object.assign({ password: 9 }, W)) },
+      'typing': { title: 'Typing the password: keyboard up', note: 'a wide window centres both regions above the keyboard on one line; Use a Different Account and the footnote hang below and are reached by scrolling when the keyboard covers them', render: S(Object.assign({ password: 0, focus: 'password', keyboard: true }, W)) },
+      'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'no split at accessibility sizes: one scrolling column', render: S(Object.assign({ password: 9 }, W)) },
     },
 
     motion: [
@@ -114,9 +115,11 @@
       'Intro replay on expiry: sessionExpired() calls signOut(), whose motion.reset() clears the intro and the arrival, so the welcome back screen plays the full intro and a successful sign-in plays the arrival again. Intended for a deliberate sign-out (the comment says so); for an expiry it is incidental and undocumented.',
       'Window background during the swap: drawn black; RootView sets none and the first-frame ground is gone after launch. Not confirmed on a device.',
       'Debug builds: FENTON_EXPIRED_ACCOUNT=<username>|<name> starts as if a session had just ended; FENTON_SIGNIN_STUB=wrong|slow|success|unreachable|failed|twostep answers the flow.',
-      'The unfolded Duo landscape column crosses the hinge as on the sign-in page (see pages/login notes).',
+      'Wide windows (owner, 2026-11-19; geometry in flows/launch-cold-signed-out): the block from the top of the rows to the bottom of Sign In is centred and the header centres on it. Use a Different Account (16 pt under Sign In) and the footnote (16 pt under that) hang below and move nothing, so the rows sit where a fresh sign-in has them. The unreachable card hangs 16 pt above the rows and moves nothing either; an inline error sits between the rows and Sign In, inside the centred block. Split header: monogram 103 pt, title 40 pt bold, line Title 3; on iPad the line wraps with a short last line.',
+      'Folded Duo: the form is inside the safe area (fields 334 pt); the dashed line marks the system strip and is annotation.',
     ],
-    changelog: [{ date: REVIEW_DATE, note: 'First pass: rejected token, the swap, welcome back (finished and intro), working, errors, use a different account, plain form, AX5.' }],
+    changelog: [{ date: REVIEW_DATE, note: 'First pass: rejected token, the swap, welcome back (finished and intro), working, errors, use a different account, plain form, AX5.' },
+      { date: '2026-11-19', note: 'Wide windows show the header beside the form (A2); the form sits inside the safe area on the Duo; typing state added.' }],
   });
 })();
 </script></body></html>
