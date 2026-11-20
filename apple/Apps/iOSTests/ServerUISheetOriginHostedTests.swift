@@ -11,12 +11,7 @@ import XCTest
 /// Run unchanged on iPhone, iPhone Duo and iPad.
 @MainActor
 final class ServerUISheetOriginHostedTests: XCTestCase {
-    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
-    /// `viewDidDisappear`, which rests the page's node observations, so the page stops drawing and following the store.
-    private var windows: [UIWindow] = []
-
     override func tearDown() async throws {
-        windows.removeAll()
         HostedPage.hideTracked()
         HostedPage.resetGlobals()
         try await super.tearDown()
@@ -84,7 +79,6 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let renderer = try UKServerUIRenderer(publication: publication(adaptive: adaptive, homed: homed, hideBeta: hideBeta), context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), shellHeader: source)
         let window = HostedPage.show(renderer, size: adaptive ? HostedPage.splitSize : nil)
-        windows.append(window)
         if adaptive { renderer.setOverrideTraitCollection(UITraitCollection(horizontalSizeClass: .regular), forChild: renderer.tabController) }
         HostedPage.wait(0.1)
         return (renderer, window)
@@ -271,37 +265,55 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUIRendererFixture.publication(document) }
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), records: records)
-        windows.append(HostedPage.show(host))
+        _ = HostedPage.show(host)
         HostedPage.wait(0.1)
         return (host, draft)
     }
 
+    /// What blocks an intent right now, for an assertion message: the presented controllers, the pending alert, the forms the link leaves, the
+    /// selected tab and its stack, and the error the discard replay swallowed.
+    private func guardState(_ host: UKServerUIRenderer, sheet: UKServerUIPage, link: ServerUICompositionDocument.Action, reported: [UKServerUIRendererError]) -> String {
+        func name(_ controller: UIViewController?) -> String { controller.map { String(describing: type(of: $0)) + ($0.isBeingPresented ? "(presenting)" : $0.isBeingDismissed ? "(dismissing)" : "") } ?? "none" }
+        let forms = host.exitForms(link, from: sheet).map { "needsDiscard=\($0.needsDiscard) blocksExit=\($0.blocksExit)" }
+        return "sheet.presented=\(name(sheet.presentedViewController)) modal.presented=\(name(host.modal?.presentedViewController)) "
+            + "activeAlert=\(name(host.activeAlert)) exitForms=\(forms) selection=\(host.navigation.snapshot.selection) "
+            + "stacks=\(host.navigation.snapshot.stacks) presentations=\(host.navigation.snapshot.presentations.count) modal=\(host.modal != nil) "
+            + "replayError=\(String(describing: host.lastDiscardReplayError)) reported=\(reported.map(\.description))"
+    }
+
     func testAFormWithUnsavedChangesAsksBeforeTheSheetCloses() throws {
         let (host, draft) = try formHost()
+        var reported: [UKServerUIRendererError] = []
+        host.onError = { reported.append($0) }
         let sheet = try openSheet(host, from: ServerUIRendererFixture.root(host))
         let session = spin({ sheet.formView?.session === draft })
         XCTAssertTrue(session)
         try draft.set(.string("Edited"), group: "item", field: "name")
-        host.activate(push(Self.echo), from: sheet)
+        let link = push(Self.echo)
+        host.activate(link, from: sheet)
         let asked = spin({ sheet.presentedViewController is UIAlertController })
         XCTAssertTrue(asked, "Unsaved changes ask before the sheet closes")
         XCTAssertNotNil(host.modal)
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit"])
-        // Keeping the edit leaves everything as it was.
+        // Keeping the edit leaves everything as it was. The alert is answered once it has finished presenting and the answer waits for it
+        // to be gone: a dismissal asked of a presentation still in flight lands late on a loaded machine.
         let alert = try XCTUnwrap(sheet.presentedViewController as? UIAlertController)
+        XCTAssertTrue(spin({ !HostedPage.isTransitioning(sheet) }), "The first alert finished presenting")
         let keep = try XCTUnwrap(alert.actions.first { $0.style == .cancel }?.title)
         let discard = try XCTUnwrap(alert.actions.first { $0.style == .destructive }?.title)
         FeatureHost.answer(alert, keep)
+        XCTAssertTrue(spin({ sheet.presentedViewController == nil && !HostedPage.isTransitioning(sheet) }), "Keep Editing closed the first alert")
         HostedPage.wait(0.3)
         XCTAssertNotNil(host.modal)
         XCTAssertEqual(host.navigation.snapshot.stacks[Self.tab], ["page-orbit"])
         // Discarding it lets the same link go through.
-        host.activate(push(Self.echo), from: sheet)
+        host.activate(link, from: sheet)
         let again = spin({ sheet.presentedViewController is UIAlertController })
         XCTAssertTrue(again, "The same link asks again")
+        XCTAssertTrue(spin({ !HostedPage.isTransitioning(sheet) }), "The second alert finished presenting")
         FeatureHost.answer(try XCTUnwrap(sheet.presentedViewController as? UIAlertController), discard, dismissing: false)
         let landed = settledOnPage(host, Self.echo)
-        XCTAssertTrue(landed)
+        XCTAssertTrue(landed, guardState(host, sheet: sheet, link: link, reported: reported))
     }
 
     // MARK: Room navigation
@@ -560,7 +572,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIRendererFixture.publication(json)
         XCTAssertFalse(publication.document.declaresSheetLevels)
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()), backdrop: ServerUIRendererFixture.backdrop())
-        windows.append(HostedPage.show(host))
+        _ = HostedPage.show(host)
         HostedPage.wait(0.1)
         let sheet = try openSheet(host, from: ServerUIRendererFixture.root(host))
         host.activate(push(Self.echo), from: sheet)

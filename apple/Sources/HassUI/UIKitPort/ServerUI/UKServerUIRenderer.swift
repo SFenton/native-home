@@ -1028,7 +1028,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         let symbol: String
     }
 
-    private var activeAlert: UIViewController? {
+    /// The alert or dialog presented over the current surface, which blocks every intent until it is gone.
+    var activeAlert: UIViewController? {
         if let modal {
             return modal.topViewController?.presentedViewController ?? modal.presentedViewController
         }
@@ -1063,6 +1064,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         modalFlight || handoff || delegates.values.contains { $0.isTransitioning }
             || logicalStacks.values.joined().contains { $0.columns?.isTransitioning == true }
     }
+
+    /// The error the last discard replay (``activate(_:from:source:symbol:control:site:confirmed:)`` after "Discard Changes") threw, before it became
+    /// the sanitized `interaction_blocked`. Diagnostic only, for hosted tests: nothing in the app reads it.
+    private(set) var lastDiscardReplayError: Error?
 
     private func blocked(_ pointer: String = "/document/navigation") -> UKServerUIRendererError {
         UKServerUIRendererError(code: .interactionBlocked, pointer: pointer)
@@ -1124,7 +1129,11 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 do {
                     for form in leaving { try form.discard() }
                     try self.perform(action, from: page, source: source, symbol: symbol)
-                } catch { self.onError(self.blocked()) }
+                } catch {
+                    // The sanitized blocked reason below is all a person or the error sink sees; the real error stays here for a hosted test.
+                    self.lastDiscardReplayError = error
+                    self.onError(self.blocked())
+                }
             }
             return
         }
@@ -1252,7 +1261,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - action: The resolved action.
     ///   - page: The page that sent it.
     /// - Returns: The distinct forms, each once.
-    private func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
+    func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
         let pages: [UKServerUIPage]
         switch action {
         case .push(let push) where page.presentationID == nil && homeTabToLeaveFor(push.pageId) != nil:
