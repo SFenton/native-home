@@ -117,13 +117,16 @@ def rows(name):
 
 def bash_input(command):
     """The Bash ``tool_input`` for a table row's command. A leading ``@bg `` marks a ``run_in_background`` call and ``@bg:MS `` one
-    that also passes ``timeout`` MS, so a guard that reads those fields (``bg_timeout_guard``) has rows for them."""
-    match = re.match(r"@bg(?::(\d+))? ", command)
+    that also passes ``timeout`` MS; ``@fg:MS `` is a foreground call passing ``timeout`` MS. A guard that reads those fields
+    (``bg_timeout_guard``) has rows for them."""
+    match = re.match(r"@(bg|fg)(?::(\d+))? ", command)
     if not match:
         return {"command": command}
-    tool_input = {"command": command[match.end():], "run_in_background": True}
-    if match.group(1):
-        tool_input["timeout"] = int(match.group(1))
+    tool_input = {"command": command[match.end():]}
+    if match.group(1) == "bg":
+        tool_input["run_in_background"] = True
+    if match.group(2):
+        tool_input["timeout"] = int(match.group(2))
     return tool_input
 
 

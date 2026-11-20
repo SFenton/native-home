@@ -82,8 +82,53 @@ class SubagentBackgroundTests(unittest.TestCase):
         self.assertEqual(run_hook(self.payload(agent_id=False, command=self.BG_RUN, run_in_background=True))[0], 0)
 
     def test_subagent_foreground_job_passes(self):
-        self.assertEqual(run_hook(self.payload(command=self.BG_RUN))[0], 0)
-        self.assertEqual(run_hook(self.payload(command=self.BG_RUN, run_in_background=False))[0], 0)
+        bounded = "tools/bg_run.py x --timeout 570 -- true"
+        self.assertEqual(run_hook(self.payload(command=bounded, timeout=600000))[0], 0)
+        self.assertEqual(run_hook(self.payload(command=bounded, timeout=600000, run_in_background=False))[0], 0)
+
+
+class SubagentForegroundTests(unittest.TestCase):
+    """A sub-agent's foreground job must end itself before the call's ``timeout``, or the harness moves it to the background."""
+
+    def payload(self, agent_id=True, **tool_input):
+        data = {"tool_name": "Bash", "tool_input": tool_input}
+        if agent_id:
+            data["agent_id"] = "agent-1"
+        return json.dumps(data)
+
+    def test_a_bounded_job_is_allowed(self):
+        raw = self.payload(command="tools/bg_run.py x --timeout 570 -- true", timeout=600000)
+        self.assertEqual(run_hook(raw)[0], 0)
+
+    def test_an_unbounded_job_is_denied_with_the_fix(self):
+        status, message = run_hook(self.payload(command="tools/bg_run.py x -- true", timeout=600000))
+        self.assertEqual(status, 2)
+        self.assertIn("--timeout S", message)
+        self.assertIn("at most 570", message)
+        self.assertIn("blocked", message)
+
+    def test_a_bound_at_or_over_the_call_timeout_is_denied(self):
+        for seconds in (600, 571, 3000):
+            with self.subTest(seconds=seconds):
+                raw = self.payload(command=f"tools/bg_run.py x --timeout {seconds} -- true", timeout=600000)
+                self.assertEqual(run_hook(raw)[0], 2)
+
+    def test_the_call_timeout_must_be_given_and_is_capped(self):
+        self.assertEqual(run_hook(self.payload(command="tools/bg_run.py x --timeout 60 -- true"))[0], 2)
+        over = self.payload(command="tools/bg_run.py x --timeout 700 -- true", timeout=900000)
+        self.assertEqual(run_hook(over)[0], 2)
+
+    def test_a_bare_full_run_is_denied(self):
+        self.assertEqual(run_hook(self.payload(command=COVERAGE, timeout=600000))[0], 2)
+
+    def test_the_main_session_is_unaffected(self):
+        for tool_input in ({"command": "tools/bg_run.py x -- true"}, {"command": COVERAGE, "timeout": 600000}):
+            with self.subTest(tool_input=tool_input):
+                self.assertEqual(run_hook(self.payload(agent_id=False, **tool_input))[0], 0)
+
+    def test_a_name_in_another_command_is_not_a_run(self):
+        raw = self.payload(command="grep -n bg_run.py tools/bg_run.py", timeout=600000)
+        self.assertEqual(run_hook(raw)[0], 0)
 
 
 if __name__ == "__main__":

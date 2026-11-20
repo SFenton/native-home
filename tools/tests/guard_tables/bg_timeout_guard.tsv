@@ -24,7 +24,7 @@
 @bg:5400000 tools/ios_uitest.sh --full	allow	full UI run with a long timeout	main
 @bg:4200000 python3 tools/devcap.py run --sim U -- tools/ios_uitest.sh --full	allow	long timeout in a hold	main
 tools/apple_coverage.sh	allow	foreground: the host-only logic gate is not guarded
-tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard
+tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard	main
 @bg tools/ios_uitest.sh --changed	allow	a --changed UI run is short	main
 @bg tools/ios_uitest.sh --only iphone --tests 'A/b'	allow	a filtered UI run is short	main
 @bg tools/ios_uitest.sh --plan Smoke	allow	the Smoke plan is short	main
@@ -43,4 +43,22 @@ tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard
 @bg tools/bg_run.py x -- true	block	a sub-agent background job dies with its turn	agent
 @bg:7200000 tools/ios_uitest.sh --full	block	a sub-agent background job is denied even with a long timeout	agent
 @bg tools/bg_run.py x -- true	allow	the main session may run a background job	main
-tools/bg_run.py x -- true	allow	a sub-agent foreground job	agent
+@fg:600000 tools/bg_run.py x --timeout 570 -- true	allow	a sub-agent foreground job ends itself 30 s before the call's timeout	agent
+@fg:600000 python3 tools/bg_run.py x --timeout=500 -- true	allow	--timeout=S form, well under the call's timeout	agent
+@fg:300000 FENTON_X=1 tools/bg_run.py x --expect-minutes 4 --timeout 270 -- true	allow	other bg_run options and an env assignment	agent
+@fg:900000 tools/bg_run.py x --timeout 570 -- true	allow	a call timeout above the 600000 ceiling counts as 600000	agent
+@fg:600000 git add tools/bg_run.py	allow	a name in git add is not a run	agent
+@fg:600000 swift test --filter Foo	allow	an unrelated foreground command is not bounded here	agent
+tools/bg_run.py x -- true	block	a sub-agent foreground bg_run with no call timeout and no bound	agent
+@fg:600000 tools/bg_run.py x -- true	block	a sub-agent foreground bg_run with no --timeout	agent
+tools/bg_run.py x --timeout 60 -- true	block	a bound without the call's timeout given	agent
+@fg:600000 tools/bg_run.py x --timeout 600 -- true	block	a bound equal to the call timeout	agent
+@fg:600000 tools/bg_run.py x --timeout 571 -- true	block	a bound inside the 30 s margin	agent
+@fg:600000 tools/bg_run.py x --timeout 3000 -- true	block	a bound beyond the call timeout	agent
+@fg:900000 tools/bg_run.py x --timeout 700 -- true	block	a call timeout above the ceiling does not widen the bound	agent
+@fg:600000 tools/bg_run.py x --timeout abc -- true	block	a non-numeric bound	agent
+@fg:600000 tools/bg_run.py x --timeout 0 -- true	block	a zero bound is no bound	agent
+@fg:600000 tools/ios_uitest.sh --full	block	a sub-agent foreground full UI run with no bg_run bound	agent
+@fg:600000 tools/bg_run.py ui --timeout 570 -- tools/ios_uitest.sh --full	allow	a bounded full UI run through bg_run	agent
+@fg:600000 tools/bg_run.py x -- true	allow	the main session is not bound by this rule	main
+tools/bg_run.py x -- true	allow	the main session foreground job without a timeout	main

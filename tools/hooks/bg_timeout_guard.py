@@ -10,6 +10,11 @@ how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic ga
 A sub-agent's background job dies when its turn ends, so a ``run_in_background`` Bash call from a payload with ``agent_id``
 (the main session never carries one) is denied whatever the command is.
 
+A sub-agent's foreground call is also moved to the background, not killed, when it reaches its ``timeout`` (probe, 2026-11-20: a
+130 s job with ``timeout`` 100000 was moved; ``timeout`` 5000 killed it), and the moved job dies with the turn. So a sub-agent's
+foreground ``tools/bg_run.py`` or full UI run must end the job first: ``bg_run.py --timeout S`` with S at most the call's ``timeout``
+(capped at ``FOREGROUND_CAP_MS``) minus ``MARGIN_S`` seconds, and the call's ``timeout`` given.
+
 A tripwire for a habit, not a wall: it reads the command text only, and it fails open on any error of its own (bad payload,
 unparsable command). Exit 2 sends the message back to the model.
 """
@@ -38,6 +43,18 @@ SUBAGENT = (
     "up to 600000 (milliseconds), splitting it into calls that each fit (for example one device family per call). A job "
     "that cannot fit: report `blocked` with the exact `tools/bg_run.py` command, so the orchestrator runs it unchanged from the main session. "
     "See .agents/workflow/token-economy.md."
+)
+
+#: The most a foreground Bash call may run: its ``timeout`` ceiling.
+FOREGROUND_CAP_MS = 600_000
+#: Seconds a bounded foreground job must finish before the call's ``timeout``.
+MARGIN_S = 30
+
+UNBOUNDED = (
+    "Blocked: a sub-agent's foreground `{what}` that reaches the Bash `timeout` is moved to the background by the harness and dies "
+    "when your turn ends. End the job before the call does: pass timeout (milliseconds, at most {cap}) on the Bash call and "
+    "`tools/bg_run.py LABEL --timeout S -- COMMAND` with S at most the call's timeout in seconds minus {margin}{limit}. "
+    "A job that cannot fit: report `blocked` with the exact command. See .agents/workflow/token-economy.md."
 )
 
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\b", re.S)
@@ -73,6 +90,53 @@ def long_job(command: str) -> Optional[str]:
     return None
 
 
+def bg_run_bound(command: str) -> Optional[tuple]:
+    """``(text, seconds)`` for the ``tools/bg_run.py`` run in ``command``; seconds is its ``--timeout`` or ``None``. ``None`` if none runs."""
+    body = HEREDOC.sub("", command)
+    for segment in SEPARATORS.split(body):
+        try:
+            tokens = shlex.split(segment, comments=True)
+        except ValueError:
+            tokens = segment.split()
+        for index, token in enumerate(tokens):
+            if _script(token) != "bg_run.py":
+                continue
+            before = tokens[index - 1] if index else ""
+            if index and not (before in LAUNCHERS or ASSIGNMENT.match(before) or _script(before) in LAUNCHERS
+                              or _script(before).startswith("python")):
+                continue  # a name in `grep bg_run.py`, not a run
+            options = tokens[index + 1:]
+            options = options[:options.index("--")] if "--" in options else options
+            seconds = None
+            for position, option in enumerate(options):
+                value = None
+                if option.startswith("--timeout="):
+                    value = option.split("=", 1)[1]
+                elif option == "--timeout" and position + 1 < len(options):
+                    value = options[position + 1]
+                if value is not None:
+                    try:
+                        seconds = float(value)
+                    except ValueError:
+                        seconds = None
+            return " ".join([token] + tokens[index + 1:index + 7]), seconds
+    return None
+
+
+def foreground_verdict(tool_input: dict) -> Optional[str]:
+    """The denial text for a sub-agent's foreground call whose long job could outlive the call's ``timeout``, or ``None`` to allow."""
+    command = str(tool_input.get("command", ""))
+    run = bg_run_bound(command)
+    what = run[0] if run else long_job(command)
+    if not what:
+        return None
+    call_ms = min(timeout_ms(tool_input), FOREGROUND_CAP_MS)
+    if run and run[1] and call_ms and run[1] * 1000 <= call_ms - MARGIN_S * 1000:
+        return None
+    limit = f" (here at most {call_ms // 1000 - MARGIN_S})" if call_ms > MARGIN_S * 1000 else ""
+    return UNBOUNDED.format(what=what, cap=FOREGROUND_CAP_MS, margin=MARGIN_S, limit=limit)
+
+
 def timeout_ms(tool_input: dict) -> int:
     """The call's ``timeout`` in milliseconds; 0 when absent or not a number."""
     value = tool_input.get("timeout")
@@ -100,6 +164,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         tool_input = payload.get("tool_input") or {}
         if payload.get("agent_id") and tool_input.get("run_in_background"):
             why = SUBAGENT
+        elif payload.get("agent_id"):
+            why = foreground_verdict(tool_input)
         else:
             why = verdict(tool_input)
     except Exception:  # noqa: BLE001 - a hook never traps an agent
