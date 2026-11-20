@@ -360,7 +360,7 @@ class ShipArmTests(unittest.TestCase):
 class ShipPushThenReviewTests(unittest.TestCase):
     """Push, then review (owner, 2026-11-10): a native-home origin is pushed without a reviewer pass; the hook install and a readable origin are still required."""
 
-    def ship_with_origin(self, url, passed, hooks=True):
+    def ship_with_origin(self, url, passed, hooks=True, setup=False):
         """Run ship.sh with ``origin`` set to ``url``; returns the result. ``self.pushed`` says whether ``claude/x`` reached the local bare origin.
         An ssh-form url is served by a fake ``GIT_SSH_COMMAND`` that runs ``git receive-pack`` on the local bare repository, so nothing touches the network."""
         with TemporaryDirectory() as tmp:
@@ -377,11 +377,17 @@ class ShipPushThenReviewTests(unittest.TestCase):
             git(clone, "commit", "-q", "-m", "Add a")
             if passed:
                 record_pass(home, git(clone, "rev-parse", "HEAD"))
+            if setup:
+                shutil.copy(TOOLS / "setup.sh", clone / "tools" / "setup.sh")
             if hooks:
-                git(clone, "config", "core.hooksPath", ".githooks" if hooks is True else str(clone / ".githooks"))
+                value = {True: ".githooks", "absolute": str(clone / ".githooks")}.get(hooks, hooks)
+                git(clone, "config", "core.hooksPath", value)
             git(clone, "remote", "set-url", "origin", url)
             done = subprocess.run(["bash", "tools/ship.sh", "Add a"], cwd=clone, capture_output=True, text=True,
                                   env={**ENV, "HOME": str(home), "GIT_SSH_COMMAND": str(fake_ssh)})
+            flips = clone / ".git" / "hooks-path-flips"
+            self.flip_rows = flips.read_text().splitlines() if flips.is_file() else []
+            self.final_path = subprocess.run(["git", "config", "core.hooksPath"], cwd=clone, env=ENV, capture_output=True, text=True).stdout.strip()
             self.pushed = subprocess.run(["git", "rev-parse", "--verify", "-q", "refs/heads/claude/x"], cwd=origin, env=ENV).returncode == 0
             return done
 
@@ -409,6 +415,19 @@ class ShipPushThenReviewTests(unittest.TestCase):
         self.assertNotIn("needs the reviewer's pass", done.stderr)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertTrue(self.pushed)
+
+    def test_a_foreign_hooks_path_is_repaired_once_then_pushed_and_logged(self):
+        """Fails if: ship.sh refuses (or pushes without repairing) a hooks path pointing at another checkout or an absolute folder when
+        tools/setup.sh is there to fix it, or omits the rewrite line or the hooks-path-flips entry."""
+        for foreign in ("/elsewhere/other-checkout/.githooks", "/tmp"):
+            with self.subTest(foreign=foreign):
+                done = self.ship_with_origin("git@github.com:SFenton/native-home.git", passed=False, hooks=foreign, setup=True)
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertTrue(self.pushed)
+                self.assertEqual(self.final_path, ".githooks")
+                self.assertIn(f"rewritten from {foreign} to .githooks", done.stdout + done.stderr)
+                self.assertEqual(len(self.flip_rows), 1)
+                self.assertEqual(self.flip_rows[0].split("\t")[1], foreign)
 
     def test_an_unreadable_origin_fails_closed(self):
         done = self.ship_with_origin("nonsense", passed=True)

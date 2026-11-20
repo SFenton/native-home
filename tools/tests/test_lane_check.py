@@ -276,7 +276,12 @@ class RevertGuardTests(unittest.TestCase):
 
 class HooksPathTests(unittest.TestCase):
     def hooks(self, clone):
-        return lane(clone, "check", "--only", "hooks")
+        """The check with no ``setup.sh`` beside the script, so it can only refuse (the repair is tested in HooksRepairTests)."""
+        bare = Path(clone).parent / "norepair"
+        bare.mkdir(exist_ok=True)
+        (bare / "lane_check.py").write_text(LANE_CHECK.read_text())
+        return subprocess.run([sys.executable, str(bare / "lane_check.py"), "check", "--only", "hooks"], cwd=clone, env=ENV,
+                              capture_output=True, text=True)
 
     def test_relative_and_absolute_forms_of_the_repos_own_githooks_pass(self):
         """Fails if: either `.githooks` or the absolute path to this worktree's own .githooks is refused."""
@@ -310,6 +315,51 @@ class HooksPathTests(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             clone, _ = make_repo(tmp)
             self.assertEqual(self.hooks(clone).returncode, 1)
+
+
+class HooksRepairTests(unittest.TestCase):
+    """A foreign, absolute or missing hooks path is repaired once by ``tools/setup.sh``; the rewrite is announced and logged."""
+
+    def flips(self, clone):
+        log = Path(git(clone, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks-path-flips"
+        return log.read_text().splitlines() if log.is_file() else []
+
+    def test_a_path_into_another_checkout_is_rewritten_announced_and_logged(self):
+        """Fails if: a foreign absolute hooks path is not rewritten to .githooks, the one-line notice is missing, or the old value
+        and time are not appended to hooks-path-flips."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            foreign = str(other_checkout_hooks(tmp, clone))
+            git(clone, "config", "core.hooksPath", foreign)
+            done = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+            self.assertIn(f"rewritten from {foreign} to .githooks", done.stdout)
+            rows = self.flips(clone)
+            self.assertEqual(len(rows), 1, rows)
+            when, old, where = rows[0].split("\t")
+            self.assertEqual((old, where), (foreign, str(clone.resolve())))
+            self.assertRegex(when, r"^\d{4}-\d\d-\d\dT")
+
+    def test_an_absolute_path_to_a_missing_folder_is_rewritten(self):
+        """Fails if: an absolute path that leads nowhere is left for the owner to fix by hand."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "config", "core.hooksPath", "/nonexistent/other-checkout/.githooks")
+            self.assertEqual(lane(clone, "check", "--only", "hooks").returncode, 0)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+
+    def test_a_correct_path_runs_nothing_and_logs_nothing(self):
+        """Fails if: a good absolute path is rewritten or logged (setup.sh must run only after a failed check)."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            absolute = str(clone / ".githooks")
+            git(clone, "config", "core.hooksPath", absolute)
+            done = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(done.returncode, 0)
+            self.assertNotIn("rewritten", done.stdout)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), absolute)
+            self.assertEqual(self.flips(clone), [])
 
 
 class ScanTests(unittest.TestCase):
