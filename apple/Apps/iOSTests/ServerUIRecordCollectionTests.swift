@@ -73,6 +73,8 @@ final class ServerUIRecordCollectionTests: XCTestCase {
         HostedPage.wait(0.5)
         configured.removeAll()
         list.apply(keys: ["a", "b", "c"], rows: rows, changed: ["b"], surface: .page)
+        // A loaded runner can take longer than a fixed wait to redraw a cell: wait for the row, then give a stray one time to show.
+        XCTAssertTrue(HostedPage.until { configured.contains("b") })
         HostedPage.wait(0.2)
         XCTAssertEqual(configured, ["b"], "Only the changed row reconfigures; an identical apply touches nothing else")
         configured.removeAll()
@@ -81,6 +83,7 @@ final class ServerUIRecordCollectionTests: XCTestCase {
         XCTAssertTrue(configured.isEmpty)
         configured.removeAll()
         list.apply(keys: ["a", "b"], rows: rows, changed: [], surface: .page)
+        XCTAssertTrue(HostedPage.until { configured.contains("b") })
         HostedPage.wait(0.2)
         XCTAssertEqual(configured, ["b"], "Dropping the last row moves the module's last corner to its neighbour only")
     }
