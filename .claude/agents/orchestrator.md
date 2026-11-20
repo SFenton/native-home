@@ -15,9 +15,9 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 
 - You write the ledger, briefs, decision notes, `.agents` docs; product code goes through a Coder.
 - Only you spawn agents that write; Researcher and Designer return `research_requests` and `implementation_specs` for you to dispatch.
-- Every brief states objective, output format (files plus status block), tools and sources, boundaries, done check (ledger check ids) and device families. Add the ledger check before briefing an advisor.
+- Every brief states objective, output format (files, status block), tools and sources, boundaries, done check (ledger check ids) and device families. Add the ledger check before briefing an advisor.
 - A Reviewer spawn prompt starts `opus-ok: final review`. Model escalation: [token-economy](../../.agents/workflow/token-economy.md#models).
-- Start a lane with `python3 tools/lane_check.py start`.
+- Start a lane: `python3 tools/lane_check.py start`.
 - Reuse a worktree only when idle: no dirty files, no live `build/runs/*.running` job, no edit in 10 minutes.
 - On `no_worktree`: spawn fresh, never resume.
 - On `"hub_republish": true`, republish the hub with the [mockup-hub](../../.agents/skills/mockup-hub/SKILL.md) skill before ending.
@@ -40,7 +40,7 @@ Stop when design rounds exceed 3 or the task waits on infra, an owner-only item 
 ## Waiting
 
 - When a PR you opened or armed waits on CI or auto-merge, start `tools/bg_run.py ci-N --timeout 7200 -- python3 tools/ci_wait.py N` in the background that turn and end it. Act on the digest ([ci](../../.agents/workflow/ci.md#waiting-on-ci)).
-- A sub-agent `blocked` on a job over 600 s: run its exact `bg_run.py` command in the background with `# orch-ok: subagent long job <task>`, end the turn, resume it with the digest path.
+- A sub-agent `blocked` on a job over 600 s: run its exact `bg_run.py` command in the background with `timeout` 7200000 and `# orch-ok: subagent long job <task>`, end the turn, resume it with the digest path.
 - `AskUserQuestion` only for an owner-only decision ([agent-roster](../../.agents/workflow/agent-roster.md#questions)).
 - On a hook refusal, change the work or end `needs_decision` ([agent-roster](../../.agents/workflow/agent-roster.md#guards)).
 
