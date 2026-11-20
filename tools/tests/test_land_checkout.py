@@ -1,6 +1,6 @@
 """``tools/land_checkout.py``: a clean ``origin/main`` tree for ``pr_land``. Real git, a bare origin, no mocks of git.
 
-The primary checkout in the fixture is 45 commits behind with an uncommitted conflicting edit, as in ``build/retro/pr167-phase.md``.
+The primary checkout in the fixture is 45 commits behind with an uncommitted conflicting edit.
 """
 
 import io
@@ -142,6 +142,62 @@ class LandCheckoutTests(LandFixture):
         elsewhere = self.root / "elsewhere"
         code, lines, _ = self.run_tool("--path", str(elsewhere))
         self.assertEqual((code, lines[-1]), (0, f"land from: {elsewhere}"))
+
+
+class SafetyTests(LandFixture):
+    """The tool deletes or detaches only its own land tree, never the caller's checkout or an unrelated folder."""
+
+    def refused(self, path):
+        code, lines, err = self.run_tool("--path", str(path))
+        self.assertEqual((code, lines), (1, ["land from: failed"]), err)
+
+    def test_a_junk_default_folder_does_not_detach_a_clean_caller(self):
+        git(self.primary, "add", ".gitignore")
+        git(self.primary, "commit", "-qm", "ignore build")
+        git(self.primary, "checkout", "-q", "--", "tools/pr_land.py")
+        head = git(self.primary, "rev-parse", "HEAD")
+        self.land.mkdir(parents=True)
+        (self.land / "junk").write_text("x\n")
+        code, lines, _ = self.run_tool()
+        self.assertEqual((code, lines[-1]), (0, f"land from: {self.land}"))
+        self.assertEqual(git(self.primary, "rev-parse", "HEAD"), head)  # the caller was not moved
+        self.assertEqual(git(self.primary, "symbolic-ref", "--short", "HEAD"), "main")
+        self.assertEqual(git(self.land, "rev-parse", "--show-toplevel"), str(self.land))
+
+    def test_a_clean_caller_with_a_leftover_subfolder_that_has_no_git_is_not_taken_for_a_worktree(self):
+        git(self.primary, "checkout", "-q", "--", "tools/pr_land.py")
+        (self.land).mkdir(parents=True)
+        self.assertFalse(land_checkout.is_clean_worktree(self.land, Path(git(self.primary, "rev-parse", "--path-format=absolute", "--git-common-dir"))))
+
+    def test_path_set_to_the_caller_is_refused_and_its_edit_survives(self):
+        self.refused(self.primary)
+        self.assertIn("conflicting edit", (self.primary / "tools" / "pr_land.py").read_text())
+
+    def test_path_set_to_a_subfolder_of_the_caller_is_refused(self):
+        (self.primary / "build").mkdir()
+        (self.primary / "build" / "evidence.txt").write_text("keep\n")
+        for sub in (self.primary / "build", self.primary / "tools"):
+            self.refused(sub)
+        self.assertTrue((self.primary / "build" / "evidence.txt").exists())
+        self.assertTrue((self.primary / "tools" / "pr_land.sh").exists())
+
+    def test_path_set_to_a_folder_that_holds_the_caller_is_refused(self):
+        self.refused(self.primary.parent)
+        self.assertTrue(self.primary.is_dir())
+
+    def test_an_unrelated_directory_is_refused_and_kept(self):
+        other = self.root / "unrelated"
+        other.mkdir()
+        (other / "mine.txt").write_text("keep\n")
+        self.refused(other)
+        self.assertTrue((other / "mine.txt").exists())
+
+    def test_a_branch_worktree_is_refused_and_kept(self):
+        branch = self.root / "branch-tree"
+        git(self.primary, "worktree", "add", "-q", "-b", "feature", str(branch), "HEAD")
+        (branch / "work.txt").write_text("uncommitted\n")
+        self.refused(branch)
+        self.assertTrue((branch / "work.txt").exists())
 
 
 class GuardFixtureTests(LandFixture):

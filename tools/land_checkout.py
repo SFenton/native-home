@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Print a clean checkout of ``origin/main`` to land from (Steward action, ``build/retro/pr167-phase.md``).
+"""Print a clean checkout of ``origin/main`` to land from.
 
 ``tools/hooks/merge_guard.py`` lets an agent run ``tools/pr_land.sh N`` only from a checkout whose landing files equal
 ``origin/<base>``'s. A session checkout that fell behind, or holds other sessions' edits, fails that check, and nothing here repairs it.
@@ -19,7 +19,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Dict, Optional, Sequence, Tuple
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "hooks"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -58,12 +58,31 @@ def default_path(top: Path) -> Path:
     return top / DEFAULT_SUBPATH
 
 
+def registered_worktrees(top: Path) -> Dict[Path, bool]:
+    """The linked and main worktrees of this repository as ``{real path: detached HEAD}``, from ``git worktree list --porcelain``."""
+    found: Dict[Path, bool] = {}
+    path: Optional[Path] = None
+    for line in need(top, "worktree", "list", "--porcelain").splitlines() + [""]:
+        if line.startswith("worktree "):
+            path = Path(line[len("worktree "):]).resolve()
+            found[path] = False
+        elif line == "detached" and path is not None:
+            found[path] = True
+    return found
+
+
 def is_clean_worktree(tree: Path, common: Path) -> bool:
-    """Is ``tree`` a worktree of this repository with no tracked change and no untracked file?"""
+    """Is ``tree`` itself the top of a worktree of this repository, on a detached HEAD, with no tracked change and no untracked file?
+
+    A plain subfolder of another checkout is no worktree: ``git`` answers for the checkout that holds it, so the top must equal ``tree``."""
     if not tree.is_dir():
         return False
     try:
+        if Path(need(tree, "rev-parse", "--show-toplevel")).resolve() != tree.resolve():
+            return False
         if Path(need(tree, "rev-parse", "--path-format=absolute", "--git-common-dir")).resolve() != common.resolve():
+            return False
+        if git(tree, "symbolic-ref", "-q", "HEAD").returncode == 0:
             return False
         return need(tree, "status", "--porcelain", "--untracked-files=all") == ""
     except LandCheckoutError:
@@ -71,11 +90,23 @@ def is_clean_worktree(tree: Path, common: Path) -> bool:
 
 
 def recreate(top: Path, tree: Path, ref: str) -> None:
-    """Remove whatever is at ``tree`` and add a fresh detached worktree of ``ref`` there."""
-    if tree.exists():
-        git(top, "worktree", "remove", "--force", str(tree))
-        if tree.exists():
-            shutil.rmtree(tree, ignore_errors=True)
+    """Replace ``tree`` with a fresh detached worktree of ``ref``, deleting only what is safe to delete.
+
+    Deleted: a registered detached worktree of this repository (never the caller's own top or a folder that holds it), or the default
+    ``build/land-main`` folder when it is no worktree. Anything else that exists and is not empty is refused, so a wrong ``--path``
+    (the caller, ``build``, a branch worktree, an unrelated folder) loses nothing."""
+    real = tree.resolve()
+    if real == top.resolve() or real in top.resolve().parents:
+        raise LandCheckoutError(f"{tree} is or holds the checkout this runs from; refusing to touch it")
+    worktrees = registered_worktrees(top)
+    if real in worktrees:
+        if not worktrees[real]:
+            raise LandCheckoutError(f"{tree} is a worktree on a branch, not a detached land tree; refusing to remove it")
+        need(top, "worktree", "remove", "--force", str(tree))
+    elif tree.exists() and any(tree.iterdir()):
+        if real != (top / DEFAULT_SUBPATH).resolve():
+            raise LandCheckoutError(f"{tree} exists and is not a land worktree; refusing to delete it")
+        shutil.rmtree(tree)
     git(top, "worktree", "prune")
     tree.parent.mkdir(parents=True, exist_ok=True)
     need(top, "worktree", "add", "--detach", "--force", str(tree), ref)
@@ -87,6 +118,8 @@ def prepare(top: Path, tree: Path, remote: str, base: str) -> Tuple[Path, str]:
     ref = f"refs/remotes/{remote}/{base}"
     need(top, "fetch", "-q", "--no-tags", "--no-recurse-submodules", remote, f"+refs/heads/{base}:{ref}", hardened=True)
     common = Path(need(top, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    if tree.resolve() == top.resolve() or tree.resolve() in top.resolve().parents:
+        raise LandCheckoutError(f"{tree} is or holds the checkout this runs from; refusing to touch it")
     existed = tree.exists()
     if is_clean_worktree(tree, common):
         need(tree, "checkout", "-q", "--detach", ref)
@@ -97,7 +130,7 @@ def prepare(top: Path, tree: Path, remote: str, base: str) -> Tuple[Path, str]:
     if need(tree, "rev-parse", "HEAD") != need(top, "rev-parse", f"{ref}^{{commit}}"):
         raise LandCheckoutError(f"{tree} is not at {remote}/{base}")
     if not merge_guard.pr_land_matches_base("tools/pr_land.sh", str(tree / "tools" / "pr_land.sh")):
-        raise LandCheckoutError(f"{tree}: pr_land.sh, pr_land.py, house_scan.py or triage/config.json still differ from {remote}/{base}")
+        raise LandCheckoutError(f"{tree}: the pr_land files merge_guard pins still differ from {remote}/{base}")
     return tree, action
 
 
