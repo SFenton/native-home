@@ -1135,25 +1135,26 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         catch { onError(blocked()) }
     }
 
-    /// Runs `body` exactly once, when `coordinator`'s transition has finished.
+    /// Runs `body` exactly once: when `coordinator`'s transition has finished, or at once when the coordinator refuses the completion.
     ///
-    /// `animate(alongsideTransition:completion:)` returns `false` when it cannot run its completion (no transition in flight, or a non-animated one); the
-    /// body then runs at once, so a Discard never waits on a completion that never comes. A completion that does fire afterwards finds the body done.
+    /// `animate(alongsideTransition:completion:)` returns `false` when it cannot run its completion (no transition in flight, or a non-animated one), so a
+    /// Discard never waits on a completion that never comes. A completion that does fire afterwards finds the body done.
     /// - Parameters:
     ///   - coordinator: The transition to wait for.
-    ///   - body: What to run once it is over.
-    static func afterTransition(of coordinator: UIViewControllerTransitionCoordinator, _ body: @escaping () -> Void) {
+    ///   - body: What to run once it is over. Its argument is `true` when the transition really finished, `false` when the coordinator refused.
+    static func afterTransition(of coordinator: UIViewControllerTransitionCoordinator, _ body: @escaping (_ waited: Bool) -> Void) {
         var ran = false
-        let once = { guard !ran else { return }; ran = true; body() }
-        if !coordinator.animate(alongsideTransition: nil, completion: { _ in once() }) { once() }
+        let once = { (waited: Bool) in guard !ran else { return }; ran = true; body(waited) }
+        if !coordinator.animate(alongsideTransition: nil, completion: { _ in once(true) }) { once(false) }
     }
 
     /// Replays an action after the person chose Discard: drops the drafts of the forms it leaves, then performs it.
     ///
     /// The replay first waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform` refuses
     /// every intent while an alert is up, and the discard dialog's own dismissal can still be running when its completion fires, which left the person
-    /// where they were with the draft discarded. It waits once: after the wait, or when the coordinator refuses the completion, it runs the tail and
-    /// never looks for a transition again, so a coordinator that always refuses cannot make it recurse.
+    /// where they were with the draft discarded. After a transition that really finished it looks again (another alert may
+    /// be in flight); when the coordinator refuses the completion it runs the tail at once and never looks again, so a coordinator that always refuses
+    /// cannot make it recurse.
     /// - Parameters:
     ///   - leaving: The forms the action leaves behind.
     ///   - action: The action to replay.
@@ -1162,14 +1163,17 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     ///   - symbol: The sending symbol.
     ///   - coordinatorOf: The transition coordinator of the alert on screen; a hosted test supplies its own.
     func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String,
-                       coordinatorOf: (UIViewController) -> UIViewControllerTransitionCoordinator? = {
+                       coordinatorOf: @escaping (UIViewController) -> UIViewControllerTransitionCoordinator? = {
                            $0.transitionCoordinator ?? $0.presentingViewController?.transitionCoordinator
                        }) {
         lastDiscardReplayError = nil
         if let alert = activeAlert, let coordinator = coordinatorOf(alert) {
-            Self.afterTransition(of: coordinator) { [weak self, weak page, weak source] in
+            Self.afterTransition(of: coordinator) { [weak self, weak page, weak source] waited in
                 guard let self, let page else { return }
-                self.performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol)
+                // A transition that really finished may have left another alert in flight: look again. A refusal never looks again, so a coordinator
+                // that always refuses cannot recurse; every re-entry follows a transition that completed.
+                if waited { self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol, coordinatorOf: coordinatorOf) }
+                else { self.performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol) }
             }
             return
         }

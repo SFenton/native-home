@@ -508,14 +508,14 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
     func testAfterTransitionRunsTheBodyOnceWhetherOrNotTheCoordinatorTakesTheCompletion() {
         let refusing = StubTransitionCoordinator(accepts: false)
         var runs = 0
-        UKServerUIRenderer.afterTransition(of: refusing) { runs += 1 }
+        UKServerUIRenderer.afterTransition(of: refusing) { waited in XCTAssertFalse(waited); runs += 1 }
         XCTAssertEqual(runs, 1, "A refused completion runs the body at once")
         refusing.finish()
         XCTAssertEqual(runs, 1, "A late completion does not run it again")
 
         let accepting = StubTransitionCoordinator(accepts: true)
         var accepted = 0
-        UKServerUIRenderer.afterTransition(of: accepting) { accepted += 1 }
+        UKServerUIRenderer.afterTransition(of: accepting) { waited in XCTAssertTrue(waited); accepted += 1 }
         XCTAssertEqual(accepted, 0, "An accepted completion waits for the transition")
         accepting.finish()
         accepting.finish()
