@@ -1,0 +1,85 @@
+#if os(iOS) && DEBUG
+import HassCore
+import UIKit
+
+// MARK: - Chrome hide gallery
+
+// Pages: chrome-hide. A page that hides the tabs, Quick Links and Profile, on demo ids, with no server.
+extension UKGallery {
+    /// The chrome-hide gallery page, or nil for any other page.
+    static func chromeHide(_ page: ComponentGallery.Page) -> UIViewController? {
+        page == .chromeHide ? UKChromeHideGallery.make() : nil
+    }
+}
+
+/// Gallery for a page that hides global chrome (`sh.page-chrome-hide@1`, `sh.tabs-visibility@1`): the root page shows the tab navigator, Quick Links and
+/// Profile; its tile opens `page-echo`, which hides some of them while it is on top. Launch with `FENTON_GALLERY=chrome-hide` and, to pick the case,
+/// `FENTON_GALLERY_CASE=` one of ``Case``: `tabs`, `items`, `both` (the default), `root-only` or `columns`.
+///
+/// The document is the sheet-origin fixture's tab pages with the case applied: demo ids only, fixtures only, no sign-in.
+@MainActor
+enum UKChromeHideGallery {
+    /// What the pushed page, or the document, hides.
+    enum Case: String, CaseIterable {
+        /// `page-echo` hides the tab navigator only.
+        case tabs
+        /// `page-echo` hides Quick Links and Profile only.
+        case items
+        /// `page-echo` hides both.
+        case both
+        /// The document shows the tab navigator on a root page only; `page-echo` hides nothing itself.
+        case rootOnly = "root-only"
+        /// Both pages are navigation columns and `page-echo`, the page opened last, hides both.
+        case columns
+    }
+
+    /// The renderer for the chrome-hide fixture, or a note when the wallpaper or the document is unavailable.
+    static func make(environment: [String: String] = ProcessInfo.processInfo.environment) -> UIViewController {
+        guard let backdrop = HouseBackdropStore.fixture() else { return UKGalleryNoteViewController(title: "Chrome hide: no fixture wallpaper") }
+        let store = EntityStore()
+        store.replaceAll([EntityState(entityId: "switch.demo_lamp", state: "off")])
+        let source = UKServerUIShellHeaderSource(state: {
+            .init(profileName: "Example Person", attentionCount: 0, isOffline: false, reconnectingPresent: false, reconnectingLit: false)
+        })
+        let chosen = environment["FENTON_GALLERY_CASE"].flatMap(Case.init(rawValue:)) ?? .both
+        do {
+            let publication = try ServerUICompositionPublication.decode(try document(for: chosen))
+            return try UKServerUIRenderer(publication: publication, context: UKContext(store: store), backdrop: backdrop, shellHeader: source)
+        } catch {
+            return UKGalleryNoteViewController(title: "Chrome hide: the fixture does not decode")
+        }
+    }
+
+    /// The fixture's bytes with `chosen` applied.
+    static func document(for chosen: Case) throws -> Data {
+        guard var root = try JSONSerialization.jsonObject(with: Data(base.utf8)) as? [String: Any],
+              var document = root["document"] as? [String: Any], var pages = document["pages"] as? [[String: Any]],
+              var navigation = document["navigation"] as? [String: Any] else { throw CocoaError(.coderReadCorrupt) }
+        var capabilities = Set(root["capabilities"] as? [String] ?? [])
+        let hides: [String: Any]? = switch chosen {
+        case .tabs: ["tabs": true, "items": [String]()]
+        case .items: ["tabs": false, "items": ["native-header"]]
+        case .both, .columns: ["tabs": true, "items": ["native-header"]]
+        case .rootOnly: nil
+        }
+        for index in pages.indices {
+            if pages[index]["id"] as? String == "page-echo", let hides { pages[index]["hides"] = hides }
+            if chosen == .columns, ["page-orbit", "page-echo"].contains(pages[index]["id"] as? String ?? "") {
+                pages[index]["navigation"] = ["type": "navigation-columns", "placeholder": "Select an Item", "standalone": false]
+            }
+        }
+        if hides != nil { capabilities.insert("sh.page-chrome-hide@1") }
+        if chosen == .rootOnly { navigation["tabsVisibility"] = "root-only"; capabilities.insert("sh.tabs-visibility@1") }
+        if chosen == .columns { capabilities.insert("sh.navigation-columns@1") }
+        document["pages"] = pages
+        document["navigation"] = navigation
+        root["document"] = document
+        root["capabilities"] = capabilities.sorted()
+        return try JSONSerialization.data(withJSONObject: root)
+    }
+
+    private static let base = #"""
+{"envelopeVersion":"2.0","publisherId":"publisher-demo","revision":1,"updatedAt":"2026-11-13T16:00:00Z","publishedAt":"2026-11-13T16:01:00Z","capabilities":["sh.actions.navigation@1","sh.assets.publisher@1","sh.backdrop@1","sh.bindings@1","sh.chrome@1","sh.composition@1","sh.grid@1","sh.home-status@1","sh.page@1","sh.power-toggle@1","sh.sheet@1","sh.shell-header@1","sh.shell@1","sh.symbols@1","sh.text@1","sh.tiles@1"],"assetManifestSha256":"9aee7dd449988eba3f8b622b2769ef5d507d6755df521319701602d06c0db245","document":{"schemaVersion":"2.0","id":"document-demo","name":"Composition Sample","theme":{"appearance":"dark","tokens":"canonical@1","typography":"dynamic-type@1","background":{"type":"downloaded","assetId":"asset-mosaic","recipe":"house-r3@1","blur":{"type":"fixed","percent":50},"scrim":{"type":"canonical@1"},"motion":"stationary@1","reducedTransparency":"canonical-base@1"}},"navigation":{"initialPageId":"page-orbit","initialTabId":"tab-alpha","initialArguments":{},"tabs":[{"id":"tab-alpha","label":"Canvas","icon":{"type":"sf-symbol","name":"square.grid.2x2","rendering":"canonical","unavailable":"fallback"},"pageId":"page-orbit","arguments":{}},{"id":"tab-beta","label":"Shelf","icon":{"type":"sf-symbol","name":"square.stack","rendering":"canonical","unavailable":"fallback"},"pageId":"page-lattice","arguments":{}}],"policy":{"type":"canonical-shell@1","tabSwitch":"preserve-cut@1","reselect":"pop-root-then-scroll@1","stackMotion":"canonical-stack@1","restoration":"scene@1","selectionWhileModal":"reject"},"chrome":{"groups":[{"id":"chrome-navigation","placement":"leading","horizontal":"separate-circles@1","vertical":"shared@1","items":[{"id":"chrome-menu","type":"shell-menu","label":"Sections","icon":{"type":"sf-symbol","name":"line.3.horizontal","rendering":"canonical","unavailable":"fallback"},"visibility":"root-when-menu-available"},{"id":"chrome-inspect","type":"button","label":"Inspect","menuLabel":"Inspect Sample","icon":{"type":"sf-symbol","name":"info.circle","rendering":"canonical","unavailable":"fallback"},"visibility":"root-only","priority":"normal","rail":"eligible","badge":{"type":"none"},"action":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}}]},{"id":"chrome-utilities","placement":"trailing","horizontal":"separate-circles@1","vertical":"shared@1","items":[{"id":"native-header","type":"shell-header","visibility":"always","quickLinksAction":{"type":"present","modalId":"modal-swatch","arguments":{},"ifPresented":"reject"},"profileAction":{"type":"present","modalId":"modal-swatch","arguments":{},"ifPresented":"reject"}}]}]}},"pages":[{"id":"page-orbit","title":"Canvas","icon":{"type":"sf-symbol","name":"square.grid.2x2","rendering":"canonical","unavailable":"fallback"},"parameters":{},"navigation":{"type":"stack"},"layout":{"type":"column","padding":{"top":{"type":"token","name":"m"},"leading":{"type":"token","name":"l"},"bottom":{"type":"token","name":"m"},"trailing":{"type":"token","name":"l"}},"spacing":{"type":"token","name":"xl"},"maxWidth":{"type":"unbounded"},"scroll":"content-fit@1","chrome":"canonical-page@1","ground":"host"},"toolbar":{"type":"inherit"},"components":[{"id":"node-orbit-grid","type":"tile-grid","title":"Sample Controls","layout":{"span":1},"props":{"minimum":"tile@1","maxColumns":4,"spacing":{"type":"token","name":"m"},"equalRowHeights":false,"shortRow":"share","fold":"page"},"children":[{"id":"node-output","type":"action-tile","title":"Sample Output","icon":{"type":"sf-symbol","name":"power","rendering":"canonical","unavailable":"fallback"},"layout":{"span":1},"binding":{"sourceId":"source-power","projection":"power-tile@1"},"props":{"family":"lights","bodyActionId":"power","actionOrder":["power"],"stateText":"provider","feedback":"policy"},"action":{"type":"domain","sourceId":"source-power","intent":"power.toggle","feedback":"policy","confirmation":{"type":"policy"}}},{"id":"node-open-echo","type":"navigation-tile","title":"Inspect Sample","icon":{"type":"sf-symbol","name":"info.circle","rendering":"canonical","unavailable":"fallback"},"layout":{"span":1},"props":{"family":"neutral","selected":"navigation-path","subtitle":{"type":"literal","value":"Open an arbitrary page"}},"action":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}}]}]},{"id":"page-lattice","title":"Shelf","icon":{"type":"sf-symbol","name":"square.stack","rendering":"canonical","unavailable":"fallback"},"parameters":{},"navigation":{"type":"stack"},"layout":{"type":"column","padding":{"top":{"type":"token","name":"m"},"leading":{"type":"token","name":"l"},"bottom":{"type":"token","name":"m"},"trailing":{"type":"token","name":"l"}},"spacing":{"type":"token","name":"xl"},"maxWidth":{"type":"unbounded"},"scroll":"content-fit@1","chrome":"canonical-page@1","ground":"host"},"toolbar":{"type":"inherit"},"components":[{"id":"node-shelf-copy","type":"text","title":"Shelf Description","layout":{"span":1},"props":{"value":{"type":"literal","value":"This tab owns an independent navigation path."},"style":"body","unavailableText":"Description unavailable"}},{"id":"node-shelf-detail","type":"navigation-tile","title":"Inspect Sample","icon":{"type":"sf-symbol","name":"info.circle","rendering":"canonical","unavailable":"fallback"},"layout":{"span":1},"props":{"family":"neutral","selected":"navigation-path","subtitle":{"type":"literal","value":"The same page definition, in this tab"}},"action":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}}]},{"id":"page-echo","title":"Sample Detail","icon":{"type":"sf-symbol","name":"info.circle","rendering":"canonical","unavailable":"fallback"},"parameters":{},"navigation":{"type":"stack"},"layout":{"type":"column","padding":{"top":{"type":"token","name":"m"},"leading":{"type":"token","name":"l"},"bottom":{"type":"token","name":"m"},"trailing":{"type":"token","name":"l"}},"spacing":{"type":"token","name":"xl"},"maxWidth":{"type":"unbounded"},"scroll":"content-fit@1","chrome":"canonical-page@1","ground":"host"},"toolbar":{"type":"inherit"},"components":[{"id":"node-echo-copy","type":"text","title":"Detail Description","layout":{"span":1},"props":{"value":{"type":"literal","value":"This page hides the tabs, Quick Links and Profile."},"style":"body","unavailableText":"Description unavailable"}}]}],"modals":[{"id":"modal-swatch","title":"Palette","icon":{"type":"sf-symbol","name":"slider.horizontal.3","rendering":"canonical","unavailable":"fallback"},"parameters":{},"layout":{"type":"column","padding":{"top":{"type":"token","name":"m"},"leading":{"type":"token","name":"l"},"bottom":{"type":"token","name":"m"},"trailing":{"type":"token","name":"l"}},"spacing":{"type":"token","name":"xl"},"maxWidth":{"type":"unbounded"},"scroll":"content-fit@1","chrome":"canonical-page@1","ground":"host"},"toolbar":{"type":"replace","groups":[]},"presentation":{"type":"sheet","width":"form","height":{"type":"full"},"appearance":"system","placement":"canonical-sheet@1","grabber":"canonical","navigation":"local-stack@1","close":{"type":"close","visibility":"root-only","placement":"trailing","rail":"keep-horizontal-when-allowed","guard":{"type":"none"}}},"components":[{"id":"node-palette-copy","type":"text","title":"Palette Description","layout":{"span":1},"props":{"value":{"type":"literal","value":"This sheet has its own local navigation path."},"style":"body","unavailableText":"Description unavailable"}},{"id":"node-palette-local","type":"navigation-tile","title":"Inspect Here","icon":{"type":"sf-symbol","name":"info.circle","rendering":"canonical","unavailable":"fallback"},"layout":{"span":1},"props":{"family":"neutral","selected":"navigation-path","subtitle":{"type":"literal","value":"Push inside this sheet"}},"action":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}},{"id":"node-palette-external","type":"navigation-tile","title":"Inspect on Canvas","icon":{"type":"sf-symbol","name":"arrow.up.right","rendering":"canonical","unavailable":"fallback"},"layout":{"span":1},"props":{"family":"neutral","selected":"navigation-path","subtitle":{"type":"literal","value":"Close, then push in the presenting tab"}},"action":{"type":"dismiss-then-push","destination":{"type":"push","pageId":"page-echo","arguments":{},"origin":"sender","duplicate":"reuse-nearest"}}}]}],"dataSources":[{"id":"source-entity","kind":"ha-entity","entityId":{"type":"literal","value":"switch.demo_lamp"}},{"id":"source-power","kind":"model","model":"power-toggle@1","inputs":{"entityId":{"type":"literal","value":"switch.demo_lamp"}}},{"id":"guest-fan","kind":"ha-entity","entityId":{"type":"literal","value":"fan.demo_bath_fan"}},{"id":"temp","kind":"ha-entity","entityId":{"type":"literal","value":"sensor.demo_bath_temperature"}},{"id":"lights","kind":"model","model":"home-status@1","inputs":{"projection":"lights","format":"summary","entityIds":[{"type":"literal","value":"light.demo_study"}],"awayEntityIds":[]},"labels":{"idle":"All Off","active":"On","countSuffix":" On","loading":"Loading","unavailable":"Unavailable","empty":"No lights","hidden":"Hidden"}}],"variables":{},"assets":[{"id":"asset-mosaic","role":"backdrop","source":{"type":"publisher","path":"/api/assets/2c412c2e0fc5fd2dfb587d9f79b77358057ee0be6c2ee2fcf5b56395e8b0e5e2.png"},"sha256":"2c412c2e0fc5fd2dfb587d9f79b77358057ee0be6c2ee2fcf5b56395e8b0e5e2","mimeType":"image/png","byteLength":79,"pixelWidth":2,"pixelHeight":2}],"liveActivities":[]}}
+"""#
+}
+#endif

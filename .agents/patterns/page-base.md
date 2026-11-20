@@ -33,6 +33,10 @@ The page base owns the header, the wallpaper, the fold, the scrolling body and i
 - **A content change clears kept fits.** `UKPageScrollView.contentChanged` calls `ukInvalidateFits(in:)`, so a container that keeps its measured height (`UKFitCaching`) measures again once per change, never per frame.
 - **A page carries the global chrome, however it is reached.** Quick Links, Profile and the tab navigator draw on every page at any depth; a sheet or a modal carries none.
   A page opened from a tile inside a sheet closes the sheet and pushes on the section stack ([modal-sheet](modal-sheet.md#a-page-link-closes-the-sheet)).
+- **A page may hide that chrome for itself, and only hide.** `pages[].hides { tabs, items }` (`sh.page-chrome-hide@1`) drops the named `button` and `shell-header` items from the groups the page inherits.
+  `hides.tabs`, or `navigation.tabsVisibility: root-only` on a pushed page, hides the tab navigator (floating bar, Duo rail's tabs, iPad top bar) while that page is on top.
+  The rule is `ServerUIChromeHide`. A page filters its groups by `chromeHides`, set in `arrangeColumns`; `UKServerUIRenderer+TabBar.swift` moves the bar with the system animation (none under Reduce Motion).
+  Back and a sheet's Close are never hidden. Columns share one bar: the page opened last decides.
 
 ## Column navigation
 

@@ -45,6 +45,8 @@ public struct ComponentGallery {
         case stateTile = "state-tile"
         /// The global-chrome sheet rule: a page link in a sheet closes it and lands with Quick Links and Profile (`FENTON_GALLERY=sheet-origin`).
         case sheetOrigin = "sheet-origin"
+        /// A page that hides the tabs, Quick Links and Profile (`FENTON_GALLERY=chrome-hide`).
+        case chromeHide = "chrome-hide"
         /// A composition with one kept-text slot per host, whose source the page drives (`FENTON_GALLERY=text-keep`; T-text-keep).
         case textKeep = "text-keep"
     }

@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "description": "The global-chrome cases the app owns. The Studio does not carry them yet: ServerUIGlobalChromeTests runs each pending case with the compiler rules on and holds it to its recorded first issue, and each promoted sh.sheet-levels@1 case as an ordinary accept or reject with no scope.",
+  "description": "The global-chrome cases the app owns. The Studio does not carry them yet: ServerUIGlobalChromeTests runs each pending case with the compiler rules on and holds it to its recorded first issue, and each promoted sh.sheet-levels@1, sh.page-chrome-hide@1 and sh.tabs-visibility@1 case as an ordinary accept or reject with no scope.",
   "cases": [
     {
       "file": "accept/global-chrome-levels-two-levels.json",
@@ -126,150 +126,84 @@
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-tabs.json",
-      "outcome": "reject",
-      "note": "A page hides the tab bar.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-hides-tabs.json",
+      "outcome": "accept",
+      "note": "A page hides the tab bar."
     },
     {
-      "file": "reject/pending-global-chrome-hides-items.json",
-      "outcome": "reject",
-      "note": "A page hides two chrome buttons.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-hides-items.json",
+      "outcome": "accept",
+      "note": "A page hides two chrome buttons."
     },
     {
-      "file": "reject/pending-global-chrome-hides-both.json",
-      "outcome": "reject",
-      "note": "A page hides the tab bar and a button.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-hides-both.json",
+      "outcome": "accept",
+      "note": "A page hides the tab bar and a button."
     },
     {
-      "file": "reject/pending-global-chrome-hides-unknown-item.json",
+      "file": "reject/global-chrome-hides-unknown-item.json",
       "outcome": "reject",
       "note": "A hidden item must name a chrome item.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_reference",
         "pointer": "/document/pages/0/hides/items/0"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-menu.json",
+      "file": "reject/global-chrome-hides-menu.json",
       "outcome": "reject",
       "note": "The shell menu cannot be hidden.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/0/hides/items/0"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-duplicate-item.json",
+      "file": "reject/global-chrome-hides-duplicate-item.json",
       "outcome": "reject",
       "note": "An item is named once.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "duplicate_id",
         "pointer": "/document/pages/0/hides/items/1"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-tabs-with-replace.json",
-      "outcome": "reject",
-      "note": "A page with its own toolbar may still hide the tab bar.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-hides-tabs-with-replace.json",
+      "outcome": "accept",
+      "note": "A page with its own toolbar may still hide the tab bar."
     },
     {
-      "file": "reject/pending-global-chrome-hides-items-with-replace.json",
+      "file": "reject/global-chrome-hides-items-with-replace.json",
       "outcome": "reject",
       "note": "A page with its own toolbar has no inherited items to hide.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_combination",
         "pointer": "/document/pages/2/hides/items"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-on-modal.json",
+      "file": "reject/global-chrome-hides-on-modal.json",
       "outcome": "reject",
       "note": "A sheet shows no global chrome, so it hides none.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/modals/0/hides"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-on-level.json",
+      "file": "reject/global-chrome-hides-on-level.json",
       "outcome": "reject",
       "note": "A level shows no global chrome, so it hides none.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_field",
         "pointer": "/document/levels/0/hides"
       }
     },
     {
-      "file": "reject/pending-global-chrome-hides-items-not-a-list.json",
+      "file": "reject/global-chrome-hides-items-not-a-list.json",
       "outcome": "reject",
       "note": "Hidden items are a list.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/10",
-        "capability": "sh.page-chrome-hide@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "invalid_value",
         "pointer": "/document/pages/0/hides/items"
       }
@@ -342,38 +276,20 @@
       }
     },
     {
-      "file": "reject/pending-global-chrome-tabs-visibility-always.json",
-      "outcome": "reject",
-      "note": "The tab bar shows on every page.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/15",
-        "capability": "sh.tabs-visibility@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-tabs-visibility-always.json",
+      "outcome": "accept",
+      "note": "The tab bar shows on every page."
     },
     {
-      "file": "reject/pending-global-chrome-tabs-visibility-root-only.json",
-      "outcome": "reject",
-      "note": "The tab bar shows on a root page only.",
-      "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/15",
-        "capability": "sh.tabs-visibility@1"
-      },
-      "pending": true
+      "file": "accept/global-chrome-tabs-visibility-root-only.json",
+      "outcome": "accept",
+      "note": "The tab bar shows on a root page only."
     },
     {
-      "file": "reject/pending-global-chrome-tabs-visibility-unknown.json",
+      "file": "reject/global-chrome-tabs-visibility-unknown.json",
       "outcome": "reject",
       "note": "An unknown tab bar visibility.",
       "issue": {
-        "code": "unsupported_capability",
-        "pointer": "/capabilities/15",
-        "capability": "sh.tabs-visibility@1"
-      },
-      "pending": true,
-      "studioIssue": {
         "code": "unknown_variant",
         "pointer": "/document/navigation/tabsVisibility"
       }

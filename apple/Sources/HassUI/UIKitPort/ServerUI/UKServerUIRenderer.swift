@@ -45,7 +45,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     /// The tab bar controller whose tabs are the document's tabs; a tab rule changes its members in place.
     let tabController = UITabBarController()
     private(set) var stacks: [ServerUINavigationState.Root: UINavigationController] = [:]
-    private var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
+    /// Whether the last change to the tab navigator's visibility animated, for a test to read; `nil` before it has changed.
+    var lastTabBarMoveAnimated: Bool?
+    private(set) var logicalStacks: [ServerUINavigationState.Root: [UKServerUIPage]] = [:]
     /// The open sheet. ``isEnabled(_:from:)`` reads it, so every change bumps ``busyState``: a swipe-down dismissal ends with no
     /// flight, and without this the controls that present (disabled while the sheet was open) would stay disabled.
     private(set) var modal: UKHassModalController? { didSet { if modal !== oldValue { busyState.changed() } } }
@@ -824,11 +826,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if environment.chrome != chrome { environment.chrome = chrome }
         edgePan?.isEnabled = chrome.edgeSwipe
         // The tab bar is never hidden for style: a regular-width window gets the system's top bar (`.tabBar`, never the sidebar).
-        let hidden = publication.document.navigation.tabs.isEmpty
-        if UKGlassEra.hasIOS18, #available(iOS 18.0, *) {
-            if tabController.mode != .tabBar { tabController.mode = .tabBar }
-            if tabController.isTabBarHidden != hidden { tabController.setTabBarHidden(hidden, animated: false) }
-        } else { tabController.tabBar.isHidden = hidden }
+        if UKGlassEra.hasIOS18, #available(iOS 18.0, *), tabController.mode != .tabBar { tabController.mode = .tabBar }
+        setTabBarHidden(publication.document.navigation.tabs.isEmpty || selectedPageHidesTabs, animated: false)
         if !chrome.showsMenuButton, flyoutOpen { closeMenu() }
         // The top tab bar has no way to open the flyout, so its off-screen rows and Close target stay out of the accessibility tree.
         let flyoutGone = style == .topTabBar
@@ -961,12 +960,21 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             }
         }
         let host = hostIndex.map { pages[$0] }
+        // Each page drops the header items it hides; the columns share the host's one bar, so there the page opened last decides.
+        for page in pages { page.chromeHides = publication.document.pages.first { $0.id == page.surfaceID }?.hides }
+        if let host, let last = pages.last, last !== host {
+            host.chromeHides = publication.document.pages.first { $0.id == last.surfaceID }?.hides
+        }
         for page in pages where page !== host { page.columns?.setWide(false) }
         if let index = hostIndex, let host {
             host.loadViewIfNeeded()
             let prefix: [UIViewController] = Array(pages.prefix(index + 1))
             let onDemand = publication.document.pages.first { $0.id == host.surfaceID }?.columnsOnDemand == true
             host.columns?.setWide(!onDemand || pages.count > index + 1 || adaptive?.owner === host)
+            // A push in columns never reaches the stack's `willShow`, so the bar moves here, alongside the columns' own transition.
+            if animated, host.view.window != nil, host.root == navigation.snapshot.selection {
+                setTabBarHidden(hidesTabs(whileTop: pages.last), animated: true)
+            }
             if nav.viewControllers != prefix { nav.setViewControllers(prefix, animated: false) }
             let tail = Array(pages.dropFirst(index + 1))
             host.columns?.reconcile(tags: tail.map { AnyHashable($0.surfaceID) }, make: { key in
@@ -1015,6 +1023,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             try navigation.trimVisiblePath(toDepth: page.depth + kept, onRoot: true)
+            // The column's own Back and Close call this right after they start the column's animated removal, so the bar moves with it; an edge swipe
+            // reports only once the column has gone, so there the bar follows it.
+            let remaining = logicalStacks[page.root]?.prefix(page.depth + kept + 1).last
+            if page.root == navigation.snapshot.selection { setTabBarHidden(hidesTabs(whileTop: remaining), animated: true) }
             reconcile(animated: false, updateBodies: false)
         } catch { onError(blocked()) }
     }
@@ -1751,6 +1763,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         navigationMeasurement?.settled()
         navigationMeasurement = nil
         guard let top = nav.topViewController as? UKServerUIPage else { return }
+        defer { if top.presentationID == nil { settleTabBar() } }
         if top.columns?.isWide == true {
             refreshNavigation()
             releaseTouchesWhenSettled()
@@ -2135,6 +2148,9 @@ final class UKServerUIStackDelegate: NSObject, UINavigationControllerDelegate {
                                    previous: settledPages, coordinator: navigationController.transitionCoordinator)
         }
         modal?.navigationController(navigationController, willShow: viewController, animated: animated)
+        if let page = viewController as? UKServerUIPage, page.presentationID == nil {
+            renderer?.tabBarFollows(page, animated: animated, coordinator: navigationController.transitionCoordinator)
+        }
     }
 
     /// Reports a shown page to the renderer.
