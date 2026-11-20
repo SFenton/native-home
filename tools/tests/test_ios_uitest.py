@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -622,3 +623,73 @@ class HostedModeSimulatorTests(unittest.TestCase):
         """On a self-hosted runner (or a Mac) FENTON_CI_HOSTED=1 without RUNNER_ENVIRONMENT=github-hosted changes nothing."""
         self.assertIn("(iPhone 17 Pro)", self.gaps("iphone", FENTON_CI_HOSTED="1").stdout)
         self.assertIn("(iPhone 17 Pro)", self.gaps("iphone", FENTON_CI_HOSTED="1", RUNNER_ENVIRONMENT="self-hosted").stdout)
+
+
+class StressLedgerTests(unittest.TestCase):
+    """A `-test-iterations N` (N above 1) block is never skipped and never recorded in the passing-run ledger."""
+
+    def run_ledger(self, base_extra, calls):
+        """Source the ledger functions against a stub ``python3`` (every run already passed); returns the stdout lines of `calls`."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bindir = Path(tmp) / "bin"
+            bindir.mkdir()
+            (bindir / "python3").write_text(
+                "#!/bin/bash\n"
+                'case "$*" in\n'
+                "  *tree-hash*) echo tree123 ;;\n"
+                '  *" seen "*) exit 0 ;;\n'
+                '  *" result "*) echo "" ;;\n'
+                "esac\n")
+            (bindir / "python3").chmod(0o755)
+            text = SCRIPT.read_text()
+            start = text.index("family_args() {")
+            body = text[start:text.index('if [[ "${FENTON_UITEST_PRINT_FILTERS:-}"', start)]
+            script = (f'ROOT="{tmp}"\nCHANGED=0\nSELECTING=0\nFORCE=0\nFULL_SUITE=0\nPLAN_ARGS=plan\nENV_HASH=envhash\n'
+                      f'device_name() {{ echo "Sim $1"; }}\nBASE_EXTRA=({base_extra})\n{body}\n{calls}')
+            run_env = {key: value for key, value in os.environ.items() if key != "PATH"}
+            run_env["PATH"] = f"{bindir}:{os.environ['PATH']}"
+            out = subprocess.run(["bash", "-c", script], env=run_env, capture_output=True, text=True)
+        return out.stdout.strip().splitlines()
+
+    def test_a_plain_repeat_of_a_passed_run_still_skips(self):
+        self.assertEqual(self.run_ledger("-only-testing:A/B", "already_passed iphone && echo skipped || echo runs"), ["skipped"])
+
+    def test_the_same_run_with_iterations_above_one_is_never_skipped(self):
+        for args in ("-only-testing:A/B -test-iterations 15", "-only-testing:A/B -test-iterations=15"):
+            out = self.run_ledger(args, "already_passed iphone && echo skipped || echo runs; "
+                                        "recorded_skipped iphone && echo rskipped || echo rruns")
+            self.assertEqual(out, ["runs", "rruns"], args)
+
+    def test_one_iteration_is_not_a_stress_run(self):
+        out = self.run_ledger("-only-testing:A/B -test-iterations 1", "stress_run iphone && echo stress || echo plain")
+        self.assertEqual(out, ["plain"])
+
+    def test_the_skip_notice_inputs_name_filter_plan_env_sim_and_tree(self):
+        out = self.run_ledger("-only-testing:A/B", "ledger_inputs iphone")
+        self.assertEqual(out, ["filter: -only-testing:A/B | plan: plan | env hash: envhash | sim: Sim iphone | tree: tree123"])
+
+    def test_a_stress_run_leaves_no_record_and_a_plain_run_does(self):
+        """On a real temporary ledger: record_run writes a plain pass (which then skips a repeat) and nothing for a stress block."""
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "tools").mkdir()
+            shutil.copy(SCRIPT.parent / "affected_tests.py", Path(tmp) / "tools" / "affected_tests.py")
+            text = SCRIPT.read_text()
+            start = text.index("family_args() {")
+            body = text[start:text.index('if [[ "${FENTON_UITEST_PRINT_FILTERS:-}"', start)]
+            head = (f'ROOT="{tmp}"\nCHANGED=0\nSELECTING=0\nFORCE=0\nFULL_SUITE=0\nPLAN_ARGS=plan\nENV_HASH=envhash\n'
+                    f'device_name() {{ echo "Sim $1"; }}\n')
+            ledger = Path(tmp) / "build" / "testruns"
+
+            def run(extra, calls):
+                script = f'{head}BASE_EXTRA=({extra})\n{body}\nTREE_HASH=tree123\n{calls}'
+                done = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+                return done.stdout.strip() + done.stderr
+
+            stress = "-only-testing:A/B -test-iterations 15"
+            run(stress, "record_run iphone pass")
+            self.assertFalse(list(ledger.glob("*.json")))
+            self.assertEqual(run(stress, "already_passed iphone && echo skipped || echo runs"), "runs")
+            said = run("-only-testing:A/B", "record_run iphone pass")
+            self.assertEqual(len(list(ledger.glob("*.json"))), 1, said)
+            self.assertEqual(run("-only-testing:A/B", "already_passed iphone && echo skipped || echo runs"), "skipped")
+            self.assertEqual(run(stress, "already_passed iphone && echo skipped || echo runs"), "runs")

@@ -43,7 +43,8 @@
 #   key and the xcodebuild filter use the family's list. A file with no mapping prints a request for a targeted pick and runs nothing: the full suite is the
 #   nightly tier, never a fallback. It also sets the map's `changedEnvironment` (FENTON_UITEST_SPACES=all-food: the Inventory pages
 #   audit covers one space) unless the caller already exported it as TEST_RUNNER_NAME; a run without --changed covers all six.
-#   A (tree hash of apple/, filter, device) run that already passed is skipped with a notice (record: build/testruns/); --force reruns it.
+#   A (tree hash of apple/, filter, device) run that already passed is skipped with a notice naming the key's inputs (record: build/testruns/); --force reruns it.
+#   A run with `-test-iterations N`, N above 1 (a stress block), is never skipped and never recorded.
 #   --build-only builds (or reuses) the test products and exits before any simulator is picked or booted; the hosted workflow
 #     builds first and boots after, because a Duo first boot beside a compile killed hosted runners (.agents/workflow/ci.md).
 #   --quick skips `xcodegen` when project.yml is unchanged (the compile is skipped by the products cache whenever the code is
@@ -448,13 +449,36 @@ wanted() {  # family -> 0 when it should run
   fi
   return 0
 }
-already_passed() {  # family -> 0 when a recorded pass matches
+stress_run() {  # family -> 0 when its arguments ask for `-test-iterations N` with N above 1: a stress block, never skipped, never recorded
+  family_args "$1"
+  local prev="" arg n
+  for arg in ${FAMILY_ARGS[@]+"${FAMILY_ARGS[@]}"}; do
+    n=""
+    [[ $prev == -test-iterations ]] && n="$arg"
+    [[ $arg == -test-iterations=* ]] && n="${arg#*=}"
+    if [[ $n =~ ^[0-9]+$ ]] && (( 10#$n > 1 )); then return 0; fi
+    prev="$arg"
+  done
+  return 1
+}
+ledger_inputs() {  # family -> the inputs of the ledger key, named, so a wrong skip can be diagnosed from the log
+  family_args "$1"
+  echo "filter: ${FAMILY_ARGS[*]-} | plan: $PLAN_ARGS | env hash: $ENV_HASH | sim: $(device_name "$1") | tree: $TREE_HASH"
+}
+already_passed() {  # family -> 0 when a recorded pass matches (never for a stress block)
   [[ $FORCE == 1 || $FULL_SUITE == 1 || "$TREE_HASH" == unknown ]] && return 1
+  if stress_run "$1"; then return 1; fi
   python3 "$ROOT/tools/affected_tests.py" seen --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")"
 }
 recorded_skipped() {  # family -> 0 when the ledger holds a `skipped` record (never a pass) for this exact run
   [[ $FORCE == 1 || $FULL_SUITE == 1 || "$TREE_HASH" == unknown ]] && return 1
+  if stress_run "$1"; then return 1; fi
   [[ "$(python3 "$ROOT/tools/affected_tests.py" result --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")")" == skipped ]]
+}
+record_run() {  # family result -> write the ledger record; a stress block is never recorded (a later one-pass run must not stand in for it)
+  if stress_run "$1"; then return 0; fi
+  local result="$2"
+  python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")" --result "$result"
 }
 if [[ "${FENTON_UITEST_PRINT_FILTERS:-}" == 1 ]]; then  # dry run for the tool tests: what each family would run
   for family in iphone duo ipad; do wanted "$family" || continue; family_args "$family"; echo "$family: ${FAMILY_ARGS[*]-}"; done
@@ -483,12 +507,17 @@ for family in iphone duo ipad; do
   wanted "$family" || continue
   if already_passed "$family"; then
     echo "== $family: already passed on this tree with this filter (build/testruns); --force reruns"
+    echo "== $family: ledger key inputs: $(ledger_inputs "$family")"
     echo "xcodebuild_$family 1 0" >> "$FENTON_TALLY"  # a recorded pass ran tests: it counts for the run-level EMPTY check
   elif recorded_skipped "$family"; then
     # Replay the recorded outcome without rerunning: it ran no test, which counts as 0 ran in the run-level EMPTY check below.
     echo "== $family: recorded as skipped on this tree with this filter (every selected test skipped); --force reruns"
+    echo "== $family: ledger key inputs: $(ledger_inputs "$family")"
     echo "xcodebuild_$family 0 0" >> "$FENTON_TALLY"
-  else PENDING=$((PENDING + 1)); fi
+  else
+    if stress_run "$family"; then echo "== $family: stress run (-test-iterations above 1): never skipped, never recorded in build/testruns"; fi
+    PENDING=$((PENDING + 1))
+  fi
 done
 if [[ $PENDING == 0 ]]; then
   echo "== nothing to run"
@@ -551,7 +580,7 @@ process_family() {
     # a later run (--only that family) past the run-level EMPTY check.
     local result=pass
     python3 "$ROOT/tools/uitest_support.py" tally-ran "$FENTON_TALLY" "xcodebuild_$family" || result=skipped
-    python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$family" --filter "$(run_key "$family")" --result "$result" || status=1
+    record_run "$family" "$result" || status=1
   fi
   return $status
 }

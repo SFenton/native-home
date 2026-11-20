@@ -542,3 +542,49 @@ class ExpectMinutesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+#: The shape of hf-r3-class.log: block 1 ran its iterations, block 2 was skipped as a repeat, and the run said "nothing to run".
+STRESS_SKIPPED_BLOCK = """\
+=== iphone 15x part 1
+Test Case '-[FentonHomeTests.DiscardTests testReplay]' passed (0.100 seconds).
+Iteration 15 of 15
+\t Executed 15 tests, with 0 failures (0 unexpected) in 1.5 (1.6) seconds
+** TEST SUCCEEDED **
+=== iphone 15x part 2
+== iphone: already passed on this tree with this filter (build/testruns); --force reruns
+== nothing to run
+"""
+
+
+class StressSkipTests(unittest.TestCase):
+    def test_a_skipped_stress_block_is_flagged_not_a_clean_pass(self):
+        out = log_digest.digest_text(STRESS_SKIPPED_BLOCK, exit_code=0)
+        self.assertTrue(out.startswith("RESULT: MISMATCH"), out)
+        self.assertIn("STRESS RUN INCOMPLETE: asked for 15 iterations", out)
+
+    def test_a_stress_skip_does_not_blame_a_dropped_exit_status(self):
+        out = log_digest.digest_text(STRESS_SKIPPED_BLOCK, exit_code=0)
+        self.assertNotIn("a wrapper dropped the real status", out)
+        self.assertEqual(out.count("iterations, block"), 2)
+
+    def test_a_real_failure_with_exit_0_keeps_the_wrapper_line(self):
+        out = log_digest.digest_text(XCTEST_FAIL, exit_code=0)
+        self.assertIn("a wrapper dropped the real status", out)
+
+    def test_one_iteration_line_per_block(self):
+        out = log_digest.digest_text(STRESS_SKIPPED_BLOCK, exit_code=0)
+        self.assertIn("iterations, block 1 (iphone 15x part 1): iteration 15 of 15", out)
+        self.assertIn("iterations, block 2 (iphone 15x part 2): NOT RUN (skipped), asked for 15", out)
+
+    def test_a_plain_repeat_skip_without_iterations_is_not_flagged(self):
+        text = "== iphone: already passed on this tree with this filter (build/testruns); --force reruns\n== nothing to run\n"
+        out = log_digest.digest_text(text, exit_code=0)
+        self.assertNotIn("STRESS RUN INCOMPLETE", out)
+        self.assertNotIn("MISMATCH", out)
+
+    def test_a_stress_run_that_ran_every_block_stays_a_pass(self):
+        text = STRESS_SKIPPED_BLOCK.split("=== iphone 15x part 2")[0] + "=== iphone 15x part 2\nIteration 15 of 15\n** TEST SUCCEEDED **\n"
+        out = log_digest.digest_text(text, exit_code=0)
+        self.assertTrue(out.startswith("RESULT: PASS"), out)
+        self.assertIn("iterations, block 2 (iphone 15x part 2): iteration 15 of 15", out)
