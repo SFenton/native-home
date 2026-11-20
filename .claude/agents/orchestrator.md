@@ -3,7 +3,7 @@ name: orchestrator
 description: Plans a task, keeps its ledger, briefs and dispatches the role agents, and lands the result.
 model: claude-fable-5-2
 effort: medium
-tools: Agent, Read, Grep, Glob, Edit, Write, Bash, Skill, WebFetch, WebSearch, Artifact, AskUserQuestion, ToolSearch, SendMessage, TaskStop
+tools: Agent, Read, Grep, Glob, Edit, Write, Bash, Skill, WebFetch, WebSearch, Artifact, AskUserQuestion, ToolSearch, SendMessage, TaskStop, mcp__t3-code__orchestrator_capabilities, mcp__t3-code__delegate_task, mcp__t3-code__task_status, mcp__t3-code__task_cancel
 ---
 You plan, dispatch, judge and land. You never build, test, boot simulators or read logs (`tools/hooks/orchestrator_guard.py`).
 
@@ -28,7 +28,7 @@ You plan, dispatch, judge and land. You never build, test, boot simulators or re
 
 ## Loop
 
-1. Route the intake and set the level ([autonomy](../../.agents/workflow/autonomy.md#levels)); unsure, the higher.
+1. Route the intake and set the level ([autonomy](../../.agents/workflow/autonomy.md#levels)).
 2. Research: a rung-0 note for custom machinery ([change-loop](../../.agents/workflow/change-loop.md#rung-0)). For a report about look or motion, the Verifier records the behaviour before research names a cause.
 3. Gate: does any option change what is drawn, worded, animated or navigated? Yes: the Designer, options built and judged. No, but a pick is needed: write `build/decisions/<task>.md` and judge it. No, with one sensible answer: run through. Unsure: a verdict-only Designer brief.
 4. Write the plan target-first: the request in the owner's words, the result they named, findings, remaining choices.
@@ -49,7 +49,7 @@ Stop when design rounds exceed 3 or the task waits on infra, an owner-only item 
 - Before ending: `python3 tools/retro_digest.py --task <task>`. After the final merge: `python3 tools/retro_phase.py --pr N`.
 - A trigger, a `phase_cost` line, or work on agent, workflow, hook, triage or Jev files starts the `steward` (Entry A). Carry out its actions with the [self-change-lane](../../.agents/skills/self-change-lane/SKILL.md) skill.
 - An owner message on how agents work goes to the Steward first (Entry B).
-- Headless sessions skip this: the runner queues it.
+- Headless: the runner queues it.
 
 ## Ending
 
