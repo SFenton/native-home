@@ -522,6 +522,52 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         XCTAssertEqual(accepted, 1, "and runs the body once however often it fires")
     }
 
+    /// A page with a dirty form, an alert up over it, and the action that leaves it: what `replayDiscard` needs.
+    private func replayFixture() throws -> (host: UKServerUIRenderer, root: UKServerUIPage, alert: UIAlertController, leaving: [UKServerUIFormView]) {
+        let (host, draft) = try formHost(homed: true, formOnPage: true)
+        let root = try ServerUIRendererFixture.root(host)
+        XCTAssertTrue(spin({ root.formView?.session === draft }))
+        try draft.set(.string("Edited"), group: "item", field: "name")
+        let alert = UIAlertController(title: "Other alert", message: nil, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .cancel))
+        root.present(alert, animated: false)
+        XCTAssertTrue(spin({ root.presentedViewController === alert && !HostedPage.isTransitioning(root) }), "An alert is up")
+        return (host, root, alert, host.exitForms(push(Self.echo), from: root))
+    }
+
+    /// A coordinator that always refuses the completion, under `replayDiscard` itself: the replay asks for it once, runs its tail once and ends,
+    /// with the sanitized blocked error because the alert is still up (no recursion, no second replay).
+    func testAReplayUnderACoordinatorThatRefusesRunsOnceAndReportsBlockedWhileAnAlertIsUp() throws {
+        let (host, root, _, leaving) = try replayFixture()
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var asked = 0
+        host.replayDiscard(leaving, action: push(Self.echo), from: root, source: nil, symbol: "") { _ in asked += 1; return refusing }
+        refusing.finish()
+        XCTAssertEqual(asked, 1, "The wait is entered once, never again")
+        XCTAssertEqual(reported.count, 1, "The replay ran once and was blocked: \(reported.map(\.description))")
+        XCTAssertEqual(reported.first?.description, "interaction_blocked at /document/navigation")
+        XCTAssertNotNil(host.lastDiscardReplayError)
+        XCTAssertEqual(host.navigation.snapshot.selection, Self.tab, "Nothing navigated")
+    }
+
+    /// The same refusing coordinator when nothing blocks the replay once the alert is gone: the page lands, once.
+    func testAReplayUnderACoordinatorThatRefusesLandsTheLinkWhenNothingBlocksIt() throws {
+        let (host, root, alert, leaving) = try replayFixture()
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var asked = 0
+        host.replayDiscard(leaving, action: push(Self.echo), from: root, source: nil, symbol: "") { _ in
+            asked += 1
+            alert.dismiss(animated: false)
+            _ = self.spin({ root.presentedViewController == nil })
+            return refusing
+        }
+        refusing.finish()
+        XCTAssertEqual(asked, 1, "The wait is entered once, never again")
+        XCTAssertTrue(spin({ host.navigation.snapshot.selection == Self.beta && host.navigation.snapshot.stacks[Self.beta] == ["page-lattice", Self.echo] }),
+                      guardState(host, page: root, link: push(Self.echo)))
+        XCTAssertTrue(reported.isEmpty, "\(reported.map(\.description))")
+    }
+
     /// The same Discard with every animation slowed to a tenth, and the alert answered the moment it is up: the replay must still land
     /// once the alert's dismissal finishes, however long that takes.
     func testDiscardOnASlowlyDismissedAlertStillLandsTheLink() throws {
@@ -653,9 +699,9 @@ private final class StubTransitionCoordinator: NSObject, UIViewControllerTransit
 
     func animate(alongsideTransition animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
                  completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)? = nil) -> Bool {
-        guard accepts else { return false }
+        // A refusing coordinator still keeps the completion, as a UIKit one may call it late: ``finish()`` then proves a late call runs nothing twice.
         if let completion { completions.append(completion) }
-        return true
+        return accepts
     }
 
     func animateAlongsideTransition(in view: UIView?, animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,

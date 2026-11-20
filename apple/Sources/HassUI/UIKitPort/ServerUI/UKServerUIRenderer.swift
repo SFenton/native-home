@@ -1150,24 +1150,34 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
 
     /// Replays an action after the person chose Discard: drops the drafts of the forms it leaves, then performs it.
     ///
-    /// The replay waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform`
-    /// refuses every intent while an alert is up, and the discard dialog's own dismissal can still be running when its completion fires, which
-    /// left the person where they were with the draft discarded.
+    /// The replay first waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform` refuses
+    /// every intent while an alert is up, and the discard dialog's own dismissal can still be running when its completion fires, which left the person
+    /// where they were with the draft discarded. It waits once: after the wait, or when the coordinator refuses the completion, it runs the tail and
+    /// never looks for a transition again, so a coordinator that always refuses cannot make it recurse.
     /// - Parameters:
     ///   - leaving: The forms the action leaves behind.
     ///   - action: The action to replay.
     ///   - page: The page that sent it.
     ///   - source: The sending view.
     ///   - symbol: The sending symbol.
-    private func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String) {
+    ///   - coordinatorOf: The transition coordinator of the alert on screen; a hosted test supplies its own.
+    func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String,
+                       coordinatorOf: (UIViewController) -> UIViewControllerTransitionCoordinator? = {
+                           $0.transitionCoordinator ?? $0.presentingViewController?.transitionCoordinator
+                       }) {
         lastDiscardReplayError = nil
-        if let alert = activeAlert, let coordinator = alert.transitionCoordinator ?? alert.presentingViewController?.transitionCoordinator {
+        if let alert = activeAlert, let coordinator = coordinatorOf(alert) {
             Self.afterTransition(of: coordinator) { [weak self, weak page, weak source] in
                 guard let self, let page else { return }
-                self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol)
+                self.performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol)
             }
             return
         }
+        performDiscardReplay(leaving, action: action, from: page, source: source, symbol: symbol)
+    }
+
+    /// The tail of ``replayDiscard(_:action:from:source:symbol:coordinatorOf:)``: discards the drafts and performs the action once.
+    private func performDiscardReplay(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String) {
         do {
             for form in leaving { try form.discard() }
             try perform(action, from: page, source: source, symbol: symbol)
