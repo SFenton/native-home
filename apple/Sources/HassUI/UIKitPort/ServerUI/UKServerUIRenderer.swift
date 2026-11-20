@@ -1135,6 +1135,19 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         catch { onError(blocked()) }
     }
 
+    /// Runs `body` exactly once, when `coordinator`'s transition has finished.
+    ///
+    /// `animate(alongsideTransition:completion:)` returns `false` when it cannot run its completion (no transition in flight, or a non-animated one); the
+    /// body then runs at once, so a Discard never waits on a completion that never comes. A completion that does fire afterwards finds the body done.
+    /// - Parameters:
+    ///   - coordinator: The transition to wait for.
+    ///   - body: What to run once it is over.
+    static func afterTransition(of coordinator: UIViewControllerTransitionCoordinator, _ body: @escaping () -> Void) {
+        var ran = false
+        let once = { guard !ran else { return }; ran = true; body() }
+        if !coordinator.animate(alongsideTransition: nil, completion: { _ in once() }) { once() }
+    }
+
     /// Replays an action after the person chose Discard: drops the drafts of the forms it leaves, then performs it.
     ///
     /// The replay waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform`
@@ -1149,7 +1162,7 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     private func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String) {
         lastDiscardReplayError = nil
         if let alert = activeAlert, let coordinator = alert.transitionCoordinator ?? alert.presentingViewController?.transitionCoordinator {
-            coordinator.animate(alongsideTransition: nil) { [weak self, weak page, weak source] _ in
+            Self.afterTransition(of: coordinator) { [weak self, weak page, weak source] in
                 guard let self, let page else { return }
                 self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol)
             }

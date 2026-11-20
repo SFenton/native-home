@@ -503,6 +503,25 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         XCTAssertFalse(draft.hasChanges)
     }
 
+    /// `afterTransition(of:_:)` runs its body exactly once whether the coordinator takes the completion or refuses it (`animate` returns `false`),
+    /// so Discard never waits on a completion that never comes and never replays twice.
+    func testAfterTransitionRunsTheBodyOnceWhetherOrNotTheCoordinatorTakesTheCompletion() {
+        let refusing = StubTransitionCoordinator(accepts: false)
+        var runs = 0
+        UKServerUIRenderer.afterTransition(of: refusing) { runs += 1 }
+        XCTAssertEqual(runs, 1, "A refused completion runs the body at once")
+        refusing.finish()
+        XCTAssertEqual(runs, 1, "A late completion does not run it again")
+
+        let accepting = StubTransitionCoordinator(accepts: true)
+        var accepted = 0
+        UKServerUIRenderer.afterTransition(of: accepting) { accepted += 1 }
+        XCTAssertEqual(accepted, 0, "An accepted completion waits for the transition")
+        accepting.finish()
+        accepting.finish()
+        XCTAssertEqual(accepted, 1, "and runs the body once however often it fires")
+    }
+
     /// The same Discard with every animation slowed to a tenth, and the alert answered the moment it is up: the replay must still land
     /// once the alert's dismissal finishes, however long that takes.
     func testDiscardOnASlowlyDismissedAlertStillLandsTheLink() throws {
@@ -618,4 +637,44 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let stayed = spin({ host.modal?.viewControllers.count == 2 })
         XCTAssertTrue(stayed, "A lowered document's drill stays in the sheet, as on a build before the capability")
     }
+}
+
+// MARK: - Fixture
+
+/// A transition coordinator whose `animate(alongsideTransition:completion:)` accepts the completion (and runs it on ``finish()``) or refuses it.
+private final class StubTransitionCoordinator: NSObject, UIViewControllerTransitionCoordinator {
+    private let accepts: Bool
+    private var completions: [(UIViewControllerTransitionCoordinatorContext) -> Void] = []
+
+    init(accepts: Bool) { self.accepts = accepts }
+
+    /// Runs every completion taken so far, as the end of the transition does.
+    func finish() { completions.forEach { $0(self) } }
+
+    func animate(alongsideTransition animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
+                 completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)? = nil) -> Bool {
+        guard accepts else { return false }
+        if let completion { completions.append(completion) }
+        return true
+    }
+
+    func animateAlongsideTransition(in view: UIView?, animation: ((UIViewControllerTransitionCoordinatorContext) -> Void)?,
+                                    completion: ((UIViewControllerTransitionCoordinatorContext) -> Void)? = nil) -> Bool { accepts }
+    func notifyWhenInteractionEnds(_ handler: @escaping (UIViewControllerTransitionCoordinatorContext) -> Void) {}
+    func notifyWhenInteractionChanges(_ handler: @escaping (UIViewControllerTransitionCoordinatorContext) -> Void) {}
+
+    var isAnimated: Bool { accepts }
+    var presentationStyle: UIModalPresentationStyle { .none }
+    var initiallyInteractive: Bool { false }
+    var isInterruptible: Bool { false }
+    var isInteractive: Bool { false }
+    var isCancelled: Bool { false }
+    var transitionDuration: TimeInterval { 0 }
+    var percentComplete: CGFloat { 0 }
+    var completionVelocity: CGFloat { 0 }
+    var completionCurve: UIView.AnimationCurve { .linear }
+    var containerView: UIView { UIView() }
+    var targetTransform: CGAffineTransform { .identity }
+    func viewController(forKey key: UITransitionContextViewControllerKey) -> UIViewController? { nil }
+    func view(forKey key: UITransitionContextViewKey) -> UIView? { nil }
 }
