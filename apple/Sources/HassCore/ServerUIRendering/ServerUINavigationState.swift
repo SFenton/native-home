@@ -89,6 +89,33 @@ public final class ServerUINavigationState {
         }
     }
 
+    /// Selects a tab and pushes a page on top of that tab's stack in one snapshot change.
+    ///
+    /// The stack is never trimmed to its root. A page already in the stack is reused: the stack pops back to it, and a page that is
+    /// already on top changes nothing. Other tabs keep their stacks. A page link to a page homed on another tab uses this.
+    /// - Parameters:
+    ///   - tabID: The tab to select.
+    ///   - pageID: The page to show on it.
+    /// - Throws: ``Failure/unknownTab``, ``Failure/unknownPage``, ``Failure/interactionBlocked`` while a presentation is open,
+    ///   or ``Failure/limitExceeded``. A refusal leaves the state untouched.
+    public func push(pageID: String, onTab tabID: String) throws {
+        guard catalog.tabRoots[tabID] != nil else { throw Failure.unknownTab }
+        guard catalog.pages.contains(pageID) else { throw Failure.unknownPage }
+        guard snapshot.presentations.isEmpty else { throw Failure.interactionBlocked }
+        let root = Root.tab(tabID)
+        guard var path = snapshot.stacks[root] else { throw Failure.invalidDocument }
+        if let ancestor = path.lastIndex(of: pageID) {
+            path = Array(path.prefix(ancestor + 1))
+        } else {
+            guard path.count <= 32 else { throw Failure.limitExceeded }
+            path.append(pageID)
+        }
+        var next = snapshot
+        next.selection = root
+        next.stacks[root] = path
+        if next != snapshot { snapshot = next }
+    }
+
     /// Replaces descendants of a validated sender and reuses its nearest matching ancestor atomically.
     ///
     /// Depth counts pushed pages. The coordinator must validate sender identity and exit guards first.

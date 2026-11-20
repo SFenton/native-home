@@ -1170,6 +1170,10 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             case .setLocal(let id, let value):
                 try localState.set(value, for: id)
             case .push(let push):
+                if page.presentationID == nil, let home = homeTabToLeaveFor(push.pageId) {
+                    try pushOnHomeTab(push.pageId, tab: home)
+                    break
+                }
                 if page.presentationID == nil { removeAdaptive() }
                 try navigation.push(pageID: push.pageId, fromDepth: page.depth, onRoot: page.presentationID == nil)
                 navigationMeasurement = pageContext.motion?.measure(.push(measuredName(forPage: push.pageId)))
@@ -1203,9 +1207,13 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                     self.handoff = false
                     do {
                         guard let presenter, self.senderStack(presenter) != nil else { throw self.blocked() }
-                        try self.navigation.push(pageID: push.pageId, fromDepth: presenter.depth, onRoot: presenter.presentationID == nil)
-                        self.navigationMeasurement = self.pageContext.motion?.measure(.push(self.measuredName(forPage: push.pageId)))
-                        self.reconcile(animated: true, updateBodies: false)
+                        if presenter.presentationID == nil, let home = self.homeTabToLeaveFor(push.pageId) {
+                            try self.pushOnHomeTab(push.pageId, tab: home)
+                        } else {
+                            try self.navigation.push(pageID: push.pageId, fromDepth: presenter.depth, onRoot: presenter.presentationID == nil)
+                            self.navigationMeasurement = self.pageContext.motion?.measure(.push(self.measuredName(forPage: push.pageId)))
+                            self.reconcile(animated: true, updateBodies: false)
+                        }
                     } catch let error as UKServerUIRendererError { self.onError(error) }
                     catch { self.onError(self.blocked()) }
                     self.releaseTouchesWhenSettled()
@@ -1239,6 +1247,9 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
     private func exitForms(_ action: D.Action, from page: UKServerUIPage) -> [UKServerUIFormView] {
         let pages: [UKServerUIPage]
         switch action {
+        case .push(let push) where page.presentationID == nil && homeTabToLeaveFor(push.pageId) != nil:
+            // The page opens on its home tab: the same exit as a tab switch (the leaving stack and its adaptive pages).
+            pages = (logicalStacks[page.root] ?? []) + (adaptive?.pages ?? [])
         case .push:
             pages = page.presentationID == nil ? Array((logicalStacks[page.root] ?? []).dropFirst(page.depth + 1)) + (adaptive?.pages ?? [])
                 : Array((adaptive?.pages ?? []).dropFirst(page.depth + 1))
@@ -1327,6 +1338,29 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         if let modalID { try navigation.present(modalID: modalID) }
         reconcile(animated: false, updateBodies: false)
         return true
+    }
+
+    /// The home tab a page link must switch to: the destination's authored home tab (`routes[].tabId`) when it is shown and is not the tab showing.
+    ///
+    /// Nil for an unhomed page, a hidden home tab (the link then opens on the tab showing) and a page already on its home tab.
+    private func homeTabToLeaveFor(_ pageID: String) -> String? {
+        guard let tab = publication.document.homeTab(of: pageID), isTabShown(tab),
+              navigation.snapshot.selection != .tab(tab) else { return nil }
+        return tab
+    }
+
+    /// Opens a page on top of its home tab's stack as a cut: removes any adaptive column, selects the tab and pushes in one snapshot change.
+    ///
+    /// Unlike ``selectTab(_:)`` it never trims the home tab to its root; the leaving tab keeps its stack.
+    private func pushOnHomeTab(_ pageID: String, tab: String) throws {
+        removeAdaptive()
+        try navigation.push(pageID: pageID, onTab: tab)
+        let label = publication.document.navigation.tabs.first { $0.id == tab }?.label ?? tab
+        pageContext.motion?.measureCut(.tabSwitch(label))
+        reconcile(animated: false, updateBodies: false)
+        // The screen changed under VoiceOver: read the landed page's title (the tab bar already reports the home tab selected).
+        let landed = stacks[.tab(tab)]?.topViewController
+        Announcer.screenChanged(announcing: landed?.navigationItem.title ?? landed?.title)
     }
 
     private func selectTab(_ id: String) throws {

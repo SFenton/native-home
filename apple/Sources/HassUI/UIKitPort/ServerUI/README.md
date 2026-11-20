@@ -318,6 +318,10 @@ dirty/busy drafts, active prompts or transitions reject the route. The parent
 must retain rejected notification/shortcut intents for an explicit retry. This
 method does not install or replace the global `AppShortcutRouter` handler.
 
+A page link (`push`, or `dismiss-then-push` from a sheet) to a page the publication homes on another shown tab
+(`extensions.routes[].tabId`, read by `homeTab(of:)`) removes any adaptive column, selects that tab and pushes on top
+of its stack in one cut (`ServerUINavigationState.push(pageID:onTab:)`); the tab it came from keeps its stack.
+
 ## Settings lane integration
 
 These are shared presentation hooks, not a second Settings language. The
