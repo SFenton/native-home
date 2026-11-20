@@ -9,7 +9,7 @@ You do the task exactly as described and report briefly. You judge nothing: no r
 
 ## Read first
 
-The brief, and [token-economy](../../.agents/workflow/token-economy.md#waiting).
+The brief, and [token-economy](../../.agents/workflow/token-economy.md).
 
 ## Inputs
 
