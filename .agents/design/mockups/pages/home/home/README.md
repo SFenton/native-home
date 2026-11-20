@@ -7,5 +7,5 @@
 - Devices: iPhone, Duo folded, Duo unfolded landscape (two columns on the hinge) and portrait, iPad portrait and landscape (one column)
 - Weather card: drawn by `components/weather/_home-weather.js` (page indicator, Previous and Next, "--" while loading), not the kit WeatherCard
 - Open notes: no empty state (a note says why); direction-g first-sign-in spinner vs motion.md placeholders disagree (motion.md shown); unfolded Duo portrait not run on a simulator; wallpaper, cameras and weather glyphs are stand-ins
-- Fold columns model ([section-sides](../../../../section-sides.md)): two columns only while partly folded (states `duo-part-fold`, `duo-flat`); lying flat Home is one column (mockup corrected 2026-11-03).
+- Fold columns model ([section-sides](../../../../section-sides.md)): two columns only while partly folded (states `duo-part-fold`, `duo-flat`) and only when the Studio sets the page's Partly Folded setting to Two Sides; lying flat Home is one column. The state draws the weather and Guests leading and Cameras trailing, as the Studio pins them.
 - No page draws a skeleton or a house-layout message: a device with no layout shows the shell's boundary, the `server-ui-boundary` mockup (`pages/shell/server-ui-boundary`).

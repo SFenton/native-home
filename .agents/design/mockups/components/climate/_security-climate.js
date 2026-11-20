@@ -320,7 +320,7 @@
     var contactSec = contacts.length ? section('Open Contact Sensors', K.TileGrid({ min: 160, max: 4, items: contacts.map(SC.contactTile) })) : null;
     var tabs = [['rooms', 'Room Thermostats', 'mdi:home-thermometer'], ['automation', 'Advanced Configuration', 'mdi:cog'], ['tracking', 'Room Tracking', 'mdi:motion-sensor']];
     var advSec = section('Advanced Controls', K.ModuleList({ rows: tabs.map(function (t) { return { title: t[1], subtitle: SC.copy.tabs[t[0]], symbol: SC.sym(t[2]) }; }) }));
-    /* Partly folded Duo (section-sides.md, claude/section-sides): Whole Home leads; Open Contact Sensors (while any is open) and Advanced Controls trail. */
+    /* Partly folded Duo (section-sides.md): Whole Home leads; Open Contact Sensors (while any is open) and Advanced Controls trail. */
     var fold = Mock.foldColumns(ctx, { leading: [wholeSec], trailing: [contactSec, advSec] });
     if (fold) return fold;
     return [SC.col([wholeSec, contactSec, advSec].filter(Boolean))];
@@ -507,8 +507,8 @@
    */
   SC.securityBody = function (ctx, o) {
     var p = SC.securityParts(ctx, o);
-    /* Partly folded Duo (section-sides.md, claude/section-sides): the rail spans the top; the alarm card, Doors and car lead; Cameras then Guests trail, as on Home. */
-    var fold = Mock.foldColumns(ctx, { top: [p.rail], leading: [p.alarmCard, p.doors, p.vehicle], trailing: [p.cams, p.guests] });
+    /* Partly folded Duo (section-sides.md): the rail spans the top; the alarm card, Doors and car lead; Guests lead after Doors; Cameras trail alone, as on Home. */
+    var fold = Mock.foldColumns(ctx, { top: [p.rail], leading: [p.alarmCard, p.doors, p.guests, p.vehicle], trailing: [p.cams] });
     if (fold) return fold;
     var top = h('div.ui-bleed', { style: { display: 'flex', flexDirection: 'column', gap: '16px' } }, p.rail, h('div', { style: { margin: '0 16px' } }, p.alarmCard));
     return [top, p.doors, p.guests, p.cams, p.vehicle].filter(Boolean);

@@ -39,7 +39,7 @@
       'long-text': { title: 'Longest strings the cards produce', note: 'times are the widest (12:30 PM); the subtitle, alert and pill values wrap instead of truncating', render: page(S.pair({ next: '12:30 PM', lastRun: { time: '12:30 PM', run: 15 } }, { next: '12:30 PM', battery: 15, lastRun: { time: '12:30 PM', run: 10 } })) },
       'sheet-open': { title: 'Controller sheet open over the page', note: 'the tile opens the sheet even while the controller is offline; see the controller sheet mockup for every sheet state', render: function (ctx) { return S.sheet(ctx, { snap: S.snap('backyard') }); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'one column; pills stack one per row; the alert and subtitles wrap', render: page(S.pair()) },
-      'duo-part-fold': { title: 'Duo partly folded: one controller per side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'the section divides at its blocks: Controllers and Front Yard lead, Garden Faucet trails level with it; each card whole on one side at every text size', render: page(S.pair()) },
+      'duo-part-fold': { title: 'Duo partly folded: one controller per side', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'cards authored as top-level components: Controllers and Front Yard lead, Garden Faucet trails from the same top; each card whole on one side at every text size', render: page(S.pair()) },
       'duo-part-fold-ax5': { title: 'Duo partly folded at AX5', override: { device: 'duo-unfolded-landscape', posture: 'part', ts: 'ax5' }, note: 'still one card per side (was: the 340 pt grid fell back to one track across the band above Large)', render: page(S.pair()) },
     },
 
@@ -104,7 +104,7 @@
     },
 
     notes: [
-      'Partly folded Duo (claude/section-sides, section-sides.md): controller cards by configured order, one per side, in fold columns at every text size (was: the 340 pt section grid, which put the cards across the band once text grew past Large); every other pose unchanged.',
+      'Partly folded Duo (section-sides.md): controller cards by configured order, one per side, in fold columns at every text size (was: the 340 pt section grid, which put the cards across the band once text grew past Large); every other pose unchanged.',
       'empty: there is no empty state. The page lists the two controllers from SprinklersConfig; a missing entity shows the controller as unavailable instead (see the offline-controller state).',
       'loading and refreshing: no loading UI exists. Values come from EntityStore (snapshot first), so a cold launch with nothing saved reads unavailable until the first state arrives. The Hub pill then shows Unavailable, which is what the code draws.',
       'Quick Links: Sprinklers is a Quick Links tile shown only while input_boolean.demo_input_boolean_1 is on (SprinklersConfig.visibilityEntityId). Not described in the rooms docs (docs gap noted in the atlas inventory).',
@@ -112,7 +112,7 @@
       'The Hub pill uses the module surface (no fill); the pill component documents a material page fill and a solid grouped-list fill for other places (status-pill.md).',
       'Wallpaper, glyphs and the top-bar chrome are kit stand-ins. Times are fixture values in the en_US short style.',
     ],
-    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; states duo-part-fold, duo-part-fold-ax5.' }, { date: '2026-10-28', note: 'Rollout M: the controller row became a navigation tile with a Stop Watering disc and chevron.' }, { date: '2026-10-23', note: 'First pass: both controllers, battery, hub, watering, unavailable, fault, offline, AX5, motion and transitions.' }],
+    changelog: [{ date: '2026-11-03', note: 'partly folded Duo fold columns; states duo-part-fold, duo-part-fold-ax5.' }, { date: '2026-10-28', note: 'Rollout M: the controller row became a navigation tile with a Stop Watering disc and chevron.' }, { date: '2026-10-23', note: 'First pass: both controllers, battery, hub, watering, unavailable, fault, offline, AX5, motion and transitions.' }],
   });
 })();
 </script></body></html>

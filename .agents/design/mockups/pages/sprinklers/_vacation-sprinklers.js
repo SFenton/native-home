@@ -143,12 +143,12 @@
   /* ---------------------------------------------------------------- the page */
   S.pageBody = function (ctx, snaps) {
     var ctx0 = Mock.current;
-    /* Partly folded Duo (section-sides.md, claude/section-sides): the one section divides at its blocks; each controller card is whole on one side,
-       by configured order (Front Yard leads, Garden Faucet trails), at every text size (no 340 pt fall-back across the band). The header leads. */
+    /* Partly folded Duo (section-sides.md): a page the Studio sets to Two Sides, authored with each controller card as a top-level component;
+       each card is whole on one side, alternating in order (Front Yard leads, Garden Faucet trails), at every text size (no 340 pt fall-back
+       across the band). The header leads with the first card; both sides start at the same top. */
     if (ctx0 && ctx0.splitAtHinge && ctx0.splitGeometry) {
       var lead = [K.PageSectionHeader({ title: 'Controllers' })], trail = [];
       snaps.forEach(function (s, i) { (i % 2 ? trail : lead).push(S.card(s)); });
-      if (trail.length) trail.unshift(h('div', { style: { height: 'calc(var(--fs-t3) * 1.2)' }, 'aria-hidden': 'true' }));
       return Mock.foldColumns(ctx0, { leading: [h('div.ui-section', { style: { gap: '12px' } }, lead)], trailing: [h('div.ui-section', { style: { gap: '12px' } }, trail)] });
     }
     var grid = K.TileGrid({ min: VS.fit(340, VS.pageW()), max: 2, gap: 24, equal: false, items: snaps.map(function (s) { return S.card(s); }) });

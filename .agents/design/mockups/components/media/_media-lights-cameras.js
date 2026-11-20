@@ -364,7 +364,7 @@
       var lead = MLC.mediaTile(s.cards[0], o), rest = s.cards.slice(1).map(function (c) { return MLC.mediaTile(c, o); });
       return h('div.ui-section', { style: { gap: '12px', minWidth: 0 } }, K.PageSectionHeader({ title: s.title }), lead, rest.length ? K.TileGrid({ items: rest, min: MLC.fitMin(ctx, 140, 64), max: 4 }) : null);
     });
-    /* Partly folded Duo (section-sides.md, claude/section-sides): fold columns by configured order (Living Room and Media Room lead, Studio trails),
+    /* Partly folded Duo (section-sides.md): fold columns by configured order (Living Room and Media Room lead, Studio trails),
        the sides today's grid gives; each side stacks (no row holes) at every text size (no 340 pt fall-back across the band). */
     var fold = Mock.foldColumns(ctx, { leading: secs.filter(function (_, i) { return i % 2 === 0; }), trailing: secs.filter(function (_, i) { return i % 2 === 1; }) });
     if (fold) return fold;
@@ -438,11 +438,12 @@
       var reset = h('button.ui-mrow.press', { type: 'button', 'aria-label': 'Reset All Lights', style: { color: 'var(--ink-action)', minHeight: '52px' } }, h('span.rg', { style: { color: 'var(--ink-action)' }, html: I('arrow.counterclockwise') }), h('span.tx', h('span.ti', { style: { color: 'var(--ink-action)' } }, 'Reset All Lights')));
       lights.push(h('div.ui-mlist', reset));
     }
-    /* Partly folded Duo (section-sides.md, claude/section-sides): the page's one section divides at its blocks. The header and the switch/mode card lead;
-       the light tiles and Reset All Lights trail, level with the card. With no lights showing (manual off, a preset mode) the trailing side is empty. */
+    /* Partly folded Duo (section-sides.md): a page the Studio sets to Two Sides, authored with its blocks as top-level components, which is how a
+       section is divided (the app never divides one). The header with the switch/mode card leads; the light tiles and Reset All Lights trail,
+       both sides starting at the same top. With no lights showing (manual off, a preset mode) the trailing side is empty. */
     if (ctx.splitAtHinge && ctx.splitGeometry) {
       var head = controls[0], card = controls[1];
-      var fold = Mock.foldColumns(ctx, { leading: [h('div.mlc-cl', head, card)], trailing: lights.length ? [h('div.mlc-cl', { style: { paddingTop: 'calc(var(--fs-t3) * 1.2 + 12px)' } }, lights)] : [] });
+      var fold = Mock.foldColumns(ctx, { leading: [h('div.mlc-cl', head, card)], trailing: lights.length ? [h('div.mlc-cl', lights)] : [] });
       return fold;
     }
     return [h('div.mlc-cl', controls.concat(lights))];

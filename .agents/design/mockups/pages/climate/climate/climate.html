@@ -46,7 +46,7 @@
       'integration-off': { title: 'Automatic Thermostat off (warning)', note: 'a dense module with an orange glyph', render: function (c) { return page(c, 'integration-off'); } },
       'hub-menu': { title: 'Hub mode menu open', note: 'a pop-up menu anchored under the control, the current choice checked', render: function (c) { return page(c, 'home', { hub: { menu: 'mode' } }); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the hub menus drop under the text and show their value; the dial readout scales to fit; tiles go to one column', render: function (c) { return page(c, 'home'); } },
-      'duo-part-fold': { title: 'Duo partly folded: each section on one side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'fold columns (section-sides.md): Whole Home (dial, hub pill, notices) leads; Open Contact Sensors and Advanced Controls trail', render: function (c) { return page(c, 'home'); } },
+      'duo-part-fold': { title: 'Duo partly folded: each section on one side', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'fold columns (section-sides.md): Whole Home (dial, hub pill, notices) leads; Open Contact Sensors and Advanced Controls trail', render: function (c) { return page(c, 'home'); } },
       'duo-part-fold-closed': { title: 'Duo partly folded, nothing open', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Open Contact Sensors hides; Advanced Controls keeps its trailing side and moves up (no section changes side)', render: function (c) { return page(c, 'closed'); } },
     },
 
@@ -119,7 +119,7 @@
     },
 
     notes: [
-      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns, Whole Home leads, Open Contact Sensors and Advanced Controls trail (was: one 720 pt column with the dial moved to the leading region and the contact tiles and Advanced rows across the band); every other pose unchanged.',
+      'Partly folded Duo (section-sides.md): fold columns, Whole Home leads, Open Contact Sensors and Advanced Controls trail (was: one 720 pt column with the dial moved to the leading region and the contact tiles and Advanced rows across the band); every other pose unchanged.',
       'Splits: none. Climate is always one full-width column (split-view.md); on the unfolded Duo landscape and iPad landscape it stays centred at 720 pt. Hinge-aware even columns still apply to the contact tile grid. On the unfolded Duo landscape the fold band (455 to 496 pt) falls across the centred dial: its readout (the unit and the caption) and the cool-to handle sit under the fold, because the content is 868 pt wide and centred 21 pt left of it. Climate is not hinge-aware (split-view.md: always full width); not run on a device, check before relying on it.',
       'loading and error draw the same page: the dial and hub are driven by entity state, which is missing before the first snapshot and unavailable when Home Assistant reports it. The page never shows pending bars (tiles do, but Climate\'s only tiles are the read-only contacts, which do not exist until a sensor is open).',
       'Docs versus code: thermostat-dial.md and the catalog say numerals roll; the code has no contentTransition on the dial, so the numeral swaps and only the handles glide.',
@@ -127,7 +127,7 @@
       'The dial is the local SecClimate.dial (single target, off, unavailable, dragging, caption glyph, readout fitting). Promote to kit: ThermostatDial rewrite, ClimateNotice, ThermostatHubPill.',
       'Fixtures: gallery scenario home (global thermostat 71 to 74, current 72, heating) and away (eco-away thermostat 62 to 78, Vacation Mode on, Automatic Thermostat off). Wallpaper and glyphs are kit stand-ins.',
     ],
-    changelog: [{ date: '2026-11-04', note: 'A lone open contact sensor and every short row fill their section (rule 1).' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; states duo-part-fold, duo-part-fold-closed.' }, { date: '2026-10-23', note: 'First pass: 16 states, five devices, dial, hub menus, notices, sheet and tab transitions.' }],
+    changelog: [{ date: '2026-11-04', note: 'A lone open contact sensor and every short row fill their section (rule 1).' }, { date: '2026-11-03', note: 'partly folded Duo fold columns; states duo-part-fold, duo-part-fold-closed.' }, { date: '2026-10-23', note: 'First pass: 16 states, five devices, dial, hub menus, notices, sheet and tab transitions.' }],
   });
 })();
 </script></body></html>

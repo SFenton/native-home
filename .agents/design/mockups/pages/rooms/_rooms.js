@@ -254,7 +254,7 @@
   /** The sections in the page's responsive section grid (two columns from 704 pt; an app launcher spans both, and a section with nothing beside it in its row
    *  spans both: duo-widths rules 1 and 6, the short-row fill applied to the section grid; one column is unchanged by it). */
   R.sections = function (ctx, secs, head) {
-    /* Partly folded Duo (section-sides.md, claude/section-sides): fold columns. A section's side is the parity of its configured index (even leads, odd trails),
+    /* Partly folded Duo (section-sides.md): fold columns. A section's side is the parity of its configured index (even leads, odd trails),
        which is the side today's two-track grid gave it; an app launcher or a page's only section no longer spans, so a one-section room leads and its trailing
        side is empty. Column-major: each side stacks, so no row holes. */
     if (ctx.splitAtHinge && ctx.splitGeometry) {

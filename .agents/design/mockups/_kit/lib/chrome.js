@@ -156,12 +156,11 @@
   };
 
   /**
-   * Fold columns (UKFoldColumns; design/section-sides.md, owner 2026-11-03): only while a Duo is partly folded (`ctx.splitAtHinge`), each section sits
+   * Fold columns (UKFoldColumns; design/section-sides.md): only while a Duo is partly folded (`ctx.splitAtHinge`), each section sits
    * wholly in the leading or the trailing region, stacked top to bottom in one page scroll; strips in `top` (the status rail) span both. Returns null in
    * every other pose (flat Duo, folded, portrait, iPad, iPhone), so the page draws its own layout there, unchanged.
-   * The first trailing section starts level with the leading column, directly under the top strip (section-sides.md rule 11, owner 2026-11-03:
-   * "Cameras top right like home page"). At an accessibility text size the rail wraps and stops short of the fold (status-rail.md), so `top`
-   * heads the leading column instead of spanning, and the trailing column (Cameras) starts at the top right, level with the rail.
+   * The trailing side starts level with the leading column, directly under the top strip (section-sides.md rule 3). At an accessibility text size the rail wraps and stops short of the fold (status-rail.md), so `top`
+   * heads the leading column instead of spanning, and the trailing column starts at the top right, level with the rail (section-sides.md rule 8).
    * @param {object} ctx
    * @param {{top?:Node[], leading:Node[], trailing:Node[]}} o  the page's fixed assignment (never balanced by live height)
    * @returns {Node[]|null}

@@ -48,7 +48,7 @@
       'window-open': { title: 'Side Windows open at home', note: 'Window chip amber; opens "Bedroom 1 Window" with a count of two', render: room({ window: 'home', lightsOn: true, occ: true }) },
       'long-text': { title: 'Hot Flash with a long state and a blocked wake light', note: 'a long state word wraps to two lines inside the card and every card in the row grows to match', render: room({ wake: 'Blocked Vacation', beds: { left: { action: 'heating', level: 3, whole: true }, right: { action: 'cooling', level: -10, hot: true, hold: '10:12' } } }) },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: room() },
-      'duo-part-fold': { title: 'Duo partly folded (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Wake Light and Media lead, Bed and Climate trail (the sides they had); each side stacks', render: room() },
+      'duo-part-fold': { title: 'Duo partly folded', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Wake Light and Media lead, Bed and Climate trail (the sides they had); each side stacks', render: room() },
       'placeholder': { title: 'No connection yet (PlaceholderScreen)', render: function (ctx) { return R.placeholder(ctx, 'Bedroom 1'); } },
     },
 
@@ -104,7 +104,7 @@
     },
 
     notes: [
-      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns, same sides as the old grid, stacked per side; every other pose unchanged.',
+      'Partly folded Duo (section-sides.md): fold columns, same sides as the old grid, stacked per side; every other pose unchanged.',
       'empty: never empty: the page always has four sections (the rail and the sections come from RoomsConfig.masterBedroom).',
       'loading: no gate or pending bars (see room-page). A bed keeps its last state for 10 s of unavailability (bedroom-devices.md) before the neutral face.',
       'Docs versus code: the catalog hint lists "alarm ringing" and "wake light armed" states. The room tile has neither: it prints the status sensor\'s state (Scheduled, Ramping, Snoozed...), and a ringing bed alarm shows in the bed sheet, not on the card. The journey test comment "one heating, one idle in heat mode" predates the level-based face: with a controller the second side is Cooling at -3 (BedroomFixtures).',
@@ -112,7 +112,7 @@
       'Sheets are the Bedroom batch\'s (modals/bedroom); the stub sheets here only show the presentation.',
       'The humidifier card needs the app\'s connection to open its sheet (the gallery uses RoomDeviceFallback).',
     ],
-    changelog: [{ date: '2026-11-04', note: 'Wake-Light Alarms spans the Sleep & Wake section; the section grid gives one column on the unfolded Duo in portrait at every text size.' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: beds (heating, cooling, idle, off, hot flash, solo trip), wake light phases, Streamer, humidifier.' }],
+    changelog: [{ date: '2026-11-04', note: 'Wake-Light Alarms spans the Sleep & Wake section; the section grid gives one column on the unfolded Duo in portrait at every text size.' }, { date: '2026-11-03', note: 'partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: beds (heating, cooling, idle, off, hot flash, solo trip), wake light phases, Streamer, humidifier.' }],
   });
 })();
 </script></body></html>

@@ -41,7 +41,7 @@
         var old = MLC.lights.slice(); MLC.lights[0] = ['Front Door Exterior Left Wall Light', 100, [0, 255, 0]]; MLC.lights[1] = ['Front Door Exterior Right Wall Light', 90, [0, 0, 255]];
         try { return page(c); } finally { MLC.lights[0] = old[0]; MLC.lights[1] = old[1]; } } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the mode accessory moves under its title, tiles stack glyph over text in one column', render: function (c) { return page(c); } },
-      'duo-part-fold': { title: 'Duo partly folded: the section divides at its blocks (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Front Yard and the switch and mode card lead; the light tiles and Reset All Lights trail, level with the card (section-sides.md, single-section rule)', render: function (c) { return page(c); } },
+      'duo-part-fold': { title: 'Duo partly folded: blocks authored as top-level components', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Front Yard and the switch and mode card lead; the light tiles and Reset All Lights trail, both sides from the same top (the Studio authors the blocks as top-level components; section-sides.md)', render: function (c) { return page(c); } },
       'duo-part-fold-preset': { title: 'Duo partly folded, a preset mode', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'no lights to show, so the trailing side is empty; the card stays leading', render: function (c) { return page(c, { mode: 'Team Colors' }); } },
       'closed': { title: 'A sheet open behind (presenter)', render: function (c) { return page(c); } },
     },
@@ -106,14 +106,14 @@
     },
 
     notes: [
-      'Partly folded Duo (claude/section-sides, section-sides.md): the one section divides at its blocks: header and switch/mode card lead, light tiles and Reset trail (was: the card and Reset row across the band, tiles split 1 + 1 around it); every other pose unchanged.',
+      'Partly folded Duo (section-sides.md): a page authored with its blocks as top-level components: header and switch/mode card lead, light tiles and Reset trail from the same top (was: the card and Reset row across the band, tiles split 1 + 1 around it); every other pose unchanged.',
       'empty: no empty state; the five rows and eight lights come from CustomLightsConfig, and a missing entity reads as unavailable (see loading and error).',
       'Code versus docs: ios.md says Reset All Lights is "its own card"; it is a one-row ModuleList drawn here (same look).',
       'The drag state is a still of a lifted tile; the Motion list plays the drag. A tap on a tile opens the sheet; the fixture\'s eighth light (Bollard 6) is off.',
       'Kit gap: the kit\'s BrightnessTile says "On at 70%"; the app says "70%". This page uses MLC.lightTile (components/media/_media-lights-cameras.js): promote to kit.',
       'Fixture values: seven lights on at 100, 90, 80, 71, 61, 51 and 41% in green, blue, magenta, red, green, orange and blue (HomePagesGallery); real entity names, no real addresses.',
     ],
-    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo, controls lead and lights trail; states duo-part-fold, duo-part-fold-preset.' }, { date: '2026-10-23', note: 'First pass: manual, mode and custom states, drag, unavailable, AX5, six devices.' }],
+    changelog: [{ date: '2026-11-03', note: 'partly folded Duo, controls lead and lights trail; states duo-part-fold, duo-part-fold-preset.' }, { date: '2026-10-23', note: 'First pass: manual, mode and custom states, drag, unavailable, AX5, six devices.' }],
   });
 })();
 </script></body></html>

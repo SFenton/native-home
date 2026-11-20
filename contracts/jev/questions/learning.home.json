@@ -1,6 +1,6 @@
 {
   "id": "learning.home",
-  "version": 33,
+  "version": 34,
   "type": "choice",
   "mode": "shadow",
   "description": "Which document should record a durable learning? Criteria are generated from the AGENTS.md and .agents docs (`python3 tools/jev_ask.py sync`).",
@@ -32,7 +32,7 @@
     ".agents/design/profile-badge.md": "Profile attention badge: size, position and text-size cap: how big the Profile button's attention badge is, where it sits on the disc, and how far it grows with Dynamic Type, on the iOS 26 header and the Duo rail. Decided 2026-11-04 (T-profile-badge-size, three Designer rounds). (read when: touching...",
     ".agents/design/profile-photos.md": "Profile photos: the decision and rules for showing a person's Home Assistant photo in place of their initials. (read when: you touch the Profile button, the Account header, the People rows, or anything that draws a person.)",
     ".agents/design/reconnecting-spinner.md": "Reconnecting spinner: the reconnecting sign is a white arc spinner in the header, left of Quick Links, replacing the \"Reconnecting…\" chip (owner request 2026-10-23). (read when: touching `ReconnectingArc`, `ReconnectingIndicator`, `ShellHeaderItems` or any connection-lost UI.)",
-    ".agents/design/section-sides.md": "Section sides on a partly folded Duo: while the iPhone Duo is partly folded (book pose), every section of a page sits wholly on the leading or the trailing side of the hinge; the per-page side table, the one-section rule and the exceptions. (read when: you add or reorder a section on any page, add a...",
+    ".agents/design/section-sides.md": "Section sides on a partly folded Duo: while the iPhone Duo is partly folded (book pose), each top-level section of a Studio page sits wholly on one side of the hinge, as the page's Partly Folded setting in the Studio says; the rules the app draws by. (read when: you touch `UKFoldColumns`, `FoldColum...",
     ".agents/design/server-ui-boundary.md": "Layout recovery boundary: what the server-driven root shows while no published layout is on screen: its four states, their actions, placement and words. (read when: you touch `UKServerUIRecoveryBoundary.swift`, the production host's recovery ground, or the boundary copy.)",
     ".agents/design/settings-version-row.md": "Settings version row: Settings → About → Version: where the build identity shows and what tapping it does, chosen 2026-10-26. (read when: touching `AboutSettingsSection`, `AppBuildInfo` or the Settings list's last section.)",
     ".agents/design/setup-flow.md": "Setup flow (Notifications, Time Sensitive, Location): the first-run and later-launch setup sheet that asks for notifications, explains Time Sensitive and asks for location, plus the Settings → Notifications entries that are the way back; decided 2026-10-27. (read when: touching the setup sheet, `Set...",
