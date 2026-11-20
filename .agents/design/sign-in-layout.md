@@ -48,10 +48,10 @@ What the screen holds, its copy, errors and states: [auth](../platforms/apple/au
 
 - The scroll view ends at the keyboard. In two regions both the header and the form centre in the space above it, on one line (HIG Virtual keyboards: "Use the keyboard layout guide").
 - What hangs under Sign In is reached by scrolling when the keyboard covers it.
-- Nothing moves sideways when a field takes focus or the keyboard goes.
+- Nothing moves sideways when a field takes focus or the keyboard goes: column or split is decided from the window's height, never the keyboard-shortened scroll view.
 
 ## Motion and VoiceOver
 
-- A change of layout (rotation, fold, unfold, partly folded to flat) moves the same views with `MotionTokens.standard`, or `quick` under Reduce Motion; on a rotation it runs inside the system's rotation. Text, focus and VoiceOver focus are kept.
+- A change of layout (rotation, fold, unfold, partly folded to flat) moves the same views with `MotionTokens.standard`, or `quick` under Reduce Motion; on a rotation it runs inside the system's rotation. Text, focus and VoiceOver focus are kept. One `LayoutChange` interval (page `SignIn.layout`) spans it; `UKHostedSignInLayoutPerformanceTests` measures it.
 - The intro plays the same pieces with the same timings in both layouts ([direction G](direction-g.md#launch-and-sign-in-motion)).
 - VoiceOver order in both layouts, each field row its own stop: header, failure card, Server, Username, Password, inline error, Sign In, Use a Different Account, footnote.

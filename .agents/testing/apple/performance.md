@@ -149,7 +149,6 @@ Rows and sections that a person (or a live update) inserts, removes or swaps ani
 - **Vacuum setting rows:** `UKVacuumSettingsGroup` animates height with `standard` and content with `quick` (Reduce Motion: 0.2 s cross-fade, layout at once). It applies at once on a reapply or when the sheet is off screen. It logs no `LayoutChange` interval and has no performance test yet.
 - **State tiles:** `UKHostedStateTilePerformanceTests` flips 20 tiles, also under Reduce Motion; one `LayoutChange` interval per fade, page `StateTile`.
 - **Grid groups:** `UKHostedGridGroupsPerformanceTests` regroups 20 tiles (a house change, Reduce Motion, a person's tap); one `LayoutChange` interval per arrangement, page `GridGroups`.
-- **Sign-in layout:** `UKHostedSignInLayoutPerformanceTests` resizes a regular window between a column and two regions six times per iteration, also under Reduce Motion; one `LayoutChange` interval per switch, page `SignIn.layout`. `tools/ios_motionperf.sh` runs it with the others.
 - **Budgets:** no run-loop turn over 16 ms during a flip, and the interval is the token length plus a frame; hitch ratio under 5 ms/s on a device.
 
 ## Weather card ticker
