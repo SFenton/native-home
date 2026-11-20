@@ -484,7 +484,7 @@ class ArmTests(unittest.TestCase):
         missing when the block is the owner's alone (code-owner review, draft, the owner-kept set)."""
         owned = self.info(files=self.OWNED_FILES, reviewDecision="REVIEW_REQUIRED")
         for name, kw in (("no pass", {"passed": False}), ("ruleset", {"ruleset": ["no ruleset"]}), ("denylist", {"denylist": "hit"}),
-                         ("app-UI", {"gate": pr_land.GateRefused("no design record")})):
+                         ("app-UI", {"gate": pr_land.GateRefused("Jev answered design.app_wide=yes")})):
             with self.subTest(name):
                 result, text, _calls = self.printed(info=owned, **kw)
                 self.assertEqual(result[0], 1)

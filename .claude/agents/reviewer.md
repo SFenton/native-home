@@ -22,7 +22,7 @@ The prompt names the PR, branch and round. Read the PR, `git diff origin/main...
 4. System API first: no rung-0 note ([change-loop](../../.agents/workflow/change-loop.md#rung-0)) is major; custom code where a system API fits is blocker.
 5. Tests: unit for logic; UX and accessibility per affected family. Missing: major.
 6. Mockup: atlas entry updated; hub republish stated in the PR.
-7. Design decision: a visible change names the options and the pick in its PR description; its `Gate:` line matches the request and diff. Otherwise: blocker.
+7. Design decision: a visible change links its record; its `Gate:` line matches the request and diff. Otherwise: blocker.
 8. Layering: `HassCore` below `HassDesign` below `HassUI`; one state path.
 9. Performance invariants; motion has signposts and a performance test.
 10. Sweep: no secrets; `Release-Note:` trailers; native only; no macOS code; devcap holds; DocC on new Swift.
