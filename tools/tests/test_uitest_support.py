@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import uitest_support as u  # noqa: E402
@@ -80,6 +81,43 @@ class ExactCountTests(unittest.TestCase):
         run = lambda *a: subprocess.run([sys.executable, str(SUPPORT), "exact", *a], env=env, capture_output=True, text=True).stdout.strip()
         self.assertEqual(run("--plan", str(self.plan(skippedTests=["BetaJourneyTests"]))), "3")
         self.assertEqual(run(), "")
+
+
+class IterationHoldTests(unittest.TestCase):
+    """A stress run (`-test-iterations N`) repeats every test, so the hold grows with N up to the cap."""
+    CLASSES = ["C%d" % i for i in range(6)]
+
+    def hold(self, iterations, per_class=20):
+        found = {name: ["t%d" % i for i in range(per_class)] for name in self.CLASSES}
+        with mock.patch.object(u, "tests_by_class", return_value=found):
+            return u.hosted_hold(self.CLASSES, Path("."), iterations)
+
+    def test_iterations_are_read_from_the_run_arguments(self):
+        self.assertEqual(u.iterations_in(["-only-testing:X", "-test-iterations", "6"]), 6)
+        self.assertEqual(u.iterations_in(["-test-iterations=15"]), 15)
+        self.assertEqual(u.iterations_in([]), 1)
+        self.assertEqual(u.iterations_in(["-test-iterations", "x"]), 1)
+        self.assertEqual(u.iterations_in(["-test-iterations"]), 1)
+
+    def test_six_iterations_hold_longer_than_one_pass(self):
+        single, six = self.hold(1), self.hold(6)
+        self.assertGreater(six, single)
+        self.assertGreater(six, 16 * 60)  # the 16 minute hold that killed the progressing 6-iteration run
+        # the per-test part scales by 6; the fixed base is paid once
+        self.assertEqual(six - u.HOSTED_BASE, (single - u.HOSTED_BASE) * 6)
+
+    def test_the_hold_stays_under_the_cap(self):
+        self.assertEqual(self.hold(1000), u.HOLD_CAP)
+        self.assertEqual(u.hold_for(500, 50), u.HOLD_CAP)
+
+    def test_hold_for_scales_per_test_seconds(self):
+        self.assertEqual(u.hold_for(10, 3) - u.HOLD_BASE, (u.hold_for(10) - u.HOLD_BASE) * 3)
+
+    def test_the_cli_reads_iterations_after_the_separator(self):
+        env = {"FENTON_ROOT": str(Path(__file__).resolve().parents[2]), "PATH": "/usr/bin:/bin"}
+        run = lambda *a: int(subprocess.run([sys.executable, str(SUPPORT), *a], env=env, capture_output=True, text=True).stdout)
+        self.assertGreater(run("hosted-hold", "--", "-test-iterations", "2"), run("hosted-hold"))
+        self.assertGreater(run("hold", "20", "-test-iterations", "6"), run("hold", "20"))
 
 
 if __name__ == "__main__":
