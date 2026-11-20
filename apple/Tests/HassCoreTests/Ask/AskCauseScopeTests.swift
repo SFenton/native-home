@@ -83,12 +83,12 @@ struct AskCauseScopeTests {
     // MARK: Configured causes
 
     @Test func aConfiguredAutomationAndScriptAreNamed() async {
-        let automation = await why([Self.row { $0.contextEventType = "automation_triggered"; $0.contextName = "Demo Porch Schedule"; $0.contextEntityId = "automation.demo_porch_schedule" }])
-        #expect(automation.answer.contains("Demo Porch Schedule"), "\(automation.answer)")
+        let viaId = await why([Self.row { $0.contextEventType = "automation_triggered"; $0.contextName = "Demo Porch Schedule"; $0.contextEntityId = "automation.demo_porch_schedule" }])
+        #expect(viaId.answer.contains("Demo Porch Schedule"), "\(viaId.answer)")
         let byName = await why([Self.row { $0.contextEventType = "automation_triggered"; $0.contextName = "Demo Porch Schedule" }])
         #expect(byName.answer.contains("Demo Porch Schedule"), "\(byName.answer)")
-        let script = await why([Self.row { $0.contextEventType = "script_started"; $0.contextName = "Demo Goodnight"; $0.contextEntityId = "script.demo_goodnight" }])
-        #expect(script.answer.contains("script \"Demo Goodnight\""), "\(script.answer)")
+        let ran = await why([Self.row { $0.contextEventType = "script_started"; $0.contextName = "Demo Goodnight"; $0.contextEntityId = "script.demo_goodnight" }])
+        #expect(ran.answer.contains("script \"Demo Goodnight\""), "\(ran.answer)")
     }
 
     @Test func aConfiguredEverydayEntityIsNamedWithItsState() async {
