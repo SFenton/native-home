@@ -34,7 +34,9 @@ are exempt. With no lane base for this branch the check fails open: a note, and 
 
 Hooks-path environment: ``core.hooksPath`` lives in the repository's shared config, so every worktree sees one value. Only the relative
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
-whose ``pre-push`` runs that checkout's ``tools/`` scripts (a stale primary checkout skips the review step). ``check`` refuses any other value.
+whose ``pre-push`` runs that checkout's ``tools/`` scripts (a stale primary checkout skips the review step). ``check`` refuses any other value
+after one repair: it runs ``tools/setup.sh`` once, re-checks, prints one line naming the old value, and appends the time, old value and
+checkout to ``<git common dir>/hooks-path-flips`` so the writing checkout can be found. Moving the setting to per-worktree config is owner-only.
 
 Standard library only. Exit codes: 0 ok, 1 a check failed or overlap found, 2 usage or git/gh error.
 """
@@ -206,6 +208,36 @@ def check_hooks() -> Optional[str]:
         return None
     return (f"core.hooksPath ({raw}) is not this worktree's {top}/.githooks, so git's pre-push hook would run another checkout's "
             f"scripts, or none. Run tools/setup.sh from this worktree ({top}).")
+
+
+def repair_hooks(why: Optional[str]) -> Optional[str]:
+    """Given a failed hooks check, run ``tools/setup.sh`` once and re-check; returns the remaining reason, or None when repaired.
+
+    The hooks setting is one shared value, so another checkout's session can leave an absolute or foreign path there between setup and ship.
+    The repair is only ``setup.sh`` (it writes the relative ``.githooks``); nothing else in git's configuration changes. One line says the
+    path was rewritten from the old value, and ``<git common dir>/hooks-path-flips`` gets a line (time, old value, this checkout) so the
+    writing checkout can be found. With no ``why``, or no ``setup.sh`` beside this file, nothing runs.
+    """
+    setup = TOOLS / "setup.sh"
+    if not why or not setup.is_file():
+        return why
+    top = toplevel()
+    old = git("config", "core.hooksPath", check=False) or "(unset)"
+    done = run(["sh", str(setup)], check=False, timeout=120)  # its exit code also reflects the denylist; the re-check below decides
+    still = check_hooks()
+    if still:
+        busy = "lock" in (done.stderr + done.stdout).lower()
+        # No git setting key and no config command in this text: push_guard refuses any command that names the key, so advice to run one loops.
+        cause = ("git's config lock was busy (another git command was writing the config); run the check again in a moment, and stop and "
+                 "report it as blocked if it repeats"
+                 if busy else
+                 "a higher-precedence config overrides it. Stop and report this as blocked: the owner finds the override")
+        return f"tools/setup.sh ran and the hooks path is still wrong (it was {old}), so git's pre-push hook would not run from this worktree: {cause}."
+    print(f"lane_check: core.hooksPath was rewritten from {old} to .githooks (tools/setup.sh)")
+    flips = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "hooks-path-flips"
+    with flips.open("a") as fh:
+        fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')}\t{old}\t{top}\n")
+    return None
 
 
 def check_scan(base: str) -> Optional[str]:
@@ -483,7 +515,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     """Run the selected checks (all by default); print every finding; exit 1 on any failure."""
     wanted = args.only or list(CHECKS)
     failures = []
-    if "hooks" in wanted and (why := check_hooks()):
+    if "hooks" in wanted and (why := repair_hooks(check_hooks())):
         failures.append(why)
     if "scan" in wanted and (why := check_scan(args.base)):
         failures.append(why)
