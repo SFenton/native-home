@@ -513,6 +513,8 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         XCTAssertTrue(session)
         try draft.set(.string("Edited"), group: "item", field: "name")
         host.activate(push(Self.echo), from: root)
+        try assertAsksThenLands(host, alert: try askedAlert(from: root), draft: draft, sheetOpen: false)
+        host.activate(push(Self.echo), from: root)
         let alert = try askedAlert(from: root)
         try discardAndExpect(host, alert: alert, from: root, link: push(Self.echo), settled: false, "A slow Discard lands on the home tab and the page") {
             host.navigation.snapshot.selection == Self.beta && host.navigation.snapshot.stacks[Self.beta] == ["page-lattice", Self.echo]
