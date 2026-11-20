@@ -5,10 +5,10 @@
 
 Every number, glob and forbidden pattern is data in ``contracts/rules-surface.json``; this module only applies it. A rule is a
 present-tense default: no date, no attribution, no PR or commit reference, no words of change, no status. What is not a rule has
-another home (the refusal message names it): a decision record, the PR description, ``PROGRESS.md``, a tool's config or ``--help``.
+another home (the refusal message names it): the PR description, ``PROGRESS.md``, a tool's config or ``--help``.
 
 Checks (each a function with a stable id): ``forbidden``, ``budget``, ``role_load``, ``one_home``, ``links``, ``structure``,
-``decisions``, and ``ratchet`` for layers that carry one (there ``forbidden``, budget, ``links`` and ``structure`` are per-file
+``decisions`` (a file under ``.agents/decisions/`` is an error), and ``ratchet`` for layers that carry one (there ``forbidden``, budget, ``links`` and ``structure`` are per-file
 counts that may only fall). There is **no inline ignore comment and no per-line allow-list**;
 exemptions exist only by layer, in the contract, and the contract is owner-protected.
 
@@ -37,8 +37,6 @@ CONTRACT = "contracts/rules-surface.json"
 #: Folders the fallback walk skips when ``root`` is not a git checkout (git's own ignore rules apply otherwise).
 WALK_SKIP = (".git", "node_modules", ".build", "build", "DerivedData")
 PATH_PREFIXES = ("tools/", "contracts/", ".agents/", ".claude/", ".github/", "apple/")
-DECISION_NAME = re.compile(r"^\d{4}-\d{2}-\d{2}-[a-z0-9][a-z0-9-]*\.md$")
-FRONT_LINES = ("Decision", "Replaces", "Rule home")
 
 
 class Finding(NamedTuple):
@@ -530,13 +528,13 @@ def structure_findings(s: Surface) -> List[Finding]:
         if layer != "record":
             for number, target in markdown_links(text):
                 resolved = resolve_link(rel, target.split("#")[0]) if target.split("#")[0] else ""
-                if resolved.startswith((".agents/decisions", ".agents/archive")) and not (
-                        rel in contract.get("decision_link_allowed", []) or os.path.basename(rel) == "README.md"):
+                if resolved.startswith((".agents/archive",)) and not (
+                        rel in contract.get("archive_link_allowed", []) or os.path.basename(rel) == "README.md"):
                     found.append(Finding(rel, number, "structure", f"links into {resolved.split('/')[1]}/, which is never required reading",
                                          "state the rule here; the record stays unlinked"))
             for number, word in path_tokens(text, tuple(s.contract.get("path_ignore", ()))):
-                if word.startswith((".agents/decisions", ".agents/archive")) and not (
-                        rel in contract.get("decision_link_allowed", []) or os.path.basename(rel) == "README.md"):
+                if word.startswith((".agents/archive",)) and not (
+                        rel in contract.get("archive_link_allowed", []) or os.path.basename(rel) == "README.md"):
                     found.append(Finding(rel, number, "structure", f"names {word}, which is never required reading", "state the rule here"))
     for rel in s.unlayered:
         found.append(Finding(rel, 1, "structure", "markdown outside every layer: add it to a layer",
@@ -547,7 +545,7 @@ def structure_findings(s: Surface) -> List[Finding]:
 
 def router_findings(s: Surface) -> List[Finding]:
     """A folder README links every sibling markdown file and every child folder; folders of the surface have one."""
-    skip = ("archive", "decisions", "mockups")
+    skip = ("archive", "mockups")
     exempt_children = re.compile(r"^\.agents/(?:pages|controls)/[^/]+$")
     folders: Dict[str, List[str]] = {}
     for rel in s.files:
@@ -579,21 +577,25 @@ def router_findings(s: Surface) -> List[Finding]:
 
 # MARK: - Decisions
 
-def check_decisions(s: Surface, base: Optional[str] = None) -> List[Finding]:
+#: The folder that must stay empty: a decision file is never a home for a rule or its history (that is the PR description).
+DECISIONS_DIR = ".agents/decisions"
+
+
+def check_decisions(s: Surface) -> List[Finding]:
+    """One finding for every file under ``.agents/decisions/``, whatever its name or type, tracked or not."""
     found: List[Finding] = []
-    for rel, (layer, text) in s.files.items():
-        if not matches(rel, [".agents/decisions/*.md"]) or rel.endswith("/README.md"):
-            continue
-        name = os.path.basename(rel)
-        if not DECISION_NAME.match(name):
-            found.append(Finding(rel, 1, "decisions", "file name must be YYYY-MM-DD-slug.md", "rename it"))
-        head = "\n".join(text.split("\n")[:12])
-        for key in FRONT_LINES:
-            if not re.search(rf"^[*_ ]*{key}[*_]*:", head, re.M):
-                found.append(Finding(rel, 1, "decisions", f"missing the front line `{key}:` in the first 12 lines", ".agents/decisions/README.md"))
-    if base:
-        found += append_only_findings(s.root, base, append_only_folders(s.contract))
+    folder = s.root / DECISIONS_DIR
+    paths = {rel for rel in s.files if rel.startswith(DECISIONS_DIR + "/")}
+    if folder.is_dir():
+        paths |= {p.relative_to(s.root).as_posix() for p in folder.rglob("*") if p.is_file()}
+    for rel in sorted(paths):
+        found.append(Finding(rel, 1, "decisions", f"nothing may live under {DECISIONS_DIR}/", "delete the file; the why and when go in the PR description"))
     return found
+
+
+def check_append_only(s: Surface, base: Optional[str] = None) -> List[Finding]:
+    """Files of every append-only layer (the archive) were not edited or deleted against ``base``."""
+    return append_only_findings(s.root, base, append_only_folders(s.contract)) if base else []
 
 
 def append_only_folders(contract: Dict[str, Any]) -> List[str]:
@@ -608,7 +610,7 @@ def append_only_folders(contract: Dict[str, Any]) -> List[str]:
     return folders
 
 
-def append_only_findings(root: Path, base: str, folders: Iterable[str] = (".agents/decisions",)) -> List[Finding]:
+def append_only_findings(root: Path, base: str, folders: Iterable[str] = (".agents/archive",)) -> List[Finding]:
     """Existing files under an append-only folder may not be edited, renamed or deleted against ``base`` (new files are fine;
     a folder's ``README.md`` router may change)."""
     folders = list(folders)
@@ -616,14 +618,14 @@ def append_only_findings(root: Path, base: str, folders: Iterable[str] = (".agen
         return []
     merge = git_out(root, "merge-base", base, "HEAD")
     if merge.returncode != 0:
-        return [Finding(folders[0], 1, "decisions", f"cannot compare with base `{base}`: {merge.stderr.strip()[:120]}", "fetch the base ref")]
+        return [Finding(folders[0], 1, "append_only", f"cannot compare with base `{base}`: {merge.stderr.strip()[:120]}", "fetch the base ref")]
     diff = git_out(root, "diff", "--name-status", "--no-renames", merge.stdout.strip(), "--", *folders)
     found = []
     for line in diff.stdout.splitlines():
         status, _, path = line.partition("\t")
         if status != "A" and path.endswith(".md") and not path.endswith("README.md"):
-            found.append(Finding(path, 1, "decisions", f"record files are append-only ({status} against {base})",
-                                 "write a new record that names what it replaces"))
+            found.append(Finding(path, 1, "append_only", f"record files are append-only ({status} against {base})",
+                                 "add a new file instead"))
     return found
 
 
@@ -755,7 +757,8 @@ def run(root: Path, paths: Optional[List[str]] = None, base: Optional[str] = Non
     found: List[Finding] = []
     for check in CHECKS.values():
         found += check(s)
-    found += check_decisions(s, base)
+    found += check_decisions(s)
+    found += check_append_only(s, base)
     if base:
         found += ratchet_base_findings(s, base)
     if paths:

@@ -7,7 +7,7 @@ On SFenton/native-home GitHub is the merge gate: ruleset ``main-checks`` require
 owner-kept set), the house denylist, the author and fork check, an independent reviewer pass for that head
 (:func:`review_verdict.has_pass`), the live ruleset (:mod:`ruleset_gate`) and the ``main`` base. ``tools/ship.sh`` calls it after the PR opens.
 
-A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a missing design record or a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
+A PR that touches a CODEOWNERS path, the owner-kept set, or that the app-UI gate parks, is the owner's to clear (a contradicting ``Gate:`` line is the agent's to fix): the owner approves this pull request on
 GitHub (their review of this exact head) and merges it there. There is no override flag. :func:`owner_recipe` prints the three ``gh``
 commands for that, for the owner only. :func:`owner_approval` reads that approval from GitHub on every call: when the lander is run again, the
 approval of the exact head answers an app-UI park and the ``Needs Decision`` label and nothing else (the owner-kept set, a missing design
@@ -213,7 +213,7 @@ def trusted_gate_clone(root: Path, origin: str, base: str) -> Path:
 def ui_gate(number: str, info: Dict[str, Any]) -> str:
     """The app-UI gate for this pull request, run as ``python3 -I <gate-trusted clone>/tools/lane_land.py gate --pr N``: the code,
     the Jev questions and ``agent_eval_measure.py`` all come from a clean checkout of the PR's base branch, never from this
-    checkout. Needs a design decision record plus Jev's verdict (``design.matches_request`` or ``design.app_wide``, the lander's
+    checkout. Needs Jev's verdict (``design.matches_request`` or ``design.app_wide``, the lander's
     thresholds). Raises :class:`GateRefused`; any other failure also stops the merge. Returns a note."""
     base, head = str(info.get("baseRefName") or ""), str(info.get("headRefOid") or "")
     if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", base) or ".." in base:

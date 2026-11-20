@@ -39,7 +39,11 @@ class Tree(unittest.TestCase):
 
     def checks(self, check, **kw):
         s = rl.load_surface(self.root)
-        return [f for f in (rl.check_decisions(s, kw.get("base")) if check == "decisions" else rl.CHECKS[check](s))]
+        if check == "decisions":
+            return rl.check_decisions(s)
+        if check == "append_only":
+            return rl.check_append_only(s, kw.get("base"))
+        return rl.CHECKS[check](s)
 
     def messages(self, check, **kw):
         return [f.render() for f in self.checks(check, **kw)]
@@ -246,7 +250,6 @@ class StructureTests(Tree):
         self.write(".agents/patterns/a.md", "# A\n")
         self.write(".agents/workflow/README.md", "# W\n\n[ci](ci.md)\n")
         self.write(".agents/workflow/ci.md", "# C\n")
-        self.write(".agents/decisions/README.md", "Anything\n")
         self.write(".claude/agents/coder.md", "---\nname: coder\n---\nbody\n")
         self.assertEqual(self.messages("structure"), [])
 
@@ -257,8 +260,7 @@ class StructureTests(Tree):
         self.write(".agents/patterns/b.md", "# B\n")
         self.write(".agents/patterns/sub/inner.md", "# I\n")
         self.write(".agents/workflow/README.md", "# W\n")
-        self.write(".agents/workflow/stray.md", "# S\n\nSee [why](../decisions/2026-11-10-x.md) and `.agents/archive/old.md`.\n")
-        self.write(".agents/decisions/2026-11-10-x.md", "# X\n")
+        self.write(".agents/workflow/stray.md", "# S\n\nSee [why](../archive/old.md) and `.agents/archive/old.md`.\n")
         found = self.messages("structure") + self.messages("ratchet")  # the patterns router is in a ratcheted layer and unlisted
         joined = "\n".join(found)
         self.assertIn("line 1 must be `# Title`", joined)
@@ -266,13 +268,13 @@ class StructureTests(Tree):
         self.assertIn("does not link the folder sub/", joined)
         self.assertIn("folder has markdown but no README.md", joined)
         self.assertIn("layer rules holds only the files listed", joined)
-        self.assertIn("links into decisions/", joined)
+        self.assertIn("links into archive/", joined)
         self.assertIn(".agents/archive/old.md", joined)
 
     def test_docs_conventions_and_routers_may_link_the_record(self):
         self.write(".agents/workflow/README.md", "# W\n\n[dc](docs-conventions.md)\n")
-        self.write(".agents/workflow/docs-conventions.md", "# D\n\n[why](../decisions/README.md)\n")
-        self.write(".agents/decisions/README.md", "x\n")
+        self.write(".agents/workflow/docs-conventions.md", "# D\n\n[why](../archive/README.md)\n")
+        self.write(".agents/archive/README.md", "x\n")
         self.assertEqual(self.messages("structure"), [])
 
 
@@ -327,49 +329,48 @@ class CoverageTests(Tree):
 
 
 class DecisionsTests(Tree):
-    GOOD = "# T\n\nDecision: a\nReplaces: none\nRule home: x\n"
+    """``.agents/decisions/`` stays empty: any file under it is an error, whatever its name or type."""
 
-    def test_a_well_formed_entry_passes(self):
-        self.write(".agents/decisions/README.md", "# D\n")
-        self.write(".agents/decisions/2026-11-10-some-thing.md", self.GOOD)
+    def test_an_empty_or_absent_folder_passes(self):
+        self.assertEqual(self.checks("decisions"), [])
+        (self.root / ".agents/decisions").mkdir(parents=True)
         self.assertEqual(self.checks("decisions"), [])
 
-    def test_a_bad_name_and_missing_front_lines_fail(self):
-        self.write(".agents/decisions/notes.md", "# T\n\nDecision: a\n")
-        found = self.messages("decisions")
-        self.assertTrue(any("YYYY-MM-DD-slug.md" in m for m in found))
-        self.assertTrue(any("`Replaces:`" in m for m in found))
-        self.assertTrue(any("`Rule home:`" in m for m in found))
+    def test_any_file_under_the_folder_is_an_error(self):
+        for rel in (".agents/decisions/README.md", ".agents/decisions/2026-11-10-some-thing.md", ".agents/decisions/notes.txt",
+                    ".agents/decisions/sub/deep.md"):
+            with self.subTest(rel=rel):
+                self.write(rel, "# T\n")
+                [found] = [f for f in self.checks("decisions") if f.path == rel]
+                self.assertEqual(found.check, "decisions")
+                self.assertIn("nothing may live under .agents/decisions/", found.message)
+                self.assertIn(rel, [f.path for f in rl.run(self.root) if f.check == "decisions"])
+                (self.root / rel).unlink()
+        self.assertEqual(self.checks("decisions"), [])
 
+    def test_the_command_line_exits_one_for_a_decision_file(self):
+        self.write("AGENTS.md", CLEAN)
+        self.write(".agents/decisions/2026-11-10-x.md", "# X\n")
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = rl.main(["--root", str(self.root)])
+        self.assertEqual(code, 1)
+        self.assertIn("[decisions] nothing may live under .agents/decisions/", out.getvalue())
+
+
+class AppendOnlyTests(Tree):
     def git(self, *args):
         return subprocess.run(["git", "-C", str(self.root), "-c", "user.email=t@t", "-c", "user.name=t", *args], capture_output=True, text=True, check=True)
-
-    def test_existing_decisions_are_append_only_against_a_base(self):
-        self.git("init", "-q", "-b", "main")
-        self.write(".agents/decisions/2026-11-01-old.md", self.GOOD)
-        self.git("add", "-A")
-        self.git("commit", "-qm", "base")
-        self.git("checkout", "-qb", "lane")
-        self.write(".agents/decisions/2026-11-10-new.md", self.GOOD)
-        self.write(".agents/decisions/README.md", "# changed\n")
-        self.assertEqual(self.checks("decisions", base="main"), [])
-        self.write(".agents/decisions/2026-11-01-old.md", self.GOOD + "edited\n")
-        [found] = self.checks("decisions", base="main")
-        self.assertIn("append-only", found.message)
-        self.assertIn("2026-11-01-old.md", found.path)
-        (self.root / ".agents/decisions/2026-11-01-old.md").unlink()
-        [found] = self.checks("decisions", base="main")
-        self.assertIn("(D against main)", found.message)
 
     def test_an_unknown_base_is_reported(self):
         self.git("init", "-q", "-b", "main")
         self.git("commit", "-q", "--allow-empty", "-m", "x")
-        [found] = self.checks("decisions", base="nope")
+        [found] = self.checks("append_only", base="nope")
         self.assertIn("cannot compare with base", found.message)
 
     def test_every_append_only_folder_of_the_contract_is_held(self):
         """Fails if: `append_only` on the record layer is read by nothing, so an archived file can be edited or deleted."""
-        self.assertEqual(rl.append_only_folders(rl.load_contract(self.root)), [".agents/decisions", ".agents/archive"])
+        self.assertEqual(rl.append_only_folders(rl.load_contract(self.root)), [".agents/archive"])
         self.git("init", "-q", "-b", "main")
         self.write(".agents/archive/specs/old.md", "# Old\n")
         self.git("add", "-A")
@@ -377,12 +378,12 @@ class DecisionsTests(Tree):
         self.git("checkout", "-qb", "lane")
         self.write(".agents/archive/specs/new.md", "# New\n")
         self.write(".agents/archive/README.md", "# changed\n")
-        self.assertEqual(self.checks("decisions", base="main"), [])
+        self.assertEqual(self.checks("append_only", base="main"), [])
         self.write(".agents/archive/specs/old.md", "# Old\n\nedited\n")
-        [found] = self.checks("decisions", base="main")
+        [found] = self.checks("append_only", base="main")
         self.assertEqual((found.path, "append-only" in found.message), (".agents/archive/specs/old.md", True))
         (self.root / ".agents/archive/specs/old.md").unlink()
-        [found] = self.checks("decisions", base="main")
+        [found] = self.checks("append_only", base="main")
         self.assertIn("(D against main)", found.message)
 
 
@@ -585,7 +586,7 @@ class CliTests(Tree):
         code, out, _err = self.run_main()
         self.assertEqual(code, 1)
         self.assertIn("AGENTS.md:3: [forbidden]", out)
-        self.assertIn("-> the PR description or .agents/decisions/", out)
+        self.assertIn("-> the PR description (why and when)", out)
         self.assertIn("1 findings in 1 files: forbidden 1", out)
 
     def test_paths_limits_the_report(self):
@@ -611,7 +612,7 @@ class CliTests(Tree):
     def test_report_gives_words_per_layer_and_role_load(self):
         self.write("AGENTS.md", CLEAN)
         self.write(".claude/agents/coder.md", "# C\n\nbody\n")
-        self.write(".agents/decisions/2026-11-10-x.md", "# X\n\nsome words here\n")
+        self.write(".agents/archive/x.md", "# X\n\nsome words here\n")
         _code, out, _err = self.run_main("--report")
         data = json.loads(out)
         self.assertEqual(data["layers"]["core"]["files"], 1)
@@ -647,7 +648,7 @@ class HookTests(Tree):
         self.assertEqual(code, 2)
         self.assertIn("present tense", err)
         self.assertIn("line 3", err)
-        self.assertIn("Home for that content: the PR description or .agents/decisions/", err)
+        self.assertIn("Home for that content: the PR description (why and when)", err)
 
     def test_a_clean_write_and_other_files_pass(self):
         self.assertEqual(self.run_hook(self.payload("Write", file_path=str(self.root / "AGENTS.md"), content=CLEAN))[0], 0)
