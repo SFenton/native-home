@@ -36,7 +36,7 @@ RETRY = (
 SUBAGENT = (
     "Blocked: a sub-agent's background job is killed when its turn ends. Run it as a foreground Bash call with timeout "
     "up to 600000 (milliseconds), splitting it into calls that each fit (for example one device family per call). A job "
-    "that cannot fit: report `blocked` so the orchestrator launches it from the main session. "
+    "that cannot fit: report `blocked` with the exact `tools/bg_run.py` command, so the orchestrator runs it unchanged from the main session. "
     "See .agents/workflow/token-economy.md."
 )
 

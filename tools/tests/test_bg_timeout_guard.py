@@ -63,10 +63,6 @@ class BgTimeoutGuardTests(unittest.TestCase):
         self.assertEqual(run_hook(bash(command="echo 'x; " + COVERAGE, run_in_background=True))[0], 2)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class SubagentBackgroundTests(unittest.TestCase):
     BG_RUN = "tools/bg_run.py x -- true"
 
@@ -88,3 +84,7 @@ class SubagentBackgroundTests(unittest.TestCase):
     def test_subagent_foreground_job_passes(self):
         self.assertEqual(run_hook(self.payload(command=self.BG_RUN))[0], 0)
         self.assertEqual(run_hook(self.payload(command=self.BG_RUN, run_in_background=False))[0], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -6,7 +6,7 @@ Cost is turns times context; a turn that only waits costs as much as one that wo
 
 ## Waiting
 
-- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest. A sub-agent's background job dies with its turn: it runs in the foreground (`timeout` up to 600000, a piece per call) or is reported `blocked`. `no_poll.py` and `bg_timeout_guard.py` enforce this.
+- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest. A sub-agent's background job dies with its turn: it runs foreground (`timeout` up to 600000, a piece per call) or reports `blocked` with the exact command. Hooks enforce this.
 - **Read the digest, not the log.** Open the log only for a failure the digest cannot explain.
 - **Infra is the machine, not the test.** Rerun once, then report it.
 - **Long jobs carry a timeout.** `tools/bg_run.py --expect-minutes` prints the value; `tools/hooks/bg_timeout_guard.py` refuses a long background test run without one.
