@@ -47,6 +47,8 @@ public struct ComponentGallery {
         case sheetOrigin = "sheet-origin"
         /// A composition with one kept-text slot per host, whose source the page drives (`FENTON_GALLERY=text-keep`; T-text-keep).
         case textKeep = "text-keep"
+        /// A page whose sections take the two sides of the hinge, with buttons that stand in for the Duo's pose (`FENTON_GALLERY=fold-sides`; `sh.fold-sides@1`).
+        case foldSides = "fold-sides"
     }
 
     /// The page requested at launch, if any. The whole type is debug-only.
