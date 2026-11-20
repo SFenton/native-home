@@ -918,16 +918,13 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 onError(UKServerUIRendererError(code: .differentDocument, pointer: "/document/pages"))
                 return
             }
-            // A page drops the header items it hides; a sheet's pages inherit the sheet's own chrome untouched (`sh.page-chrome-hide@1`).
-            let groups = presentation == nil
-                ? ServerUIChromeHide.groups(inherited, applying: publication.document.pages.first { $0.id == id }?.hides) : inherited
             if depth < existing.count, let page = existing[depth] as? UKServerUIPage,
                page.surfaceID == id, desired.count == depth {
-                if updateBodies { page.update(surface, inheritedGroups: groups, close: close) }
+                if updateBodies { page.update(surface, inheritedGroups: inherited, close: close) }
                 desired.append(page)
             } else {
                 desired.append(UKServerUIPage(surface: surface, context: context, root: root, presentationID: presentation,
-                    depth: depth, inheritedGroups: groups, close: close, renderer: self,
+                    depth: depth, inheritedGroups: inherited, close: close, renderer: self,
                     columnPlaceholder: presentation == nil ? publication.document.pages.first { $0.id == id }?.columnPlaceholder : nil))
             }
         }
@@ -961,6 +958,11 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             }
         }
         let host = hostIndex.map { pages[$0] }
+        // Each page drops the header items it hides; the columns share the host's one bar, so there the page opened last decides.
+        for page in pages { page.chromeHides = publication.document.pages.first { $0.id == page.surfaceID }?.hides }
+        if let host, let last = pages.last, last !== host {
+            host.chromeHides = publication.document.pages.first { $0.id == last.surfaceID }?.hides
+        }
         for page in pages where page !== host { page.columns?.setWide(false) }
         if let index = hostIndex, let host {
             host.loadViewIfNeeded()

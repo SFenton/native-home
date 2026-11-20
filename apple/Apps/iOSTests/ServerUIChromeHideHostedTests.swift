@@ -144,13 +144,33 @@ final class ServerUIChromeHideHostedTests: XCTestCase {
                 let root = try ServerUIRendererFixture.root(renderer)
                 XCTAssertTrue(HostedPage.until { self.identifiers(root).contains(Self.hiddenItem) }, "the root keeps it (\(style), \(layout))")
                 let echo = try push(renderer)
+                // Where the window shows columns the host page holds the one bar; otherwise the page itself does.
+                let bar = layout == .columns && root.columns?.isWide == true ? root : echo
                 XCTAssertFalse(barHidden(renderer), "items only keeps the bar (\(style), \(layout))")
-                XCTAssertTrue(HostedPage.until { self.identifiers(echo).contains(Self.keptItem) }, "the other buttons stay (\(style), \(layout))")
-                XCTAssertFalse(identifiers(echo).contains(Self.hiddenItem), "the named button is gone (\(style), \(layout))")
+                XCTAssertTrue(HostedPage.until { self.identifiers(bar).contains(Self.keptItem) }, "the other buttons stay (\(style), \(layout))")
+                XCTAssertTrue(HostedPage.until { !self.identifiers(bar).contains(Self.hiddenItem) }, "the named button is gone (\(style), \(layout))")
                 try back(renderer, from: echo)
-                XCTAssertTrue(identifiers(root).contains(Self.hiddenItem), "Back brings it back (\(style), \(layout))")
+                XCTAssertTrue(HostedPage.until { self.identifiers(root).contains(Self.hiddenItem) }, "Back brings it back (\(style), \(layout))")
             }
         }
+    }
+
+    /// In a wide window the columns share one bar, held by the host page: the page opened last decides what it leaves out.
+    func testInAWideWindowTheColumnsShareOneBarAndThePageOpenedLastDecides() throws {
+        let (renderer, window) = try host(publication(echo: Self.hides(tabs: true, items: [Self.hiddenItem]), columns: true), style: .topBar, layout: .columns)
+        defer { window.isHidden = true }
+        let root = try ServerUIRendererFixture.root(renderer)
+        // The iPhone and the folded Duo have a scene too narrow to hold two columns; the iPad and the unfolded Duo hold them.
+        try XCTSkipUnless(HostedPage.until { root.columns?.isWide == true }, "the scene is too narrow to show columns")
+        XCTAssertTrue(HostedPage.until { self.identifiers(root).contains(Self.hiddenItem) }, "the root's bar has the button before the push")
+        let echo = try push(renderer)
+        XCTAssertTrue(root.columns?.isWide == true, "the push left the columns")
+        XCTAssertTrue(HostedPage.until { !self.identifiers(root).contains(Self.hiddenItem) }, "the shared bar still draws the button the last page hides")
+        XCTAssertTrue(identifiers(root).contains(Self.keptItem), "the shared bar lost the buttons the last page keeps")
+        XCTAssertTrue(HostedPage.until { self.barHidden(renderer) })
+        try back(renderer, from: echo)
+        XCTAssertTrue(HostedPage.until { self.identifiers(root).contains(Self.hiddenItem) }, "Back did not return the button")
+        XCTAssertTrue(HostedPage.until { !self.barHidden(renderer) })
     }
 
     /// Both together hide the bar and the button.
