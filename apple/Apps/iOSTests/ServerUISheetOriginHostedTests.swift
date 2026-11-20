@@ -11,7 +11,12 @@ import XCTest
 /// Run unchanged on iPhone, iPhone Duo and iPad.
 @MainActor
 final class ServerUISheetOriginHostedTests: XCTestCase {
+    /// The windows the test opened: `HostedPage.show` keeps its window weakly, and a window that deallocates sends its page
+    /// `viewDidDisappear`, which rests the page's node observations, so the page stops drawing and following the store.
+    private var windows: [UIWindow] = []
+
     override func tearDown() async throws {
+        windows.removeAll()
         HostedPage.hideTracked()
         HostedPage.resetGlobals()
         try await super.tearDown()
@@ -79,6 +84,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let renderer = try UKServerUIRenderer(publication: publication(adaptive: adaptive, homed: homed, hideBeta: hideBeta), context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), shellHeader: source)
         let window = HostedPage.show(renderer, size: adaptive ? HostedPage.splitSize : nil)
+        windows.append(window)
         if adaptive { renderer.setOverrideTraitCollection(UITraitCollection(horizontalSizeClass: .regular), forChild: renderer.tabController) }
         HostedPage.wait(0.1)
         return (renderer, window)
@@ -265,7 +271,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIGlobalChrome.$understood.withValue(true) { try ServerUIRendererFixture.publication(document) }
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()),
             backdrop: ServerUIRendererFixture.backdrop(), records: records)
-        _ = HostedPage.show(host)
+        windows.append(HostedPage.show(host))
         HostedPage.wait(0.1)
         return (host, draft)
     }
@@ -554,7 +560,7 @@ final class ServerUISheetOriginHostedTests: XCTestCase {
         let publication = try ServerUIRendererFixture.publication(json)
         XCTAssertFalse(publication.document.declaresSheetLevels)
         let host = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore()), backdrop: ServerUIRendererFixture.backdrop())
-        _ = HostedPage.show(host)
+        windows.append(HostedPage.show(host))
         HostedPage.wait(0.1)
         let sheet = try openSheet(host, from: ServerUIRendererFixture.root(host))
         host.activate(push(Self.echo), from: sheet)
