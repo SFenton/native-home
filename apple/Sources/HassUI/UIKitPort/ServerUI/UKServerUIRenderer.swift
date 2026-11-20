@@ -1126,21 +1126,43 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
             guard !leaving.contains(where: \.blocksExit) else { onError(blocked()); return }
             UKDiscardGuard.confirm(from: page, source: source.map(UKPopoverSource.view) ?? .none) { [weak self, weak page] in
                 guard let self, let page else { return }
-                self.lastDiscardReplayError = nil
-                do {
-                    for form in leaving { try form.discard() }
-                    try self.perform(action, from: page, source: source, symbol: symbol)
-                } catch {
-                    // The sanitized blocked reason below is all a person or the error sink sees; the real error stays here for a hosted test.
-                    self.lastDiscardReplayError = error
-                    self.onError(self.blocked())
-                }
+                self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol)
             }
             return
         }
         do { try perform(action, from: page, source: source, symbol: symbol, control: control, site: site, confirmed: confirmed) }
         catch let error as UKServerUIRendererError { onError(error) }
         catch { onError(blocked()) }
+    }
+
+    /// Replays an action after the person chose Discard: drops the drafts of the forms it leaves, then performs it.
+    ///
+    /// The replay waits for any alert still on screen to finish its transition (its coordinator's completion, never a timer): `perform`
+    /// refuses every intent while an alert is up, and the discard dialog's own dismissal can still be running when its completion fires, which
+    /// left the person where they were with the draft discarded.
+    /// - Parameters:
+    ///   - leaving: The forms the action leaves behind.
+    ///   - action: The action to replay.
+    ///   - page: The page that sent it.
+    ///   - source: The sending view.
+    ///   - symbol: The sending symbol.
+    private func replayDiscard(_ leaving: [UKServerUIFormView], action: D.Action, from page: UKServerUIPage, source: UIView?, symbol: String) {
+        lastDiscardReplayError = nil
+        if let alert = activeAlert, let coordinator = alert.transitionCoordinator ?? alert.presentingViewController?.transitionCoordinator {
+            coordinator.animate(alongsideTransition: nil) { [weak self, weak page, weak source] _ in
+                guard let self, let page else { return }
+                self.replayDiscard(leaving, action: action, from: page, source: source, symbol: symbol)
+            }
+            return
+        }
+        do {
+            for form in leaving { try form.discard() }
+            try perform(action, from: page, source: source, symbol: symbol)
+        } catch {
+            // The sanitized blocked reason below is all a person or the error sink sees; the real error stays here for a hosted test.
+            lastDiscardReplayError = error
+            onError(blocked())
+        }
     }
 
     /// The same intent boundary is available to hosted tests and the parent's integration adapter.
