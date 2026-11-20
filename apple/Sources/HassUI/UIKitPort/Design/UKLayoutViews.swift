@@ -103,7 +103,53 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     private let flow = UKFlowView(spacing: HassTokens.Spacing.s)
     private var chips: [UIView] = []
     /// The window's hinge in window coordinates, if any.
-    var hinge: CGRect? { didSet { if hinge != oldValue { setNeedsLayout() } } }
+    var hinge: CGRect? {
+        didSet {
+            guard hinge != oldValue else { return }
+            setNeedsLayout()
+            // A wrapped rail's rows depend on where the band is, so its height, and the containers above, can change.
+            if mode == .wrap { ukRemeasureContainers(includingSelf: true) }
+        }
+    }
+
+    /// Reads the window's fold itself, as a page grid does (``UKDynamicGridView/followsFold``): ``hinge`` becomes the band while the
+    /// Duo is partly folded and nil otherwise. It follows ``UKHinge`` and applies a change one turn after it was published, so the
+    /// posture change moves the rail inside ``UKReflow``'s animation and nothing is written from a layout pass.
+    var followsFold = false {
+        didSet {
+            guard followsFold != oldValue else { return }
+            if followsFold {
+                NotificationCenter.default.addObserver(self, selector: #selector(foldChanged), name: UKHinge.didChange, object: nil)
+                applyFold()
+            } else {
+                NotificationCenter.default.removeObserver(self, name: UKHinge.didChange, object: nil)
+                hinge = nil
+            }
+        }
+    }
+
+    @objc private func foldChanged() {
+        // After the observers of the same publish, before ``UKReflow`` animates (it hops twice).
+        DispatchQueue.main.async { [weak self] in self?.applyFold() }
+    }
+
+    private func applyFold() {
+        guard followsFold else { return }
+        hinge = UKHinge.frame
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { applyFold() }
+    }
+
+    /// The trailing inset the rail applies for its ``mode`` and ``hinge``, from the rail's full-width frame in the window
+    /// (``ChipRailMetrics/appliedInset(measured:hinge:mode:)``): zero for a scrolling rail, which crosses the band.
+    /// - Parameter railFrame: The rail's full-width frame in window coordinates.
+    func appliedTrailingInset(railFrame: CGRect) -> CGFloat {
+        ChipRailMetrics.appliedInset(measured: ChipRailMetrics.trailingInset(railFrame: railFrame, hinge: hinge), hinge: hinge, mode: mode)
+    }
+
     /// The space before the first chip and after the last one. The default is the page gutter, for a rail laid edge to edge; a rail
     /// inside a page that already pads its sides (a composed page's `layout.padding`) takes the part of the gutter the page lacks
     /// (``edgeInset(pagePadding:)``), so the chips start where the page's other rows do and not one gutter further in.
@@ -164,8 +210,21 @@ final class UKChipRailView: UIView, UKGridMeasuring {
     func gridHeight(forWidth width: CGFloat) -> CGFloat {
         switch mode {
         case .scroll: rowSizes.map(\.height).max() ?? 0
-        case .wrap: flow.gridHeight(forWidth: max(0, width - 2 * edgeInset))
+        case .wrap: flow.gridHeight(forWidth: wrapWidth(forWidth: width))
         }
+    }
+
+    /// The width the wrapped rows fill in a rail `width` wide: the page gutter on the leading side, and on the trailing side the
+    /// gutter or, partly folded, the gap that keeps the chips ``ChipRailMetrics/hingeGap`` short of the band, whichever is larger.
+    /// The rail's window frame is read only with a hinge, since it is recomputed on every scrolled frame.
+    private func wrapWidth(forWidth width: CGFloat) -> CGFloat {
+        var trailing = edgeInset
+        if hinge != nil, window != nil {
+            var railFrame = convert(bounds, to: nil)
+            railFrame.size.width = width
+            trailing = max(trailing, appliedTrailingInset(railFrame: railFrame))
+        }
+        return max(0, width - edgeInset - trailing)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize { CGSize(width: size.width, height: gridHeight(forWidth: size.width)) }
@@ -178,7 +237,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
         case .scroll:
             // Measured on the full-width frame, so the inset never feeds back into the frame it is computed from.
             let railFrame = hinge == nil ? .zero : convert(bounds, to: nil)
-            let inset = ChipRailMetrics.appliedInset(measured: ChipRailMetrics.trailingInset(railFrame: railFrame, hinge: hinge), hinge: hinge)
+            let inset = appliedTrailingInset(railFrame: railFrame)
             let width = max(0, bounds.width - inset)
             scrollView.frame = CGRect(x: 0, y: 0, width: width, height: bounds.height)
             let sizes = rowSizes
@@ -201,7 +260,7 @@ final class UKChipRailView: UIView, UKGridMeasuring {
                 scrollView.contentOffset.x = ChipRailMetrics.hostedLeadingOffset(contentWidth: content.width, boundsWidth: scrollView.bounds.width, isRightToLeft: true)
             }
         case .wrap:
-            flow.frame = CGRect(x: margin, y: 0, width: max(0, bounds.width - 2 * margin), height: bounds.height)
+            flow.frame = CGRect(x: margin, y: 0, width: wrapWidth(forWidth: bounds.width), height: bounds.height)
         }
     }
 }

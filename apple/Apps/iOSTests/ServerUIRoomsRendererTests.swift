@@ -1,4 +1,5 @@
 import HassCore
+import HassDesign
 import UIKit
 import XCTest
 @testable import HassUI
@@ -79,6 +80,90 @@ final class ServerUIRoomsRendererTests: XCTestCase {
             try host.apply(publication: ServerUIRendererFixture.publication(next), backdrop: ServerUIRendererFixture.backdrop())
             XCTAssertTrue(page.nodes["room-chip-demo"]?.view === chip)
         }
+    }
+
+    // MARK: Status rail follows the fold
+
+    private let foldBand = CGRect(x: 455.3, y: 0, width: 40.4, height: 682)
+
+    /// A Studio page with one status rail, hosted in the unfolded Duo's inner display.
+    private func railHost(category: UIContentSizeCategory?) throws -> (UKServerUIRenderer, UIWindow, UKChipRailView) {
+        var value = try ServerUIRendererFixture.roomsJSON()
+        let children = try XCTUnwrap(value["document"]?["pages"]?.array?[0]["components"]?.array?[1]["children"]?.array)
+        let rail: JSONValue = .object(["id": "room-rail", "title": "Overview", "type": "status-rail",
+            "layout": .object(["span": .number(1)]), "props": .object([:]), "children": .array([children[1]])])
+        value = try ServerUIRendererFixture.changing(value, path: "/document/pages/0/components/1/children", to: .array([children[0], rail]))
+        let capabilities = try XCTUnwrap(value["capabilities"]?.array) + [.string("sh.status-rail@1")]
+        value = try ServerUIRendererFixture.changing(value, path: "/capabilities",
+            to: .array(capabilities.sorted { ($0.string ?? "") < ($1.string ?? "") }))
+        let (host, window, _) = try ServerUIRendererFixture.roomHost(size: CGSize(width: 951, height: 682), json: value)
+        let page = try ServerUIRendererFixture.root(host)
+        if let category { page.traitOverrides.preferredContentSizeCategory = category }
+        HostedPage.layoutTracked()
+        return (host, window, try XCTUnwrap(page.nodes["room-rail"]?.view as? UKChipRailView))
+    }
+
+    private func settleFold(_ rail: UIView) {
+        HostedPage.wait(0.3)
+        rail.window?.layoutIfNeeded()
+        rail.layoutIfNeeded()
+    }
+
+    /// A live posture change reaches the rail with no re-render, and a scrolling rail keeps crossing the band both ways.
+    func testScrollRailFollowsALiveFoldAndStillCrossesTheBand() throws {
+        let (_, window, rail) = try railHost(category: nil)
+        defer { window.isHidden = true }
+        XCTAssertEqual(rail.mode, .scroll)
+        XCTAssertNil(rail.hinge, "flat: no band")
+        UKHinge.hasFold = true
+        UKHinge.frame = foldBand
+        settleFold(rail)
+        XCTAssertEqual(rail.hinge, foldBand, "partly folded: the rail took the band without a render")
+        let scroller = try XCTUnwrap(HostedPage.descendants(of: rail).first { $0.accessibilityIdentifier == "chipRail.scroll" })
+        XCTAssertEqual(scroller.frame.width, rail.bounds.width, accuracy: 0.5, "a scrolling rail crosses the band, no 24 pt gap")
+        XCTAssertEqual(rail.appliedTrailingInset(railFrame: rail.convert(rail.bounds, to: nil)), 0)
+        UKHinge.frame = nil
+        settleFold(rail)
+        XCTAssertNil(rail.hinge, "flat again: the band is gone")
+        XCTAssertEqual(scroller.frame.width, rail.bounds.width, accuracy: 0.5)
+    }
+
+    /// The wrap counterpart: an accessibility-size rail follows the fold too, and while partly folded its chips end
+    /// ``ChipRailMetrics/hingeGap`` before the band; flat, it draws exactly the frames it drew before the fold.
+    func testWrappedRailFollowsALiveFoldAndKeepsClearOfTheBand() throws {
+        let (_, window, rail) = try railHost(category: .accessibilityExtraExtraExtraLarge)
+        defer { window.isHidden = true }
+        XCTAssertEqual(rail.mode, .wrap)
+        func chipFrames() -> [CGRect] {
+            HostedPage.descendants(of: rail).filter { $0 is UKRoomChipView || $0 is UKStatusChipView }.map { $0.convert($0.bounds, to: nil) }
+        }
+        let flat = chipFrames()
+        XCTAssertFalse(flat.isEmpty)
+        XCTAssertEqual(rail.appliedTrailingInset(railFrame: rail.convert(rail.bounds, to: nil)), 0, "no band, no inset")
+        UKHinge.hasFold = true
+        UKHinge.frame = foldBand
+        settleFold(rail)
+        XCTAssertEqual(rail.hinge, foldBand)
+        let folded = chipFrames()
+        XCTAssertFalse(folded.isEmpty)
+        for frame in folded {
+            XCTAssertLessThanOrEqual(frame.maxX, foldBand.minX - ChipRailMetrics.hingeGap + 0.5, "chip \(frame) ends before the band's gap")
+        }
+        UKHinge.frame = nil
+        settleFold(rail)
+        XCTAssertNil(rail.hinge)
+        XCTAssertEqual(chipFrames(), flat, "flat again: the same frames as before the fold")
+    }
+
+    /// Lying flat the hinge band is nil, so a wrapped rail draws the frames it always did.
+    func testWrappedRailIsUnchangedWhenLyingFlat() throws {
+        let (_, window, rail) = try railHost(category: .accessibilityExtraExtraExtraLarge)
+        defer { window.isHidden = true }
+        let before = HostedPage.descendants(of: rail).map { $0.convert($0.bounds, to: nil) }
+        UKHinge.hasFold = true
+        UKHinge.frame = nil
+        settleFold(rail)
+        XCTAssertEqual(HostedPage.descendants(of: rail).map { $0.convert($0.bounds, to: nil) }, before)
     }
 
     func testLiveVisibilityAndRankingKeepRetainedRoomTiles() throws {
