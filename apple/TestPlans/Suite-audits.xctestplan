@@ -52,6 +52,7 @@
         "PerformanceJourneyTests/testPerformanceScreenPassesAccessibilityAudit()",
         "RoomDevicesGrillJourneyTests/testGrillPassesAudit()",
         "RoomDevicesGrillJourneyTests/testGrillPassesAuditInIPadLandscape()",
+        "RoomTabLiveJourneyTests/testTheLandedRoomPassesTheAccessibilityAudit()",
         "SettingsJourneyTests/testHaSettingsPassesAccessibilityAudit()",
         "SettingsJourneyTests/testSettingsTabPassesAccessibilityAudit()",
         "SettingsJourneyTests/testSignOutConfirmationPassesAudit()",

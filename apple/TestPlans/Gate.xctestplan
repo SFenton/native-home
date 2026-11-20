@@ -50,6 +50,7 @@
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
         "RoomDevicesCaptureJourneyTests",
+        "RoomTabLiveJourneyTests",
         "ServerUIProdSmokeJourneyTests",
         "SettingsJourneyTests",
         "SpotlightJourneyTests",

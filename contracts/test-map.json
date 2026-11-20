@@ -20,7 +20,8 @@
  "layoutJourneys": [
   "LayoutJourneyTests",
   "ModalSizingJourneyTests",
-  "TileLayoutJourneyTests"
+  "TileLayoutJourneyTests",
+  "RoomTabLiveJourneyTests"
  ],
  "ignore": [
   ".agents/",
@@ -2432,6 +2433,27 @@
     "UKHostedShellTests",
     "UKHostedRootTests",
     "ServerUILogicCountersHostedTests"
+   ]
+  },
+  {
+   "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRenderer.swift",
+   "swift": [],
+   "journeys": [
+    "RoomTabLiveJourneyTests"
+   ],
+   "hosted": [
+    "ServerUIBootstrapHostedTests",
+    "ServerUIRendererNavigationTests",
+    "ServerUIShellRendererTests",
+    "ServerUISettingsRendererTests",
+    "ServerUIRendererBindingsTests",
+    "ServerUIRendererPreflightTests",
+    "ServerUIHomeHostedTests",
+    "ServerUIRoomsRendererTests",
+    "UKHostedShellTests",
+    "UKHostedRootTests",
+    "ServerUILogicCountersHostedTests",
+    "ServerUISheetOriginHostedTests"
    ]
   },
   {

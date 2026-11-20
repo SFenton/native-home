@@ -8496,10 +8496,12 @@
         "rooms-detail-pushed-in-sheet",
         "choose-page",
         "sheet-dismisses",
-        "page-pushes-after-dismissal"
+        "page-pushes-after-dismissal",
+        "other-tab-room-on-home-tab"
       ],
       "motionHint": [
-        "sheet dismisses first; the push runs after `onDismiss` so the two never race"
+        "sheet dismisses first; the push runs after `onDismiss` so the two never race",
+        "a homed page chosen on another tab: the sheet dismisses, then the tab changes as a cut with the page on top of its home tab's stack"
       ],
       "inFlight": null,
       "owner": "shell-navigation",

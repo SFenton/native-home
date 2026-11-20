@@ -43,6 +43,48 @@ import Testing
         #expect(initial.snapshot.stacks[.initial] == ["page-orbit"])
     }
 
+    // MARK: - Push on another tab
+
+    @Test func pushOnATabSelectsItAndAppendsOnTopOfItsStack() throws {
+        let state = try ServerUINavigationState(catalog: document())
+        try state.selectTab("tab-a")
+        try state.push(pageID: "leaf")
+        try state.selectTab("tab-b")
+        try state.push(pageID: "detail")
+        try state.selectTab("tab-a")
+        try state.push(pageID: "detail", onTab: "tab-b")
+        #expect(state.snapshot.selection == .tab("tab-b"))
+        #expect(state.snapshot.stacks[.tab("tab-b")] == ["beta", "detail"], "not trimmed to its root")
+        try state.push(pageID: "leaf", onTab: "tab-b")
+        #expect(state.snapshot.stacks[.tab("tab-b")] == ["beta", "detail", "leaf"])
+        #expect(state.snapshot.stacks[.tab("tab-a")] == ["alpha", "leaf"], "other stacks are untouched")
+    }
+
+    @Test func pushOnATabReusesAnAncestorAndDoesNothingWhenAlreadyOnTop() throws {
+        let state = try ServerUINavigationState(catalog: document())
+        try state.push(pageID: "detail")
+        try state.push(pageID: "leaf")
+        try state.selectTab("tab-a")
+        try state.push(pageID: "detail", onTab: "tab-b")
+        #expect(state.snapshot.selection == .tab("tab-b"))
+        #expect(state.snapshot.stacks[.tab("tab-b")] == ["beta", "detail"], "popped to the page, not pushed again")
+        let before = state.snapshot
+        try state.push(pageID: "detail", onTab: "tab-b")
+        #expect(state.snapshot == before)
+    }
+
+    @Test func pushOnATabRefusesWithoutChangingTheState() throws {
+        let state = try ServerUINavigationState(catalog: document())
+        let before = state.snapshot
+        #expect(throws: ServerUINavigationState.Failure.unknownTab) { try state.push(pageID: "detail", onTab: "missing") }
+        #expect(throws: ServerUINavigationState.Failure.unknownPage) { try state.push(pageID: "missing", onTab: "tab-a") }
+        #expect(state.snapshot == before)
+        try state.present(modalID: "panel-a")
+        let open = state.snapshot
+        #expect(throws: ServerUINavigationState.Failure.interactionBlocked) { try state.push(pageID: "detail", onTab: "tab-a") }
+        #expect(state.snapshot == open)
+    }
+
     @Test func compositionRejectsAnotherPresentationOrTabSwitchUntilDismissal() throws {
         let state = try ServerUINavigationState(catalog: compositionCatalog())
         let instance = try state.present(modalID: "modal-swatch")

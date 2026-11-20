@@ -128,4 +128,42 @@ import Testing
             if let error, rule["type"] as? String != "state" { #expect(error.code == .invalidCombination, "\(rule)") }
         }
     }
+
+    // MARK: - Home tab
+
+    /// A document whose routes name `page-echo` once for each entry of `tabs` (nil: a route with no tab).
+    private func homeTab(of page: String = "page-echo", routes tabs: [String?]) throws -> String? {
+        let data = try bytes { targets in
+            targets["routes"] = try tabs.enumerated().map { index, tab in
+                try route("echo-\(index)", "echo-\(index)", extra: ["pageId": "page-echo"].merging(tab.map { ["tabId": $0] } ?? [:]) { $1 })
+            }
+        }
+        return try ServerUICompositionPublication.decode(data).document.homeTab(of: page)
+    }
+
+    @Test func aPageIsHomedOnTheTabItsRouteNames() throws {
+        #expect(try homeTab(routes: ["tab-beta"]) == "tab-beta")
+    }
+
+    @Test func aPageNoRouteNamesATabForIsNotHomed() throws {
+        #expect(try homeTab(routes: []) == nil)
+        #expect(try homeTab(routes: [nil]) == nil, "a route with no tab says nothing")
+        #expect(try homeTab(of: "page-orbit", routes: ["tab-beta"]) == nil, "another page's route does not home it")
+    }
+
+    @Test func routesThatAgreeHomeThePageAndRoutesThatDisagreeDoNot() throws {
+        #expect(try homeTab(routes: ["tab-beta", "tab-beta"]) == "tab-beta")
+        #expect(try homeTab(routes: ["tab-beta", nil]) == "tab-beta")
+        #expect(try homeTab(routes: ["tab-alpha", "tab-beta"]) == nil)
+    }
+
+    @Test func theLookupAnswersOnlyForThePageItsRouteNames() throws {
+        // A route naming a tab the publication lacks never decodes (`attachmentsMustExistInTheAcceptedCatalog`), so `homeTab` also checks the tab.
+        let data = try bytes { targets in
+            targets["routes"] = [try route("echo", "echo", extra: ["pageId": "page-echo", "tabId": "tab-beta"])]
+        }
+        let document = try ServerUICompositionPublication.decode(data).document
+        #expect(document.homeTab(of: "page-echo") == "tab-beta")
+        #expect(document.homeTab(of: "missing") == nil)
+    }
 }
