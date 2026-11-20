@@ -64,7 +64,7 @@
    *   badge?:number, choresBadge?:number, flyoutOpen?:boolean, floating?:Node, scrollTop?:number, collapsed?:boolean, noTabs?:boolean, noHeaderButtons?:boolean, profileName?:string, bottomPad?:number}} o
    *   section: which tab/flyout row is selected ('home'|'security'|'climate'|'chores'|'settings'); back: pushed page (the chevron alone; VoiceOver says "Back", the previous title is only in the long-press menu);
    *   noTabs and noHeaderButtons: a page that hides the tab navigator and the Quick Links and Profile items (pages[].hides, sh.page-chrome-hide@1); Back stays;
-   connection: 'reconnecting' draws the arc left of Quick Links;
+   *   connection: 'reconnecting' draws the arc left of Quick Links;
    *   badge: Profile attention count; choresBadge: overdue chores on the Chores tab/row; floating: a FloatingActionBar node; collapsed: the scrolled state where the large title has collapsed into
    *   the bar's inline title (it also fades in by itself as any page scrolls; the Page scroll control's Top resets it, Middle and End scroll on).
    */

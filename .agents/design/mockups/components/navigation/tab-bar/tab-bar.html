@@ -37,12 +37,18 @@
   /* A page that hides the tabs and Quick Links (pages[].hides, sh.page-chrome-hide@1): Back stays, the bar leaves with the push and returns with Back. */
   states['page-hides-chrome'] = { title: 'A page that hides the tabs and Quick Links', note: 'hides { tabs: true, items: [Quick Links and Profile] } on the pushed page; the root keeps both',
     render: function (ctx) {
-      function hidden(c) { return SN.pushedPage(c, { title: 'Kitchen', page: { noTabs: true, noHeaderButtons: true } }); }
+      /* On the Duo's vertical bar the app draws Back in the rail, under the status column (device evidence, gc-chrome-hide); Mock.page still draws it in the header row for every pushed page, so this state moves it. */
+      function hidden(c) {
+        var page = SN.pushedPage(c, { title: 'Kitchen', page: { noTabs: true, noHeaderButtons: true } });
+        var rail = page.querySelector('.ui-rail'), back = page.querySelector('.ui-bar > button');
+        if (c.rail && rail && back) rail.insertBefore(back, rail.firstChild);
+        return page;
+      }
       return SN.board(ctx, [
         { key: 'iphone', caption: 'The floating bar slides away with the push. Back and the title stay; Quick Links and Profile are not drawn.', build: hidden },
-        { key: 'duo-folded', caption: 'The rail has no tabs and no header group. Back stays in the header row.', build: hidden },
-        { key: 'duo-unfolded-portrait', zoom: .5, title: 'Unfolded Duo portrait', caption: 'Horizontal bars: the capsule leaves, as on the iPhone.', build: hidden },
-        { key: 'duo-unfolded-landscape', zoom: .5, title: 'Unfolded Duo landscape', caption: 'The vertical bar leaves with the push; Back stays.', build: hidden },
+        { key: 'duo-folded', caption: 'The rail keeps the status and Back; its tabs and its Quick Links and Profile group are not drawn.', build: hidden },
+        { key: 'duo-unfolded-portrait', zoom: .5, title: 'Unfolded Duo portrait', caption: 'Horizontal bars: the capsule leaves, as on the iPhone. Back leads; the menu button is the first page\'s.', build: hidden },
+        { key: 'duo-unfolded-landscape', zoom: .5, title: 'Unfolded Duo landscape', caption: 'The rail stays with the status and Back; its tabs leave with the push and the header group is not drawn.', build: hidden },
         { key: 'ipad-portrait', zoom: .45, title: 'iPad', caption: 'The top bar leaves the row; Back and the title remain. Back returns it with the system animation, and under Reduce Motion it does not slide.', build: hidden },
       ]); } };
 
