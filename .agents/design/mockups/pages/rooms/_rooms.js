@@ -260,7 +260,7 @@
     if (ctx.splitAtHinge && ctx.splitGeometry) {
       var lead = [], trail = [];
       secs.forEach(function (s, i) { (i % 2 ? trail : lead).push(s.node || R.section(ctx, s)); });
-      if (head) lead.unshift(head); /* a wrapped rail (accessibility sizes) heads the leading column, outside the parity count (section-sides.md rule 11) */
+      if (head) lead.unshift(head); /* a wrapped rail (accessibility sizes) heads the leading column, outside the parity count (section-sides.md rule 8) */
       var cols = Mock.foldColumns(ctx, { leading: lead, trailing: trail });
       return h('div.ui-bleed', { style: { margin: 0 }, dataset: { fold: 'columns' } }, cols);
     }
@@ -416,7 +416,7 @@
     var rail = room.chips && room.chips.length ? R.rail(ctx, meta.title, room.chips) : null;
     var secs = room.sections.slice();
     if (room.kitchen) secs.unshift({ node: R.groceries(room), span2: secs.length === 0 });
-    /* Partly folded at an accessibility size the rail wraps and stops short of the fold, so it heads the leading column instead of spanning (section-sides.md rule 11). */
+    /* Partly folded at an accessibility size the rail wraps and stops short of the fold, so it heads the leading column instead of spanning (section-sides.md rule 8). */
     var railLeads = !!(rail && secs.length && ctx.splitAtHinge && ctx.splitGeometry && ctx.axSize);
     if (rail && !railLeads) out.push(rail);
     if (!secs.length) out.push(h('div', R.cu({ sym: room.emptyIcon || meta.sym, title: 'Nothing Here Yet!', desc: 'Once some devices are added to this room, we can display them here.' })));

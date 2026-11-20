@@ -39,9 +39,14 @@ public enum ServerUIFoldSides {
 
     /// One top-level component as the rule reads it: its kind, and the side its `layout.foldSide` writes, if any.
     public struct Input: Sendable, Equatable {
+        /// What the component is, which decides whether it holds a slot and whether it may span.
         public var kind: Kind
+        /// The side its `layout.foldSide` writes, or nil when it writes none.
         public var said: ServerUIFoldSide?
 
+        /// - Parameters:
+        ///   - kind: What the rule reads of the component.
+        ///   - said: The side the component writes, if any.
         public init(kind: Kind, said: ServerUIFoldSide? = nil) {
             self.kind = kind
             self.said = said

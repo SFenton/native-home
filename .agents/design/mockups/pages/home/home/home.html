@@ -11,7 +11,7 @@
   var h = Mock.h, K = Mock.components, HW = Mock.HW;
 
   /* ---- the Home page body, section order as HomeScreen.swift draws it: status rail, weather, guests (only while a toggle is on), cameras.
-     Unfolded Duo landscape splits on the hinge (HomeColumns): the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather and guests lead, cameras trail; iPad landscape stays one column. */
+     Unfolded Duo landscape splits on the hinge when the Studio's Partly Folded setting is Two Sides: the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather and guests lead, cameras trail; iPad landscape stays one column. */
   function appMin(n) { var c = Mock.current; return n / ((c && c.scale) || 1); } /* the app's ControlTileGrid (110) and CameraGrid (160) pass a plain number: not @ScaledMetric, so they do not follow Dynamic Type; the kit TileGrid scales min, so divide it out */
   function section(title, kids) { return h('div.ui-section', K.PageSectionHeader({ title: title }), kids); }
   function cameras(o) {
@@ -31,7 +31,7 @@
     var chips = K.ChipRail({ chips: o.chips || Mock.chips.home(o.chipOpts), });
     var wx = HW.card(ctx, Object.assign({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38, narrow: !!ctx.splitAtHinge }, o.weather));
     var cams = cameras(o), g = o.guests ? guests() : null;
-    /* HomeColumns.resolve: two columns only while the band exists (partly folded); flat, Home is one column and the weather spans (owner 2026-11-03). Home is the first fold-columns consumer (section-sides.md). */
+    /* Fold columns: two columns only while the band exists (partly folded) and the Studio's Partly Folded setting is Two Sides; flat, Home is one column and the weather spans (owner 2026-11-03). Home is the first fold-columns consumer (section-sides.md). */
     var fold = Mock.foldColumns(ctx, { top: [chips], leading: [wx, g], trailing: [cams] });
     if (fold) return fold;
     return [chips, wx, g, cams];

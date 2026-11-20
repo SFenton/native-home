@@ -10,7 +10,7 @@ The Studio sets the sides per page (its Partly Folded setting, `sh.fold-sides@1`
 
 ## Rules
 
-1. **Where.** Sides are drawn only while the page uses them (`layout.foldSides: auto`, or a component pinned `leading` or `trailing`) and `FoldColumns.resolve(container:isRegularWidth:hinge:)` answers for the page body's own frame: a hinge band crosses the window, the window is wider than tall and each side is at least 360 pt. Every other case is today's single column, frame for frame. Never a device check.
+1. **Where.** Sides are drawn only while the page uses them (`layout.foldSides: auto`, or a component pinned `leading` or `trailing`) and `FoldColumns.resolve(container:isRegularWidth:hinge:)` answers for the page body's own frame: a hinge band crosses the window, the window is wider than tall and each side is at least 360 pt. Every other case is the single column, frame for frame. Never a device check.
 2. **The unit** is one top-level component of the page that holds a slot, with everything under it, whatever its type. It is never divided. A page whose top level is one container leads and the trailing side stays empty, with no placeholder; the app never looks inside it.
 3. **Sides.** One pure rule in `HassCore` (`ServerUIFoldSides.resolve`), the same as the Studio's `resolveFoldSides`: the notification banner and the pinned bar hold no slot; the run of status rails at the top spans, as does a `span` in that run (a later `span` is refused); the rest alternate by position, the first leading; an explicit side wins and keeps its position in the count. The shared corpus (`evaluation/fold-sides-*`) pins it on both sides.
 4. **Order inside a side** is document order. There is no rank and no rule naming a section.

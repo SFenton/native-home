@@ -953,7 +953,7 @@
   ".agents/patterns/hinge-avoidance.md": {
    "forbidden": 14,
    "long_lines": 11,
-   "over_words": 182
+   "over_words": 179
   },
   ".agents/patterns/image-card.md": {
    "forbidden": 2,
