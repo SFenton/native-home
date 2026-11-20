@@ -98,15 +98,21 @@ public struct AskConfiguration: Codable, Sendable, Equatable {
     public var budget: AskBudget
     /// Which answers go through the phrasing closure, and so through the model. **Empty by default: code writes every answer.**
     ///
-    /// The model never decides what is true; at most it rewords a sentence code already wrote. In the house evaluation it
-    /// lowered the pass rate (21 points when it phrased every answer), so it stays off until a path is listed here and an
-    /// ``AskAnswerer`` is given a phrasing closure. Leaving the set empty is the whole switch: nothing else needs removing.
+    /// The model never decides what is true; at most it rewords a sentence code already wrote. It stays off until a path is
+    /// listed here and an ``AskAnswerer`` is given a phrasing closure. Leaving the set empty is the whole switch: nothing
+    /// else needs removing.
     public var modelPaths: Set<AskModelPath>
 
     // MARK: Sensitivity
 
     /// Rules that classify an entity as security (`S2`) or home and location (`S1`).
     public var sensitivity: AskSensitivityRules
+    /// Whether answers about the highest sensitivity class (locks, alarm, cameras, doors, windows, garage) are withheld.
+    ///
+    /// **On by default.** While on, a question whose answer would read security state gets the fixed sentence "Open the app to
+    /// check that." whatever the lock state of the phone, and a "why" answer whose cause is security state gets it too. No
+    /// state of that class is spoken until someone sets this to `false` on purpose.
+    public var withholdSecurityState: Bool
 
     /// The defaults.
     public init(
@@ -152,7 +158,8 @@ public struct AskConfiguration: Codable, Sendable, Equatable {
         callDeadlineSeconds: Double = 1.5,
         budget: AskBudget = AskBudget(),
         modelPaths: Set<AskModelPath> = [],
-        sensitivity: AskSensitivityRules = AskSensitivityRules()
+        sensitivity: AskSensitivityRules = AskSensitivityRules(),
+        withholdSecurityState: Bool = true
     ) {
         self.neverDomains = neverDomains
         self.excludedPlatforms = excludedPlatforms
@@ -184,6 +191,7 @@ public struct AskConfiguration: Codable, Sendable, Equatable {
         self.callDeadlineSeconds = callDeadlineSeconds
         self.budget = budget
         self.modelPaths = modelPaths
+        self.withholdSecurityState = withholdSecurityState
         self.sensitivity = sensitivity
     }
 
@@ -222,6 +230,7 @@ public struct AskConfiguration: Codable, Sendable, Equatable {
         budget = try c.decodeIfPresent(AskBudget.self, forKey: .budget) ?? d.budget
         modelPaths = try c.decodeIfPresent(Set<AskModelPath>.self, forKey: .modelPaths) ?? d.modelPaths
         sensitivity = try c.decodeIfPresent(AskSensitivityRules.self, forKey: .sensitivity) ?? d.sensitivity
+        withholdSecurityState = try c.decodeIfPresent(Bool.self, forKey: .withholdSecurityState) ?? d.withholdSecurityState
     }
 
     /// Entity ids the overlay brings into scope: named ones, group members, same-as members and bare scope records.
@@ -287,7 +296,7 @@ public enum AskModelPath: String, Codable, Sendable, Hashable, CaseIterable {
 
 /// How many tokens each part of a slice may use, against a 4,096-token on-device window.
 public struct AskBudget: Codable, Sendable, Equatable {
-    /// Characters per token for the estimate (3.8 measured on the Mac spike; 3.3 is the conservative figure).
+    /// Characters per token for the estimate (the default is 3.8; 3.3 is the conservative figure).
     public var charactersPerToken: Double
     /// Tokens reserved for the instructions and framing.
     public var fixedTokens: Int

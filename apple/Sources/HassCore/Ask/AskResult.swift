@@ -16,6 +16,8 @@ public enum AskAnswerPath: String, Codable, Sendable, CaseIterable {
     case fixedUnavailable
     /// A fixed sentence: the answer needs the phone unlocked.
     case fixedLocked
+    /// A fixed sentence: security state is withheld by ``AskConfiguration/withholdSecurityState``; open the app.
+    case fixedWithheld
     /// A sentence written in code from facts code already holds.
     case code
     /// Phrased by the model from a slice.

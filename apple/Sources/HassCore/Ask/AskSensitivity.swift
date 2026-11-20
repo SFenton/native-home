@@ -9,7 +9,7 @@ import Foundation
 public enum AskSensitivity: String, Codable, Sendable, Comparable {
     /// Everyday: fine on a locked phone.
     case everyday
-    /// Reveals who is home or where: aggregates only while locked.
+    /// Reveals who is home or where. The caller's `allowing` value decides whether a locked phone may hear it.
     case home
     /// Security state (locks, alarm, cameras, doors and windows, vehicle): after unlock only.
     case security
@@ -39,7 +39,7 @@ public struct AskSensitivityRules: Codable, Sendable, Equatable {
     public var securityPlatforms: Set<String>
     /// Words in a name that reveal presence (`bed`, `presence`, `away`).
     public var homeNameWords: Set<String>
-    /// Attribute names that never enter a line.
+    /// Attribute names that never enter an annotator line (a cause note); the entity lines write a fixed set of attributes.
     public var neverAttributes: Set<String>
 
     /// The defaults.

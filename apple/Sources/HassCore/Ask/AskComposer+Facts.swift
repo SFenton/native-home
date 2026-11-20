@@ -21,6 +21,8 @@ extension AskComposer {
             base = "\(name) changed \(e.displayName) to \(word) \(ago(s))."
         case .entity(let name, let state, let s):
             base = "\(name) changed\(state.map { " to \($0)" } ?? "") \(ago(s)), which set \(e.displayName) to \(word)."
+        case .other(let s):
+            base = "\(e.displayName) became \(word) \(ago(s)), set by \(AskCause.otherWording)."
         case .service(let service, let s):
             base = "\(e.displayName) became \(word) \(ago(s)) from a \(service) command, but who sent it is not recorded."
         case .physical(let s):

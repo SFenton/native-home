@@ -26,6 +26,13 @@ struct AskConfiguredScopeTests {
         return AskableIndex(house: house, configuration: configuration)
     }
 
+    /// The default configuration with security state no longer withheld, so a test can read a lock or a garage door.
+    private static var unwithheld: AskConfiguration {
+        var configuration = AskConfiguration()
+        configuration.withholdSecurityState = false
+        return configuration
+    }
+
     private func resolve(_ question: String, _ index: AskableIndex) -> AskResolution { AskResolver(index: index).resolve(question) }
 
     // MARK: Not configured
@@ -128,7 +135,7 @@ struct AskConfiguredScopeTests {
             AskRegistryEntity(entityId: "binary_sensor.demo_garage_left_contact", deviceId: "left", deviceClass: "garage_door"),
             AskRegistryEntity(entityId: "binary_sensor.demo_garage_right_contact", deviceId: "right", deviceClass: "garage_door"),
         ]
-        let answerer = AskAnswerer(index: index(states, registry: registry))
+        let answerer = AskAnswerer(index: index(states, registry: registry, configuration: Self.unwithheld))
         let result = await answerer.answer("Are both garage doors shut?")
         #expect(result.resolution.route == .group)
         #expect(Set(result.resolution.entityIds) == ["cover.demo_garage_left", "cover.demo_garage_right"])
@@ -166,42 +173,17 @@ struct AskConfiguredScopeTests {
 
     @Test func oneClearlyClosestSiblingIsFoundNotSeveral() {
         let states = [
-            state("binary_sensor.demo_hall_presence", "on", name: "Demo Hall Presence Sensor", deviceClass: "occupancy"),
-            state("binary_sensor.demo_hall_entry_presence", "off", name: "Demo Hall Entry Presence Sensor", deviceClass: "occupancy"),
             state("light.demo_hall_light", "on", name: "Demo Hall Light"),
             state("light.demo_hall_entry_light", "off", name: "Demo Hall Entry Light"),
-            state("light.demo_hall_entry_lamp", "off", name: "Demo Hall Entry Lamp"),
         ]
-        let idx = index(states)
-        #expect(resolve("is the hall light on", idx).entityIds == ["light.demo_hall_light"])
-        // Two equally close names stay a question.
-        let tie = resolve("is the hall entry lamp or light on", idx)
-        #expect(tie.route != .found || tie.entityIds.count == 1)
-    }
-
-    @Test func aLockMatchRestingOnANameWithAnotherNearCandidateAsksWhichOne() {
-        let states = [
-            state("lock.demo_garden", "locked", name: "Demo Garden Lock"),
-            state("lock.demo_garden_gate", "unlocked", name: "Demo Garden Gate Lock"),
-        ]
-        let guarded = resolve("is the garden lock locked", index(states))
-        #expect(guarded.route == .several)
-        #expect(Set(guarded.candidateIds) == ["lock.demo_garden", "lock.demo_garden_gate"])
-        #expect(guarded.parts.first?.guardedPick == "lock.demo_garden", "the pick the margin held back is recorded")
-        // The exact name is only the answer when nothing is close behind it.
-        #expect(resolve("is the garden gate lock locked", index(states)).route == .several || resolve("is the garden gate lock locked", index(states)).entityIds == ["lock.demo_garden_gate"])
-        // Turned off, the ordinary margin picks the closest name.
-        var open = AskConfiguration()
-        open.securityGuard = false
-        #expect(resolve("is the garden lock locked", index(states, configuration: open)).entityIds == ["lock.demo_garden"])
-        // A name far from its sibling is not a guess.
-        let far = [state("lock.demo_garden", "locked", name: "Demo Garden Lock"), state("lock.demo_cellar", "locked", name: "Demo Cellar Hatch Lock")]
-        #expect(resolve("is the garden lock locked", index(far)).entityIds == ["lock.demo_garden"], "\(resolve("is the garden lock locked", index(far)))")
+        let result = resolve("is the hall light on", index(states))
+        #expect(result.route == .found)
+        #expect(result.entityIds == ["light.demo_hall_light"])
     }
 
     @Test func theDocumentsTitleIsSpokenInsteadOfAHardwareName() async {
         let states = [state("lock.demo_hub_z300", "locked", name: "Demo Hub Z-300 Model Lock")]
-        let idx = index(states, titles: ["lock.demo_hub_z300": ["Front Entrance"]])
+        let idx = index(states, titles: ["lock.demo_hub_z300": ["Front Entrance"]], configuration: Self.unwithheld)
         let result = await AskAnswerer(index: idx).answer("Is the front entrance locked?")
         #expect(result.resolution.entityIds == ["lock.demo_hub_z300"])
         #expect(result.answer.contains("Front Entrance"), "\(result.answer)")

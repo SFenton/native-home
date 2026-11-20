@@ -21,6 +21,7 @@ struct AskComposer: Sendable {
     var declineAction: String { "I can only answer questions about the home, and I can't control anything." }
     var declineOfftopic: String { "I can only answer questions about the home, so I can't help with that." }
     var locked: String { "Unlock your phone to ask about that." }
+    var withheld: String { "Open the app to check that." }
 
     func none(_ phrase: String?) -> String {
         let p = (phrase ?? "").trimmingCharacters(in: .whitespaces)

@@ -31,13 +31,14 @@ public struct AskCauseResolver: Sendable {
             return AskCauseResult(cause: .restart, annotatorLines: lines)
         }
         if let row = await row(for: entry.id, state: entry.state.state, at: changed) {
-            return AskCauseResult(cause: interpret(row), annotatorLines: lines)
+            let read = interpret(row)
+            return AskCauseResult(cause: read.cause, annotatorLines: lines, sensitivity: read.sensitivity)
         }
         if cfg.inheritGroupCause {
             for parent in entry.parentGroups {
                 if let row = await row(for: parent, state: entry.state.state, at: changed, tolerance: cfg.groupInheritanceSeconds) {
-                    let cause = interpret(row)
-                    if cause.isNamed { return AskCauseResult(cause: cause, annotatorLines: lines) }
+                    let read = interpret(row)
+                    if read.cause.isNamed { return AskCauseResult(cause: read.cause, annotatorLines: lines, sensitivity: read.sensitivity) }
                 }
             }
         }
@@ -57,35 +58,61 @@ public struct AskCauseResolver: Sendable {
         return matching.min { abs($0.when.timeIntervalSince(changed)) < abs($1.when.timeIntervalSince(changed)) }
     }
 
-    /// Reads one logbook row as a cause.
-    func interpret(_ row: AskLogbookRow) -> AskCause {
+    /// Reads one logbook row as a cause, with the class of the configured entity it names.
+    ///
+    /// Only a configured, askable entity is ever named or has its state spoken. An automation, script or entity the
+    /// configuration does not name becomes ``AskCause/other(ago:)``.
+    func interpret(_ row: AskLogbookRow) -> (cause: AskCause, sensitivity: AskSensitivity) {
         let ago = max(0, index.now.timeIntervalSince(row.when))
+        func actor(_ domain: String, _ make: (String) -> AskCause) -> (cause: AskCause, sensitivity: AskSensitivity) {
+            guard let e = configuredActor(domain: domain, row: row) else { return (.other(ago: ago), .everyday) }
+            return (make(e.displayName), e.sensitivity)
+        }
+        func automation() -> (cause: AskCause, sensitivity: AskSensitivity) {
+            actor("automation") { .automation(name: $0, message: row.contextMessage, ago: ago) }
+        }
+        func script() -> (cause: AskCause, sensitivity: AskSensitivity) { actor("script") { .script(name: $0, ago: ago) } }
         switch row.contextEventType {
         case "automation_triggered":
-            return .automation(name: row.contextName ?? "an automation", message: row.contextMessage, ago: ago)
+            return automation()
         case "script_started":
-            return .script(name: row.contextName ?? "a script", ago: ago)
+            return script()
         case "call_service":
-            if let uid = row.contextUserId { return .person(name: personName(uid), ago: ago) }
-            if row.contextDomain == "automation", let name = row.contextName { return .automation(name: name, message: row.contextMessage, ago: ago) }
-            if row.contextDomain == "script", let name = row.contextName { return .script(name: name, ago: ago) }
-            return .service(row.contextService ?? "service", ago: ago)
+            if let uid = row.contextUserId { return person(userId: uid, ago: ago) }
+            if row.contextDomain == "automation", row.contextName != nil { return automation() }
+            if row.contextDomain == "script", row.contextName != nil { return script() }
+            return (.service(row.contextService ?? "service", ago: ago), .everyday)
         case "homekit_state_change":
-            return .person(name: "HomeKit", ago: ago)
+            return (.person(name: "HomeKit", ago: ago), .everyday)
         default:
             if let cid = row.contextEntityId, cid != "" {
-                let name = index.entry(cid)?.displayName ?? row.contextName ?? cid
-                return .entity(name: name, state: row.contextState, ago: ago)
+                guard let e = configuredEntry(cid) else { return (.other(ago: ago), .everyday) }
+                return (.entity(name: e.displayName, state: row.contextState, ago: ago), e.sensitivity)
             }
-            if let name = row.contextName, row.contextDomain == "automation" { return .automation(name: name, message: row.contextMessage, ago: ago) }
-            if row.hasNoContext { return .physical(ago: ago) }
-            return .service(row.contextService ?? "command", ago: ago)
+            if row.contextName != nil, row.contextDomain == "automation" { return automation() }
+            if row.hasNoContext { return (.physical(ago: ago), .everyday) }
+            return (.service(row.contextService ?? "command", ago: ago), .everyday)
         }
     }
 
-    private func personName(_ userId: String) -> String {
-        for e in index.entries.values where e.domain == "person" && e.state.attributes["user_id"]?.string == userId { return e.displayName }
-        return "a household member"
+    /// The indexed entity for `id`, only when the configuration names it.
+    private func configuredEntry(_ id: String) -> AskEntry? {
+        guard let e = index.entry(id), e.askable else { return nil }
+        return e
+    }
+
+    /// The configured automation or script a row names: by its entity id, else by its exact name.
+    private func configuredActor(domain: String, row: AskLogbookRow) -> AskEntry? {
+        if let cid = row.contextEntityId, let e = configuredEntry(cid), e.domain == domain { return e }
+        guard let name = row.contextName else { return nil }
+        let key = AskText.normalize(name)
+        return index.entries.values.filter { $0.askable && $0.domain == domain && AskText.normalize($0.displayName) == key }.min { $0.id < $1.id }
+    }
+
+    private func person(userId: String, ago: TimeInterval) -> (cause: AskCause, sensitivity: AskSensitivity) {
+        let match = index.entries.values.filter { $0.askable && $0.domain == "person" && $0.state.attributes["user_id"]?.string == userId }.min { $0.id < $1.id }
+        guard let match else { return (.person(name: "a household member", ago: ago), .everyday) }
+        return (.person(name: match.displayName, ago: ago), match.sensitivity)
     }
 
     // MARK: Annotators
@@ -93,9 +120,10 @@ public struct AskCauseResolver: Sendable {
     /// Lines from the annotators that explain `entry`.
     func annotatorLines(for entry: AskEntry) -> [String] {
         var out: [String] = []
+        let never = index.configuration.sensitivity.neverAttributes
         for hit in index.annotators[entry.id] ?? [] where hit.rule.role == .why {
             var parts: [String] = []
-            for key in hit.rule.attributes {
+            for key in hit.rule.attributes where key.split(separator: ".").allSatisfy({ !never.contains(String($0)) }) {
                 guard let value = Self.read(key, in: hit.state.attributes) else { continue }
                 let phrase = hit.rule.valuePhrases[key]?[value] ?? value
                 if ["", "none", "null", "false", "unknown"].contains(value.lowercased()) { continue }

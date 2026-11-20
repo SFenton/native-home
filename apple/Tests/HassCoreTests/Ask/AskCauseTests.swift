@@ -3,7 +3,7 @@ import Testing
 @testable import HassCore
 
 struct AskCauseTests {
-    private func index(restart: Bool = false) -> AskableIndex { AskDemoHouse.index() }
+    private func index() -> AskableIndex { AskDemoHouse.index() }
 
     private func row(_ secondsAgo: TimeInterval, state: String = "on", _ build: (inout AskLogbookRow) -> Void = { _ in }) -> AskLogbookRow {
         var r = AskLogbookRow(when: AskDemoHouse.ago(secondsAgo), state: state)
@@ -18,9 +18,9 @@ struct AskCauseTests {
     }
 
     @Test func anAutomationRowNamesTheAutomation() async {
-        let result = await cause([row(600) { $0.contextEventType = "automation_triggered"; $0.contextName = "Demo Dusk"; $0.contextMessage = "triggered by time" }])
+        let result = await cause([row(600) { $0.contextEventType = "automation_triggered"; $0.contextName = "Demo Porch Schedule"; $0.contextMessage = "triggered by time" }])
         guard case .automation(let name, let message, _) = result else { Issue.record("not an automation: \(result)"); return }
-        #expect(name == "Demo Dusk")
+        #expect(name == "Demo Porch Schedule")
         #expect(message == "triggered by time")
     }
 
@@ -77,5 +77,24 @@ struct AskCauseTests {
         let idx = AskableIndex(house: house, configuration: configuration)
         let result = await AskCauseResolver(index: idx, dataSource: AskNoDataSource()).resolve(idx.entry("light.demo_office_light")!)
         #expect(result.annotatorLines.contains { $0.contains("the room cleared") })
+    }
+
+    @Test func anAnnotatorNeverSpeaksAnAttributeTheSensitivityRulesForbid() async {
+        var configuration = AskConfiguration()
+        configuration.annotators = [
+            AskAnnotatorRule(platform: "demo_ctl", domain: "sensor", subjectAttribute: "entity_id", role: .why, attributes: ["reason", "latitude", "nested.access_token"], valuePhrases: [:]),
+        ]
+        var states = AskDemoHouse.states
+        states.append(AskDemoHouse.state(
+            "sensor.demo_ctl", "idle",
+            ["entity_id": .string("light.demo_office_light"), "reason": .string("the room cleared"), "latitude": .number(12.5), "nested": .object(["access_token": .string("abc")])],
+            name: "Demo Controller"
+        ))
+        var registry = AskDemoHouse.registry
+        registry.append(AskRegistryEntity(entityId: "sensor.demo_ctl", platform: "demo_ctl"))
+        let house = AskHouse(name: "Demo Home", states: states, registry: registry, areas: AskDemoHouse.areas, floors: AskDemoHouse.floors, document: AskDemoHouse.document(states), now: AskDemoHouse.now, timeZone: AskDemoHouse.utc)
+        let idx = AskableIndex(house: house, configuration: configuration)
+        let lines = await AskCauseResolver(index: idx, dataSource: AskNoDataSource()).resolve(idx.entry("light.demo_office_light")!).annotatorLines
+        #expect(lines == ["reason: the room cleared"])
     }
 }

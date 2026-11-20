@@ -68,30 +68,34 @@ public struct AskAnswerer: Sendable {
 
         switch resolution.route {
         case .declineAction:
-            return finish(&result, .fixedDecline, composer.declineAction, started: started, clock: clock)
+            return finish(&result, .fixedDecline, composer.declineAction)
         case .declineOfftopic:
-            return finish(&result, .fixedDecline, composer.declineOfftopic, started: started, clock: clock)
+            return finish(&result, .fixedDecline, composer.declineOfftopic)
         case .none:
-            return finish(&result, .fixedNone, composer.none(resolution.unmatchedPhrase), started: started, clock: clock)
+            return finish(&result, .fixedNone, composer.none(resolution.unmatchedPhrase))
         case .notConfigured:
-            return finish(&result, .fixedNotConfigured, composer.notConfigured(resolution.parts), started: started, clock: clock)
+            return finish(&result, .fixedNotConfigured, composer.notConfigured(resolution.parts))
         case .several:
             result.sensitivity = Self.sensitivity(of: resolution.candidateIds, index: index)
-            return finish(&result, .fixedSeveral, composer.several(resolution.candidateIds), started: started, clock: clock)
+            return finish(&result, .fixedSeveral, composer.several(resolution.candidateIds))
         case .unavailable:
             result.sensitivity = Self.sensitivity(of: resolution.entityIds, index: index)
+            if let held = held(result.sensitivity, allowing: allowing) { return finish(&result, held.path, held.text) }
             let text = resolution.entityIds.first.flatMap(index.entry).map(composer.unavailable) ?? composer.none(nil)
-            return finish(&result, .fixedUnavailable, text, started: started, clock: clock)
+            return finish(&result, .fixedUnavailable, text)
         case .found, .group:
             break
         }
         result.sensitivity = Self.sensitivity(of: resolution.entityIds, index: index)
-        if result.sensitivity > allowing { return finish(&result, .fixedLocked, composer.locked, started: started, clock: clock) }
+        if let held = held(result.sensitivity, allowing: allowing) { return finish(&result, held.path, held.text) }
 
         // Gather what the answer needs beyond the states.
         let dataStart = clock.now
         let facts = await gather(resolution)
         result.timings.dataMs = Self.ms(clock.now - dataStart)
+        // A cause can name another configured entity; the answer is as private as the stricter of the two.
+        result.sensitivity = max(result.sensitivity, facts.causes.values.map(\.sensitivity).max() ?? .everyday)
+        if let held = held(result.sensitivity, allowing: allowing) { return finish(&result, held.path, held.text) }
         let draft = composer.sentence(resolution, facts: facts)
         result.draft = draft
         result.facts = factLines(resolution, facts: facts)
@@ -132,7 +136,17 @@ public struct AskAnswerer: Sendable {
 
     // MARK: Pieces
 
-    private func finish(_ r: inout AskResult, _ path: AskAnswerPath, _ text: String, started: ContinuousClock.Instant, clock: ContinuousClock) -> AskResult {
+    /// The fixed sentence that stands in for an answer of class `sensitivity`, or nil when it may be spoken.
+    ///
+    /// The highest class is withheld outright while ``AskConfiguration/withholdSecurityState`` is on; any class above what
+    /// the caller allows needs an unlocked phone.
+    private func held(_ sensitivity: AskSensitivity, allowing: AskSensitivity) -> (path: AskAnswerPath, text: String)? {
+        if index.configuration.withholdSecurityState, sensitivity >= .security { return (.fixedWithheld, composer.withheld) }
+        if sensitivity > allowing { return (.fixedLocked, composer.locked) }
+        return nil
+    }
+
+    private func finish(_ r: inout AskResult, _ path: AskAnswerPath, _ text: String) -> AskResult {
         r.path = path
         r.answer = text
         r.draft = text
@@ -203,6 +217,7 @@ public struct AskAnswerer: Sendable {
         case .script(let name, let s): return "\(ago(s)) by script \"\(name)\""
         case .person(let name, let s): return "\(ago(s)) by \(name)"
         case .entity(let name, let state, let s): return "\(name) turned \(state ?? "it") \(ago(s))"
+        case .other(let s): return "\(ago(s)), set by \(AskCause.otherWording)"
         case .service(let service, let s): return "a \(service) command \(ago(s)); who sent it is not recorded"
         case .physical(let s): return "\(ago(s)), the device itself reported the change (physical or manual); no automation or person is recorded"
         case .restart: return "re-reported when Home Assistant restarted; the cause is not recorded"

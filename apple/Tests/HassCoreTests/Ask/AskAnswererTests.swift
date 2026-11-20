@@ -4,13 +4,20 @@ import Testing
 
 /// Answers come from code where the facts decide them; the model only phrases a cause.
 struct AskAnswererTests {
-    private func answerer(source: AskDataSource = AskNoDataSource(), phrase: AskAnswerer.Phrase? = nil, configuration: AskConfiguration = AskConfiguration()) -> AskAnswerer {
+    private func answerer(source: AskDataSource = AskNoDataSource(), phrase: AskAnswerer.Phrase? = nil, configuration: AskConfiguration = Self.unwithheld) -> AskAnswerer {
         AskAnswerer(index: AskDemoHouse.index(configuration: configuration), dataSource: source, phrase: phrase)
+    }
+
+    /// The default configuration with security state no longer withheld, so the other tests can read it.
+    static var unwithheld: AskConfiguration {
+        var configuration = AskConfiguration()
+        configuration.withholdSecurityState = false
+        return configuration
     }
 
     /// The one setting that lets the model phrase anything: a path listed in `modelPaths`. Empty is the default.
     private var causeViaModel: AskConfiguration {
-        var configuration = AskConfiguration()
+        var configuration = Self.unwithheld
         configuration.modelPaths = [.cause]
         return configuration
     }
@@ -67,23 +74,23 @@ struct AskAnswererTests {
     @Test func aCauseGoesThroughTheModelWhenOneIsGiven() async {
         let source = AskStubSource(logbookRows: [
             "light.demo_kitchen_light": [
-                AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Dusk", contextMessage: "triggered by time"),
+                AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Porch Schedule", contextMessage: "triggered by time"),
             ],
         ])
         let prompts = Collector()
         let result = await answerer(source: source, phrase: { instructions, prompt in
             await prompts.add(prompt)
-            return "Demo Dusk turned it on ten minutes ago."
+            return "Demo Porch Schedule turned it on ten minutes ago."
         }, configuration: causeViaModel).answer("Why is the kitchen light on?")
         #expect(result.usedModel)
-        #expect(result.answer == "Demo Dusk turned it on ten minutes ago.")
-        #expect(await prompts.items.first?.contains("Demo Dusk") == true)
+        #expect(result.answer == "Demo Porch Schedule turned it on ten minutes ago.")
+        #expect(await prompts.items.first?.contains("Demo Porch Schedule") == true)
     }
 
     @Test func aFailingModelFallsBackToTheDraft() async {
         struct Boom: Error {}
         let source = AskStubSource(logbookRows: [
-            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Dusk")],
+            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Porch Schedule")],
         ])
         let result = await answerer(source: source, phrase: { _, _ in throw Boom() }, configuration: causeViaModel).answer("Why is the kitchen light on?")
         #expect(result.usedModel == false)
@@ -93,22 +100,22 @@ struct AskAnswererTests {
 
     @Test func withoutAModelTheDraftStandsIn() async {
         let source = AskStubSource(logbookRows: [
-            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Dusk")],
+            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Porch Schedule")],
         ])
         let result = await answerer(source: source, configuration: causeViaModel).answer("Why is the kitchen light on?")
-        #expect(result.answer.contains("Demo Dusk"))
+        #expect(result.answer.contains("Demo Porch Schedule"))
         #expect(result.modelSkipped)
     }
 
     @Test func byDefaultNoAnswerGoesThroughTheModel() async {
         #expect(AskConfiguration().modelPaths.isEmpty)
         let source = AskStubSource(logbookRows: [
-            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Dusk")],
+            "light.demo_kitchen_light": [AskLogbookRow(when: AskDemoHouse.ago(600), state: "on", contextEventType: "automation_triggered", contextName: "Demo Porch Schedule")],
         ])
         let phrased = Counter()
         let result = await answerer(source: source, phrase: { _, _ in await phrased.bump(); return "x" }).answer("Why is the kitchen light on?")
         #expect(result.usedModel == false)
-        #expect(result.answer.contains("Demo Dusk"))
+        #expect(result.answer.contains("Demo Porch Schedule"))
         #expect(await phrased.count == 0)
     }
 

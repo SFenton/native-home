@@ -12,6 +12,8 @@ public enum AskCause: Sendable, Equatable {
     case person(name: String, ago: TimeInterval)
     /// Another entity's change caused it (a group or an occupancy aggregate).
     case entity(name: String, state: String?, ago: TimeInterval)
+    /// Something the configuration does not name (an automation, a script or an entity outside it) did it. Nothing about it is spoken.
+    case other(ago: TimeInterval)
     /// A service call with no actor in the log.
     case service(String, ago: TimeInterval)
     /// A state row with no context at all: the device reported it itself (a wall switch, a sensor, the device).
@@ -30,10 +32,17 @@ public enum AskCause: Sendable, Equatable {
     }
 }
 
+extension AskCause {
+    /// The words for a cause that is not configured, so its name and state are never spoken.
+    public static let otherWording = "something else in the house"
+}
+
 /// The result of a cause lookup: the logbook's cause and the integration annotators' lines.
 public struct AskCauseResult: Sendable, Equatable {
     /// The cause the logbook gave (or ``AskCause/none``).
     public var cause: AskCause
     /// Lines from integration annotators, in configuration order, each already phrased.
     public var annotatorLines: [String]
+    /// The most private class among the configured entities the cause names (``AskSensitivity/everyday`` when it names none).
+    public var sensitivity: AskSensitivity = .everyday
 }
