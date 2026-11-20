@@ -2667,6 +2667,14 @@
    "journeys": []
   },
   {
+   "prefix": "apple/Apps/iOSTests/HostedPage.swift",
+   "swift": [],
+   "hosted": [
+    "*"
+   ],
+   "journeys": []
+  },
+  {
    "prefix": "apple/Apps/iOSTests/LogicWorstCase",
    "swift": [],
    "hosted": [

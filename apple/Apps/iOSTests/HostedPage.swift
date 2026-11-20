@@ -8,28 +8,27 @@ import XCTest
 /// drew, in seconds where a journey takes minutes. UX line coverage is not measured; these check behaviour. Copy ``HostedPage`` for a new page; keep the asserts about what the user sees, not about line counts.
 @MainActor
 enum HostedPage {
-    /// Every window a hosted test opened through ``show(_:size:)`` or ``HostedScene``. A test that fails an assertion, or never
-    /// hides its window, would otherwise leave it visible in the app's scene for every later test (a stale key window and its
-    /// presented sheets); the observer below hides them all when each test finishes.
-    private static var opened: [Weak<UIWindow>] = []
+    /// Every window a hosted test opened through ``show(_:size:inScene:)`` or ``HostedScene``, held strongly until the test ends. A window
+    /// that deallocates sends its page `viewDidDisappear`, which rests the page's observations, so a test that dropped the returned window
+    /// would lose its page to ARC. A test that fails an assertion, or never hides its window, would otherwise leave it visible in the
+    /// app's scene for every later test (a stale key window and its presented sheets); the observer below hides and releases them all when each test finishes.
+    private static var opened: [UIWindow] = []
     private static let observer = WindowCleaner()
 
     static func track(_ window: UIWindow) {
         _ = observer
-        opened.removeAll { $0.value == nil }
-        opened.append(Weak(window))
+        opened.append(window)
     }
 
     /// Lays out every tracked window now. A hosted run does not always get a display-link commit between two of the test's run-loop
     /// turns, so a page changed by a state change (a row added, a sheet resized) would otherwise wait for a layout pass that never comes.
     static func layoutTracked() {
-        for entry in opened { entry.value?.layoutIfNeeded() }
+        for window in opened { window.layoutIfNeeded() }
     }
 
     /// Hides every tracked window still up.
     static func hideTracked() {
-        for entry in opened {
-            guard let window = entry.value else { continue }
+        for window in opened {
             window.isHidden = true
             // Release the page: a hidden window still holds its controllers, whose timers, observers and display links would keep
             // running (and keep laying out) under every later test. A presentation still in flight finishes first (``settlePresentations(of:timeout:)``).
@@ -170,10 +169,9 @@ enum HostedPage {
     /// Duo's 678 pt height there.
     static var phoneSize: CGSize { inScene(CGSize(width: 393, height: 852)) }
 
-    /// Puts `controller` in a key window of the given size, loads and lays it out, and returns the window (kept alive by the caller).
+    /// Puts `controller` in a key window of the given size, loads and lays it out, and returns the window (also kept alive until the test ends).
     /// The window joins the app's scene (a scene-less window never finishes an animated push or transition); pass
-    /// `inScene: false` for a test that needs a free window. The caller must hold the returned window for as long as the page is under test: the
-    /// tracker keeps it weakly, and a window that deallocates sends its page a `viewDidDisappear`.
+    /// `inScene: false` for a test that needs a free window. The tracker holds the window strongly until the test finishes (``hideTracked()``), so a test need not keep it.
     static func show(_ controller: UIViewController, size: CGSize? = nil, inScene: Bool = true) -> UIWindow {
         let frame = CGRect(origin: .zero, size: size ?? phoneSize)
         let window: UIWindow
@@ -204,12 +202,6 @@ enum HostedPage {
     static func labels(in root: UIView) -> [String] {
         descendants(of: root).compactMap { ($0 as? UILabel)?.text }.filter { !$0.isEmpty }
     }
-}
-
-/// A weak box, so tracking a window does not keep it alive.
-final class Weak<T: AnyObject> {
-    weak var value: T?
-    init(_ value: T) { self.value = value }
 }
 
 /// Hides the hosted tests' windows after every test, pass or fail.
