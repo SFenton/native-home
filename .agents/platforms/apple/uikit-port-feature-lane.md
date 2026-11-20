@@ -17,9 +17,7 @@
 
 ## Waiting on builds
 The Mac has two build slots, shared with other projects. A build can wait 20 to 50 minutes for a slot and then takes 2 to 8 minutes.
-- Launch every build or shot run with the Bash tool's `run_in_background: true`, for example `tools/bg_run.py <lane>-build-N --timeout 7200 -- tools/uikit_build.sh`. Never detach it with `&`, `nohup` or `setsid`.
-- Then end your turn. You are re-invoked when the command exits.
-- If you are not woken, hand back one line, `WAITING <log path>`. The orchestrator resumes you.
+- Run every build or shot run in the foreground, `timeout` up to 600000, for example `tools/bg_run.py <lane>-build-N -- tools/uikit_build.sh`. Never detach it with `&`, `nohup` or `setsid`. One that cannot fit: report `blocked`.
 - Write a large, careful chunk before each build. Fix every error and warning in your files each round.
 
 ## Verifying

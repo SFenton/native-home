@@ -63,5 +63,28 @@ class BgTimeoutGuardTests(unittest.TestCase):
         self.assertEqual(run_hook(bash(command="echo 'x; " + COVERAGE, run_in_background=True))[0], 2)
 
 
+class SubagentBackgroundTests(unittest.TestCase):
+    BG_RUN = "tools/bg_run.py x -- true"
+
+    def payload(self, agent_id=True, **tool_input):
+        data = {"tool_name": "Bash", "tool_input": tool_input}
+        if agent_id:
+            data["agent_id"] = "agent-1"
+        return json.dumps(data)
+
+    def test_subagent_background_job_is_denied(self):
+        status, message = run_hook(self.payload(command=self.BG_RUN, run_in_background=True))
+        self.assertEqual(status, 2)
+        self.assertIn("600000", message)
+        self.assertIn("blocked", message)
+
+    def test_main_session_background_job_passes(self):
+        self.assertEqual(run_hook(self.payload(agent_id=False, command=self.BG_RUN, run_in_background=True))[0], 0)
+
+    def test_subagent_foreground_job_passes(self):
+        self.assertEqual(run_hook(self.payload(command=self.BG_RUN))[0], 0)
+        self.assertEqual(run_hook(self.payload(command=self.BG_RUN, run_in_background=False))[0], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

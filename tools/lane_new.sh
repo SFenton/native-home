@@ -47,7 +47,7 @@ fi
 ENV_FILE="shell"  # the script loads the credentials in-process from ~/.config/fenton-hass/env (tools/hass_creds.sh)
 cat <<TEXT
 cd $DIR
-tools/bg_run.py swift-$NAME -- bash -c 'cd apple && swift test --filter <Suite>'          # run_in_background, then end the turn
+tools/bg_run.py swift-$NAME -- bash -c 'cd apple && swift test --filter <Suite>'          # sub-agent: foreground; main session: run_in_background, end the turn
 tools/bg_run.py uitest-$NAME -- tools/ios_uitest.sh --quick --env $ENV_FILE --only iphone -only-testing:FentonHomeUITests/<Class>/<test>
 tools/ship.sh "<subject>" --pr --body-file <file>                                            # commit, push, draft PR; then reviewer + tools/pr_land.sh N
 TEXT

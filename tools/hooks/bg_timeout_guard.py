@@ -7,6 +7,9 @@ children are orphaned. This guard denies a background call whose command runs ``
 ``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
 how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
 
+A sub-agent's background job dies when its turn ends, so a ``run_in_background`` Bash call from a payload with ``agent_id``
+(the main session never carries one) is denied whatever the command is.
+
 A tripwire for a habit, not a wall: it reads the command text only, and it fails open on any error of its own (bad payload,
 unparsable command). Exit 2 sends the message back to the model.
 """
@@ -27,6 +30,13 @@ RETRY = (
     "Blocked: `{what}` runs past the harness's 30-minute background limit and would be killed mid-run, leaving its children "
     "behind. Re-issue the same Bash call with run_in_background: true and timeout: {ms} (milliseconds; the maximum is "
     f"{MAX_TIMEOUT_MS}), for example `tools/bg_run.py LABEL --expect-minutes 70 -- {{what}}`. "
+    "See .agents/workflow/token-economy.md."
+)
+
+SUBAGENT = (
+    "Blocked: a sub-agent's background job is killed when its turn ends. Run it as a foreground Bash call with timeout "
+    "up to 600000 (milliseconds), splitting it into calls that each fit (for example one device family per call). A job "
+    "that cannot fit: report `blocked` with the exact `tools/bg_run.py` command, so the orchestrator runs it unchanged from the main session. "
     "See .agents/workflow/token-economy.md."
 )
 
@@ -87,7 +97,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         payload = json.load(sys.stdin)
         if payload.get("tool_name") != "Bash":
             return 0
-        why = verdict(payload.get("tool_input") or {})
+        tool_input = payload.get("tool_input") or {}
+        if payload.get("agent_id") and tool_input.get("run_in_background"):
+            why = SUBAGENT
+        else:
+            why = verdict(tool_input)
     except Exception:  # noqa: BLE001 - a hook never traps an agent
         return 0
     if why:

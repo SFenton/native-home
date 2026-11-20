@@ -49,7 +49,7 @@
 #   --quick skips `xcodegen` when project.yml is unchanged (the compile is skipped by the products cache whenever the code is
 #   unchanged). Use it when iterating on one test. The device hold is sized from the selected test count (tools/uitest_support.py): 120 s per test method + 5 minutes,
 #   at least 10 minutes, at most 7200 s (FENTON_DEVCAP_HOLD overrides).
-#   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` with run_in_background and end the turn: you get a digest, not a log.
+#   Run it through `tools/bg_run.py LABEL -- tools/ios_uitest.sh …` for a digest, not a log: foreground in a sub-agent, run_in_background in the main session.
 #   FENTON_DERIVED_DATA=DIR builds and tests with -derivedDataPath DIR (CI gives each run its own and deletes it; unset = Xcode's default).
 #   --hosted runs only the app-hosted unit tests, FentonHomeTests. FENTON_HOSTED_FILTER='Class1 Class2' limits it to those classes.
 #   --tests does not select hosted tests (they are not UI tests); use FENTON_HOSTED_FILTER.
