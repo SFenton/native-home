@@ -35,7 +35,7 @@ ST_PASSED = re.compile(r"✔ Test (?P<name>[\w`' ]+?)(?:\([^)]*\))? passed after
 ST_RUN_ISSUES = re.compile(r"Test run with \d+ tests?.*? with (?P<n>\d+) issues?")
 ST_RUN = re.compile(r"[✔✘] Test run with (?P<n>\d+) tests?.*?(?P<state>passed|failed)")
 #: xcodebuild's `Iteration 4 of 6` line and the `-test-iterations N` argument as a log quotes it (a stress run's request).
-ITERATION = re.compile(r"\bIteration (?P<n>\d+) of (?P<total>\d+)\b")
+ITERATION = re.compile(r"\bIteration (?P<k>\d+) of (?P<n>\d+)\b")
 ITERATIONS_ARG = re.compile(r"-test-iterations[ =](?P<n>\d+)\b")
 #: A block header of ios_uitest.sh or a caller (`== iphone: ...`, `=== iphone 15x part 2`), and the notices of a run it did not run.
 BLOCK_HEADER = re.compile(r"^={2,} (?P<name>.+)")
@@ -160,8 +160,8 @@ class Digest:
         """Track the blocks of a stress run: where each stopped, and which a ledger skip or `nothing to run` left unrun."""
         if match := ITERATION.search(line):
             block = self._block()
-            block["k"], block["n"] = int(match["n"]), int(match["total"])
-            self.iterations_asked = max(self.iterations_asked, int(match["total"]))
+            block["k"], block["n"] = int(match["k"]), int(match["n"])
+            self.iterations_asked = max(self.iterations_asked, int(match["n"]))
         elif match := ITERATIONS_ARG.search(line):
             self.iterations_asked = max(self.iterations_asked, int(match["n"]))
         if SKIPPED_BLOCK.search(line):

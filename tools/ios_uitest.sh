@@ -477,7 +477,8 @@ recorded_skipped() {  # family -> 0 when the ledger holds a `skipped` record (ne
 }
 record_run() {  # family result -> write the ledger record; a stress block is never recorded (a later one-pass run must not stand in for it)
   if stress_run "$1"; then return 0; fi
-  python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")" --result "$2"
+  local result="$2"
+  python3 "$ROOT/tools/affected_tests.py" record --tree "$TREE_HASH" --device "$1" --filter "$(run_key "$1")" --result "$result"
 }
 if [[ "${FENTON_UITEST_PRINT_FILTERS:-}" == 1 ]]; then  # dry run for the tool tests: what each family would run
   for family in iphone duo ipad; do wanted "$family" || continue; family_args "$family"; echo "$family: ${FAMILY_ARGS[*]-}"; done
