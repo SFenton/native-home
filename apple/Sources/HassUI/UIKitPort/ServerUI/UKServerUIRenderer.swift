@@ -1023,7 +1023,8 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
                 }
             }
             try navigation.trimVisiblePath(toDepth: page.depth + kept, onRoot: true)
-            // The column has already slid away: the bar returns alongside it, not after.
+            // The column's own Back and Close call this right after they start the column's animated removal, so the bar moves with it; an edge swipe
+            // reports only once the column has gone, so there the bar follows it.
             let remaining = logicalStacks[page.root]?.prefix(page.depth + kept + 1).last
             if page.root == navigation.snapshot.selection { setTabBarHidden(hidesTabs(whileTop: remaining), animated: true) }
             reconcile(animated: false, updateBodies: false)

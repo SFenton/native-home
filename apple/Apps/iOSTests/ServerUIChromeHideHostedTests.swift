@@ -192,6 +192,29 @@ final class ServerUIChromeHideHostedTests: XCTestCase {
         }
     }
 
+    /// The column bar's own Back and Close (and the edge swipe) reach the renderer through `columnPopped`, not through `perform(.back)`: the bar returns, with the system
+    /// animation and not under Reduce Motion.
+    func testTheColumnBarsOwnBackAndCloseReturnTheBarWithTheSystemAnimationAndNotUnderReduceMotion() throws {
+        for reduced in [false, true] {
+            for close in [false, true] {
+                UKMotion.reduceMotionOverride = reduced
+                let (renderer, window) = try host(publication(echo: Self.hides(tabs: true), columns: true), style: .topBar, layout: .columns)
+                defer { window.isHidden = true }
+                let root = try ServerUIRendererFixture.root(renderer)
+                try XCTSkipUnless(HostedPage.until { root.columns?.isWide == true }, "the scene is too narrow to show columns")
+                _ = try push(renderer)
+                XCTAssertTrue(HostedPage.until { self.barHidden(renderer) })
+                let columns = try XCTUnwrap(root.columns)
+                XCTAssertTrue(HostedPage.until { !columns.isTransitioning }, "the push never settled")
+                renderer.lastTabBarMoveAnimated = nil
+                if close { columns.closeAll() } else { columns.popTop() }
+                let name = "\(close ? "Close" : "Back") \(reduced ? "with" : "without") Reduce Motion"
+                XCTAssertTrue(HostedPage.until { !self.barHidden(renderer) }, "\(name) did not return the bar")
+                XCTAssertEqual(renderer.lastTabBarMoveAnimated, !reduced, "\(name) moved the bar \(reduced ? "with" : "without") animation")
+            }
+        }
+    }
+
     /// Both together hide the bar and the button.
     func testAPageThatHidesBothDropsTheBarAndTheButton() throws {
         for style in Style.allCases {
