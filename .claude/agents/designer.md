@@ -30,7 +30,7 @@ Post each pick and verdict with `python3 tools/pr_note.py post pick|verdict --ta
 
 ## Writes
 
-Design briefs, `.agents/design/**`, `.agents/decisions/**` and mockups.
+Design briefs, `.agents/design/**` and mockups.
 
 ## Never
 
