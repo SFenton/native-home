@@ -19,11 +19,8 @@ final class ChromeHideJourneyTests: JourneyTestCase {
         return app
     }
 
-    /// Whether the tab navigator draws: its bar is in the tree and on screen.
-    private func tabsShown(_ app: XCUIApplication) -> Bool {
-        let bar = app.tabBars.firstMatch
-        return bar.exists && bar.isHittable
-    }
+    /// Whether the tab navigator draws: the other tab's item is in the tree and on screen, in the bar, the top bar or the rail.
+    private func tabsShown(_ app: XCUIApplication) -> Bool { isReachable(app.barItem("Shelf")) }
 
     private func openHidingPage(_ app: XCUIApplication) {
         let tile = app.buttons["node-open-echo"]
@@ -45,7 +42,7 @@ final class ChromeHideJourneyTests: JourneyTestCase {
         let app = launch()
         XCTAssertTrue(tabsShown(app), "The root page has no tab navigator")
         openHidingPage(app)
-        XCTAssertTrue(app.tabBars.firstMatch.disappears(timeout: 10) || !tabsShown(app), "The tab navigator stays on the hiding page")
+        XCTAssertTrue(app.barItem("Shelf").disappears(timeout: 10) || !tabsShown(app), "The tab navigator stays on the hiding page")
         XCTAssertFalse(app.buttons["quickLinks.open"].exists && app.buttons["quickLinks.open"].isHittable, "Quick Links draws on the hiding page")
         XCTAssertFalse(app.buttons["nav.profile"].exists && app.buttons["nav.profile"].isHittable, "Profile draws on the hiding page")
         let back = backButton(app)
