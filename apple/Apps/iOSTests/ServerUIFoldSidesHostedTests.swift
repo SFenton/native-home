@@ -18,7 +18,35 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         ("iPhone Duo folded", CGSize(width: 466, height: 678), false, false),
         ("iPad and unfolded Duo", CGSize(width: 868, height: 669), true, true),
     ]
-    private let band = CGRect(x: 428, y: 0, width: 40.4, height: 669)
+    /// The band over the 868 by 669 frames the container tests give `UKFoldColumns` directly, which do not depend on the scene.
+    private let frameBand = CGRect(x: 428, y: 0, width: 40.4, height: 669)
+
+    /// The hinge band's width on the unfolded Duo (the measured partly folded window: a 40.4 pt band in the middle of the page).
+    private let bandWidth: CGFloat = 40.4
+
+    private func contentArea(of page: UKServerUIPage) -> CGRect {
+        let view: UIView = page.body ?? page.view
+        return view.convert(view.bounds, to: nil)
+    }
+
+    /// The hinge band across the middle of the area the page's content occupies, in window coordinates. The area comes from the laid-out page, not from a fixed x: the Duo's hosted
+    /// scene is its folded 466 pt outer display, the 868 pt window sticks out of it, and the page starts 84 pt in from the window's leading edge (safe area), so a band at 428 would leave
+    /// the leading side under ``SplitPolicy/minimumPaneWidth`` and never split.
+    private func band(of page: UKServerUIPage, in window: UIWindow) -> CGRect {
+        let area = contentArea(of: page)
+        return CGRect(x: area.midX - bandWidth / 2, y: 0, width: bandWidth, height: window.bounds.height)
+    }
+
+    /// Whether the page's content area holds two sides under the policy's minimum width.
+    private func canSplit(_ page: UKServerUIPage, in window: UIWindow) -> Bool {
+        return (contentArea(of: page).width - bandWidth) / 2 >= SplitPolicy.minimumPaneWidth
+    }
+
+    /// The band of `page`, skipping the test where its content area is too narrow for two sides (each at least ``SplitPolicy/minimumPaneWidth``).
+    private func splitBand(of page: UKServerUIPage, in window: UIWindow) throws -> CGRect {
+        try XCTSkipUnless(canSplit(page, in: window), "the page's content area is too narrow for two sides of \(SplitPolicy.minimumPaneWidth) pt")
+        return band(of: page, in: window)
+    }
 
     override func tearDown() async throws {
         HostedPage.hideTracked()
@@ -101,12 +129,13 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
 
     func testPartlyFoldedPutsEverySectionWhollyOnOneSideAndFlatComesBack() throws {
         for family in families {
-            let (page, _, shell) = try hosted(size: family.size, regular: family.regular)
+            let (page, window, shell) = try hosted(size: family.size, regular: family.regular)
             let flat = try frames(page)
+            let band = self.band(of: page, in: window)
             shell.windowHinge = band
             settle(page)
             let partly = try frames(page)
-            if family.splits {
+            if family.splits && canSplit(page, in: window) {
                 for frame in partly { XCTAssertTrue(frame.maxX <= band.minX + 0.5 || frame.minX >= band.maxX - 0.5, "\(family.name): no section meets the band") }
                 XCTAssertLessThanOrEqual(partly[0].maxX, band.minX + 0.5)
                 XCTAssertLessThanOrEqual(partly[2].maxX, band.minX + 0.5)
@@ -134,7 +163,8 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     }
 
     func testRightToLeftMirrorsTheSidesAndNoSideFrameMeetsTheBand() throws {
-        let (page, _, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true, rightToLeft: true)
+        let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true, rightToLeft: true)
+        let band = try splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let partly = try frames(page)
@@ -144,7 +174,8 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     }
 
     func testTheTopStripRunsAcrossTheBandAndBothSidesStartUnderIt() throws {
-        let (page, _, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
+        let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
+        let band = try splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let rail = try frame(page, "rail"), note = try frame(page, "notice"), sections = try frames(page)
@@ -159,6 +190,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     func testAccessibilitySizeKeepsTwoSidesAndTheStripHeadsTheLeadingColumn() throws {
         let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
         window.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
+        let band = try splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let partly = try frames(page), rail = try frame(page, "rail"), note = try frame(page, "notice")
@@ -177,7 +209,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         func lay(hidden: Bool) -> [CGRect] {
             fold.setSections(zip(sections, sides).enumerated().map { UKFoldColumns.Section($1.0, side: $1.1, isHidden: hidden && $0 == 0) })
             fold.frame = CGRect(x: 0, y: 0, width: 868, height: fold.gridHeight(forWidth: 868))
-            fold.hinge = band
+            fold.hinge = frameBand
             fold.layoutIfNeeded()
             return sections.map(\.frame)
         }
@@ -192,7 +224,8 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     // MARK: Where sides are off
 
     func testASheetNeverTakesSides() throws {
-        let (host, _, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
+        let (host, hostWindow, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
+        let band = try splitBand(of: host, in: hostWindow)
         let sheet = UKServerUIPage(surface: host.definition, context: host.context.with { $0.surface = .sheet }, root: host.root,
                                    presentationID: nil, depth: 0, inheritedGroups: [], close: nil, renderer: try XCTUnwrap(host.renderer))
         let window = HostedPage.show(sheet, size: CGSize(width: 868, height: 669))
@@ -211,7 +244,9 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         let capabilities = (try XCTUnwrap(json["capabilities"]?.array) + [.string("sh.navigation-columns@1")]).sorted { ($0.string ?? "") < ($1.string ?? "") }
         json = try ServerUIRendererFixture.changing(json, path: "/capabilities", to: .array(capabilities))
         let publication = try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
-        let (page, _, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true, publication: publication)
+        let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true, publication: publication)
+        // The columns page's body is only its leading column, so the band is centred on the window (868 pt wide on every family), which can split.
+        let band = CGRect(x: (window.bounds.width - bandWidth) / 2, y: 0, width: bandWidth, height: window.bounds.height)
         shell.windowHinge = band
         settle(page)
         XCTAssertFalse(page.drawsFoldSides)
@@ -247,7 +282,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     }
 
     func testTheFirstLayoutOfAPageThatOpensPartlyFoldedDoesNotAnimate() {
-        let (fold, _, sections, _) = container(hinge: band)
+        let (fold, _, sections, _) = container(hinge: frameBand)
         XCTAssertTrue(fold.isSplit, "the pose is set on the first layout")
         XCTAssertTrue(sections.allSatisfy { $0.layer.animationKeys()?.isEmpty ?? true }, "no animation on first layout")
         XCTAssertEqual(UKFoldColumns.splitWritesInLayout, 0)
@@ -260,7 +295,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         let (fold, scroll, sections, _) = container()
         scroll.contentOffset.y = scroll.contentSize.height - scroll.bounds.height
         let flatOffset = scroll.contentOffset.y
-        fold.hinge = band
+        fold.hinge = frameBand
         // A scroll view sizes its content before the content lays out; this stands in for it.
         let height = fold.gridHeight(forWidth: 868)
         fold.frame.size.height = height
@@ -276,7 +311,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         UKMotion.reduceMotionOverride = false
         let (fold, scroll, sections, _) = container()
         scroll.contentOffset.y = scroll.contentSize.height - scroll.bounds.height
-        fold.hinge = band
+        fold.hinge = frameBand
         let height = fold.gridHeight(forWidth: 868)
         fold.frame.size.height = height
         scroll.contentSize.height = height
@@ -294,7 +329,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         let (fold, _, sections, _) = container()
         let flat = sections.map(\.frame)
         UKMotion.reduceMotionOverride = false
-        fold.hinge = band
+        fold.hinge = frameBand
         UKMotion.animate(.standard) { fold.layoutIfNeeded() }
         HostedPage.wait(0.08)
         let midFlight = sections[1].layer.presentation()?.frame ?? sections[1].frame
@@ -310,7 +345,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         let (fold, _, _, _) = container()
         XCTAssertFalse(fold.shouldGroupAccessibilityChildren)
         XCTAssertNil(fold.accessibilityElements, "flat, the default order")
-        fold.hinge = band
+        fold.hinge = frameBand
         fold.layoutIfNeeded()
         XCTAssertTrue(fold.isSplit)
         XCTAssertTrue(fold.shouldGroupAccessibilityChildren)

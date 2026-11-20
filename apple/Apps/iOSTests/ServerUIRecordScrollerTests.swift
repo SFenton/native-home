@@ -91,7 +91,11 @@ final class ServerUIRecordScrollerTests: XCTestCase {
         let collection = try XCTUnwrap(page.pageScroll as? UICollectionView)
         HostedPage.wait(0.5)
         func cellRight() -> CGFloat { collection.visibleCells.map { $0.convert($0.bounds, to: nil).maxX }.max() ?? 0 }
-        let band = CGRect(x: 428, y: 0, width: 40.4, height: 669)
+        // The band is derived from the area the collection occupies: on the Duo's hosted scene (its folded 466 pt display) the window sticks out of the scene and the page starts
+        // inside it, so a band at a fixed x would leave the leading side under the minimum.
+        let area = collection.convert(collection.bounds, to: nil)
+        let band = CGRect(x: area.midX - 20.2, y: 0, width: 40.4, height: window.bounds.height)
+        try XCTSkipUnless((area.width - band.width) / 2 >= SplitPolicy.minimumPaneWidth, "the page's content area is too narrow for two sides")
         XCTAssertGreaterThan(cellRight(), band.maxX, "flat, the collection fills the page")
         shell.windowHinge = band
         HostedPage.wait(0.8)
