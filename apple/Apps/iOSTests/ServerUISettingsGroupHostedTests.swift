@@ -7,7 +7,7 @@ import XCTest
 
 // MARK: - Settings groups: one list per module-list section
 
-/// Hosted checks for `pl-setlist` (`.agents/decisions/2026-11-18-settings-grouped-rows.md`, `build/design/pl-setlist/spec.md`): a
+/// Hosted checks for `pl-setlist` (`.agents/patterns/module-list.md`, `.agents/patterns/settings-section.md`, `build/design/pl-setlist/spec.md`): a
 /// `module-list` section is one group the list draws, and a settings row inside it is content, padding and a wash, never a card.
 ///
 /// The Settings page is built from its real parts: a `UKServerUISection` per section with the settings links and the preferences

@@ -25,7 +25,7 @@ private let sheetPoses = [
 
 /// Hosted UX and accessibility checks for the `sheet-portrait` finding. The app configures no sheet to refuse a drag down; on the iPad in
 /// portrait the system keeps the centred full-height form sheet from following one, and Close is its exit
-/// (`.agents/decisions/2026-11-16-ipad-full-form-sheet.md`). Written for the iPhone, the folded and unfolded iPhone Duo and the iPad in both orientations.
+/// (`.agents/design/motion.md` section 2, Modal row). Written for the iPhone, the folded and unfolded iPhone Duo and the iPad in both orientations.
 @MainActor
 final class UKHostedSheetDismissTests: XCTestCase {
     override func tearDown() async throws {
@@ -129,7 +129,7 @@ final class UKHostedSheetDismissTests: XCTestCase {
 
 /// Hosted UX and accessibility checks for the Close exit of the centred full-height form sheet. The system keeps that sheet from following a
 /// drag down on the iPad in portrait, so Close is its exit there and a sheet without it would trap the person
-/// (`.agents/decisions/2026-11-16-ipad-full-form-sheet.md`). Written for the iPhone, the folded and unfolded iPhone Duo and the iPad in
+/// (`.agents/design/motion.md` section 2, Modal row). Written for the iPhone, the folded and unfolded iPhone Duo and the iPad in
 /// both orientations.
 @MainActor
 final class UKHostedSheetCloseExitTests: XCTestCase {
