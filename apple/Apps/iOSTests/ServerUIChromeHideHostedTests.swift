@@ -253,3 +253,23 @@ final class ServerUIChromeHideHostedTests: XCTestCase {
         XCTAssertFalse(barHidden(renderer), "a sheet never hides the tabs")
     }
 }
+
+// MARK: - The chrome-hide gallery's cases
+
+/// Each case of the `chrome-hide` gallery decodes as a shipped build does and carries what its name says.
+@MainActor
+final class ServerUIChromeHideGalleryCaseTests: XCTestCase {
+    func testEveryCaseDecodesWithNoScopeAndHidesWhatItsNameSays() throws {
+        for chosen in UKChromeHideGallery.Case.allCases {
+            let document = try ServerUICompositionPublication.decode(UKChromeHideGallery.document(for: chosen)).document
+            let echo = try XCTUnwrap(document.pages.first { $0.id == "page-echo" }, "\(chosen)")
+            switch chosen {
+            case .tabs: XCTAssertEqual(echo.hides?.tabs, true); XCTAssertEqual(echo.hides?.items, [])
+            case .items: XCTAssertEqual(echo.hides?.tabs, false); XCTAssertEqual(echo.hides?.items, ["native-header"])
+            case .both, .columns: XCTAssertEqual(echo.hides?.tabs, true); XCTAssertEqual(echo.hides?.items, ["native-header"])
+            case .rootOnly: XCTAssertNil(echo.hides); XCTAssertEqual(document.navigation.tabsVisibility, .rootOnly)
+            }
+            XCTAssertEqual(document.pages.first { $0.id == "page-orbit" }?.navigation == .columns, chosen == .columns, "\(chosen)")
+        }
+    }
+}
