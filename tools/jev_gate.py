@@ -25,6 +25,8 @@ that draw the same are not app UI (`rendered_ui_paths`, owner decisions 2026-11-
 The raise-only lines only raise. No key or an API error prints **nothing**, and silence never skips the Designer or
 lowers a level. It exits 0 when it ran, so a hint never stops work; a `--plan-file` that is missing or empty prints
 `jev_gate: cannot read <path>` to stderr and exits 2. Each answer is logged (no plan text) to `build/jev/gate.jsonl`.
+Each emitted plan-time gate line is also observed (outcome, basis, answer and route only) in `gate-decisions.jsonl`;
+this best-effort sidecar never changes the gate's behavior.
 Every line is a guess to verify, never an instruction (`.agents/workflow/jev.md`,
 `.agents/workflow/agent-roster.md`). Standard library only.
 """
@@ -33,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import os
 import re
 import sys
@@ -135,6 +138,12 @@ def route_hint(visible: bool | None, chosen: bool | None, pick: bool | None) -> 
 
 
 REQUEST_RE = re.compile(r"^[ \t>*_-]*Owner'?s request\*{0,2}:\*{0,2}[ \t]*(.*)$", re.I | re.M)
+GATE_DECISION_RE = re.compile(
+    r"^gate: (?P<outcome>park|autonomous)"
+    r" basis=(?P<basis>request|agent)"
+    r" answer=(?P<answer>yes|no|unsure|unavailable)"
+    r"(?: route=(?P<route>session|pr))?$"
+)
 
 
 def owner_request(plan: str) -> str | None:
@@ -146,6 +155,39 @@ def owner_request(plan: str) -> str | None:
     rest = plan[match.end():].split("\n\n", 1)[0] if not match.group(1).strip() else ""
     text = (match.group(1) + "\n" + rest).strip()
     return text or None
+
+
+def _log_gate_decision(line: str) -> None:
+    """Best-effort observation for one emitted plan-time gate line."""
+    match = GATE_DECISION_RE.fullmatch(line)
+    if match is None:
+        return
+    outcome = match.group("outcome")
+    park_route = match.group("route")
+    if (outcome == "park") != (park_route is not None):
+        return
+    record = {
+        "outcome": outcome,
+        "basis": match.group("basis"),
+        "answer": match.group("answer"),
+        "route": park_route,
+    }
+    try:
+        path = jev.home() / "gate-decisions.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    except OSError:
+        pass
+
+
+def _emit(line: str) -> None:
+    print(line)
+    if line.startswith("gate:"):
+        try:
+            _log_gate_decision(line)
+        except Exception:  # noqa: BLE001 (observation must never change the gate)
+            pass
 
 
 def gate(plan: str, subject: str, questions: dict) -> tuple[str, list[str]]:
@@ -171,7 +213,8 @@ def gate(plan: str, subject: str, questions: dict) -> tuple[str, list[str]]:
         outcome = "autonomous" if answer is False else "park"
         reason = ("local to a screen" if outcome == "autonomous" else
                   "app-wide or unsure, and no owner asked for it: the owner decides")
-    line = f"gate: {outcome} basis={basis} answer={word}" + (f" route={route()}" if outcome == "park" else "")
+    park_route = route() if outcome == "park" else None
+    line = f"gate: {outcome} basis={basis} answer={word}" + (f" route={park_route}" if park_route else "")
     return outcome, [f"Jev gate ({qid}={word}): {reason}", line]
 
 
@@ -225,10 +268,11 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         for line in all_lines(plan, args.title, args.subject):
-            print(line)
+            _emit(line)
     except Exception:  # noqa: BLE001 (no Jev: the raise-only hints are silent, but the gate fails safe)
         basis = "request" if owner_request(plan) is not None else "agent"
-        print(f"gate: park basis={basis} answer=unavailable route={route()}")
+        park_route = route()
+        _emit(f"gate: park basis={basis} answer=unavailable route={park_route}")
     return 0
 
 

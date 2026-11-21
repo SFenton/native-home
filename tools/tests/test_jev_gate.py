@@ -69,6 +69,10 @@ class GateTests(unittest.TestCase):
                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                 code = gate.main(["--plan-file", str(plan), *extra])
             self.records = [json.loads(l) for l in self.log.read_text().splitlines()] if self.log.exists() else []
+            decision_log = Path(tmp) / "jev" / "gate-decisions.jsonl"
+            self.decision_records = (
+                [json.loads(l) for l in decision_log.read_text().splitlines()] if decision_log.exists() else []
+            )
         text = out.getvalue()
         self.gate_lines = [l for l in text.splitlines() if l.startswith(("Jev gate", "gate:"))]
         text = "".join(l + "\n" for l in text.splitlines() if not l.startswith(("Jev gate", "gate:")))
@@ -85,6 +89,16 @@ class GateTests(unittest.TestCase):
         self.assertTrue(self.records[1]["question"].startswith("decision.needs_owner@"))
         self.assertIn("at", self.records[0])
         self.assertNotIn("the plan", json.dumps(self.records))
+
+    def test_every_emitted_gate_line_has_one_enum_only_decision(self):
+        self.run_gate(0.82, 0.3)
+        self.assertEqual(len(self.gate_lines), 2)
+        self.assertEqual(self.decision_records, [{
+            "answer": "unavailable",
+            "basis": "agent",
+            "outcome": "park",
+            "route": "session",
+        }])
 
     def test_unavailable_logs_nothing(self):
         self.run_gate(None, None)
@@ -151,7 +165,8 @@ class GateTests(unittest.TestCase):
             plan = Path(tmp) / "plan.md"
             plan.write_text("x")
             out = io.StringIO()
-            with mock.patch.object(gate.jev, "ask_question", side_effect=RuntimeError("boom")), \
+            with mock.patch.dict("os.environ", {"JEV_HOME": tmp + "/jev"}), \
+                    mock.patch.object(gate.jev, "ask_question", side_effect=RuntimeError("boom")), \
                     contextlib.redirect_stdout(out):
                 code = gate.main(["--plan-file", str(plan)])
             self.assertEqual(code, 0)
@@ -163,7 +178,8 @@ class GateTests(unittest.TestCase):
             empty.write_text("  \n")
             for path in (Path(tmp) / "missing.md", empty):
                 out, err = io.StringIO(), io.StringIO()
-                with mock.patch.object(gate.jev, "ask_question", side_effect=AssertionError("asked")), \
+                with mock.patch.dict("os.environ", {"JEV_HOME": tmp + "/jev"}), \
+                        mock.patch.object(gate.jev, "ask_question", side_effect=AssertionError("asked")), \
                         contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
                     code = gate.main(["--plan-file", str(path)])
                 self.assertEqual((code, out.getvalue(), err.getvalue()),
@@ -257,9 +273,181 @@ class AppUIGateTests(unittest.TestCase):
             for text, basis in ((self.AGENT, "agent"), ("Owner's request: bigger chips\n\n" + self.AGENT, "request")):
                 plan.write_text(text)
                 out = io.StringIO()
-                with mock.patch.object(gate, "all_lines", side_effect=RuntimeError("boom")), contextlib.redirect_stdout(out):
+                with mock.patch.dict("os.environ", {"JEV_HOME": d + "/jev"}), \
+                        mock.patch.object(gate, "all_lines", side_effect=RuntimeError("boom")), \
+                        contextlib.redirect_stdout(out):
                     self.assertEqual(gate.main(["--plan-file", str(plan)]), 0)
                 self.assertEqual(out.getvalue().strip(), f"gate: park basis={basis} answer=unavailable route=session")
+
+
+class GateDecisionTelemetryTests(unittest.TestCase):
+    REQUEST = "Owner's request: make the chips bigger\n\nPlan: chips grow to 44 pt."
+    AGENT = "Plan: tidy the chip spacing."
+    AT = "2026-01-02T03:04:05Z"
+
+    def invoke(self, plan_text, answer, *, visible=0.9, route="session", question_present=True,
+               loader_unavailable=False, cli_exception=False, blocked=False, observe=True,
+               telemetry_exception=False):
+        qid = "design.matches_request" if plan_text.startswith("Owner's request:") else "design.app_wide"
+        answer_arg = {qid.replace(".", "_", 1): answer}
+        fake = Fake(visible, 0.1, **answer_arg)
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "jev"
+            plan = Path(tmp) / "plan.md"
+            plan.write_text(plan_text)
+            if blocked:
+                (home / "gate-decisions.jsonl").mkdir(parents=True)
+            real = gate.jev.load_questions
+
+            def load():
+                questions = without_target(real)()
+                if not question_present:
+                    questions.pop(qid, None)
+                return questions
+
+            out, err = io.StringIO(), io.StringIO()
+            with contextlib.ExitStack() as stack:
+                stack.enter_context(mock.patch.dict("os.environ", {"JEV_HOME": str(home)}))
+                stack.enter_context(mock.patch.object(gate, "route", return_value=route))
+                stack.enter_context(mock.patch.object(gate.jev.time, "strftime", return_value=self.AT))
+                stack.enter_context(mock.patch.object(gate.jev, "ask_question", fake))
+                if loader_unavailable:
+                    stack.enter_context(mock.patch.object(gate.jev, "load_questions",
+                                                          side_effect=RuntimeError("unavailable")))
+                else:
+                    stack.enter_context(mock.patch.object(gate.jev, "load_questions", load))
+                if cli_exception:
+                    stack.enter_context(mock.patch.object(gate, "all_lines", side_effect=RuntimeError("boom")))
+                if not observe:
+                    stack.enter_context(mock.patch.object(gate, "_log_gate_decision"))
+                elif telemetry_exception:
+                    stack.enter_context(mock.patch.object(gate, "_log_gate_decision",
+                                                          side_effect=RuntimeError("telemetry")))
+                stack.enter_context(contextlib.redirect_stdout(out))
+                stack.enter_context(contextlib.redirect_stderr(err))
+                code = gate.main(["--plan-file", str(plan), "--subject", "R-1"])
+
+            def rows(name):
+                path = home / name
+                if not path.is_file():
+                    return []
+                return [json.loads(line) for line in path.read_text().splitlines()]
+
+            return {
+                "code": code,
+                "stdout": out.getvalue(),
+                "stderr": err.getvalue(),
+                "legacy": rows("gate.jsonl"),
+                "decisions": rows("gate-decisions.jsonl"),
+                "calls": [call[0] for call in fake.calls],
+            }
+
+    @staticmethod
+    def gate_lines(result):
+        return [line for line in result["stdout"].splitlines() if line.startswith("gate:")]
+
+    def test_request_and_agent_answers_cross_both_park_routes(self):
+        cases = (
+            (self.REQUEST, 0.9, "yes", "autonomous"),
+            (self.REQUEST, 0.1, "no", "park"),
+            (self.REQUEST, 0.45, "unsure", "park"),
+            (self.REQUEST, None, "unavailable", "park"),
+            (self.AGENT, 0.9, "yes", "park"),
+            (self.AGENT, 0.1, "no", "autonomous"),
+            (self.AGENT, 0.45, "unsure", "park"),
+            (self.AGENT, None, "unavailable", "park"),
+        )
+        for plan, probability, word, outcome in cases:
+            for route in ("session", "pr"):
+                with self.subTest(plan=plan[:12], word=word, route=route):
+                    result = self.invoke(plan, probability, route=route)
+                    expected_route = route if outcome == "park" else None
+                    expected = {
+                        "answer": word,
+                        "basis": "request" if plan.startswith("Owner's request:") else "agent",
+                        "outcome": outcome,
+                        "route": expected_route,
+                    }
+                    self.assertEqual(len(self.gate_lines(result)), 1)
+                    self.assertEqual(result["decisions"], [expected])
+                    self.assertEqual(len(result["legacy"]), 2 if probability is None else 3)
+                    self.assertEqual(set(result["decisions"][0]), {"outcome", "basis", "answer", "route"})
+                    self.assertNotIn("subject", result["decisions"][0])
+                    self.assertNotIn(plan, result["stdout"] + json.dumps(result["decisions"]))
+
+    def test_absent_question_has_an_unavailable_observation(self):
+        for plan, basis in ((self.REQUEST, "request"), (self.AGENT, "agent")):
+            with self.subTest(basis=basis):
+                result = self.invoke(plan, 0.9, question_present=False)
+                self.assertEqual(result["decisions"], [{
+                    "answer": "unavailable",
+                    "basis": basis,
+                    "outcome": "park",
+                    "route": "session",
+                }])
+                self.assertEqual(len(result["legacy"]), 2)
+                qid = "design.matches_request" if basis == "request" else "design.app_wide"
+                self.assertNotIn(qid, result["calls"])
+
+    def test_unavailable_loader_and_cli_exception_each_emit_one_fallback(self):
+        for plan, basis in ((self.REQUEST, "request"), (self.AGENT, "agent")):
+            for options in ({"loader_unavailable": True}, {"cli_exception": True}):
+                with self.subTest(basis=basis, options=options):
+                    result = self.invoke(plan, 0.9, **options)
+                    self.assertEqual(self.gate_lines(result), [
+                        f"gate: park basis={basis} answer=unavailable route=session"
+                    ])
+                    self.assertEqual(result["decisions"], [{
+                        "answer": "unavailable",
+                        "basis": basis,
+                        "outcome": "park",
+                        "route": "session",
+                    }])
+                    self.assertEqual(result["legacy"], [])
+                    self.assertEqual((result["code"], result["stderr"]), (0, ""))
+
+    def test_no_gate_and_invalid_input_emit_no_decision(self):
+        invisible = self.invoke(self.AGENT, 0.1, visible=0.1)
+        self.assertEqual(invisible["decisions"], [])
+        self.assertEqual(self.gate_lines(invisible), [])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "jev"
+            for path in (Path(tmp) / "missing.md", Path(tmp) / "empty.md"):
+                if path.name == "empty.md":
+                    path.write_text(" \n")
+                out, err = io.StringIO(), io.StringIO()
+                with mock.patch.dict("os.environ", {"JEV_HOME": str(home)}), \
+                        contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                    code = gate.main(["--plan-file", str(path)])
+                self.assertEqual(code, 2)
+                self.assertEqual(out.getvalue(), "")
+            self.assertFalse((home / "gate-decisions.jsonl").exists())
+
+    def test_telemetry_does_not_change_output_exit_or_legacy_answers(self):
+        enabled = self.invoke(self.REQUEST, 0.9, route="pr")
+        disabled = self.invoke(self.REQUEST, 0.9, route="pr", observe=False)
+        self.assertEqual((enabled["code"], enabled["stdout"], enabled["stderr"]),
+                         (disabled["code"], disabled["stdout"], disabled["stderr"]))
+        self.assertEqual(enabled["legacy"], disabled["legacy"])
+
+    def test_unwritable_decision_sink_is_invisible_to_the_cli(self):
+        normal = self.invoke(self.AGENT, 0.9, route="pr")
+        blocked = self.invoke(self.AGENT, 0.9, route="pr", blocked=True)
+        self.assertEqual((blocked["code"], blocked["stdout"], blocked["stderr"]),
+                         (normal["code"], normal["stdout"], normal["stderr"]))
+        self.assertEqual(blocked["legacy"], normal["legacy"])
+        self.assertEqual(blocked["decisions"], [])
+        self.assertEqual(len(self.gate_lines(blocked)), 1)
+
+    def test_any_telemetry_error_is_invisible_to_the_cli(self):
+        normal = self.invoke(self.AGENT, 0.9, route="pr")
+        failed = self.invoke(self.AGENT, 0.9, route="pr", telemetry_exception=True)
+        self.assertEqual((failed["code"], failed["stdout"], failed["stderr"]),
+                         (normal["code"], normal["stdout"], normal["stderr"]))
+        self.assertEqual(failed["legacy"], normal["legacy"])
+        self.assertEqual(failed["decisions"], [])
+        self.assertEqual(len(self.gate_lines(failed)), 1)
 
 
 class RouteTests(unittest.TestCase):
