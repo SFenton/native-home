@@ -13,10 +13,10 @@ stamps the Stop hook reads) and folds the build into the manifest of what is pub
 
 The manifest is one file shared by every worktree of the repo (`mockups-hub.manifest.json` in the git common dir): per
 published file its content hash and the branch@commit that published it, and the catalog items the index was built from.
-A build compares itself with it, file by file, against the merge-base of that file's publisher and this head:
+A build compares itself with it file by file, by content: a published copy is not another session's newer edit when this branch published it or this head's history holds that content (so squash merges clear it):
 a file only this build changed is published; a file another session published and this build did not change is kept as it
 is, and its catalog entry is carried into the index; a file this build would overwrite or delete that the other session
-changed is a conflict, so the build exits 1 unless --allow-older is given. --batches lists only the changed files
+changed is a conflict, so the build exits 1 unless --allow-older is given, which publishes over it. --batches lists only the changed files
 (the index goes through file_path, never files; last come the files to remove).
 
 A build writes build/mockups-hub.built; --mark-published writes build/mockups-hub.published. The Stop hook
@@ -255,6 +255,16 @@ def source_hashes(inline: bool) -> dict[str, str]:
             if not (inline and p.relative_to(MOCKUPS).parts[0] == "_kit" and p.suffix in {".js", ".css"})}
 
 
+def kit_embeds(inline: bool) -> dict[str, str]:
+    """Inline pages carry the kit, so each page that names it gets the digest of every kit script and style."""
+    if not inline:
+        return {}
+    kit = sha256("".join(sha256(p.read_bytes()) for p in publishable()
+                         if p.relative_to(MOCKUPS).parts[0] == "_kit" and p.suffix in {".js", ".css"}).encode())
+    return {f"a/{p.relative_to(MOCKUPS).as_posix()}": kit for p in publishable()
+            if p.suffix == ".html" and "_kit" in p.read_text(encoding="utf-8")}
+
+
 def manifest_path() -> Path:
     """The manifest of what is published, in the git common dir so every worktree of the repo shares it."""
     common = git("rev-parse", "--git-common-dir").stdout.strip()
@@ -270,46 +280,65 @@ def read_manifest() -> dict:
     return {"files": data.get("files", {}), "items": data.get("items", []), "inline": data.get("inline", False)}
 
 
-def base_hash(rel: str, sha: str, head: str) -> str | None:
-    """Hash of ``rel`` at the merge-base of the commit that published it and this head; None when absent there."""
-    if not sha or not head:
+def repo_path(rel: str) -> str:
+    return (MOCKUPS / rel[2:]).relative_to(ROOT).as_posix()
+
+
+def hash_at(commit: str, rel: str) -> str | None:
+    """Content hash of ``rel`` at ``commit``; None when the file is absent there."""
+    if not commit:
         return None
-    mb = git("merge-base", sha, head).stdout.strip()
-    if not mb:
-        return None
-    path = (MOCKUPS / rel[2:]).relative_to(ROOT).as_posix()
-    shown = subprocess.run(["git", "-C", str(ROOT), "show", f"{mb}:{path}"], capture_output=True)
+    shown = subprocess.run(["git", "-C", str(ROOT), "show", f"{commit}:{repo_path(rel)}"], capture_output=True)
     return sha256(shown.stdout) if shown.returncode == 0 else None
 
 
-def plan(manifest: dict, mine: dict[str, str], head: dict, inline: bool) -> dict:
+def fork_point(head: dict) -> str:
+    """The commit where this head left the landed line (origin/main, else main); the head itself when neither exists."""
+    for ref in ("origin/main", "main"):
+        if git("rev-parse", "--verify", "-q", ref).returncode == 0:
+            return git("merge-base", ref, head["sha"]).stdout.strip() or head["sha"]
+    return head["sha"]
+
+
+def seen(rel: str, digest: str, head: dict) -> bool:
+    """True when ``rel`` had content ``digest`` somewhere in the history reachable from this head.
+
+    Decided from content, not ancestry: a squash-merged branch's commits are not ancestors of main, but its content is in main's history.
+    """
+    commits = git("log", "--format=%H", "-n", "200", head["sha"], "--", repo_path(rel)).stdout.split()
+    return any(hash_at(c, rel) == digest for c in commits)
+
+
+def plan(manifest: dict, mine: dict[str, str], head: dict, inline: bool, embed: dict[str, str] = None) -> dict:
     """Decide each file against the manifest: ``changed`` (publish), ``deleted`` (remove), ``carried`` (another session's, kept),
-    ``conflicts`` (would overwrite or delete a published file another session changed)."""
-    published = manifest["files"]
+    ``conflicts`` (would overwrite or delete a published file another session changed; ``(rel, entry, "change" or "delete")``).
+
+    A published copy is not someone else's newer edit when this branch published it, or this head's history holds that content.
+    """
+    published, embed = manifest["files"], embed or {}
     out = {"changed": [], "deleted": [], "carried": [], "conflicts": []}
     remake = bool(published) and manifest["inline"] != inline
+    fork = fork_point(head)
     for rel, h in mine.items():
         p = published.get(rel)
-        if p is None or (p["hash"] == h and remake):
+        if p is None or (p["hash"] == h and (remake or p.get("kit") != embed.get(rel))):
             out["changed"].append(rel)
         elif p["hash"] != h:
-            b = base_hash(rel, p["sha"], head["sha"])
-            if p["hash"] == b:
-                out["changed"].append(rel)  # only this build changed it
-            elif h == b:
+            if p.get("branch") == head["branch"] != "detached" or seen(rel, p["hash"], head):
+                out["changed"].append(rel)
+            elif h == hash_at(fork, rel):
                 out["carried"].append(rel)  # only the other session changed it; its copy stays
             else:
-                out["conflicts"].append((rel, p))
+                out["conflicts"].append((rel, p, "change"))
     for rel, p in published.items():
         if rel in mine:
             continue
-        b = base_hash(rel, p["sha"], head["sha"])
-        if b is None:
-            out["carried"].append(rel)  # added by another session; this head never had it
-        elif p["hash"] == b:
+        if p.get("branch") == head["branch"] != "detached" or seen(rel, p["hash"], head):
             out["deleted"].append(rel)
+        elif hash_at(fork, rel) is None:
+            out["carried"].append(rel)  # added by another session; this head never had it
         else:
-            out["conflicts"].append((rel, p))
+            out["conflicts"].append((rel, p, "delete"))
     return out
 
 
@@ -322,6 +351,8 @@ def fold(manifest: dict, built: dict) -> dict:
     files = {r: p for r, p in manifest["files"].items() if r not in built["deleted"]}
     for rel in built["changed"]:
         files[rel] = {"hash": built["hashes"][rel], "branch": built["branch"], "sha": built["sha"]}
+        if rel in built.get("embed", {}):
+            files[rel]["kit"] = built["embed"][rel]
     return {"files": dict(sorted(files.items())), "items": built["items"], "inline": built["inline"]}
 
 
@@ -337,16 +368,21 @@ def main(argv: list[str]) -> int:
         return 0
     head, manifest, inline = head_pair(), read_manifest(), "--inline" in argv
     mine = source_hashes(inline)
-    decided = plan(manifest, mine, head, inline)
-    if decided["conflicts"] and "--allow-older" not in argv:
-        for rel, p in decided["conflicts"]:
-            print(f"{rel}: {label(p)} changed it and this build would overwrite or delete it", file=sys.stderr)
-        print("pass --allow-older to continue, or merge that branch first", file=sys.stderr)
-        return 1
+    embed = kit_embeds(inline)
+    decided = plan(manifest, mine, head, inline, embed)
+    if decided["conflicts"]:
+        for rel, p, how in decided["conflicts"]:
+            print(f"{rel}: {label(p)} published a version this head has not seen; this build would {how} it", file=sys.stderr)
+        if "--allow-older" not in argv:
+            print("nothing built. Land that branch and rebase, or pass --allow-older to overwrite or delete those files", file=sys.stderr)
+            return 1
+        for rel, _, how in decided["conflicts"]:
+            decided["changed" if how == "change" else "deleted"].append(rel)
+        print(f"--allow-older: overwriting {len(decided['conflicts'])} file(s) listed above", file=sys.stderr)
     kept = set(decided["carried"]) - set(mine)
     files, items = build(inline, [i for i in manifest["items"] if f"a/{i['mockup']}" in kept])
     stamp("mockups-hub.built")
-    record = {**head, "inline": inline, "hashes": mine, "changed": decided["changed"], "deleted": decided["deleted"],
+    record = {**head, "inline": inline, "hashes": mine, "embed": embed, "changed": decided["changed"], "deleted": decided["deleted"],
               "carried": decided["carried"], "items": items}
     (ROOT / "build" / "mockups-hub.built.json").write_text(json.dumps(record) + "\n", encoding="utf-8")
     pages = sum(1 for rel in files if rel.endswith(".html")) + 1

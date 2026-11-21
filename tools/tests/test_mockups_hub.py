@@ -172,7 +172,89 @@ class HubMultiBranchTests(HubRepoCase):
         self.assertIn("a/pages/base/base.html", err)
         self.assertIn("lane-a@", err)
         self.assertFalse((b / "build/mockups-hub.built.json").exists())
-        self.assertEqual(self.run_main(b, "--allow-older")[0], 0)
+
+    def test_allow_older_overwrites_and_says_so(self):
+        """Fails if: --allow-older leaves the conflicted file out of the batches or the manifest, or stays silent about it."""
+        a, b = self.branch("lane-a"), self.branch("lane-b")
+        self.write(a, "pages/base/base.html", "<!doctype html><title>from a</title></head>")
+        self.commit(a, "a edits base")
+        self.write(b, "pages/base/base.html", "<!doctype html><title>from b</title></head>")
+        self.commit(b, "b edits base")
+        self.publish(a)
+        code, out, err = self.run_main(b, "--batches", "--allow-older")
+        self.assertEqual(code, 0)
+        self.assertIn("a/pages/base/base.html", self.paths(json.loads(out)))
+        self.assertIn("overwriting 1 file", err)
+        self.assertIn("a/pages/base/base.html", err)
+        self.run_main(b, "--mark-published")
+        with self.session(b):
+            self.assertEqual(hub.read_manifest()["files"]["a/pages/base/base.html"]["branch"], "lane-b")
+
+    def test_allow_older_deletes_a_conflicted_deletion(self):
+        """Fails if: --allow-older skips a deletion that conflicts, silently."""
+        a, b = self.branch("lane-a"), self.branch("lane-b")
+        self.write(a, "pages/base/base.html", "<!doctype html><title>from a</title></head>")
+        self.commit(a, "a edits base")
+        (b / REL / "pages/base/base.html").unlink()
+        self.write(b, "catalog.json", json.dumps({"areas": ["home"], "items": []}))
+        self.commit(b, "b deletes base")
+        self.publish(a)
+        code, out, _ = self.run_main(b, "--batches", "--allow-older")
+        self.assertEqual(code, 0)
+        self.assertIn([{"a/pages/base/base.html": None}], json.loads(out))
+
+    def test_squash_merged_branch_does_not_block_later_edits(self):
+        """Fails if: after branch A is squash-merged (same content, new commit) a later branch editing that file is refused."""
+        a = self.branch("lane-a")
+        self.write(a, "pages/base/base.html", "<!doctype html><title>from a</title></head>")
+        self.commit(a, "a edits base")
+        self.publish(a)
+        self.write(self.root, "pages/base/base.html", "<!doctype html><title>from a</title></head>")
+        self.commit(self.root, "squash of lane-a")
+        c = self.branch("lane-c")
+        self.write(c, "pages/base/base.html", "<!doctype html><title>from c</title></head>")
+        self.commit(c, "c edits base")
+        self.assertEqual(self.paths(self.publish(c)), {"a/pages/base/base.html"})
+
+    def test_mockup_added_then_deleted_after_squash_leaves_the_hub(self):
+        """Fails if: a mockup a squash-merged branch added and main later deleted stays in the hub and index forever."""
+        a = self.branch("lane-a")
+        self.add_page(a, "alpha")
+        self.publish(a)
+        self.add_page(self.root, "alpha")  # the squash commit
+        (self.root / REL / "pages/alpha/alpha.html").unlink()
+        self.write(self.root, "catalog.json", json.dumps({"areas": ["home"], "items": [item("base")]}))
+        self.commit(self.root, "alpha removed")
+        c = self.branch("lane-c")
+        batches = self.publish(c)
+        self.assertIn([{"a/pages/alpha/alpha.html": None}], batches)
+        self.assertNotIn("pages/alpha/alpha.html", self.index(c))
+
+    def test_a_branch_republishes_over_its_own_earlier_publish(self):
+        """Fails if: a branch is refused by its own earlier publish after an uncommitted edit, or keeps a deleted uncommitted file."""
+        a = self.branch("lane-a")
+        self.write(a, "pages/base/base.html", "<!doctype html><title>one</title></head>")
+        self.publish(a)
+        self.write(a, "pages/base/base.html", "<!doctype html><title>two</title></head>")
+        self.assertEqual(self.paths(self.publish(a)), {"a/pages/base/base.html"})
+        self.write(a, "pages/new/new.html", "<!doctype html><title>new</title></head>")
+        self.publish(a)
+        (a / REL / "pages/new/new.html").unlink()
+        self.assertIn([{"a/pages/new/new.html": None}], self.publish(a))
+
+    def test_inline_kit_change_republishes_every_page_that_embeds_it(self):
+        """Fails if: under --inline a kit edit lists no page as changed, so the hub keeps stale inlined pages."""
+        (self.root / "tools").mkdir()
+        (self.root / "tools/mockups_inline.py").write_text((TOOLS / "mockups_inline.py").read_text())
+        self.write(self.root, "_kit/kit.css", "body{}")
+        self.write(self.root, "_kit/kit.js", "Mock.LIB = [];\nMock.COMPONENTS = ['c'];")
+        self.write(self.root, "_kit/components/c.js", "var c = 1;")
+        self.write(self.root, "pages/base/base.html", '<!doctype html><link rel="stylesheet" href="../../_kit/kit.css"><script src="../../_kit/kit.js"></script></head>')
+        self.commit(self.root, "kit")
+        self.publish(self.root, "--inline")
+        self.write(self.root, "_kit/components/c.js", "var c = 2;")
+        self.commit(self.root, "kit edit")
+        self.assertEqual(self.paths(self.publish(self.root, "--inline")), {"a/pages/base/base.html"})
 
     def test_deleting_the_other_branchs_changed_file_refuses(self):
         """Fails if: a build that would delete a published file the other branch changed exits 0."""
