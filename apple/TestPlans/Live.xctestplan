@@ -37,6 +37,7 @@
         "LiveActivityJourneyTests/testLiveActivityVacuumsPassesAccessibilityAudit()",
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
+        "RoomChromeLiveJourneyTests",
         "RoomTabLiveJourneyTests",
         "ServerUIProdSmokeJourneyTests",
         "SettingsJourneyTests/testHaSettingsDoneClosesModal()",

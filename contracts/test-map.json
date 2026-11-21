@@ -21,7 +21,8 @@
   "LayoutJourneyTests",
   "ModalSizingJourneyTests",
   "TileLayoutJourneyTests",
-  "RoomTabLiveJourneyTests"
+  "RoomTabLiveJourneyTests",
+  "RoomChromeLiveJourneyTests"
  ],
  "ignore": [
   ".agents/",
@@ -1626,6 +1627,15 @@
    ]
   },
   {
+   "prefix": "apple/Apps/iOSUITests/RoomLiveJourneyTestCase.swift",
+   "swift": [],
+   "layout_sensitive": true,
+   "journeys": [
+    "RoomTabLiveJourneyTests",
+    "RoomChromeLiveJourneyTests"
+   ]
+  },
+  {
    "prefix": "apple/Apps/iOSUITests/RoomDevicesJourneyTestCase.swift",
    "swift": [],
    "journeys": [
@@ -2447,7 +2457,8 @@
    "prefix": "apple/Sources/HassUI/UIKitPort/ServerUI/UKServerUIRenderer.swift",
    "swift": [],
    "journeys": [
-    "RoomTabLiveJourneyTests"
+    "RoomTabLiveJourneyTests",
+    "RoomChromeLiveJourneyTests"
    ],
    "hosted": [
     "ServerUIBootstrapHostedTests",
