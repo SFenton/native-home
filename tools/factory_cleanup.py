@@ -208,11 +208,55 @@ def _fixed_environment() -> Dict[str, str]:
     return environment
 
 
+def _path_has_dot_component(value: str) -> bool:
+    return any(component in (".", "..") for component in value.split("/"))
+
+
+def _normalized_absolute_path(value: str, relative_to: Path) -> Path:
+    if _path_has_dot_component(value):
+        raise CleanupError("command_denied")
+    if os.path.isabs(value):
+        normalized = os.path.normpath(value)
+    else:
+        normalized = os.path.normpath(os.path.join(str(relative_to), value))
+    return Path(normalized)
+
+
+def _verified_write_roots(destination: Path) -> Tuple[Path, Path]:
+    current: Optional[Path] = destination
+    factory_root = None
+    while current is not None:
+        if (
+            current.name in ("staging", "archive")
+            and current.parent.name == "factory"
+        ):
+            factory_root = current.parent
+            break
+        if current == current.parent:
+            break
+        current = current.parent
+    if factory_root is None:
+        raise CleanupError("command_denied")
+    identity = factory_lease.RepositoryIdentity(
+        common_dir=factory_root.parent,
+        root_commit="0" * 40,
+    )
+    _verify_store(identity)
+    roots = (
+        Path(os.path.normpath(str(factory_root / "staging"))),
+        Path(os.path.normpath(str(factory_root / "archive"))),
+    )
+    for root in roots:
+        if not root.exists():
+            raise CleanupError("command_denied")
+        _assert_nonlinked_absolute(root)
+    return roots
+
+
 def _run(
     command: Sequence[str],
     cwd: Optional[Path] = None,
     input_bytes: Optional[bytes] = None,
-    write_root: Optional[Path] = None,
 ) -> subprocess.CompletedProcess:
     if not command or not all(isinstance(item, str) for item in command):
         raise CleanupError("command_invalid")
@@ -270,28 +314,26 @@ def _run(
     )
     if not accepted:
         raise CleanupError("command_denied")
-    command_root = Path(args[2])
+    command_root = _normalized_absolute_path(
+        args[2], Path(cwd).absolute() if cwd is not None else Path.cwd()
+    )
     write_path = None
     if subcommand == "bundle" and rest[:1] == ("create",):
         if len(rest) != 3:
             raise CleanupError("command_denied")
-        value = Path(rest[1])
-        write_path = value if value.is_absolute() else command_root / value
+        write_path = _normalized_absolute_path(rest[1], command_root)
     elif subcommand == "clone":
-        value = Path(rest[3])
-        write_path = value if value.is_absolute() else command_root / value
+        write_path = _normalized_absolute_path(rest[3], command_root)
     elif subcommand in ("checkout", "hash-object", "init"):
-        write_path = Path(args[2])
+        write_path = command_root
     if write_path is not None:
-        if write_root is None:
+        destination = Path(os.path.normpath(str(write_path)))
+        roots = _verified_write_roots(destination)
+        if not any(
+            destination == root or root in destination.parents
+            for root in roots
+        ):
             raise CleanupError("command_denied")
-        root = Path(write_root).absolute()
-        destination = write_path.absolute()
-        try:
-            destination.relative_to(root)
-        except ValueError as error:
-            raise CleanupError("command_denied") from error
-        _assert_nonlinked_absolute(root)
         _assert_nonlinked_absolute(destination.parent)
     try:
         process = subprocess.Popen(
@@ -370,12 +412,10 @@ def _git(
     root: Path,
     *arguments: str,
     input_bytes: Optional[bytes] = None,
-    write_root: Optional[Path] = None,
 ) -> bytes:
     completed = _run(
         ("git", "-C", str(root), *arguments),
         input_bytes=input_bytes,
-        write_root=write_root,
     )
     if completed.returncode != 0:
         raise CleanupError("git_read_failed")
@@ -568,6 +608,16 @@ def _assert_nonlinked_absolute(path: Path) -> None:
             raise CleanupError("path_changed") from error
         if stat.S_ISLNK(info.st_mode):
             raise CleanupError("path_changed")
+
+
+def _assert_archive_directory(path: Path) -> None:
+    try:
+        info = path.lstat()
+    except OSError as error:
+        raise CleanupError("archive_manifest") from error
+    if path.is_symlink() or not stat.S_ISDIR(info.st_mode):
+        raise CleanupError("archive_manifest")
+    _assert_nonlinked_absolute(path)
 
 
 def _verify_store(identity: factory_lease.RepositoryIdentity) -> None:
@@ -1841,7 +1891,6 @@ def _bundle(
         "create",
         str(path),
         "HEAD",
-        write_root=candidate_dir,
     )
     info = path.lstat()
     if path.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size == 0:
@@ -1960,10 +2009,14 @@ def _restore_archive(
     bundle = candidate_dir / "commits.bundle"
     index = candidate_dir / "index"
     payload_dir = candidate_dir / "files"
+    object_dir = candidate_dir / "index-objects"
     manifest_path = candidate_dir / "manifest.json"
+    _assert_archive_directory(candidate_dir)
     raw_manifest = _read_file_nofollow(
         manifest_path, MAX_MANIFEST_BYTES, 0o600
     )
+    _assert_archive_directory(payload_dir)
+    _assert_archive_directory(object_dir)
     manifest_value = _strict_json(raw_manifest, MAX_MANIFEST_BYTES)
     if not isinstance(manifest_value, dict) or set(manifest_value) != {
         "v",
@@ -2026,7 +2079,6 @@ def _restore_archive(
     object_rows = manifest_value["index_objects"]
     if not isinstance(object_rows, list):
         raise CleanupError("archive_manifest")
-    object_dir = candidate_dir / "index-objects"
     index_objects = {}
     expected_oids = {
         entry["oid"] for entry in expected["index"]["entries"]
@@ -2074,7 +2126,6 @@ def _restore_archive(
     try:
         initialized = _run(
             ("git", "-C", str(verify_dir), "init", "-q"),
-            write_root=restore_dir.parent,
         )
         if initialized.returncode != 0:
             raise CleanupError("bundle_invalid")
@@ -2103,7 +2154,6 @@ def _restore_archive(
             str(bundle),
             str(restore_dir),
         ),
-        write_root=restore_dir.parent,
     )
     if completed.returncode != 0:
         raise CleanupError("restore_failed")
@@ -2114,7 +2164,6 @@ def _restore_archive(
         "-q",
         "--detach",
         expected["head"],
-        write_root=restore_dir.parent,
     )
     if (restore_dir / ".git" / "objects" / "info" / "alternates").exists():
         raise CleanupError("restore_alternates")
@@ -2129,7 +2178,6 @@ def _restore_archive(
                 "--stdin",
             ),
             input_bytes=content,
-            write_root=restore_dir.parent,
         )
         if written.returncode != 0 or written.stdout.strip() != object_id.encode("ascii"):
             raise CleanupError("restore_index")

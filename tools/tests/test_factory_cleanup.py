@@ -75,6 +75,26 @@ class CompleteProcesses(factory.ProcessProvider):
         return self.value
 
 
+class CandidateReasonProbe:
+    def __init__(self):
+        self._evaluate = factory_cleanup._evaluate_candidate
+        self.reasons = {}
+
+    def __call__(self, *arguments, **values):
+        target = values["target"] if "target" in values else arguments[4]
+        path = Path(target.path).resolve()
+        try:
+            candidate, reason = self._evaluate(*arguments, **values)
+        except factory_cleanup.CleanupError as error:
+            self.reasons[path] = error.reason
+            raise
+        self.reasons[path] = reason
+        return candidate, reason
+
+    def reason(self, path):
+        return self.reasons[Path(path).resolve()]
+
+
 class CleanupFixture:
     def __init__(self, case, canary=None):
         self.case = case
@@ -303,6 +323,55 @@ class CleanupFixture:
             "external_provider": self.external,
         }
 
+    def add_lane(
+        self,
+        name,
+        branch,
+        *,
+        creator="lane_new",
+        thread=None,
+    ):
+        path = self.root / name
+        self.git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            branch,
+            str(path),
+            "main",
+        )
+        marker = name + ".txt"
+        (path / marker).write_text(name + "\n", encoding="utf-8")
+        self.git(path, "add", marker)
+        self.git(path, "commit", "-qm", name)
+        head = self.git(path, "rev-parse", "HEAD")
+        lease_id, branch_id = self.store.create_worktree(
+            path,
+            creator,
+            task=name,
+            thread=thread,
+            branch_created=branch,
+        )
+        self.pulls.items += (
+            factory_lease.PullRequestEvidence(
+                17 + len(self.pulls.items),
+                REPOSITORY,
+                "main",
+                branch,
+                "MERGED",
+                head,
+                NOW,
+            ),
+        )
+        self.store.reconcile(branch_id, provider=self.pulls)
+        records, invalid = self.store.read_records()
+        self.case.assertEqual(invalid, 0)
+        self.expiry = max(record["expires"] for record in records)
+        self.now = self.expiry + 1
+        return path, lease_id
+
     def write_records(self, transform):
         for record in self.store.read_records()[0]:
             changed = transform(dict(record))
@@ -409,9 +478,15 @@ class ArchiveProofTests(unittest.TestCase):
             )
             return original_git(root, *arguments, **values)
 
-        with mock.patch.object(factory_cleanup, "_git", no_source_objects):
-            factory_cleanup._restore_archive(candidate, restored, expected)
-            factory_cleanup._verify_restore(restored, expected)
+        source_objects = self.fixture.repo / ".git" / "objects"
+        unavailable_objects = self.fixture.root / "source-objects-unavailable"
+        source_objects.rename(unavailable_objects)
+        try:
+            with mock.patch.object(factory_cleanup, "_git", no_source_objects):
+                factory_cleanup._restore_archive(candidate, restored, expected)
+                factory_cleanup._verify_restore(restored, expected)
+        finally:
+            unavailable_objects.rename(source_objects)
         self.assertEqual(
             subprocess.run(
                 ["git", "-C", str(restored), "status", "--porcelain=v1"],
@@ -715,8 +790,8 @@ class FailureAndRestoreProofTests(unittest.TestCase):
                 expected,
             )
 
-        parent_link = clone("parent-link")
-        manifest_path = parent_link / "manifest.json"
+        lexical_parent = clone("lexical-parent")
+        manifest_path = lexical_parent / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["expected"]["entries"][0]["path"] = "../outside-sentinel"
         manifest_path.write_bytes(factory_cleanup._canonical_bytes(manifest))
@@ -724,11 +799,29 @@ class FailureAndRestoreProofTests(unittest.TestCase):
             factory_cleanup.CleanupError, "archive_manifest|input_path"
         ):
             factory_cleanup._restore_archive(
-                parent_link,
-                fixture.store.root / "staging" / "restore-parent",
+                lexical_parent,
+                fixture.store.root / "staging" / "restore-lexical-parent",
                 expected,
             )
         self.assertEqual(sentinel.read_bytes(), b"outside")
+
+        files_link = clone("files-link")
+        outside_files = fixture.root / "outside-archive-files"
+        (files_link / "files").rename(outside_files)
+        (files_link / "files").symlink_to(
+            outside_files, target_is_directory=True
+        )
+        outside_sentinel = fixture.root / "outside-archive-sentinel"
+        outside_sentinel.write_bytes(b"unchanged outside")
+        with self.assertRaisesRegex(
+            factory_cleanup.CleanupError, "archive_manifest|path_changed"
+        ):
+            factory_cleanup._restore_archive(
+                files_link,
+                fixture.store.root / "staging" / "restore-files-link",
+                expected,
+            )
+        self.assertEqual(outside_sentinel.read_bytes(), b"unchanged outside")
 
     def test_capture_change_holds_candidate_and_cleans_staging(self):
         for reason in ("tree_changed", "index_changed", "path_changed"):
@@ -1111,9 +1204,16 @@ class IdentityHeadProcessLeaseProofTests(unittest.TestCase):
 
     def test_06_process_revalidation_and_partial_sources_hold_without_signals(self):
         result = self.fixture.plan()
+        commands = []
+        original_run = factory_cleanup._run
+
+        def command_probe(command, cwd=None, input_bytes=None):
+            commands.append(tuple(command))
+            return original_run(command, cwd, input_bytes)
+
         with mock.patch("os.kill", side_effect=AssertionError), mock.patch(
             "os.killpg", side_effect=AssertionError
-        ):
+        ), mock.patch.object(factory_cleanup, "_run", command_probe):
             reason = self._held_reason(
                 result,
                 process_provider=CompleteProcesses(
@@ -1124,6 +1224,14 @@ class IdentityHeadProcessLeaseProofTests(unittest.TestCase):
                 ),
             )
         self.assertEqual(reason, "class_active_hold")
+        for command in commands:
+            self.assertFalse(
+                any(
+                    Path(argument).name in ("kill", "killall", "pkill", "signal")
+                    for argument in command
+                ),
+                command,
+            )
 
         partial_fixture = CleanupFixture(self)
         partial_fixture.make_archive_changes()
@@ -1505,10 +1613,17 @@ class OwnershipExternalConcurrencyProofTests(unittest.TestCase):
     def test_08_caller_subdirectory_and_workflow_base_remain_stable(self):
         fixture = CleanupFixture(self)
         fixture.make_archive_changes()
-        child = fixture.repo / "caller" / "nested"
+        second, second_id = fixture.add_lane(
+            "caller-second", "lanes/caller-second"
+        )
+        child = fixture.lane / "caller" / "nested"
         child.mkdir(parents=True)
         plan = factory_cleanup.plan_cleanup(child, **fixture.args())
         self.assertEqual(plan.planned, 1)
+        candidate = json.loads(plan.plan_path.read_text())["candidates"][0]
+        self.assertEqual(candidate["binding"]["path"], str(second))
+        self.assertEqual(candidate["lease_id"], second_id)
+        self.assertNotEqual(candidate["binding"]["path"], str(fixture.lane))
         self.assertEqual(
             json.loads(plan.plan_path.read_text())["workflow_base"], "main"
         )
@@ -1521,12 +1636,107 @@ class OwnershipExternalConcurrencyProofTests(unittest.TestCase):
         (configured.repo / "tools" / "triage" / "config.json").write_text(
             '{"workflow_base":"release/other"}\n', encoding="utf-8"
         )
-        configured_plan = factory_cleanup.plan_cleanup(
-            configured.repo, **configured.args()
+        base, _base_id = configured.add_lane(
+            "configured-base", "release/other"
         )
+        configured_probe = CandidateReasonProbe()
+        with mock.patch.object(
+            factory_cleanup, "_evaluate_candidate", configured_probe
+        ):
+            configured_plan = factory_cleanup.plan_cleanup(
+                configured.repo, **configured.args()
+            )
         self.assertEqual(
             json.loads(configured_plan.plan_path.read_text())["workflow_base"],
             "release/other",
+        )
+        self.assertEqual(configured_plan.planned, 1)
+        self.assertEqual(
+            configured_probe.reason(base), "protected_base"
+        )
+
+        for label, change in (
+            ("hook_session", {"creator": "hook_session"}),
+            ("thread", {"thread": "thread-" + "1" * 24}),
+        ):
+            with self.subTest(owner=label):
+                owned = CleanupFixture(self)
+                owned.make_archive_changes()
+
+                def lease_owned(record):
+                    record = json.loads(json.dumps(record))
+                    if record["class"] in ("worktree", "branch"):
+                        record.update(change)
+                    return record
+
+                owned.write_records(lease_owned)
+                inactive = CompleteExternal(
+                    complete=True,
+                    t3_owned=False,
+                    thread_active=False,
+                    devcap_active=False,
+                )
+                probe = CandidateReasonProbe()
+                with mock.patch.object(
+                    factory_cleanup, "_evaluate_candidate", probe
+                ):
+                    held = factory_cleanup.plan_cleanup(
+                        owned.repo,
+                        **dict(
+                            owned.args(),
+                            external_provider=inactive,
+                        ),
+                    )
+                self.assertEqual((held.planned, held.held), (0, 1))
+                self.assertEqual(probe.reason(owned.lane), "t3_owned")
+
+        simulator = CleanupFixture(self)
+        simulator.make_archive_changes()
+        simulator_calls = []
+        simulator_listing = json.dumps(
+            {
+                "devices": {
+                    "com.apple.CoreSimulator.SimRuntime.iOS-26-0": [
+                        {
+                            "udid": "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA",
+                            "state": "Shutdown",
+                            "name": "Otherwise eligible",
+                        }
+                    ]
+                }
+            }
+        ).encode("utf-8")
+        real_subprocess_run = subprocess.run
+
+        def simulator_probe(command, *arguments, **values):
+            simulator_calls.append(tuple(command))
+            if list(command) == ["xcrun", "simctl", "list", "devices", "-j"]:
+                return subprocess.CompletedProcess(
+                    list(command), 0, simulator_listing, b""
+                )
+            return real_subprocess_run(command, *arguments, **values)
+
+        with mock.patch("subprocess.run", simulator_probe):
+            simulator_plan = factory_cleanup.plan_cleanup(
+                simulator.repo,
+                **dict(
+                    simulator.args(),
+                    runner=factory.ReadOnlyRunner(subprocess.run),
+                ),
+            )
+        self.assertEqual(simulator_plan.planned, 1)
+        self.assertEqual(
+            json.loads(simulator_plan.plan_path.read_text())[
+                "candidates"
+            ][0]["binding"]["path"],
+            str(simulator.lane),
+        )
+        self.assertTrue(simulator_calls)
+        self.assertFalse(
+            any(
+                "simctl" in command
+                for command in simulator_calls
+            )
         )
 
     def test_08_clean_and_dirty_controls_each_have_one_archive_only_plan(self):
@@ -1739,12 +1949,10 @@ except factory_lease.LockBusy:
                     surviving = {}
                     original_run = factory_cleanup._run
 
-                    def instrument(
-                        command, cwd=None, input_bytes=None, write_root=None
-                    ):
+                    def instrument(command, cwd=None, input_bytes=None):
                         calls.append(tuple(command))
                         return original_run(
-                            command, cwd, input_bytes, write_root=write_root
+                            command, cwd, input_bytes
                         )
 
                     def late(stage, source, destination):
@@ -2089,13 +2297,32 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
 
     def test_10_11_ancestry_only_fresh_base_and_held_parent_never_enter(self):
         ancestry = CleanupFixture(self)
-        active = factory_lease.LeaseStore(
-            ancestry.identity, now=ancestry.now
+        ancestry.git(
+            ancestry.repo,
+            "update-ref",
+            "refs/heads/main",
+            ancestry.lane_head,
         )
-        active.renew_worktree(ancestry.lane, BRANCH)
-        active.release(ancestry.worktree_id, "ended")
-        result = factory_cleanup.plan_cleanup(ancestry.repo, **ancestry.args())
+        ancestry.git(
+            ancestry.repo,
+            "merge-base",
+            "--is-ancestor",
+            ancestry.lane_head,
+            "refs/heads/main",
+        )
+        ancestry_probe = CandidateReasonProbe()
+        with mock.patch.object(
+            factory_cleanup, "_evaluate_candidate", ancestry_probe
+        ):
+            result = factory_cleanup.plan_cleanup(
+                ancestry.repo,
+                **dict(
+                    ancestry.args(),
+                    pr_provider=PositivePullRequests(()),
+                ),
+            )
         self.assertEqual(result.planned, 0)
+        self.assertEqual(ancestry_probe.reason(ancestry.lane), "pr_changed")
 
         fresh = CleanupFixture(self)
         fresh_head = fresh.git(fresh.repo, "rev-parse", "main")
@@ -2120,6 +2347,38 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
             held_parent.repo, **held_parent.args()
         )
         self.assertEqual(result.planned, 0)
+
+    def test_10_11_partial_or_unreadable_inventory_holds_incomplete(self):
+        for count in ("partial", "unreadable"):
+            with self.subTest(count=count):
+                fixture = CleanupFixture(self)
+                fixture.make_archive_changes()
+                original = factory.GitResourceProvider.inventory
+
+                def incomplete(provider, processes):
+                    inventory = original(provider, processes)
+                    return factory.Inventory(
+                        inventory.observations,
+                        unreadable=1 if count == "unreadable" else 0,
+                        partial=1 if count == "partial" else 0,
+                    )
+
+                probe = CandidateReasonProbe()
+                with mock.patch.object(
+                    factory.GitResourceProvider, "inventory", incomplete
+                ), mock.patch.object(
+                    factory_cleanup, "_evaluate_candidate", probe
+                ):
+                    result = factory_cleanup.plan_cleanup(
+                        fixture.repo, **fixture.args()
+                    )
+                self.assertEqual(
+                    (result.planned, result.held, result.unknown),
+                    (0, 1, 1),
+                )
+                self.assertEqual(
+                    probe.reason(fixture.lane), "inventory_incomplete"
+                )
 
     def test_14_gate_accepts_only_registered_canonical_recent_exact_plan(self):
         fixture = CleanupFixture(self)
@@ -2188,11 +2447,9 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
             writes.append(Path(path))
             return original(path, raw)
 
-        def command_probe(command, cwd=None, input_bytes=None, write_root=None):
-            commands.append((tuple(command), write_root))
-            return original_run(
-                command, cwd, input_bytes, write_root=write_root
-            )
+        def command_probe(command, cwd=None, input_bytes=None):
+            commands.append(tuple(command))
+            return original_run(command, cwd, input_bytes)
 
         denied = (
             ("git", "-C", str(fixture.repo), "worktree", "remove", "x"),
@@ -2254,7 +2511,58 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
                     str(outside),
                     "HEAD",
                 ),
-                write_root=staging,
+            )
+        with self.assertRaisesRegex(
+            factory_cleanup.CleanupError, "command_denied"
+        ):
+            factory_cleanup._run(
+                (
+                    "git",
+                    "-C",
+                    str(fixture.repo),
+                    "bundle",
+                    "create",
+                    str(staging) + "/./inside-bundle",
+                    "HEAD",
+                ),
+            )
+        with self.assertRaisesRegex(
+            factory_cleanup.CleanupError, "command_denied"
+        ):
+            factory_cleanup._run(
+                (
+                    "git",
+                    "-C",
+                    str(fixture.repo),
+                    "bundle",
+                    "create",
+                    str(staging) + "/../../outside-bundle",
+                    "HEAD",
+                ),
+            )
+        with self.assertRaisesRegex(
+            factory_cleanup.CleanupError, "command_denied"
+        ):
+            factory_cleanup._run(
+                (
+                    "git",
+                    "-C",
+                    str(fixture.repo) + "/./",
+                    "rev-parse",
+                    "HEAD",
+                ),
+            )
+        with self.assertRaisesRegex(
+            factory_cleanup.CleanupError, "command_denied"
+        ):
+            factory_cleanup._run(
+                (
+                    "git",
+                    "-C",
+                    str(fixture.repo) + "/../primary",
+                    "rev-parse",
+                    "HEAD",
+                ),
             )
         escape = staging / "escape"
         escape.symlink_to(fixture.root, target_is_directory=True)
@@ -2271,7 +2579,6 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
                     str(escape / "bundle"),
                     "HEAD",
                 ),
-                write_root=staging,
             )
         with mock.patch.object(
             factory_cleanup, "_publish_file", bounded
@@ -2283,9 +2590,9 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
                 or factory.path_is_within(path, fixture.store.root)
             )
         self.assertEqual(fixture.git_snapshot(), before)
-        self.assertTrue(any(root is not None for _command, root in commands))
+        self.assertTrue(any("bundle" in command for command in commands))
         self.assertFalse(
-            any("simctl" in command for command, _root in commands)
+            any("simctl" in command for command in commands)
         )
         with mock.patch.object(
             factory_cleanup, "MAX_COMMAND_OUTPUT_BYTES", 1
@@ -2324,6 +2631,31 @@ class IntegrationInputBoundaryPlatformProofTests(unittest.TestCase):
             **dict(fixture.args(), process_provider=unknown),
         )
         self.assertEqual(applied.held, 1)
+
+    def test_16_production_process_provider_holds_when_lsof_is_absent(self):
+        fixture = CleanupFixture(self)
+        fixture.make_archive_changes()
+        result = fixture.plan()
+        bin_dir = fixture.root / "tool-bin"
+        bin_dir.mkdir()
+        for name in ("git", "ps"):
+            executable = shutil.which(name)
+            self.assertIsNotNone(executable)
+            (bin_dir / name).symlink_to(Path(executable))
+        provider = factory.ReadOnlyProcessProvider(factory.ReadOnlyRunner())
+        with mock.patch.dict(os.environ, {"PATH": str(bin_dir)}):
+            self.assertIsNone(shutil.which("lsof"))
+            applied = factory_cleanup.apply_cleanup(
+                fixture.repo,
+                result.plan_path,
+                result.digest,
+                **dict(fixture.args(), process_provider=provider),
+            )
+        self.assertEqual((applied.archived, applied.held), (0, 1))
+        self.assertEqual(
+            fixture.receipt(result.digest)["outcomes"][0]["reason"],
+            "process_unknown",
+        )
 
     def test_crash_before_and_after_publish_replays_one_receipt(self):
         fixture = CleanupFixture(self)
@@ -2662,11 +2994,9 @@ class InputAndBoundaryTests(unittest.TestCase):
         original_run = factory_cleanup._run
         original_publish = factory_cleanup._publish_file
 
-        def command_probe(command, cwd=None, input_bytes=None, write_root=None):
-            commands.append((tuple(command), write_root))
-            return original_run(
-                command, cwd, input_bytes, write_root=write_root
-            )
+        def command_probe(command, cwd=None, input_bytes=None):
+            commands.append(tuple(command))
+            return original_run(command, cwd, input_bytes)
 
         def publish_probe(path, raw):
             writes.append(Path(path))
@@ -2697,7 +3027,7 @@ class InputAndBoundaryTests(unittest.TestCase):
                 for path in writes
             )
         )
-        self.assertTrue(any(root is not None for _command, root in commands))
+        self.assertTrue(any("bundle" in command for command in commands))
 
         skipped = prepared("skip-canary-913")
         skipped_before = skipped.git_snapshot()
