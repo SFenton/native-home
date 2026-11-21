@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "cli_version": "1.0.114",
+  "surface": "cli",
+  "role": "parent",
+  "hook_state": "on",
+  "status": "not_exercised",
+  "reason": "isolated_auth_unavailable",
+  "observed_role": "unknown",
+  "observed_model": "unknown",
+  "observed_effort": "unknown",
+  "attempts": []
+}
