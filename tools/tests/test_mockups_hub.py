@@ -138,14 +138,14 @@ class HubMultiBranchTests(HubRepoCase):
         self.add_page(a, "alpha")
         self.add_page(b, "beta")
         first = self.publish(a)
-        self.assertEqual(self.paths(first), {"index.html", "a/pages/alpha/alpha.html", "a/pages/base/base.html"})
+        self.assertEqual(self.paths(first), {"a/pages/alpha/alpha.html", "a/pages/base/base.html"})
         second = self.publish(b)  # neither refused
-        self.assertEqual(self.paths(second), {"index.html", "a/pages/beta/beta.html"}, "only this branch's changed files plus the index")
+        self.assertEqual(self.paths(second), {"a/pages/beta/beta.html"}, "only this branch's changed files, never the index")
         self.assertIn("pages/alpha/alpha.html", self.index(b))
         self.assertIn("pages/beta/beta.html", self.index(b))
         self.assertIn("pages/base/base.html", self.index(b))
         third = self.publish(a)  # and the first branch again keeps the second's page
-        self.assertEqual(self.paths(third), {"index.html"})
+        self.assertEqual(self.paths(third), set())
         self.assertIn("pages/beta/beta.html", self.index(a))
 
     def test_unmerged_proposal_from_another_branch_is_not_dropped(self):
@@ -195,7 +195,7 @@ class HubMultiBranchTests(HubRepoCase):
         self.add_page(b, "beta")
         self.publish(a)
         batches = self.publish(b)
-        self.assertEqual(self.paths(batches), {"index.html", "a/pages/beta/beta.html"})
+        self.assertEqual(self.paths(batches), {"a/pages/beta/beta.html"})
 
     def test_deleting_an_untouched_published_file_removes_it(self):
         """Fails if: a deletion of a file nobody else changed is refused or never listed for removal."""
@@ -212,7 +212,7 @@ class HubMultiBranchTests(HubRepoCase):
         self.publish(self.root)
         self.write(self.root, "pages/base/base.html", "<!doctype html><title>two</title></head>")
         self.commit(self.root, "edit")
-        self.assertEqual(self.paths(self.publish(self.root)), {"index.html", "a/pages/base/base.html"})
+        self.assertEqual(self.paths(self.publish(self.root)), {"a/pages/base/base.html"})
 
 
 if __name__ == "__main__":

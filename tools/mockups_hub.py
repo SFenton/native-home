@@ -17,7 +17,7 @@ A build compares itself with it, file by file, against the merge-base of that fi
 a file only this build changed is published; a file another session published and this build did not change is kept as it
 is, and its catalog entry is carried into the index; a file this build would overwrite or delete that the other session
 changed is a conflict, so the build exits 1 unless --allow-older is given. --batches lists only the changed files
-(plus index.html and, last, the files to remove).
+(the index goes through file_path, never files; last come the files to remove).
 
 A build writes build/mockups-hub.built; --mark-published writes build/mockups-hub.published. The Stop hook
 tools/hooks/mockup_hub_guard.py blocks a session that changed mockups unless both are newer than the change.
@@ -356,7 +356,6 @@ def main(argv: list[str]) -> int:
     groups = batches(own)
     if "--batches" in argv:
         out = [[{"path": r} for r in g] for g in groups] or [[]]
-        out[0].insert(0, {"path": "index.html"})
         if decided["deleted"]:
             out.append([{r: None} for r in decided["deleted"]])
         print(json.dumps(out))
