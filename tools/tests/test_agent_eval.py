@@ -221,6 +221,114 @@ class HarnessIntegrityTests(unittest.TestCase):
             self.assertNotIn(needle, source)
 
 
+class ObservationTests(unittest.TestCase):
+    def test_observer_defaults_are_late_bound_and_keyword_only(self):
+        path = REPLAY / "cases" / "stop-nightly-ill-wait.json"
+        loaded = ae.load_case(path)
+        seen = []
+
+        def replacement(target, case, timeout):
+            seen.append((target, case["id"], timeout))
+            return {
+                "blocked": True,
+                "reason": "last message says you are waiting",
+            }, ""
+
+        with mock.patch.object(ae, "observe", replacement):
+            suites = ae.evaluate(
+                REPO,
+                tier=0,
+                target=REPO,
+                tier0_selection=(([path], [loaded]), ([], [])),
+            )
+        self.assertEqual(suites[0]["passed"], 1)
+        self.assertEqual([item[1] for item in seen], ["stop-nightly-ill-wait"])
+        with self.assertRaises(TypeError):
+            ae.run_case(REPO, path, ae.CASE_TIMEOUT, loaded, replacement)
+
+    def test_recorded_replay_matches_the_live_trusted_cohort(self):
+        observations = ae.collect_observations(REPO, REPO)
+        live = ae.evaluate(REPO, tier=0, target=REPO)
+        recorded = ae.evaluate(
+            REPO,
+            tier=0,
+            target=REPO,
+            observer=ae.recorded_observer(observations),
+        )
+        for before, after in zip(live, recorded):
+            self.assertEqual(after["cases"], before["cases"])
+            self.assertEqual(after["passed"], before["passed"])
+            self.assertEqual(
+                [case_id for case_id, _problems in after["failures"]],
+                [case_id for case_id, _problems in before["failures"]],
+            )
+
+    def test_emit_writes_the_closed_envelope_atomically_without_comparing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "tier0-observations.json"
+            with mock.patch.object(ae.os, "replace", wraps=ae.os.replace) as replace:
+                code, out, err = run_main(
+                    "--tier", "0",
+                    "--root", str(REPO),
+                    "--target", str(REPO),
+                    "--emit-observations", str(destination),
+                )
+            self.assertEqual((code, out, err), (0, "", ""))
+            replace.assert_called_once()
+            document = json.loads(destination.read_text(encoding="utf-8"))
+            self.assertEqual(set(document), {"schema", "base_sha", "head_sha", "cases"})
+            self.assertEqual(document["schema"], 1)
+            self.assertEqual(document["base_sha"], ae.resolve_sha(REPO, "HEAD"))
+            self.assertEqual(document["head_sha"], document["base_sha"])
+            self.assertTrue(all(
+                set(entry) in ({"observed"}, {"error"})
+                for entry in document["cases"].values()
+            ))
+
+    def test_emit_rejects_tier_one_and_suite_selection(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            destination = Path(tmp) / "observations.json"
+            for extra in (
+                ("--tier", "1", "--base", "HEAD"),
+                ("--tier", "0", "--suite", ae.SUITE),
+            ):
+                with self.subTest(extra=extra):
+                    with contextlib.redirect_stderr(io.StringIO()):
+                        with self.assertRaises(SystemExit) as caught:
+                            ae.main([
+                                "--emit-observations", str(destination),
+                                *extra,
+                            ])
+                    self.assertEqual(caught.exception.code, 2)
+
+    def test_collection_errors_do_not_copy_child_text(self):
+        case = dict(IMPOSSIBLE)
+        path = REPLAY / "cases" / "stop-nightly-ill-wait.json"
+        with mock.patch.object(ae, "tier0_sets", return_value=([path], [])), \
+                mock.patch.object(ae, "load_cases", return_value=[(case, "")]):
+            table = ae.collect_observations(
+                REPO, REPO,
+                observer=lambda *_args: (None, "attacker secret from stderr"),
+            )
+        self.assertEqual(
+            table["stop-nightly-ill-wait"],
+            {"error": "case unavailable"},
+        )
+
+    def test_the_shim_uses_python_bytecode_suppression(self):
+        seen = []
+        real = subprocess.run
+
+        def spy(command, **kwargs):
+            seen.append(command)
+            return real(command, **kwargs)
+
+        with mock.patch.object(ae.subprocess, "run", spy):
+            ae.run_case(REPO, REPLAY / "cases" / "stop-nightly-ill-wait.json")
+        self.assertIn("-B", seen[0])
+        self.assertLess(seen[0].index("-B"), seen[0].index("-I"))
+
+
 class MalformedCaseTests(unittest.TestCase):
     def test_bad_cases_fail_with_a_reason(self):
         with tempfile.TemporaryDirectory() as tmp:

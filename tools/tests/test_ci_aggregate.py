@@ -23,7 +23,8 @@ def needs(**results):
 def run_of(macos="success", **overrides):
     """A pull request that changed app code and tools: every gated job wanted. `macos` is the state of the build and the test matrix."""
     base = needs(scope="success", linux_checks="success", tool_tests_core="success", denylist_scan="success",
-                 macos_build=macos, macos_test=macos, coverage_changed=macos, build_release=macos)
+                 tier0_emit="success", macos_build=macos, macos_test=macos,
+                 coverage_changed=macos, build_release=macos)
     base["scope"]["outputs"] = {"app": "true", "release": "true"}
     base.update({k.replace("_", "-"): {"result": v, "outputs": {}} for k, v in overrides.items()})
     return base
@@ -153,6 +154,36 @@ class AggregateTests(unittest.TestCase):
         run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(valid)}}
         self.assertEqual(agg.problems(run, True, **policy_args(valid)), [])
 
+    def test_policy_mode_requires_tier0_emit_independently_of_a_valid_verdict(self):
+        for outcome, reasons in (("pass", ["tier0_pass"]), ("noop", ["product_only"])):
+            verdict = valid_policy(outcome, reasons)
+            for state in ("missing", "skipped", "failure", "cancelled", ""):
+                with self.subTest(outcome=outcome, state=state):
+                    run = run_of()
+                    run["pr-policy"] = {"result": "success", "outputs": {}}
+                    if state == "missing":
+                        del run["tier0-emit"]
+                    else:
+                        run["tier0-emit"] = {"result": state, "outputs": {}}
+                    self.assertTrue(agg.problems(run, True, **policy_args(verdict)))
+
+    def test_policy_producer_failures_are_checked_together(self):
+        run = run_of()
+        run["tier0-emit"] = {"result": "failure", "outputs": {}}
+        run["pr-policy"] = {"result": "cancelled", "outputs": {}}
+        found = agg.problems(
+            run, True, **policy_args(valid_policy()),
+        )
+        self.assertTrue(any(line.startswith("tier0-emit: failure") for line in found))
+        self.assertTrue(any(line.startswith("pr-policy: cancelled") for line in found))
+
+    def test_pr_only_emit_is_not_an_unconditional_core_job(self):
+        self.assertNotIn("tier0-emit", agg.CORE)
+        legacy = run_of(tier0_emit="skipped")
+        self.assertEqual(agg.problems(legacy, True), [])
+        del legacy["tier0-emit"]
+        self.assertEqual(agg.problems(legacy, True), [])
+
     def test_policy_mode_requires_every_event_except_the_default_branch_push(self):
         missing = run_of()
         for event in ("pull_request", "workflow_dispatch", "", "merge_group", "unknown"):
@@ -179,6 +210,8 @@ class AggregateTests(unittest.TestCase):
         for verdict in (
                 None,
                 "{broken",
+                {"schema": True, "outcome": "pass", "reasons": ["tier0_pass"],
+                 "base_sha": "a" * 40, "head_sha": "b" * 40},
                 {"schema": 2, "outcome": "pass", "reasons": ["tier0_pass"], "base_sha": "a" * 40, "head_sha": "b" * 40},
                 {"schema": 1, "outcome": "pass", "reasons": ["unknown"], "base_sha": "a" * 40, "head_sha": "b" * 40},
                 {"schema": 1, "outcome": "hold", "reasons": ["tier1_required"],
@@ -262,6 +295,28 @@ class AggregateTests(unittest.TestCase):
                         "--expect-base-sha", BASE_SHA,
                         "--expect-head-sha", HEAD_SHA,
                     ]), 1)
+
+    def test_main_rejects_a_successful_verdict_when_emit_failed(self):
+        verdict = valid_policy()
+        run = run_of(tier0_emit="failure")
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / "policy.json"
+            result.write_text(json.dumps(verdict))
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "EVENT": "pull_request",
+            }):
+                with contextlib.redirect_stdout(io.StringIO()) as out:
+                    code = agg.main([
+                        "--policy-aware",
+                        "--policy-result", str(result),
+                        "--expect-base-sha", BASE_SHA,
+                        "--expect-head-sha", HEAD_SHA,
+                    ])
+        self.assertEqual(code, 1)
+        self.assertIn("tier0-emit: failure", out.getvalue())
 
 
 class DenylistMaskTests(unittest.TestCase):

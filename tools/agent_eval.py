@@ -61,7 +61,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 #: The one-case child (``python3 -I``): loads the code under test and prints what it observed; never sees ``expect``.
@@ -72,11 +72,17 @@ SUITE = "routing-replay"
 RETIRED_SUITE = "routing-replay-retired"
 JEV_SUITE = "jev-measure"
 BEHAVIOUR_SUITE = "agent-behaviour"
+OBSERVATIONS_MAX_BYTES = 8 * 1024 * 1024
 #: Tier 1: the AUC may fall at most this far below the recorded one.
 AUC_SLACK = 0.02
 EXIT_UNAVAILABLE = 3
 
 Result = Tuple[bool, List[str]]
+LoadedCase = Tuple[Optional[Dict[str, Any]], str]
+Tier0Selection = Tuple[
+    Tuple[Sequence[Path], Sequence[LoadedCase]],
+    Tuple[Sequence[Path], Sequence[LoadedCase]],
+]
 
 
 # MARK: - Expectations
@@ -123,11 +129,11 @@ def compare(observed: Any, expect: Dict[str, Any]) -> List[str]:
 
 # MARK: - Tier 0 runner
 
-def load_case(path: Path) -> Tuple[Optional[Dict[str, Any]], str]:
-    """The parsed case and an error string ('' when the file is a well-formed case; the kind is checked by the child)."""
+def parse_case(path: Path, text: str) -> LoadedCase:
+    """Parse one already-read case blob, retaining ``load_case``'s validation contract."""
     try:
-        case = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
+        case = json.loads(text)
+    except (ValueError, TypeError) as exc:
         return None, f"not valid JSON: {exc}"
     if not isinstance(case, dict):
         return None, "not an object"
@@ -141,6 +147,15 @@ def load_case(path: Path) -> Tuple[Optional[Dict[str, Any]], str]:
     return case, ""
 
 
+def load_case(path: Path) -> LoadedCase:
+    """The parsed case and an error string ('' when the file is a well-formed case; the kind is checked by the child)."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        return None, f"not valid JSON: {exc}"
+    return parse_case(path, text)
+
+
 def observe(target: Path, case: Dict[str, Any], timeout: float = CASE_TIMEOUT) -> Tuple[Optional[Any], str]:
     """What the code under ``target`` does for ``case``: ``(observed, "")`` or ``(None, error)``. The case runs in its own
     ``python3 -I`` process (the shim, from *this* checkout) and gets only ``kind`` and ``input``; whatever the target's code
@@ -151,7 +166,7 @@ def observe(target: Path, case: Dict[str, Any], timeout: float = CASE_TIMEOUT) -
         env = {key: os.environ[key] for key in ("PATH", "LANG", "LC_ALL") if key in os.environ}
         env.update({"PYTHONPATH": str(target), "PYTHONDONTWRITEBYTECODE": "1", "HOME": name})
         try:
-            proc = subprocess.run([sys.executable, "-I", str(SHIM), "--target", str(target), "--out", str(out)],
+            proc = subprocess.run([sys.executable, "-B", "-I", str(SHIM), "--target", str(target), "--out", str(out)],
                                   input=json.dumps({"kind": case["kind"], "input": case["input"]}), capture_output=True,
                                   text=True, timeout=timeout, env=env, cwd=name, start_new_session=True)
         except subprocess.TimeoutExpired:
@@ -169,13 +184,16 @@ def observe(target: Path, case: Dict[str, Any], timeout: float = CASE_TIMEOUT) -
 
 
 def run_case(target: Path, path: Path, timeout: float = CASE_TIMEOUT,
-             loaded: Optional[Tuple[Optional[Dict[str, Any]], str]] = None) -> Result:
+             loaded: Optional[LoadedCase] = None, *,
+             observer: Optional[Callable[[Path, Dict[str, Any], float],
+                                        Tuple[Optional[Any], str]]] = None) -> Result:
     """Run one case against ``target`` in a child process and compare **here**; ``(passed, problems)``. ``loaded`` is the
     case already read from ``path`` (``run_suite`` reads every file before the first child starts)."""
     case, error = loaded if loaded is not None else load_case(path)
     if error:
         return False, [error]
-    observed, error = observe(target, case, timeout)
+    callback = observe if observer is None else observer
+    observed, error = callback(target, case, timeout)
     if error:
         return False, [error]
     problems = compare(observed, case["expect"])
@@ -193,14 +211,21 @@ def load_cases(files: Sequence[Path]) -> List[Tuple[Optional[Dict[str, Any]], st
 
 
 def run_suite(target: Path, files: Sequence[Path], name: str, report_only: bool = False,
-              preloaded: Optional[List[Tuple[Optional[Dict[str, Any]], str]]] = None) -> Dict[str, Any]:
+              preloaded: Optional[Sequence[LoadedCase]] = None, *,
+              observer: Optional[Callable[[Path, Dict[str, Any], float],
+                                         Tuple[Optional[Any], str]]] = None) -> Dict[str, Any]:
     """Run each case file against ``target``; ``{"name", "cases", "passed", "failures": [(id, problems)]}``."""
     failures: List[Tuple[str, List[str]]] = []
     # Every case file is read into memory before the first child starts: code under test that rewrites a later case
     # file (or the expectations) changes nothing, and the children never get a path to a case file.
-    loaded = preloaded if preloaded is not None else load_cases(files)
+    loaded = list(preloaded) if preloaded is not None else load_cases(files)
+    if len(loaded) != len(files):
+        raise ValueError(f"{name}: preloaded case count does not match the selected files")
     with ThreadPoolExecutor(max_workers=WORKERS) as pool:  # each case is its own child process; results keep file order
-        results = list(pool.map(lambda item: run_case(target, item[0], loaded=item[1]), zip(files, loaded)))
+        results = list(pool.map(
+            lambda item: run_case(target, item[0], loaded=item[1], observer=observer),
+            zip(files, loaded),
+        ))
     for path, (ok, problems) in zip(files, results):
         if not ok:
             failures.append((path.stem, problems))
@@ -225,6 +250,113 @@ def tier0_sets(root: Path, target: Path) -> Tuple[List[Path], List[Path]]:
     retired = own_retired + [p for p in own_active if p.name in retired_names]
     retired += [p for p in their_retired if p.name not in known]
     return sorted(active), sorted(retired)
+
+
+def recorded_observer(table: Mapping[str, Mapping[str, Any]]) -> Callable[
+        [Path, Dict[str, Any], float], Tuple[Optional[Any], str]]:
+    """An observer that never executes the target; it only returns a validated observation table entry."""
+    def replay(_target: Path, case: Dict[str, Any], _timeout: float) -> Tuple[Optional[Any], str]:
+        entry = table.get(case["id"])
+        if entry is None:
+            return None, "no observation recorded"
+        if "error" in entry:
+            return None, entry["error"]
+        return entry.get("observed"), ""
+
+    return replay
+
+
+def _observation_depth(value: Any, current: int = 4) -> int:
+    if not isinstance(value, (dict, list)):
+        return 0
+    if current > 32:
+        raise ValueError("observation depth exceeds the limit")
+    children = value.values() if isinstance(value, dict) else value
+    nested = [
+        _observation_depth(child, current + 1)
+        for child in children
+        if isinstance(child, (dict, list))
+    ]
+    return max(nested or [current])
+
+
+def _observation(entry: Tuple[Optional[Any], str]) -> Dict[str, Any]:
+    observed, error = entry
+    if error:
+        return {"error": "case unavailable"}
+    if not isinstance(observed, dict):
+        return {"error": "observation was not an object"}
+    try:
+        _observation_depth(observed)
+        json.dumps(observed, allow_nan=False, ensure_ascii=True)
+    except (TypeError, ValueError, RecursionError):
+        return {"error": "observation was not serializable"}
+    return {"observed": observed}
+
+
+def collect_observations(root: Path, target: Path, *,
+                         observer: Optional[Callable[[Path, Dict[str, Any], float],
+                                                    Tuple[Optional[Any], str]]] = None,
+                         timeout: float = CASE_TIMEOUT) -> Dict[str, Dict[str, Any]]:
+    """Collect one hostile-data observation for every active and retired tier-0 case, without comparing."""
+    active, retired = tier0_sets(root, target)
+    files = active + retired
+    loaded = load_cases(files)
+    ids = [path.stem for path in files]
+    if len(ids) != len(set(ids)):
+        raise RuntimeError("tier 0 case IDs are not unique")
+    callback = observe if observer is None else observer
+    with ThreadPoolExecutor(max_workers=WORKERS) as pool:
+        entries = list(pool.map(
+            lambda item: _observation(
+                (None, "case unavailable")
+                if item[1][1]
+                else _safe_observe(callback, target, item[1][0], timeout)
+            ),
+            zip(files, loaded),
+        ))
+    return dict(zip(ids, entries))
+
+
+def _safe_observe(observer: Callable[[Path, Dict[str, Any], float],
+                                     Tuple[Optional[Any], str]],
+                  target: Path, case: Optional[Dict[str, Any]],
+                  timeout: float) -> Tuple[Optional[Any], str]:
+    if case is None:
+        return None, "case unavailable"
+    try:
+        entry = observer(target, case, timeout)
+    except Exception:
+        return None, "case unavailable"
+    if not isinstance(entry, tuple) or len(entry) != 2:
+        return None, "case unavailable"
+    return entry
+
+
+def write_observations(path: Path, document: Dict[str, Any]) -> None:
+    """Publish one complete JSON document with an atomic rename."""
+    encoded = (
+        json.dumps(
+            document, ensure_ascii=True, allow_nan=False,
+            sort_keys=True, separators=(",", ":"),
+        ) + "\n"
+    ).encode("utf-8")
+    if len(encoded) > OBSERVATIONS_MAX_BYTES:
+        raise ValueError("observation file exceeds 8 MiB")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=str(path.parent))
+    try:
+        with os.fdopen(fd, "wb") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, str(path))
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
 
 
 # MARK: - Tier 1: Jev question re-measurement
@@ -613,7 +745,10 @@ def evaluate(root: Path, *, tier: Optional[int] = None, base: str = "", changed:
              measure: Callable[[Path, Dict[str, Any], Sequence[Dict[str, Any]]], Tuple[int, List[Dict[str, Any]]]]
              = default_measure,
              claude: Callable[[str, str, float], Dict[str, Any]] = default_claude,
-             target: Optional[Path] = None, target_sha: str = "") -> List[Dict[str, Any]]:
+             target: Optional[Path] = None, target_sha: str = "",
+             observer: Optional[Callable[[Path, Dict[str, Any], float],
+                                        Tuple[Optional[Any], str]]] = None,
+             tier0_selection: Optional[Tier0Selection] = None) -> List[Dict[str, Any]]:
     """The suites for the requested tiers (tier ``None`` is 0, plus 1 when ``changed`` or a ``base`` is given).
 
     ``root`` is the trusted checkout (this file, the cases, the shim); ``target`` (default ``root``) is the code under test,
@@ -639,10 +774,18 @@ def evaluate(root: Path, *, tier: Optional[int] = None, base: str = "", changed:
         jev_suite = run_jev_suite(root, prepared["ids"], measure, prepared=prepared)
         jev_suite["notes"].insert(0, f"changed questions: {', '.join(prepared['ids']) or 'none'}")
     if tier in (None, 0):
-        active, retired = tier0_sets(root, target)
-        loaded_active, loaded_retired = load_cases(active), load_cases(retired)
-        suites.append(run_suite(target, active, SUITE, preloaded=loaded_active))
-        suites.append(run_suite(target, retired, RETIRED_SUITE, report_only=True, preloaded=loaded_retired))
+        if tier0_selection is None:
+            active, retired = tier0_sets(root, target)
+            loaded_active, loaded_retired = load_cases(active), load_cases(retired)
+        else:
+            (active, loaded_active), (retired, loaded_retired) = tier0_selection
+        suites.append(run_suite(
+            target, active, SUITE, preloaded=loaded_active, observer=observer,
+        ))
+        suites.append(run_suite(
+            target, retired, RETIRED_SUITE, report_only=True,
+            preloaded=loaded_retired, observer=observer,
+        ))
     if jev_suite is not None:
         suites.append(jev_suite)
     if only:
@@ -683,8 +826,32 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--target-sha", default=os.environ.get("FENTON_EVAL_HEAD", ""),
                         help="the reviewed lane commit tier 1 reads (default $FENTON_EVAL_HEAD, set by lane_land; else the target's HEAD, read once)")
     parser.add_argument("--suite", default="", help="print only this suite")
+    parser.add_argument("--emit-observations", metavar="PATH",
+                        help="with explicit --tier 0, atomically emit tier-0 observations as data")
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
+    if args.emit_observations:
+        if args.tier != 0 or args.changed_questions or args.base or args.target_sha or args.suite:
+            parser.error("--emit-observations requires --tier 0 with no tier-1 or suite options")
+        root = Path(args.root).resolve()
+        target = Path(args.target).resolve() if args.target else root
+        base_sha, head_sha = resolve_sha(root, "HEAD"), resolve_sha(target, "HEAD")
+        if not re.fullmatch(r"[0-9a-f]{40}", base_sha or "") or \
+                not re.fullmatch(r"[0-9a-f]{40}", head_sha or ""):
+            print("agent_eval: observation emit needs exact Git checkouts", file=sys.stderr)
+            return 2
+        try:
+            cases = collect_observations(root, target)
+            write_observations(Path(args.emit_observations), {
+                "schema": 1,
+                "base_sha": base_sha,
+                "head_sha": head_sha,
+                "cases": cases,
+            })
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"agent_eval: could not emit observations: {exc}", file=sys.stderr)
+            return 2
+        return 0
     started = time.monotonic()
     try:
         suites = evaluate(Path(args.root).resolve(), tier=args.tier, base=args.base, changed=args.changed_questions,
