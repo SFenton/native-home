@@ -125,10 +125,15 @@ class RoleGuardWiringTests(unittest.TestCase):
         self.assertIn("orchestrator_guard.py", by["Bash"])
         self.assertIn("research_write_guard.py", by["Edit|Write|MultiEdit|NotebookEdit"])
 
+    def test_delegate_task_runs_through_its_guard(self):
+        hooks = json.loads((self.ROOT / ".claude/settings.json").read_text())["hooks"]["PreToolUse"]
+        by = {h["matcher"]: json.dumps(h) for h in hooks}
+        self.assertIn("delegate_guard.py", by["mcp__t3-code__delegate_task"])
+
     def test_every_session_starts_as_the_orchestrator(self):
         # Owner, 2026-11-03: sessions in this repo run through the orchestrator without `--agent`; an explicit `--agent` still
         # wins (the runner's reviewer). The allow-list is the planning set plus what an interactive main thread needs; it never
-        # holds Monitor (a shell path the Bash hooks do not see) or MCP tools, and the headless worker is denied Artifact.
+        # holds Monitor (a shell path the Bash hooks do not see) or MCP tools beyond the named T3 four, and the headless worker is denied Artifact.
         settings = json.loads((self.ROOT / ".claude/settings.json").read_text())
         self.assertEqual(settings.get("agent"), "orchestrator")
         head = (self.ROOT / ".claude/agents/orchestrator.md").read_text().split("---")[1]
@@ -136,7 +141,11 @@ class RoleGuardWiringTests(unittest.TestCase):
         self.assertIsNotNone(line)
         tools = {t.strip() for t in line.group(1).split(",")}
         self.assertTrue({"Agent", "Bash", "Artifact", "AskUserQuestion", "ToolSearch"} <= tools)
-        self.assertFalse({t for t in tools if t == "Monitor" or t.startswith("mcp__") or "*" in t})
+        # Exactly the four named T3 orchestration tools, never a wildcard.
+        t3 = {"mcp__t3-code__orchestrator_capabilities", "mcp__t3-code__delegate_task", "mcp__t3-code__task_status",
+              "mcp__t3-code__task_cancel"}
+        self.assertTrue(t3 <= tools)
+        self.assertFalse({t for t in tools - t3 if t == "Monitor" or t.startswith("mcp__") or "*" in t})
         triage = json.loads((self.ROOT / "tools/triage/config.json").read_text())["agent"]
         self.assertTrue({"Artifact", "ArtifactComments", "ArtifactData"} <= set(triage["disallowed_tools"]))
 

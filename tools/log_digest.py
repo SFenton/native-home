@@ -34,6 +34,12 @@ ST_FAILED = re.compile(r"✘ Test (?P<name>[\w`' ]+?)(?:\([^)]*\))? failed after
 ST_PASSED = re.compile(r"✔ Test (?P<name>[\w`' ]+?)(?:\([^)]*\))? passed after")
 ST_RUN_ISSUES = re.compile(r"Test run with \d+ tests?.*? with (?P<n>\d+) issues?")
 ST_RUN = re.compile(r"[✔✘] Test run with (?P<n>\d+) tests?.*?(?P<state>passed|failed)")
+#: xcodebuild's `Iteration 4 of 6` line and the `-test-iterations N` argument as a log quotes it (a stress run's request).
+ITERATION = re.compile(r"\bIteration (?P<k>\d+) of (?P<n>\d+)\b")
+ITERATIONS_ARG = re.compile(r"-test-iterations[ =](?P<n>\d+)\b")
+#: A block header of ios_uitest.sh or a caller (`== iphone: ...`, `=== iphone 15x part 2`), and the notices of a run it did not run.
+BLOCK_HEADER = re.compile(r"^={2,} (?P<name>.+)")
+SKIPPED_BLOCK = re.compile(r"already passed on this tree|recorded as skipped on this tree|^== nothing to run")
 COMPILE_ERROR = re.compile(r"(?P<where>/?[^\s:]+\.swift:\d+):\d+: error: (?P<msg>.*)")
 
 #: The two lines devcap and bg_run print when they kill a run. They count only at the start of a line and only when the run
@@ -129,6 +135,8 @@ class Digest:
         self.unittest_failed = False  # a unittest `FAILED (failures=N)` summary: tool tests failed
         self.markers: "OrderedDict[str, None]" = OrderedDict()  # `INFRA: …` lines xc_watch.py and ios_uitest.sh print
         self.products: "OrderedDict[str, None]" = OrderedDict()  # `products: hit|built KEY …` from tools/products_cache.py
+        self.blocks: List[Dict[str, object]] = []  # one entry per `== ...` block: its name, the last `Iteration k of n`, whether it was skipped
+        self.iterations_asked = 0  # the largest iteration count the log shows a run asking for
         self.tail: List[str] = []
 
     def feed(self, lines: Iterable[str]) -> None:
@@ -143,7 +151,34 @@ class Digest:
             self._line(line)
         self.tail = recent
 
+    def _block(self) -> Dict[str, object]:
+        if not self.blocks:
+            self.blocks.append({"name": "run", "k": 0, "n": 0, "skipped": False, "header": False})
+        return self.blocks[-1]
+
+    def _stress_line(self, line: str) -> None:
+        """Track the blocks of a stress run: where each stopped, and which a ledger skip or `nothing to run` left unrun."""
+        if match := ITERATION.search(line):
+            block = self._block()
+            block["k"], block["n"] = int(match["k"]), int(match["n"])
+            self.iterations_asked = max(self.iterations_asked, int(match["n"]))
+        elif match := ITERATIONS_ARG.search(line):
+            self.iterations_asked = max(self.iterations_asked, int(match["n"]))
+        if SKIPPED_BLOCK.search(line):
+            if line.startswith("== nothing to run") or not self.blocks or self.blocks[-1]["n"] or self.blocks[-1]["skipped"]:
+                self.blocks.append({"name": line.split(":")[0].lstrip("= ") or "run", "k": 0, "n": 0, "skipped": True, "header": False})
+            else:
+                self.blocks[-1]["skipped"] = True
+        elif (match := BLOCK_HEADER.match(line)) and not match["name"].startswith(("nothing to run", "allow-empty")) and "ledger key inputs" not in line and "stress run" not in line:
+            if not self.blocks or self.blocks[-1]["n"] or self.blocks[-1]["skipped"]:
+                self.blocks.append({"name": match["name"].split(":")[0][:60], "k": 0, "n": 0, "skipped": False, "header": True})
+
+    def stress_skipped(self) -> bool:
+        """True when the run asked for several iterations and a block of it was skipped, or ran none (a pass the ledger or an empty plan hollowed out)."""
+        return self.iterations_asked > 1 and any(b["skipped"] for b in self.blocks)
+
     def _line(self, line: str) -> None:
+        self._stress_line(line)
         if match := ST_RUN.search(line):
             self.st_run = (int(match["n"]), match["state"])
             if issues := ST_RUN_ISSUES.search(line):
@@ -237,11 +272,13 @@ class Digest:
         return evidence and self.counts()[0] <= 0
 
     def verdict(self, exit_code: Optional[int]) -> str:
-        """``PASS``, ``FLAKY`` (passed after a retry), ``MISMATCH`` (exit 0 but the log failed), ``EMPTY`` (a pass that ran no test), ``FAIL`` (tests or build), ``INFRA`` (died of the machine) or ``UNKNOWN``."""
+        """``PASS``, ``FLAKY`` (passed after a retry), ``MISMATCH`` (exit 0 but the log failed, or a stress block asked for N iterations was skipped), ``EMPTY`` (a pass that ran no test), ``FAIL`` (tests or build), ``INFRA`` (died of the machine) or ``UNKNOWN``."""
         self._gate_hold_timeout(exit_code)
         verdict = self._verdict(exit_code)
         if self.allow_empty or self.allow_in_log:
             return verdict
+        if verdict in ("PASS", "FLAKY") and self.stress_skipped():
+            return "MISMATCH"  # exit 0, but a block that was asked to run N iterations never ran
         if verdict == "PASS" and self.is_empty():
             return "EMPTY"
         # xc_watch exits 1 after printing its `EMPTY:` line: that is still an empty run unless something really failed.
@@ -257,11 +294,21 @@ class Digest:
         if exit_code != SLOT_WAIT_EXIT:
             self.infra.pop("slot wait timeout", None)
 
+    def _log_failed(self) -> bool:
+        """True when the log itself shows a test or build failure."""
+        return self._tests_failed() or self._build_failed()
+
+    def _tests_failed(self) -> bool:
+        return (bool(self.failed) or self.suite_status == "failed" or self.runner_failed
+                or bool(self.st_run and self.st_run[1] == "failed")
+                or self.unittest_failed or self.unnamed_failures() > 0)
+
+    def _build_failed(self) -> bool:
+        return self.build_status == "failed" or bool(self.build_errors and not self.passed)
+
     def _verdict(self, exit_code: Optional[int]) -> str:
-        failed_tests = (bool(self.failed) or self.suite_status == "failed" or self.runner_failed
-                        or bool(self.st_run and self.st_run[1] == "failed")
-                        or self.unittest_failed or self.unnamed_failures() > 0)
-        build_failed = self.build_status == "failed" or bool(self.build_errors and not self.passed)
+        failed_tests = self._tests_failed()
+        build_failed = self._build_failed()
         if exit_code == 0 and (failed_tests or build_failed):
             # The status says success and the log says otherwise (a wrapper such as `cmd || echo X` or `;` dropped the real
             # status): never PASS. The log wins, and the digest says the two disagree.
@@ -320,8 +367,16 @@ class Digest:
                 out.append(f"  {error}")
         if self.unnamed_failures() > 0:
             out.append(f"XCTest summary counts {self.executed_failures} failure(s) but the log names only {sum(self.named_failures.values())}: treat as FAIL")
-        if verdict == "MISMATCH":
+        if verdict == "MISMATCH" and self._log_failed():
             out.append("exit 0 but the log has failures (a wrapper dropped the real status, e.g. `cmd || echo X` or `a; b`): treat as FAIL")
+        if self.iterations_asked > 1 and any(b["n"] or b["skipped"] for b in self.blocks):
+            for number, block in enumerate(self.blocks, 1):
+                if not (block["n"] or (block["skipped"] and block["header"])):
+                    continue  # stress blocks only: not a bare skip notice of another family, nor `nothing to run`
+                reached = f"iteration {block['k']} of {block['n']}" if block["n"] else "no iteration line"
+                out.append(f"iterations, block {number} ({block['name']}): " + ("NOT RUN (skipped), asked for %d" % self.iterations_asked if block["skipped"] else reached))
+        if self.stress_skipped():
+            out.append(f"STRESS RUN INCOMPLETE: asked for {self.iterations_asked} iterations but a block was skipped ('already passed' or 'nothing to run'): treat as FAIL, rerun with --force")
         if self.runner_failed:
             out.append("xcodebuild could not run the tests (`** TEST EXECUTE FAILED **` / `Testing failed:`)")
         if self.retried:

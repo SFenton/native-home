@@ -129,10 +129,15 @@ def bash_input(command):
 
 def tool_payload(command):
     """The tool call a table row stands for. ``@write PATH TEXT`` is a Write of TEXT to PATH (relative to the repository; nothing is
-    written, the guard only judges the payload), for a guard that reads file writes (``rules_guard``); any other row is a Bash command."""
+    written, the guard only judges the payload), for a guard that reads file writes (``rules_guard``); ``@delegate ROLE TEXT`` is a T3
+    ``delegate_task`` with that role (``-`` for none) and prompt TEXT (``delegate_guard``); any other row is a Bash command."""
     cwd = re.match(r"@cwd (\S+) (.*)\Z", command, re.S)
     if cwd:
         return {**tool_payload(cwd.group(2)), "cwd": cwd.group(1)}
+    delegate = re.match(r"@delegate (\S+) (.*)\Z", command, re.S)
+    if delegate:
+        role, task = delegate.groups()
+        return {"tool_name": "mcp__t3-code__delegate_task", "tool_input": {"task": task} if role == "-" else {"role": role, "task": task}}
     match = re.match(r"@write (\S+) (.*)\Z", command, re.S)
     if match:
         path = match.group(1)

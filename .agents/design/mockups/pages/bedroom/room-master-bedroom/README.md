@@ -15,3 +15,4 @@
 - Change log: 2026-10-28 tile rollout R: bed sides carry a Power disc; Humidifier a Power disc; BedSideTile and WakeLightTile are gone (the gallery draws these cards).
 - Partly folded Duo: when the Studio sets the page to Two Sides, each section sits wholly on one side ([section-sides](../../../../section-sides.md)), at every text size; a page left on One Column draws its flat layout with the band. State `duo-part-fold`. Every other pose unchanged.
 - Bed tiles as authored state tiles (publication r32, task bed-tile-span): each takes the tracks its longest line needs, a full row on narrow widths; the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`).
+- Header: Back, Quick Links and Profile, as on every room page ([room-page](../../rooms/room-page/README.md)).
