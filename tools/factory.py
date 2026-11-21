@@ -52,6 +52,7 @@ HOLD_REASONS = (
 PROTECTED_SCRATCH = frozenset(
     ("evidence", "handoff", "review", "research", "runs")
 )
+REGENERABLE_SCRATCH = frozenset()
 BUILD_OUTPUT_PATHS = (Path("apple/.build"), Path("apple/build"))
 GIT_ENVIRONMENT_KEYS = (
     "GIT_DIR",
@@ -231,7 +232,11 @@ class ReadOnlyProcessProvider:
                     pid = int(parts[0])
                     values.add(pid)
                     if len(parts) >= 6 and parts[-1].isdigit():
-                        started[pid] = " ".join(parts[1:-1])
+                        normalized = factory_lease.normalize_process_start(
+                            " ".join(parts[1:-1])
+                        )
+                        if normalized is not None:
+                            started[pid] = normalized
                         groups.add(int(parts[-1]))
                 pids = frozenset(values)
                 starts = started
@@ -475,10 +480,17 @@ def holder_status(
     start = holder.get("start")
     if not isinstance(pid, int) or not isinstance(start, str):
         return False, True
-    return (
-        pid in processes.pids and processes.starts.get(pid) == start,
-        False,
+    normalized_start = factory_lease.normalize_process_start(start)
+    if normalized_start is None:
+        return False, True
+    if pid not in processes.pids:
+        return False, False
+    observed = factory_lease.normalize_process_start(
+        processes.starts.get(pid)
     )
+    if observed is None:
+        return False, True
+    return observed == normalized_start, False
 
 
 class GitResourceProvider:
@@ -672,10 +684,22 @@ class GitResourceProvider:
                     if record["class"] == "worktree"
                     and record["lease_id"] == lease["subject"]["parent_lease_id"]
                 )
+                current = tuple(
+                    tree
+                    for tree in worktrees
+                    if tree.branch == branch
+                )
                 if (
                     len(parent) != 1
                     or parent[0]["generation"]
                     != lease["subject"]["parent_generation"]
+                    or len(current) != 1
+                    or not factory_lease.lease_matches_worktree(
+                        parent[0],
+                        current[0].path,
+                        current[0].branch,
+                        current[0].head,
+                    )
                 ):
                     lease = None
                     partial = True
@@ -714,7 +738,12 @@ class GitResourceProvider:
         owned = parent.owned is True
         merge_evidence = (
             "not_required"
-            if owned and parent.finished is True
+            if owned
+            and parent.finished is True
+            and (
+                self.resource_class != "scratch"
+                or path.name in REGENERABLE_SCRATCH
+            )
             else "unknown"
         )
         recent = self._directory_recent(path)
@@ -860,17 +889,27 @@ class GitResourceProvider:
                         )
                         if set(record) != set(expected):
                             raise ValueError("invalid marker")
+                    normalized_marker_start = (
+                        factory_lease.normalize_process_start(marker_start)
+                    )
                     if processes.pids is not None:
-                        if marker_start is None:
+                        if normalized_marker_start is None:
                             live = pid in processes.pids
                             partial = True
                         elif processes.starts is None:
                             partial = True
                         else:
+                            observed_start = (
+                                factory_lease.normalize_process_start(
+                                    processes.starts.get(pid)
+                                )
+                            )
                             live = (
                                 pid in processes.pids
-                                and processes.starts.get(pid) == marker_start
+                                and observed_start == normalized_marker_start
                             )
+                            if pid in processes.pids and observed_start is None:
+                                partial = True
                     if isinstance(marker_pgid, int):
                         if processes.pgids is None:
                             partial = True

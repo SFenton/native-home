@@ -120,25 +120,28 @@ class GhPullRequestProvider(PullRequestProvider):
         self._runner = runner or subprocess.run
 
     def list_for_branch(self, repository: str, branch: str) -> Sequence[PullRequestEvidence]:
-        completed = self._runner(
-            [
-                "gh",
-                "pr",
-                "list",
-                "--repo",
-                repository,
-                "--head",
-                branch,
-                "--state",
-                "all",
-                "--json",
-                "number,baseRefName,headRefName,state,headRefOid,headRepository,createdAt",
-            ],
-            capture_output=True,
-            text=True,
-            timeout=60,
-            env=_clean_environment(),
-        )
+        try:
+            completed = self._runner(
+                [
+                    "gh",
+                    "pr",
+                    "list",
+                    "--repo",
+                    repository,
+                    "--head",
+                    branch,
+                    "--state",
+                    "all",
+                    "--json",
+                    "number,baseRefName,headRefName,state,headRefOid,headRepository,createdAt",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=60,
+                env=_clean_environment(),
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise LeaseError("pull request evidence unavailable") from error
         if completed.returncode != 0:
             raise LeaseError("pull request evidence unavailable")
         try:
@@ -245,24 +248,26 @@ def _clean_environment() -> Dict[str, str]:
 
 
 def _git(repo: Path, *arguments: str) -> str:
-    completed = subprocess.run(
-        ["git", "-C", str(repo), *arguments],
-        capture_output=True,
-        text=True,
-        env=_clean_environment(),
-        timeout=60,
-    )
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repo), *arguments],
+            capture_output=True,
+            text=True,
+            env=_clean_environment(),
+            timeout=60,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise LeaseError("repository evidence unavailable") from error
     if completed.returncode != 0:
         raise LeaseError("repository evidence unavailable")
     return completed.stdout
 
 
 def _canonical(path: Path, strict: bool = True) -> Path:
-    try:
-        return Path(os.path.realpath(str(path), strict=strict))
-    except TypeError:
-        # ``strict`` did not exist on every Python supported by this repository.
-        return Path(os.path.realpath(str(path)))
+    canonical = Path(os.path.realpath(str(path)))
+    if strict:
+        canonical.lstat()
+    return canonical
 
 
 def _open_directory(path: Path, create: bool = False) -> int:
@@ -312,13 +317,12 @@ def _open_child_directory(parent_fd: int, name: str, create: bool = False) -> in
 def _read_path_nofollow(
     path: Path, limit: int, expected_mode: Optional[int] = None
 ) -> bytes:
-    canonical = _canonical(path, strict=False)
-    parent = canonical.parent
+    parent = _canonical(path.parent, strict=True)
     parent_fd = _open_directory(parent)
     descriptor = None
     try:
         descriptor = os.open(
-            canonical.name,
+            path.name,
             os.O_RDONLY | os.O_NOFOLLOW,
             dir_fd=parent_fd,
         )
@@ -448,11 +452,15 @@ def _parse_worktrees(output: str) -> Dict[Path, Dict[str, str]]:
         row: Dict[str, str] = {}
         for line in block.splitlines():
             key, _, value = line.partition(" ")
-            if key in ("worktree", "HEAD", "branch"):
+            if key in ("worktree", "HEAD", "branch", "prunable"):
                 row[key] = value
-        if "worktree" not in row or "HEAD" not in row:
+        if "worktree" not in row:
             raise LeaseError("worktree identity unavailable")
-        found[_canonical(Path(row["worktree"]))] = row
+        if "prunable" in row:
+            continue
+        if "HEAD" not in row:
+            raise LeaseError("worktree identity unavailable")
+        found[_canonical(Path(row["worktree"]), strict=False)] = row
     return found
 
 
@@ -513,6 +521,15 @@ def path_is_within(child: Path, parent: Path) -> bool:
     )
 
 
+def normalize_process_start(value: Any) -> Optional[str]:
+    """Normalize platform ``ps`` spacing and reject an empty observation."""
+
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.split())
+    return normalized[:200] if normalized else None
+
+
 def process_start(pid: int) -> Optional[str]:
     """Read one process start in the C locale without using signals."""
 
@@ -530,8 +547,7 @@ def process_start(pid: int) -> Optional[str]:
         return None
     if completed.returncode != 0:
         return None
-    value = completed.stdout.strip()
-    return value[:200] if value else None
+    return normalize_process_start(completed.stdout)
 
 
 def _holder(pid: int) -> Optional[Dict[str, Any]]:
@@ -1045,6 +1061,17 @@ class LeaseStore:
             raise InvalidLease("lease identity ambiguous")
         return found[0]
 
+    def _record_incarnation_gone(self, record: Mapping[str, Any]) -> bool:
+        try:
+            raw = _read_path_nofollow(
+                Path(record["subject"]["nonce_path"]), 64, 0o600
+            ).decode("ascii").strip()
+        except FileNotFoundError:
+            return True
+        except (OSError, UnicodeError, InvalidLease):
+            return False
+        return False
+
     def create_worktree(
         self,
         path: Path,
@@ -1062,23 +1089,20 @@ class LeaseStore:
         holder = _holder(holder_pid) if holder_pid is not None else None
         if holder_pid is not None and holder is None:
             raise InvalidLease("holder identity unavailable")
+        if creator == "adopt" and self.root == _canonical(
+            self.identity.common_dir / "factory", strict=False
+        ):
+            raise InvalidLease("fixture-only adoption unavailable")
         with self.writer_lock():
             records, _invalid = self._read_all()
-            try:
-                self._matching(
-                    records,
-                    "worktree",
-                    lambda record: record["subject"]["path"] == str(binding.path),
-                )
-            except InvalidLease:
-                existing = [
-                    record
-                    for record in records
-                    if record["class"] == "worktree"
-                    and record["subject"]["path"] == str(binding.path)
-                ]
-                if existing:
-                    raise
+            existing = [
+                record
+                for record in records
+                if record["class"] == "worktree"
+                and record["subject"]["path"] == str(binding.path)
+            ]
+            if any(not self._record_incarnation_gone(record) for record in existing):
+                raise InvalidLease("worktree lease already exists")
             if binding.nonce_path.exists() or binding.nonce_path.is_symlink():
                 raise InvalidLease("worktree nonce already exists")
             worktree = self._base_record(
@@ -1136,17 +1160,20 @@ class LeaseStore:
         holder = _holder(holder_pid) if holder_pid is not None else None
         with self.writer_lock():
             records, _invalid = self._read_all()
-            worktree = self._matching(
-                records,
-                "worktree",
-                lambda record: record["subject"]["path"] == str(binding.path),
-            )
-            if worktree["subject"]["branch"] != binding.branch:
-                raise InvalidLease("worktree branch mismatch")
             nonce = _read_path_nofollow(
                 binding.nonce_path, 64, 0o600
             ).decode("ascii").strip()
-            if nonce != worktree["lease_id"] or not self._subject_matches_binding(worktree, binding):
+            worktree = self._matching(
+                records,
+                "worktree",
+                lambda record: (
+                    record["lease_id"] == nonce
+                    and record["subject"]["path"] == str(binding.path)
+                ),
+            )
+            if worktree["subject"]["branch"] != binding.branch:
+                raise InvalidLease("worktree branch mismatch")
+            if not self._subject_matches_binding(worktree, binding):
                 raise InvalidLease("worktree nonce mismatch")
             old_worktree = worktree
             old_branch = None
@@ -1241,15 +1268,18 @@ class LeaseStore:
         try:
             with self.writer_lock():
                 records, _invalid = self._read_all()
-                parent = self._matching(
-                    records,
-                    "worktree",
-                    lambda record: record["subject"]["path"] == str(binding.path),
-                )
                 nonce = _read_path_nofollow(
                     binding.nonce_path, 64, 0o600
                 ).decode("ascii").strip()
-                if nonce != parent["lease_id"] or not self._subject_matches_binding(parent, binding):
+                parent = self._matching(
+                    records,
+                    "worktree",
+                    lambda record: (
+                        record["lease_id"] == nonce
+                        and record["subject"]["path"] == str(binding.path)
+                    ),
+                )
+                if not self._subject_matches_binding(parent, binding):
                     raise InvalidLease("parent lease unavailable")
                 if parent["subject"]["branch"] != binding.branch:
                     raise InvalidLease("parent branch mismatch")
@@ -1426,7 +1456,8 @@ class LeaseStore:
                     and item.base == target_name
                     and item.branch == binding.branch
                     and item.state == "MERGED"
-                    and (item.created_at is None or item.created_at >= worktree_record["created"])
+                    and item.created_at is not None
+                    and item.created_at >= worktree_record["created"]
                     and self._oid_is_contained(binding.head, item.head_oid)
                 ):
                     candidates.append(item)
@@ -1463,20 +1494,23 @@ class LeaseStore:
         if local_tip == merged_head:
             return True
         repo = self.identity.common_dir.parent
-        completed = subprocess.run(
-            [
-                "git",
-                "-C",
-                str(repo),
-                "merge-base",
-                "--is-ancestor",
-                local_tip,
-                merged_head,
-            ],
-            capture_output=True,
-            env=_clean_environment(),
-            timeout=60,
-        )
+        try:
+            completed = subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "merge-base",
+                    "--is-ancestor",
+                    local_tip,
+                    merged_head,
+                ],
+                capture_output=True,
+                env=_clean_environment(),
+                timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise LeaseError("merge identity unavailable") from error
         if completed.returncode not in (0, 1):
             raise LeaseError("merge identity unavailable")
         return completed.returncode == 0
@@ -1490,6 +1524,10 @@ class LeaseStore:
     ) -> str:
         """Fixture-only adoption, gated by exact reviewed creation evidence."""
 
+        if self.root == _canonical(
+            self.identity.common_dir / "factory", strict=False
+        ):
+            raise InvalidLease("fixture-only adoption unavailable")
         binding = inspect_worktree(path, self.identity)
         expected = _expect_keys(
             evidence,
@@ -1650,12 +1688,6 @@ def _parser() -> argparse.ArgumentParser:
     reconcile.add_argument("--class", dest="resource_class", choices=RESOURCE_CLASSES)
     reconcile.add_argument("--target", default="main")
 
-    adopt = commands.add_parser("adopt")
-    adopt.add_argument("--repo", type=Path, required=True)
-    adopt.add_argument("--worktree", type=Path, required=True)
-    adopt.add_argument("--evidence", type=Path, required=True)
-    adopt.add_argument("--task")
-    adopt.add_argument("--thread")
     return parser
 
 
@@ -1678,13 +1710,16 @@ def main(arguments: Optional[Sequence[str]] = None) -> int:
             store.release(args.lease_id, args.reason, args.resource_class)
         elif args.operation == "reconcile":
             store.reconcile(args.lease_id, args.target, args.resource_class)
-        elif args.operation == "adopt":
-            evidence_bytes = _read_path_nofollow(args.evidence, MAX_RECORD_BYTES)
-            evidence = strict_json_loads(evidence_bytes.decode("utf-8"))
-            store.adopt_worktree(args.worktree, evidence, args.task, args.thread)
         else:
             raise LeaseError("unknown operation")
-    except (LeaseError, OSError, UnicodeError, ValueError, TypeError):
+    except (
+        LeaseError,
+        OSError,
+        UnicodeError,
+        ValueError,
+        TypeError,
+        subprocess.SubprocessError,
+    ):
         sys.stderr.write("factory lease operation failed\n")
         return 1
     return 0

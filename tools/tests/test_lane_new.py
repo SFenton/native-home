@@ -148,6 +148,11 @@ class LaneNewLeaseTests(unittest.TestCase):
             str(lane),
             "main",
         )
+        identity = factory_lease.discover_repository(self.repo)
+        lease_id, branch_id = factory_lease.LeaseStore(
+            identity
+        ).create_worktree(lane, "lane_new", task="manual")
+        self.assertIsNone(branch_id)
         result = self.run_lane("manual", "--branch", "claude/other")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
@@ -156,11 +161,16 @@ class LaneNewLeaseTests(unittest.TestCase):
             ),
             1,
         )
-        self.assertEqual(self.store_records(), ())
+        self.assertEqual(
+            [record["lease_id"] for record in self.store_records()],
+            [lease_id],
+        )
         admin = Path(
             (lane / ".git").read_text().strip().removeprefix("gitdir: ")
         )
-        self.assertFalse((admin / "factory-lease").exists())
+        self.assertEqual(
+            (admin / "factory-lease").read_text().strip(), lease_id
+        )
 
     def test_lock_failure_warns_once_and_preserves_git_result(self):
         identity = factory_lease.discover_repository(self.repo)

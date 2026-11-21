@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import json
 import os
 import shutil
@@ -11,6 +12,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
@@ -267,8 +269,10 @@ class LeaseTests(unittest.TestCase):
         record = [
             value for value in self.records() if value["lease_id"] == worktree_id
         ][0]
+        gitfile = (self.lane / ".git").read_bytes()
         shutil.rmtree(self.lane)
         self.lane.mkdir()
+        (self.lane / ".git").write_bytes(gitfile)
         (self.lane / "sentinel").write_text("foreign")
         self.assertFalse(
             factory_lease.lease_matches_worktree(
@@ -279,6 +283,86 @@ class LeaseTests(unittest.TestCase):
             )
         )
         self.assertTrue((self.lane / "sentinel").exists())
+
+    def test_prunable_worktree_does_not_break_an_existing_subject(self):
+        missing = self.root / "missing-lane"
+        self.git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "agents/missing",
+            str(missing),
+            "main",
+        )
+        shutil.rmtree(missing)
+        inventory = self.git(
+            self.lane, "worktree", "list", "--porcelain"
+        )
+        self.assertIn("prunable ", inventory)
+        worktree_id, _branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        self.assertTrue(worktree_id)
+
+    def test_process_start_normalizes_real_and_padded_ps_output(self):
+        completed = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(os.getpid())],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=self.env,
+        )
+        raw = completed.stdout
+        self.assertTrue(raw.strip())
+        self.assertEqual(
+            factory_lease.process_start(os.getpid()),
+            factory_lease.normalize_process_start(raw),
+        )
+        padded = "Sat Nov  7 09:26:17 2026"
+        self.assertEqual(
+            factory_lease.normalize_process_start(padded),
+            "Sat Nov 7 09:26:17 2026",
+        )
+
+    def test_path_reuse_creates_and_renews_only_the_new_nonce(self):
+        first_id, _branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        self.git(self.repo, "worktree", "remove", "--force", str(self.lane))
+        self.git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            str(self.lane),
+            "agents/proof",
+        )
+        second_id, branch_id = self.store.create_worktree(
+            self.lane, "lane_new", task="replacement"
+        )
+        self.assertNotEqual(first_id, second_id)
+        self.assertIsNone(branch_id)
+        nonce = (
+            Path((self.lane / ".git").read_text().strip().removeprefix("gitdir: "))
+            / "factory-lease"
+        )
+        self.assertEqual(nonce.read_text().strip(), second_id)
+        self.assertEqual(
+            self.store.renew_worktree(self.lane, "agents/proof"), second_id
+        )
+        marker = self.lane / "build" / "runs" / "replacement.running"
+        marker.parent.mkdir(parents=True)
+        run_id = self.store.begin_run(
+            self.lane, marker.resolve(), "replacement", os.getpid()
+        )
+        self.assertIsNotNone(run_id)
+        records = {record["lease_id"]: record for record in self.records()}
+        self.assertGreater(records[second_id]["generation"], 1)
+        self.assertEqual(
+            records[run_id]["subject"]["parent_lease_id"], second_id
+        )
 
     def test_reconcile_attests_only_one_same_repo_merged_generation(self):
         worktree_id, branch_id = self.store.create_worktree(
@@ -323,6 +407,109 @@ class LeaseTests(unittest.TestCase):
             self.assertEqual(release["merged"]["generation"], 1)
         main_head = self.git(self.repo, "rev-parse", "main")
         self.assertNotEqual(main_head, head)
+
+    def test_reconcile_rejects_wrong_or_ambiguous_generation_attribution(self):
+        _worktree_id, branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        head = self.git(self.lane, "rev-parse", "HEAD")
+
+        def evidence(**changes):
+            values = {
+                "number": 44,
+                "repository": FakePullRequests.repository,
+                "base": "main",
+                "branch": "agents/proof",
+                "state": "MERGED",
+                "head_oid": head,
+                "created_at": self.now,
+            }
+            values.update(changes)
+            return factory_lease.PullRequestEvidence(**values)
+
+        rejected = (
+            evidence(repository="example/other"),
+            evidence(base="other"),
+            evidence(branch="agents/other"),
+            evidence(created_at=self.now - 1),
+            evidence(created_at=None),
+            evidence(state="UNKNOWN"),
+        )
+        for item in rejected:
+            with self.subTest(item=item):
+                with self.assertRaises(factory_lease.InvalidLease):
+                    self.store.reconcile(
+                        branch_id, provider=FakePullRequests((item,))
+                    )
+
+        class Broken(factory_lease.PullRequestProvider):
+            def list_for_branch(self, repository, branch):
+                raise factory_lease.LeaseError(
+                    "pull request evidence unavailable"
+                )
+
+        with self.assertRaises(factory_lease.LeaseError):
+            self.store.reconcile(branch_id, provider=Broken())
+
+    def test_reconcile_serializes_a_competing_renewal(self):
+        _worktree_id, branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        head = self.git(self.lane, "rev-parse", "HEAD")
+        child_code = (
+            "import sys\n"
+            "from pathlib import Path\n"
+            "sys.path.insert(0, %r)\n"
+            "import factory_lease\n"
+            "identity=factory_lease.RepositoryIdentity("
+            "Path(sys.argv[1]), sys.argv[2])\n"
+            "store=factory_lease.LeaseStore(identity, now=%d)\n"
+            "try:\n"
+            " store.renew_worktree(Path(sys.argv[3]), %r)\n"
+            "except factory_lease.LockBusy:\n"
+            " print('busy')\n"
+        ) % (str(TOOLS), self.now, "agents/proof")
+
+        class Racing(factory_lease.PullRequestProvider):
+            repository = "example/project"
+
+            def list_for_branch(inner, repository, branch):
+                completed = subprocess.run(
+                    [
+                        sys.executable,
+                        "-c",
+                        child_code,
+                        str(self.identity.common_dir),
+                        self.identity.root_commit,
+                        str(self.lane),
+                    ],
+                    capture_output=True,
+                    text=True,
+                    env=self.env,
+                    check=True,
+                )
+                self.assertEqual(completed.stdout.strip(), "busy")
+                return (
+                    factory_lease.PullRequestEvidence(
+                        45,
+                        repository,
+                        "main",
+                        branch,
+                        "MERGED",
+                        head,
+                        self.now,
+                    ),
+                )
+
+        self.store.reconcile(branch_id, provider=Racing())
+        self.assertEqual(
+            self.store.renew_worktree(self.lane, "agents/proof"),
+            [
+                record["lease_id"]
+                for record in self.records()
+                if record["class"] == "worktree"
+            ][0],
+        )
 
     def test_changed_tip_or_closed_pull_request_is_not_merge_evidence(self):
         _worktree_id, branch_id = self.store.create_worktree(
@@ -383,6 +570,186 @@ class LeaseTests(unittest.TestCase):
         gitfile = self.lane / ".git"
         admin = Path(gitfile.read_text().strip().removeprefix("gitdir: "))
         self.assertFalse((admin / "factory-lease").exists())
+
+    def test_adoption_is_fixture_only_and_absent_from_cli(self):
+        evidence = {
+            "reviewed": True,
+            "repo": self.identity.as_json(),
+            "path": str(self.lane),
+            "branch": "agents/proof",
+            "head": self.git(self.lane, "rev-parse", "HEAD"),
+            "generation": 1,
+            "creation": "fixture",
+        }
+        with self.assertRaises(factory_lease.InvalidLease):
+            self.store.adopt_worktree(self.lane, evidence)
+        fixture = factory_lease.LeaseStore(
+            self.identity, now=self.now, store_root=self.root / "fixture-store"
+        )
+        lease_id = fixture.adopt_worktree(self.lane, evidence)
+        self.assertTrue(lease_id)
+        with self.assertRaises(factory_lease.InvalidLease):
+            fixture.adopt_worktree(self.lane, evidence)
+        err = io.StringIO()
+        with redirect_stderr(err):
+            with self.assertRaises(SystemExit):
+                factory_lease.main(["adopt"])
+        self.assertNotIn(str(self.lane), err.getvalue())
+
+    def test_original_leaf_symlink_is_rejected_without_following(self):
+        external = self.root / "external"
+        external.write_text("private")
+        linked = self.root / "linked"
+        linked.symlink_to(external)
+        with self.assertRaises(OSError):
+            factory_lease._read_path_nofollow(linked, 1024)
+        self.assertEqual(external.read_text(), "private")
+
+    def test_git_and_cli_timeouts_become_fixed_lease_errors(self):
+        timeout = subprocess.TimeoutExpired(
+            ["git", "-C", str(self.repo), "status"], 60
+        )
+        with mock.patch.object(
+            factory_lease.subprocess, "run", side_effect=timeout
+        ):
+            with self.assertRaises(factory_lease.LeaseError):
+                factory_lease._git(self.repo, "status")
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                result = factory_lease.main(
+                    [
+                        "renew",
+                        "--repo",
+                        str(self.repo),
+                        "--worktree",
+                        str(self.lane),
+                    ]
+                )
+        self.assertEqual(result, 1)
+        self.assertEqual(out.getvalue(), "")
+        self.assertEqual(
+            err.getvalue(), "factory lease operation failed\n"
+        )
+        self.assertNotIn(str(self.repo), err.getvalue())
+
+    def test_cli_canary_has_no_identity_output_on_success_or_failure(self):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            result = factory_lease.main(
+                [
+                    "create",
+                    "--repo",
+                    str(self.repo),
+                    "--worktree",
+                    str(self.lane),
+                    "--creator",
+                    "lane_new",
+                    "--branch-created",
+                    "agents/proof",
+                ]
+            )
+        self.assertEqual(result, 0)
+        self.assertEqual((out.getvalue(), err.getvalue()), ("", ""))
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            result = factory_lease.main(
+                [
+                    "create",
+                    "--repo",
+                    str(self.repo),
+                    "--worktree",
+                    str(self.lane),
+                    "--creator",
+                    "lane_new",
+                    "--branch-created",
+                    "agents/proof",
+                ]
+            )
+        self.assertEqual(result, 1)
+        self.assertEqual(out.getvalue(), "")
+        self.assertEqual(
+            err.getvalue(), "factory lease operation failed\n"
+        )
+        self.assertNotIn(str(self.repo), err.getvalue())
+        self.assertNotIn(str(self.lane), err.getvalue())
+
+    def test_lease_writes_and_commands_cross_only_recorded_boundaries(self):
+        identity = self.identity
+        binding = factory_lease.inspect_worktree(self.lane, identity)
+        writes = []
+        commands = []
+        original_record = self.store._write_record
+        original_nonce = self.store._write_nonce
+        original_run = subprocess.run
+
+        def record(record):
+            destination = self.store._record_file(
+                record["class"], record["lease_id"]
+            )
+            self.assertTrue(
+                factory_lease.path_is_within(
+                    destination, identity.common_dir / "factory"
+                )
+            )
+            writes.append(("record", destination))
+            return original_record(record)
+
+        def nonce(path, lease_id):
+            self.assertEqual(path, binding.nonce_path)
+            writes.append(("nonce", path))
+            return original_nonce(path, lease_id)
+
+        def run(command, **values):
+            commands.append(tuple(str(value) for value in command))
+            if (
+                command[0] != "git"
+                or "-C" not in command
+                or any(
+                    value
+                    in (
+                        "fetch",
+                        "prune",
+                        "clean",
+                        "reset",
+                        "checkout",
+                        "config",
+                    )
+                    for value in command
+                )
+            ):
+                raise AssertionError("denied command boundary")
+            return original_run(command, **values)
+
+        with mock.patch.object(
+            self.store, "_write_record", side_effect=record
+        ), mock.patch.object(
+            self.store, "_write_nonce", side_effect=nonce
+        ), mock.patch.object(factory_lease.subprocess, "run", side_effect=run):
+            self.store.create_worktree(
+                self.lane,
+                "lane_new",
+                task="boundary",
+                branch_created="agents/proof",
+            )
+            with self.assertRaises(AssertionError):
+                nonce(self.root / "denied" / "nonce", "f" * 32)
+            with self.assertRaises(AssertionError):
+                record({"class": "../../../denied", "lease_id": "f" * 32})
+        self.assertEqual(
+            sorted(kind for kind, _path in writes),
+            ["nonce", "record", "record"],
+        )
+        self.assertTrue(commands)
+        with self.assertRaisesRegex(
+            AssertionError, "denied command boundary"
+        ):
+            run(["git", "-C", str(self.repo), "clean", "-fd"])
+        denied_store = self.root / "denied" / "record.json"
+        self.assertFalse(
+            factory_lease.path_is_within(
+                denied_store, identity.common_dir / "factory"
+            )
+        )
 
 
 if __name__ == "__main__":

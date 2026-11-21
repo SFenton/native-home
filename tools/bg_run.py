@@ -157,14 +157,6 @@ def _claim_marker(marker: Path, record: dict):
     try:
         os.fchmod(lock, 0o600)
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        if marker.exists() or marker.is_symlink():
-            try:
-                lock_path.unlink()
-            except OSError:
-                pass
-            fcntl.flock(lock, fcntl.LOCK_UN)
-            os.close(lock)
-            return None
         return lock, _replace_marker(marker, record)
     except Exception:
         os.close(lock)
@@ -200,7 +192,12 @@ def _begin_lease(cwd: str, marker: Path, label: str):
             Path(cwd), marker.resolve(), label, os.getpid()
         )
         return store, lease_id
-    except (factory_lease.LeaseError, OSError, UnicodeError):
+    except (
+        factory_lease.LeaseError,
+        OSError,
+        UnicodeError,
+        subprocess.SubprocessError,
+    ):
         return None, None
 
 
