@@ -27,7 +27,7 @@ Blocked, in an agent session:
   ``<checkout>/data``), and a ``NODE_*``, ``TSX_*``, ``LD_*`` or ``DYLD_*`` variable in front of it is refused. Of its subcommands ``apply``, ``publish``,
   ``rollback`` and ``resolve`` run only for ``agent_type`` ``orchestrator`` or ``menial`` (lanes build changes; the dispatched publish step publishes) and never
   in a headless session; ``status`` and ``check`` run for every agent. Any other word naming the CLI (``studio-publish``, ``studio:publish``,
-  ``studio_publish``) in a command that runs code is refused; a test file such as ``tests/studio-publish.test.ts`` is not the CLI.
+  ``studio_publish``) in a command that runs code is refused, except the record store ``studio-publish/<id>/...`` and its ``studio-publish.jsonl`` log; a test file such as ``tests/studio-publish.test.ts`` is not the CLI.
 
 Prose in a ``git commit -m`` or ``gh --body`` value is not read. Heredocs: when any simple command in the line runs code (an interpreter, shell,
 network client or task runner), every heredoc body is read for routes, ports, the data directory and the tool's name, whichever line opens it
@@ -76,8 +76,8 @@ DATA_DIR_VAR = re.compile(r"\$\{?DATA_DIR(?![A-Za-z0-9_])")
 #: The data folder at the root of a Studio checkout only (``<checkout>/data``): source folders such as ``src/workspace2/data`` stay open.
 STUDIO_DATA = re.compile(r"(?:ha-native-home-app|studio-releases)(?:[/\\][^/\\]+)?[/\\]data(?:[/\\]|$)", re.I)
 #: A word that names the CLI (``scripts/studio-publish.ts``, ``studio:publish``, ``import studio_publish``) but not ``test_studio_publish`` or a test file
-#: such as ``tests/studio-publish.test.ts``.
-TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_-])studio[_:-]publish(?![A-Za-z0-9_-]|\.test\.)", re.I)
+#: such as ``tests/studio-publish.test.ts``, nor the record store ``studio-publish/<id>/...`` and its log ``studio-publish.jsonl``.
+TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_-])studio[_:-]publish(?![A-Za-z0-9_-]|\.test\.|/|\.jsonl(?![A-Za-z0-9_.-]))", re.I)
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|\Z)", re.S)
 #: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
 RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
