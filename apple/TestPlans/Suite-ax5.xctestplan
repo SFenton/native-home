@@ -39,6 +39,7 @@
         "LiveActivityJourneyTests/testAX5CardVacuumStaysOnScreen()",
         "LiveActivityJourneyTests/testAX5NoticeWrapsAndKeepsTargets()",
         "PerformanceJourneyTests/testPerformanceScreenAtAX5()",
+        "RoomChromeLiveJourneyTests/testTheLongestRoomTitleClearsTheCirclesAtAX5()",
         "StateTileJourneyTests/testAtAX5TheTileReadsTheSame()",
         "TileLayoutJourneyTests/testTileLayoutAX5AnchoredBottomKeepsTilesReadable()",
         "TileLayoutJourneyTests/testTileLayoutAX5CenteredStackKeepsTilesReadable()",

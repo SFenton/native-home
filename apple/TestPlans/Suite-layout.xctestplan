@@ -22,6 +22,7 @@
       "selectedTests": [
         "LayoutJourneyTests",
         "ModalSizingJourneyTests",
+        "RoomChromeLiveJourneyTests",
         "RoomTabLiveJourneyTests",
         "TileLayoutJourneyTests"
       ]
