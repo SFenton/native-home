@@ -128,6 +128,7 @@ jobs:
           run_hosted=true
           [ -n "${FILTER:-}" ] && run_hosted=false
           [ "$run_hosted" = "true" ] && expect="$expect,hosted=1"
+          [ "$run_hosted" = "true" ] && expect="$expect,hosted-duo=1"
           echo "hosted=$run_hosted" >> "$GITHUB_OUTPUT"
           echo "expect=$expect" >> "$GITHUB_OUTPUT"
           echo "plans: $plans; legs: $expect" >> "$GITHUB_STEP_SUMMARY"
@@ -308,7 +309,10 @@ jobs:
 
   hosted:
     # The whole app-hosted unit-test suite (FentonHomeTests) on iPhone, plain, as the pass or fail gate that a pull request runs for the classes its
-    # diff reaches (tools/ci_macos.sh hosted iphone). It starts after `coverage`, so the journeys (3) plus one more job stay under the macOS cap.
+    # diff reaches (tools/ci_macos.sh hosted iphone). Then, on the same runner, the Duo leg: only the classes contracts/test-map.json tags
+    # `hosted_families: ["duo"]` (fold, hinge and band classes; tools/affected_tests.py --tagged duo), not every family's whole suite. The Duo
+    # leg is a second simulator in this job, not a job of its own, so the journeys (3) plus this one stay under the macOS cap.
+    # It starts after `coverage`.
     name: hosted iphone
     needs: [plan, build, coverage]
     if: ${{ !cancelled() && vars.HOSTED_MACOS == 'on' && needs.plan.outputs.hosted == 'true' && needs.build.result == 'success' }}
@@ -370,17 +374,50 @@ jobs:
           echo "code=$code" >> "$GITHUB_OUTPUT"
           echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
           exit 0
+      - name: Slim and settle the duo simulator
+        id: simduo
+        if: ${{ !cancelled() }}
+        run: |
+          set -uo pipefail
+          # One device at a time: the iPhone's simulator is shut down first (a second boot beside a warm one took 20 minutes on this runner).
+          tools/ci_release_sims.sh || true
+          slim_rc=0
+          tools/ci_heartbeat.sh run -- tools/sim_slim.sh duo || slim_rc=$?
+          if [ "$slim_rc" != 0 ]; then echo "slim=0" >> "$GITHUB_OUTPUT"; else echo "slim=1" >> "$GITHUB_OUTPUT"; fi
+          tools/ci_heartbeat.sh run -- tools/sim_settle.sh duo || true
+      - name: Run the Duo hosted classes (the tagged fold classes)
+        id: runduo
+        if: ${{ !cancelled() }}
+        env:
+          SLIM: ${{ steps.simduo.outputs.slim }}
+        run: |
+          set -uo pipefail
+          set +e
+          mkdir -p build/nightly
+          [ "${SLIM:-1}" = "0" ] && export FENTON_SIM_SLIM=0
+          start=$(date +%s)
+          tagged="$(python3 tools/affected_tests.py --tagged duo)" || { echo "affected_tests.py --tagged duo failed"; echo "code=2" >> "$GITHUB_OUTPUT"; exit 0; }
+          echo "hosted classes tagged for the duo: $tagged" | tee build/nightly/log-hosted-duo.txt
+          FENTON_HOSTED_FILTER="$tagged" tools/ios_uitest.sh --only duo --hosted --force 2>&1 | tee -a build/nightly/log-hosted-duo.txt
+          code=${PIPESTATUS[0]}
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+          echo "elapsed=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+          exit 0
       - name: Digest
         if: always()
         env:
           CODE: ${{ steps.run.outputs.code }}
           ELAPSED: ${{ steps.run.outputs.elapsed }}
+          DUO_CODE: ${{ steps.runduo.outputs.code }}
+          DUO_ELAPSED: ${{ steps.runduo.outputs.elapsed }}
         run: |
           set -uo pipefail
           mkdir -p build/nightly
-          touch build/nightly/log-hosted.txt
+          touch build/nightly/log-hosted.txt build/nightly/log-hosted-duo.txt
           python3 tools/nightly_report.py result --area hosted --log build/nightly/log-hosted.txt \
             --exit-code "${CODE:-124}" --elapsed "${ELAPSED:-0}" --out build/nightly/result-hosted.json | tee "$RUNNER_TEMP/digest.txt"
+          python3 tools/nightly_report.py result --area hosted-duo --log build/nightly/log-hosted-duo.txt \
+            --exit-code "${DUO_CODE:-124}" --elapsed "${DUO_ELAPSED:-0}" --out build/nightly/result-hosted-duo.json | tee -a "$RUNNER_TEMP/digest.txt"
           { echo '```'; cat "$RUNNER_TEMP/digest.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
       - name: Upload results
         if: always()
@@ -400,8 +437,17 @@ jobs:
           path: apple/.build/uitest-iphone.xcresult/**
           if-no-files-found: ignore
           retention-days: 7
+      - name: Keep the xcresult of a failed Duo run
+        if: ${{ always() && steps.runduo.outputs.code != '0' }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: xcresult-hosted-duo
+          include-hidden-files: true
+          path: apple/.build/uitest-duo.xcresult/**
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Fail the hosted run
-        if: steps.run.outputs.code != '0'
+        if: steps.run.outputs.code != '0' || steps.runduo.outputs.code != '0'
         run: exit 1
 
   live:

@@ -410,6 +410,13 @@ jobs:
         # 75 keeps a hung suite from eating the job's budget (Smoke and the journeys run before it).
         timeout-minutes: 75
         run: tools/ci_macos.sh hosted iphone
+      - name: Hosted fold tests the diff reaches on duo
+        id: hostedduo
+        # The hosted classes a test-map rule tags `hosted_families: ["duo"]` (fold, hinge and band classes) also run on the Duo's scene, where the
+        # hinge is the scene's own: the Duo leg is already booted and settled for Smoke. Only the picked classes of that tag, never the whole suite.
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && matrix.family == 'duo' }}
+        timeout-minutes: 45
+        run: tools/ci_macos.sh hosted duo
       - name: Restore SwiftPM caches
         id: spm
         if: ${{ matrix.family == 'ipad' }}
@@ -432,14 +439,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: tools/ci_macos.sh summary
       - name: Simulator diagnostics
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure' || steps.hostedduo.outcome == 'failure') }}
         continue-on-error: true
         run: |
           xcrun simctl list devices
           df -h / | tail -1
           log show --last 10m --style compact --predicate 'process == "CoreSimulatorService"' 2>/dev/null | tail -80 || true
       - name: Keep the ${{ matrix.family }} results
-        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.smoke.outcome == 'failure' || steps.journeys.outcome == 'failure' || steps.hosted.outcome == 'failure' || steps.hostedduo.outcome == 'failure') }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: xcresult-${{ matrix.family }}

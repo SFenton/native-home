@@ -7,6 +7,8 @@
 ``affected_tests.py --journeys --device duo``  the journeys one family runs (iphone: all of them; duo, ipad: the layout ones)
 ``affected_tests.py --journeys --plan Gate``  only the classes that plan runs (a class the plan skips whole, or does not select, would match nothing: xcodebuild "EMPTY")
 ``affected_tests.py --hosted``        the app-hosted unit-test classes (`apple/Apps/iOSTests`, FentonHomeTests) the diff reaches, for `FENTON_HOSTED_FILTER`
+``affected_tests.py --hosted --device duo``  the picked hosted classes a test-map rule tags ``hosted_families: ["duo"]`` (a class opts into Duo beyond the iPhone default)
+``affected_tests.py --tagged duo``    every hosted class tagged for that family (the nightly Duo leg; exit 2 for a family no rule may tag)
 ``affected_tests.py --families``      device families that run the affected journeys (iphone duo ipad)
 ``affected_tests.py --smoke-families``  families that run only the Smoke plan (`ios_uitest.sh --only F --plan Smoke`)
 ``affected_tests.py --environment``   `NAME=value` lines a `--changed` run gives the journeys (``changedEnvironment`` of the map)
@@ -154,6 +156,29 @@ def expand_hosted(names: Iterable[str], classes: Dict[str, str]) -> List[str]:
     return sorted(chosen)
 
 
+#: Families a hosted class may opt into besides iPhone, which runs every picked class. iPad has no hosted leg.
+HOSTED_FAMILIES = ("duo",)
+
+
+def tagged_hosted(test_map: Dict, family: str, classes: Dict[str, str]) -> List[str]:
+    """Hosted classes the map's rules opt into ``family`` through ``hosted_families`` (fold, hinge and band classes run on the Duo scene too).
+
+    A rule tags the classes its own ``hosted`` list names. ``iphone`` is the default for every class, so it is never a tag; a family
+    outside ``HOSTED_FAMILIES`` has no hosted leg and raises ``ValueError`` (in a tag and as the asked family alike).
+    """
+    if family not in HOSTED_FAMILIES:
+        raise ValueError(f"no hosted leg for '{family}': a class opts into {', '.join(HOSTED_FAMILIES)}")
+    chosen: List[str] = []
+    for rule in test_map.get("rules", []):
+        tags = rule.get("hosted_families", [])
+        bad = [tag for tag in tags if tag not in HOSTED_FAMILIES]
+        if bad:
+            raise ValueError(f"rule '{rule.get('prefix')}' tags hosted_families {bad}: only {', '.join(HOSTED_FAMILIES)} are allowed")
+        if family in tags:
+            chosen.extend(expand_hosted(rule.get("hosted", []), classes))
+    return sorted(set(chosen))
+
+
 def hosted_for(file: str, rules: Sequence[Dict], classes: Dict[str, str], root: Path = ROOT) -> Optional[List[str]]:
     """Hosted classes one changed file reaches, or ``None`` when it should be placed but no rule or convention does.
 
@@ -276,7 +301,9 @@ def select(files: Iterable[str], test_map: Dict, root: Path = ROOT) -> Dict:
     run = [f for f in all_families if by_family[f]]
     # The families a change does not target still get the Smoke plan: the shell, a sheet, an audit, AX5 and rotation.
     smoke = [f for f in all_families if journeys and f not in run]
-    return {"swift": swift, "journeys": journeys, "hosted": sorted(hosted), "hosted_unknown": hosted_unknown, "journeys_by_family": by_family,
+    tagged = {family: set(tagged_hosted(test_map, family, classes)) for family in HOSTED_FAMILIES}
+    hosted_by_family = {family: [name for name in sorted(hosted) if name in tagged[family]] for family in HOSTED_FAMILIES}
+    return {"swift": swift, "journeys": journeys, "hosted": sorted(hosted), "hosted_by_family": hosted_by_family, "hosted_unknown": hosted_unknown, "journeys_by_family": by_family,
             "families": run, "smoke_families": smoke, "layout_sensitive": layout,
             "ignored": ignored, "unknown": unknown, "target": test_map.get("journeyTarget", "FentonHomeUITests")}
 
@@ -343,9 +370,13 @@ def environment_args(result: Dict, test_map: Dict) -> str:
     return "\n".join(f"{name}={value}" for name, value in sorted(test_map.get("changedEnvironment", {}).items()))
 
 
-def hosted_args(result: Dict) -> str:
-    """The hosted classes as ``FENTON_HOSTED_FILTER`` takes them: space separated class names."""
-    return " ".join(result["hosted"])
+def hosted_args(result: Dict, family: str = "") -> str:
+    """The hosted classes as ``FENTON_HOSTED_FILTER`` takes them: space separated class names.
+
+    ``family`` ``duo`` keeps the picked classes a rule tagged for the Duo; empty (iPhone) is every picked class.
+    """
+    names = result["hosted_by_family"].get(family, []) if family else result["hosted"]
+    return " ".join(names)
 
 
 def unknown_request(result: Dict, key: str = "unknown") -> str:
@@ -418,6 +449,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--swift", action="store_true")
     parser.add_argument("--journeys", action="store_true")
     parser.add_argument("--hosted", action="store_true", help="the app-hosted test classes (FENTON_HOSTED_FILTER)")
+    parser.add_argument("--tagged", default="", metavar="FAMILY", help="every hosted class the map tags for FAMILY (the nightly leg)")
     parser.add_argument("--families", action="store_true")
     parser.add_argument("--smoke-families", action="store_true")
     parser.add_argument("--environment", action="store_true")
@@ -442,9 +474,20 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         return 0 if seen(tree, args.filter, args.device) else 1
 
-    files = args.files if args.files is not None else changed_files(args.base)
     test_map = load_map(Path(args.map))
-    result = select(files, test_map)
+    if args.tagged:
+        try:
+            print(" ".join(tagged_hosted(test_map, args.tagged, hosted_classes())))
+        except ValueError as exc:
+            print(f"affected_tests: {exc}", file=sys.stderr)
+            return 2
+        return 0
+    files = args.files if args.files is not None else changed_files(args.base)
+    try:
+        result = select(files, test_map)
+    except ValueError as exc:
+        print(f"affected_tests: {exc}", file=sys.stderr)
+        return 2
     request = unknown_request(result)
     hosted_request = unknown_request(result, "hosted_unknown")
     if args.hosted:
@@ -456,7 +499,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     elif args.journeys:
         print(journey_args(result, args.device, args.plan))
     elif args.hosted:
-        print(hosted_args(result))
+        if args.device and args.device != "iphone" and args.device not in HOSTED_FAMILIES:
+            print(f"affected_tests: no hosted leg for '{args.device}'", file=sys.stderr)
+            return 2
+        print(hosted_args(result, "" if args.device in ("", "iphone") else args.device))
     elif args.families:
         print(" ".join(result["families"]))
     elif args.smoke_families:

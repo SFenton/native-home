@@ -1,6 +1,6 @@
 {
  "version": 1,
- "comment": "Path prefix -> swift test --filter regexes and iOS UI journey classes (-only-testing:FentonHomeUITests/<Class>). The longest matching prefix wins per file; equal-length matches merge. Seeded from .agents/patterns/*.md test lists and test file names. A changed test file selects its own classes. Families: affected journeys run on defaultFamilies (the primary family, iPhone) and the Smoke plan (tools/test_plans.py, `smoke` below) on the others; each family has its own journey list (tools/affected_tests.py journeys_by_family): iPhone runs every affected journey; Duo and iPad run only the layout journeys among them: a class the matched rule names in layout_journeys, or a layoutJourneys class whose own test file changed (the pose, split and wide classes of a split suite), and the Smoke plan when there are none. A rule tagged layout_sensitive with no layout_journeys (shared HassDesign components, shell, split policy, settings) is blanket: all of its journeys run on every family. A rule may also list explicit `families`. No journeys means no device run. A source file under no rule falls back to the file-name convention (Name.swift -> Name*Tests.swift and NameJourneyTests), then to its module's test target (apple/Sources/HassUI -> HassUITests); tools/affected_tests.py asks for a targeted pick only for files with no module either, and never widens to the full suite. `changedEnvironment` is the environment a `--changed` run (the pull request tier) gives the journeys, as TEST_RUNNER_ variables unless the caller already set them: `FENTON_UITEST_SPACES=all-food` makes the Inventory pages audit cover one representative space instead of all six; the nightly and release runs (no --changed) set nothing and cover all six. The UIKit port (owner, 2026-11-01) replaced the SwiftUI screens: rules for the deleted SwiftUI files were folded into their UIKitPort feature folder (apple/Sources/HassUI/UIKitPort/Features/<Feature>/, UIKitPort/App/). A rule may also list `hosted`: app-hosted unit-test classes (apple/Apps/iOSTests, target FentonHomeTests; exact names or `*` globs, `\"*\"` alone is every class) that tools/affected_tests.py --hosted prints for FENTON_HOSTED_FILTER. The longest prefix that has a `hosted` key wins (equal lengths merge), and a rule with `hosted` but no `swift` or `journeys` places hosted classes only. Files under UIKitPort/Features/<Area>/ with no hosted rule use the area convention (every class whose name after UKHosted, or whose file name, starts with <Area> or its singular), so most features need no rule here; the rules below cover areas whose class names differ (Home, Rooms, RoomDevices, Settings, Food, ...) and shared code (Design, App, Common, Gallery, Foundation, HassDesign, HassUI/App). A changed file under apple/Apps/iOSTests selects its own classes; a helper (UKHostedDriver, HostedFeatureSupport, DemoHouseTestCase, UKHostedScene) selects them all. A UIKitPort or iOSTests file that nothing places is a pick (--hosted exits 3), never a silent full run. tools/ios_uitest.sh --changed runs the hosted classes on iPhone after the journeys; pr-checks runs them through tools/ci_macos.sh hosted iphone.",
+ "comment": "Path prefix -> swift test --filter regexes and iOS UI journey classes (-only-testing:FentonHomeUITests/<Class>). The longest matching prefix wins per file; equal-length matches merge. Seeded from .agents/patterns/*.md test lists and test file names. A changed test file selects its own classes. Families: affected journeys run on defaultFamilies (the primary family, iPhone) and the Smoke plan (tools/test_plans.py, `smoke` below) on the others; each family has its own journey list (tools/affected_tests.py journeys_by_family): iPhone runs every affected journey; Duo and iPad run only the layout journeys among them: a class the matched rule names in layout_journeys, or a layoutJourneys class whose own test file changed (the pose, split and wide classes of a split suite), and the Smoke plan when there are none. A rule tagged layout_sensitive with no layout_journeys (shared HassDesign components, shell, split policy, settings) is blanket: all of its journeys run on every family. A rule may also list explicit `families`. No journeys means no device run. A source file under no rule falls back to the file-name convention (Name.swift -> Name*Tests.swift and NameJourneyTests), then to its module's test target (apple/Sources/HassUI -> HassUITests); tools/affected_tests.py asks for a targeted pick only for files with no module either, and never widens to the full suite. `changedEnvironment` is the environment a `--changed` run (the pull request tier) gives the journeys, as TEST_RUNNER_ variables unless the caller already set them: `FENTON_UITEST_SPACES=all-food` makes the Inventory pages audit cover one representative space instead of all six; the nightly and release runs (no --changed) set nothing and cover all six. The UIKit port (owner, 2026-11-01) replaced the SwiftUI screens: rules for the deleted SwiftUI files were folded into their UIKitPort feature folder (apple/Sources/HassUI/UIKitPort/Features/<Feature>/, UIKitPort/App/). A hosted rule may carry `hosted_families: [\"duo\"]`, which opts the classes it lists into the Duo hosted leg as well as the iPhone one (fold, hinge and band classes: the Duo scene is the only place their geometry is real; tools/affected_tests.py --hosted --device duo picks them, --tagged duo lists them all for the nightly; tools/ci_macos.sh hosted duo). A rule may also list `hosted`: app-hosted unit-test classes (apple/Apps/iOSTests, target FentonHomeTests; exact names or `*` globs, `\"*\"` alone is every class) that tools/affected_tests.py --hosted prints for FENTON_HOSTED_FILTER. The longest prefix that has a `hosted` key wins (equal lengths merge), and a rule with `hosted` but no `swift` or `journeys` places hosted classes only. Files under UIKitPort/Features/<Area>/ with no hosted rule use the area convention (every class whose name after UKHosted, or whose file name, starts with <Area> or its singular), so most features need no rule here; the rules below cover areas whose class names differ (Home, Rooms, RoomDevices, Settings, Food, ...) and shared code (Design, App, Common, Gallery, Foundation, HassDesign, HassUI/App). A changed file under apple/Apps/iOSTests selects its own classes; a helper (UKHostedDriver, HostedFeatureSupport, DemoHouseTestCase, UKHostedScene) selects them all. A UIKitPort or iOSTests file that nothing places is a pick (--hosted exits 3), never a silent full run. tools/ios_uitest.sh --changed runs the hosted classes on iPhone after the journeys; pr-checks runs them through tools/ci_macos.sh hosted iphone.",
  "journeyTarget": "FentonHomeUITests",
  "families": [
   "iphone",
@@ -2425,6 +2425,84 @@
    "prefix": "apple/Apps/iOSTests/VacuumsByPosition",
    "hosted": [
     "UKHostedVacuum*Tests"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/HostedWindow",
+   "hosted": [
+    "ServerUIFoldSidesHostedTests",
+    "ServerUIRecordScrollerTests",
+    "ServerUIRoomsRendererTests",
+    "UKHostedColumnsTests",
+    "UKHostedDesignRowTests",
+    "UKHostedGridTests",
+    "UKHostedLoginTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/ServerUIFoldSidesHostedTests",
+   "hosted": [
+    "ServerUIFoldSidesHostedTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/ServerUIRecordScrollerTests",
+   "hosted": [
+    "ServerUIRecordScrollerTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/ServerUIRoomsRendererTests",
+   "hosted": [
+    "ServerUIRoomsRendererTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/UKHostedColumnsTests",
+   "hosted": [
+    "UKHostedColumnsTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/UKHostedDesignRowTests",
+   "hosted": [
+    "UKHostedDesignRowTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/UKHostedGridTests",
+   "hosted": [
+    "UKHostedGridTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/UKHostedLoginTests",
+   "hosted": [
+    "UKHostedLoginTests"
+   ],
+   "hosted_families": [
+    "duo"
    ]
   },
   {

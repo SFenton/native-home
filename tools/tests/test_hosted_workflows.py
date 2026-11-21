@@ -229,6 +229,30 @@ class RuleTests(unittest.TestCase):
         self.assertIn("uitest-${{ matrix.family }}-journeys.xcresult/**", test)  # the hosted run replaces the journeys' own bundle: both are kept
         self.assertNotIn("hosted iphone", jobs("pr-checks.yml")["macos-build"])
 
+    def test_the_duo_leg_runs_the_tagged_hosted_classes_after_the_journeys_and_fails_the_job(self):
+        test = jobs("pr-checks.yml")["macos-test"]
+        step = test.split("name: Hosted fold tests the diff reaches on duo", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("id: hostedduo", step)
+        self.assertIn("tools/ci_macos.sh hosted duo", step)
+        condition = step.split("if: ", 1)[1].split("\n", 1)[0]
+        for part in ("!cancelled()", "github.event_name == 'pull_request'", "matrix.family == 'duo'"):
+            self.assertIn(part, condition)
+        self.assertNotIn("continue-on-error", step)
+        self.assertLess(test.index("tools/ci_macos.sh journeys"), test.index("tools/ci_macos.sh hosted duo"))
+        self.assertLess(test.index("tools/ci_macos.sh hosted duo"), test.index("tools/ci_macos.sh swift-test"))
+        self.assertEqual(test.count("steps.hostedduo.outcome == 'failure'"), 2)  # the diagnostics and the kept results follow it too
+
+    def test_the_nightly_hosted_job_has_a_duo_leg_for_the_tagged_classes_and_reports_it(self):
+        text = (Path(__file__).resolve().parents[2] / ".github" / "workflows" / "nightly.yml").read_text(encoding="utf-8")
+        hosted = text.split("\n  hosted:\n", 1)[1].split("\n  live:\n", 1)[0]
+        self.assertIn("tools/affected_tests.py --tagged duo", hosted)
+        self.assertIn("tools/ios_uitest.sh --only duo --hosted --force", hosted)
+        self.assertIn("--area hosted-duo", hosted)
+        self.assertIn('expect="$expect,hosted-duo=1"', text)  # the report expects the Duo result as well
+        self.assertIn("steps.runduo.outputs.code != '0'", hosted.split("Fail the hosted run", 1)[1])
+        self.assertLess(hosted.index("--only iphone --hosted"), hosted.index("--only duo --hosted"))
+        self.assertIn("tools/ci_release_sims.sh", hosted.split("Slim and settle the duo simulator", 1)[1].split("- name:", 1)[0])  # one device at a time
+
     def test_the_scope_filter_watches_every_file_that_decides_hosted_selection(self):
         text = (WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8")
         app_tools = re.search(r"app_tools: '\{(.*?)\}'", text).group(1).split(",")

@@ -84,7 +84,8 @@ final class ServerUIRoomsRendererTests: XCTestCase {
 
     // MARK: Status rail follows the fold
 
-    private let foldBand = CGRect(x: 455.3, y: 0, width: 40.4, height: 682)
+    /// The measured partly folded band: centred in the 951 pt inner display, 455.3 to 495.7 pt.
+    private let foldBand = HostedWindow.hingeBand(sceneWidth: 951, height: 682)
 
     /// A Studio page with one status rail, hosted in the unfolded Duo's inner display.
     private func railHost(category: UIContentSizeCategory?) throws -> (UKServerUIRenderer, UIWindow, UKChipRailView) {

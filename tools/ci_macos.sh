@@ -7,6 +7,8 @@
 #   tools/ci_macos.sh journeys FAMILY         the journeys the diff reaches (pull requests only; skips when Gate runs none of them)
 #   tools/ci_macos.sh hosted iphone          the app-hosted unit-test classes (FentonHomeTests) the diff reaches, plain, on iPhone (pull requests only;
 #                                            the whole suite when a file cannot be placed; skips when the diff reaches none)
+#   tools/ci_macos.sh hosted duo             the classes among those that contracts/test-map.json tags `hosted_families: ["duo"]` (fold, hinge and band
+#                                            classes), on the Duo scene; every tagged class when a file cannot be placed; no other family has a hosted leg
 #   tools/ci_macos.sh swift-test             swift test (the affected suites on a pull request, everything otherwise)
 #   tools/ci_macos.sh summary                the timing table and the runner's swap and memory
 #
@@ -90,11 +92,13 @@ case "$cmd" in
     ;;
   hosted)
     target="${2:-}"; check_family "$target" 1
-    # The hosted classes are family-independent unit tests (nightly runs them on every family): the pull request tier runs them on iPhone only.
-    [[ "$target" == iphone ]] || { echo "ci_macos: hosted runs on iphone only (got '$target')" >&2; exit 2; }
+    # Every picked class runs on iPhone (the default family; the nightly runs the whole suite there too). A class opts into the Duo as well with
+    # `hosted_families: ["duo"]` in contracts/test-map.json (fold tests need the Duo scene: their hinge is a fraction of its width). No other family.
+    case "$target" in iphone | duo) ;; *) echo "ci_macos: hosted runs on iphone and duo only (got '$target')" >&2; exit 2 ;; esac
+    device_args=(); [[ "$target" == iphone ]] || device_args=(--device "$target")
     # affected_tests.py --hosted: exit 0 with the classes (possibly none), exit 3 when a UIKitPort or iOSTests file no rule places. CI never
     # guesses narrower than the diff: on 3 it runs the whole suite and says so. Any other exit is a crash of the tool and fails the step.
-    rc=0; picked="$("${AFFECTED[@]}" --hosted)" || rc=$?
+    rc=0; picked="$("${AFFECTED[@]}" --hosted ${device_args[@]+"${device_args[@]}"})" || rc=$?
     # The hosted run replaces apple/.build/uitest-iphone.xcresult and .log (the artifact path of a failed leg): keep the journeys' own beside them.
     build="$ROOT/apple/.build"
     if [[ "$rc" == 0 && -z "$picked" ]]; then :; else
@@ -113,8 +117,15 @@ case "$cmd" in
         phase "hosted-$target" env FENTON_HOSTED_FILTER="$picked" "$UITEST" --only "$target" --hosted --force
         ;;
       3)
-        echo "affected_tests.py could not place every changed file (exit 3): running every hosted class"
-        phase "hosted-$target" env -u FENTON_HOSTED_FILTER "$UITEST" --only "$target" --hosted --force
+        if [[ "$target" == iphone ]]; then
+          echo "affected_tests.py could not place every changed file (exit 3): running every hosted class"
+          phase "hosted-$target" env -u FENTON_HOSTED_FILTER "$UITEST" --only "$target" --hosted --force
+        else
+          # The Duo leg is the tagged classes only: the whole suite is the iPhone leg's.
+          tagged="$("${AFFECTED[@]}" --tagged "$target")" || { echo "affected_tests.py --tagged failed" >&2; exit 2; }
+          echo "affected_tests.py could not place every changed file (exit 3): running every hosted class tagged for $target"
+          phase "hosted-$target" env FENTON_HOSTED_FILTER="$tagged" "$UITEST" --only "$target" --hosted --force
+        fi
         ;;
       *) echo "affected_tests.py failed (exit $rc)" >&2; exit "$rc" ;;
     esac

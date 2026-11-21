@@ -19,10 +19,10 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         ("iPad and unfolded Duo", CGSize(width: 868, height: 669), true, true),
     ]
     /// The band over the 868 by 669 frames the container tests give `UKFoldColumns` directly, which do not depend on the scene.
-    private let frameBand = CGRect(x: 428, y: 0, width: 40.4, height: 669)
+    private let frameBand = HostedWindow.hingeBand(sceneWidth: 868, height: 669)
 
     /// The hinge band's width on the unfolded Duo (the measured partly folded window: a 40.4 pt band in the middle of the page).
-    private let bandWidth: CGFloat = 40.4
+    private let bandWidth = HostedWindow.bandWidth
 
     private func contentArea(of page: UKServerUIPage) -> CGRect {
         let view: UIView = page.body ?? page.view
@@ -33,8 +33,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     /// scene is its folded 466 pt outer display, the 868 pt window sticks out of it, and the page's content area is 784 pt wide (sections at x 16 to 768), 84 pt short of the window's trailing edge, so a band at 428
     /// left the trailing side 316 pt, under ``SplitPolicy/minimumPaneWidth``, and nothing split.
     private func band(of page: UKServerUIPage, in window: UIWindow) -> CGRect {
-        let area = contentArea(of: page)
-        return CGRect(x: area.midX - bandWidth / 2, y: 0, width: bandWidth, height: window.bounds.height)
+        return HostedWindow.hingeBand(centredOn: page.body ?? page.view, in: window)
     }
 
     /// Whether the page's content area holds two sides under the policy's minimum width.
@@ -162,6 +161,25 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
                 XCTAssertEqual(a.minY, b.minY, accuracy: 0.5, family.name)
             }
         }
+    }
+
+    /// The band comes from the content's centre (``HostedWindow``): a band moved off it leaves one side under the minimum width, so the page stays one column and the
+    /// split assertions above fail. This is what a literal x did on the Duo's hosted scene, and why a test cannot pass by never splitting.
+    func testABandMovedOffTheContentCentreDoesNotSplitAndTheCentredOneDoes() throws {
+        let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
+        let flat = try frames(page)
+        let centred = splitBand(of: page, in: window)
+        XCTAssertEqual(centred.midX, contentArea(of: page).midX, accuracy: 0.5, "the band is centred on the content area")
+        shell.windowHinge = centred
+        settle(page)
+        XCTAssertGreaterThanOrEqual(try frames(page)[1].minX, centred.maxX - 0.5, "centred: the second section takes the trailing side")
+        // Slid toward the trailing edge until the trailing side is 40 pt short of the minimum.
+        let slide = (contentArea(of: page).width - bandWidth) / 2 - (SplitPolicy.minimumPaneWidth - 40)
+        let off = centred.offsetBy(dx: slide, dy: 0)
+        XCTAssertLessThan((contentArea(of: page).maxX - off.maxX), SplitPolicy.minimumPaneWidth, "the off-centre trailing side is under the minimum")
+        shell.windowHinge = off
+        settle(page)
+        for (a, b) in zip(try frames(page), flat) { XCTAssertEqual(a.minX, b.minX, accuracy: 0.5, "off the centre nothing splits") }
     }
 
     func testRightToLeftMirrorsTheSidesAndNoSideFrameMeetsTheBand() throws {
