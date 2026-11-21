@@ -159,3 +159,17 @@ sh -c "{STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status 
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status; cp x {STUDIO}/native-v2/s	block	a chained copy into native-v2	agent
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee {STUDIO}/native-v2/s	block	tee into native-v2	agent
 {STUDIO}/node_modules/.bin/tsx {STUDIO}/scripts/studio-publish.ts status | tee /tmp/studio-status.txt	allow	tee to an ordinary file	agent
+python3 -c "import json;print(json.load(open('/Users/x/hass-agents/studio-publish/x/change.json')))"	allow	python reading the record store: change.json	agent
+python3 -c "import json;print(json.load(open('/Users/x/hass-agents/studio-publish/x/evidence.json')))"	allow	python reading the record store: evidence.json	agent
+python3 -c "print(open('/Users/x/hass-agents/studio-publish.jsonl').read())"	allow	python reading the record log	agent
+python3 studio-publish.ts apply	block	the tool named to python stays blocked	agent
+python3 ~/hass-agents/studio-publish/scripts/studio-publish.ts apply	block	a record-store prefix does not hide the tool name	agent
+python3 -c "import studio_publish"	block	importing the tool	agent
+cat <<'EOF' | python3 -\nimport studio_publish\nEOF	block	a heredoc piped to python that imports the tool	agent
+cat > x.py <<'EOF'\nimport studio_publish\nEOF\npython3 x.py	block	write a script naming the tool, then run it	agent
+cat > x.py <<'EOF'\nimport urllib.request as u\nu.urlopen('http://127.0.0.1:4801/native/api/draft')\nEOF\npython3 x.py	block	a script naming port 4801, then run	agent
+cat > note.md <<'EOF'\nplain\nEOF\npython3 -c "import requests;requests.get('http://127.0.0.1:4801/x')"	block	a note heredoc does not free a port 4801 call	agent
+python3 -c "open('/Users/x/hass-agents/studio-publish/x/change.json'); import urllib.request as u; u.urlopen('http://127.0.0.1:4801/native/api')"	block	the record store does not free a route	agent
+cat > note.md <<'EOF'\nrun python3 studio-publish.ts later\nEOF\npython3 x.py	block	a .md note heredoc beside python3 is read, as before	agent
+python3 -c "open('/Users/x/hass-agents/studio-publish.jsonl.ts')"	block	only the exact log name is the record log	agent
+python3 -c "open('/Users/x/hass-agents/studio-publish.jsonlx')"	block	the log name is anchored	agent
