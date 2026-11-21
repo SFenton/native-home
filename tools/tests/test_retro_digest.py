@@ -275,6 +275,8 @@ class S3ProofTests(Base):
     def test_s3_1_c_resolved_check_only_block_is_suppressed(self):
         """Fails if: a newer check-only blocked snapshot retains the status trigger."""
         self.set_flow([self.check("x", True)], {"x": "fail"})
+        os.utime(self.build / "tasks" / f"{self.TASK}.json", (100, 100))
+        os.utime(self.build / "status" / f"{self.TASK}.json", (200, 200))
         doc = self.run_digest(task=self.TASK)
         self.assertNotIn("blocked", self.fired(doc))
         self.assertEqual(doc["status_stale"], ["x"])
@@ -295,10 +297,12 @@ class S3ProofTests(Base):
 
     def test_s3_2_c_reverse_contradiction_still_blocks(self):
         """Fails if: pass against an open check clears the blocked snapshot."""
-        self.set_flow([self.check("x", False)], {"x": "pass"}, reason="x")
+        self.set_flow([self.check("x", False)], {"x": "pass"})
         doc = self.run_digest(task=self.TASK)
         self.assertEqual(doc["status_stale"], ["x"])
-        self.assertIn("blocked", self.fired(doc))
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["blocked"])
 
     def test_s3_2_d_agreeing_all_pass_still_blocks(self):
         """Fails if: an agreeing all-pass ledger alone clears a blocked snapshot."""
@@ -309,21 +313,21 @@ class S3ProofTests(Base):
 
     def test_s3_3_a_missing_acceptance_preserves_status(self):
         """Fails if: a missing acceptance map is treated as resolved evidence."""
-        self.set_flow([self.check("x", True)], reason="snapshot reason")
+        self.set_flow([self.check("x", True)])
         doc = self.run_digest(task=self.TASK)
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["snapshot reason"])
+        self.assertEqual(fired["blocked"], ["blocked"])
 
     def test_s3_3_b_empty_acceptance_preserves_status(self):
         """Fails if: an empty acceptance map is treated as resolved evidence."""
-        self.set_flow([self.check("x", True)], {}, reason="snapshot reason")
+        self.set_flow([self.check("x", True)], {})
         doc = self.run_digest(task=self.TASK)
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["snapshot reason"])
+        self.assertEqual(fired["blocked"], ["blocked"])
 
     def test_s3_4_a_unknown_status_id_does_not_resolve_block(self):
         """Fails if: an unknown status id is compared as a passing ledger check."""
@@ -470,12 +474,12 @@ class S3ProofTests(Base):
 
     def test_s3_16_absent_ledger_preserves_blocked_snapshot(self):
         """Fails if: no ledger is treated as an all-pass ledger."""
-        self.set_flow([], {"x": "fail"}, reason="snapshot reason", write_ledger=False)
+        self.set_flow([], {"x": "fail"}, write_ledger=False)
         doc = self.run_digest(task=self.TASK)
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["snapshot reason"])
+        self.assertEqual(fired["blocked"], ["blocked"])
 
     def test_s3_17_duplicate_ledger_id_is_not_compared(self):
         """Fails if: a duplicate ledger id becomes an ambiguous last-wins comparison."""
@@ -548,6 +552,70 @@ class S3ProofTests(Base):
         self.assertEqual(doc["aar"]["happened"], "ledger: 1/1 checks pass")
         self.assertIsNone(doc["outcome"])
 
+    def test_s3_25_owner_only_wait_survives_checks_reason(self):
+        """Fails if: owner-only decision metadata is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["decision"] = {"owner_only": "fixed_set"}
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_26_decision_question_survives_checks_reason(self):
+        """Fails if: a decision question is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["decision"] = {"question": "Which option?"}
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_27_top_level_question_survives_checks_reason(self):
+        """Fails if: an interactive status question is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["question"] = "Which option?"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_28_checks_reason_without_independent_wait_is_suppressed(self):
+        """Green twin: checks-only evidence is still superseded when the ledger passes."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      summary="old blocked summary")
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["aar"]["happened"], "ledger: 1/1 checks pass")
+        self.assertIsNone(doc["outcome"])
+
+    def test_s3_29_needs_decision_state_remains_an_independent_wait(self):
+        """Fails if: a reported decision state is rewritten as a stale blocked status."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["state"] = "needs_decision"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertEqual(doc["outcome"], "needs_decision")
+
 
 class ArchiveTests(Base):
     def test_archive_layout_writes_into_the_archive(self):
@@ -557,6 +625,17 @@ class ArchiveTests(Base):
         self.assertEqual(rd.main(["--task", "R-1", "--archive", str(self.dir)]), 0)
         doc = json.loads((self.dir / "retro" / "R-1.json").read_text())
         self.assertEqual(set(self.fired(doc)), {"blocked", "waiting_ending"})
+
+    def test_archive_runner_blocked_preserves_status_reason(self):
+        """Fails if: a runner blocked outcome replaces the worker's archived reason."""
+        self.write("tasks/R-1.json", {"id": "R-1"})
+        self.write("status.json", {"state": "blocked", "blocked_reason": "needs a key"})
+        self.assertEqual(rd.main(["--task", "R-1", "--archive", str(self.dir),
+                                  "--outcome", "blocked"]), 0)
+        doc = json.loads((self.dir / "retro" / "R-1.json").read_text())
+        self.assertEqual(self.fired(doc)["blocked"], ["needs a key"])
+        self.assertEqual(doc["outcome"], "blocked")
+        self.assertEqual(doc["aar"]["happened"], "blocked: needs a key")
 
     def test_json_flag_and_cli(self):
         out = self.dir / "o" / "x.json"

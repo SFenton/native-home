@@ -9,8 +9,10 @@ Reads whatever exists of: the task ledger (``build/tasks/ID.json``), the Jev gat
 (``build/jev/gate.jsonl``, ``shadow.jsonl``), the triage status JSON, a ``claude -p`` stream-json log, review
 verdicts (``build/review/*.json``), ``bg_run`` digests (``build/runs``) and the owner's replies, and writes
 ``build/retro/ID.json`` (or ``ARCHIVE/retro/ID.json``, or ``--json OUT``) with the fired ``triggers`` (each with
-evidence lines), ``counts``, ``durations``, ``cost`` and a three-line ``aar`` (after-action note). A missing or
-unreadable input is skipped, never fatal. The Steward reads the result; this script never judges it.
+evidence lines), ``status_stale`` check IDs, ``counts``, ``durations``, ``cost`` and a three-line ``aar`` (after-action
+note). A check-only blocked snapshot is suppressed only when a complete matching ledger proves every stale failure
+resolved and no independent status signal remains. A missing or unreadable input is skipped, never fatal. The Steward
+reads the result; this script never judges it.
 
 ``--lane NAME`` (a worktree lane such as ``loop-followups``, or a branch such as ``claude/loop-followups``) digests a lane that has no
 ledger task, e.g. an interactive subagent flow, from what it leaves behind: the lane worktree's ``build/runs`` (``*.digest``
@@ -238,7 +240,7 @@ def find_sources(args: argparse.Namespace) -> Dict[str, Optional[Path]]:
 
 
 def gate_hint(gate: List[Dict[str, Any]], task: Optional[str] = None) -> Optional[str]:
-    """The level the gate's latest answers route to (the ``jev_gate.py`` table), or None when they are not enough."""
+    """The level the gate's latest answers route to, keeping only exact-subject rows for a task."""
     latest: Dict[str, Any] = {}
     for record in gate:
         if task is not None:
@@ -308,7 +310,18 @@ def reconcile_status(task: str, ledger: Dict[str, Any], status: Dict[str, Any]) 
 
     reason = status.get("blocked_reason")
     summary = status.get("summary")
-    separate_reason = False
+    reported_states = {str(status.get(key) or "").strip() for key in ("state", "status")}
+    separate_reason = bool(reported_states & {"needs_decision", "needs_research"})
+    questions = [status.get("question")]
+    decision = status.get("decision")
+    if isinstance(decision, dict):
+        if decision.get("owner_only"):
+            separate_reason = True
+        questions.append(decision.get("question"))
+    elif decision is not None:
+        separate_reason = True
+    if any((question.strip() if isinstance(question, str) else question) for question in questions):
+        separate_reason = True
     if reason is None:
         reason_text = ""
     elif isinstance(reason, str):
@@ -506,7 +519,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     reconciliation = reconcile_status(args.task, ledger, status)
     status_suppressed = state == "blocked" and reconciliation["suppress"]
     if outcome.startswith("blocked"):
-        fire("blocked", outcome)
+        fire("blocked", outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
     elif state == "blocked" and not status_suppressed:
         fire("blocked", status.get("blocked_reason") or status.get("summary") or state)
     if outcome in ("timeout", "blocked:timeout"):
