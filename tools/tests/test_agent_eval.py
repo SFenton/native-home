@@ -255,6 +255,11 @@ class ObservationTests(unittest.TestCase):
             target=REPO,
             observer=ae.recorded_observer(observations),
         )
+        self.assertEqual(len(recorded), len(live))
+        self.assertEqual(
+            [suite["name"] for suite in recorded],
+            [suite["name"] for suite in live],
+        )
         for before, after in zip(live, recorded):
             self.assertEqual(after["cases"], before["cases"])
             self.assertEqual(after["passed"], before["passed"])

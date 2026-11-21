@@ -175,6 +175,8 @@ class PolicyRepos:
             text=True,
             env=environment,
         )
+        self.last_run_stdout = proc.stdout
+        self.last_run_stderr = proc.stderr
         try:
             verdict = json.loads(proc.stdout)
         except ValueError as exc:
@@ -655,6 +657,8 @@ def observe(target, case, timeout=CASE_TIMEOUT):
         repos = PolicyRepos(self)
         marker = repos.tmp / "filter-ran"
         clean = repos.tmp / "policy-filter"
+        emitter_base = repos.tmp / "emitter-base"
+        emitter_head = repos.tmp / "emitter-head"
         write(
             clean,
             "#!/bin/sh\n"
@@ -663,7 +667,7 @@ def observe(target, case, timeout=CASE_TIMEOUT):
         )
         clean.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         configure = []
-        for checkout in (repos.base, repos.head):
+        for checkout in (emitter_base, emitter_head):
             configure.extend([
                 f"config = Path({str(checkout / '.git' / 'config')!r})\n",
                 f"attributes = Path({str(checkout / '.git' / 'info' / 'attributes')!r})\n",
@@ -686,28 +690,36 @@ def observe(target, case, timeout=CASE_TIMEOUT):
             "    return 1\n",
         )
         repos.commit(repos.head)
-        snapshots = {
-            checkout: (
-                (checkout / ".git" / "config").read_bytes(),
-                (checkout / ".git" / "info" / "attributes").read_bytes()
-                if (checkout / ".git" / "info" / "attributes").exists() else None,
-            )
-            for checkout in (repos.base, repos.head)
-        }
-        observations = repos.emit()
-        for checkout, (config, attributes) in snapshots.items():
-            (checkout / ".git" / "config").write_bytes(config)
-            attributes_path = checkout / ".git" / "info" / "attributes"
-            if attributes is None:
-                attributes_path.unlink(missing_ok=True)
-            else:
-                attributes_path.write_bytes(attributes)
+        git(repos.tmp, "clone", "-q", str(repos.base), str(emitter_base))
+        git(repos.tmp, "clone", "-q", str(repos.head), str(emitter_head))
+        untouched_base = checkout_snapshot(repos.base)
+        untouched_head = checkout_snapshot(repos.head)
+        observations = repos.tmp / "planted-filter-observations.json"
+        proc = subprocess.run([
+            sys.executable, "-B", str(emitter_base / "tools" / "agent_eval.py"),
+            "--tier", "0", "--root", str(emitter_base),
+            "--target", str(emitter_head),
+            "--emit-observations", str(observations),
+        ], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(
+            '[filter "policy"]',
+            (emitter_base / ".git" / "config").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "tools/old.py filter=policy",
+            (emitter_head / ".git" / "info" / "attributes").read_text(
+                encoding="utf-8",
+            ),
+        )
         self.assertFalse(marker.exists())
         self.assert_policy(
             repos, "tier0_pass", "pass",
             emit=False, observations=observations,
         )
         self.assertFalse(marker.exists())
+        self.assertEqual(checkout_snapshot(repos.base), untouched_base)
+        self.assertEqual(checkout_snapshot(repos.head), untouched_head)
 
     def test_config_only_is_one_side_and_config_plus_hooks_is_separated(self):
         repos = PolicyRepos(self)
@@ -836,6 +848,7 @@ def evaluate(root, *args, **kwargs):
         observations = repos.emit()
         valid = json.loads(observations.read_text(encoding="utf-8"))
         mutations = []
+        canary = "policy-observation-canary"
 
         def changed(change):
             document = json.loads(json.dumps(valid))
@@ -877,6 +890,17 @@ def evaluate(root, *args, **kwargs):
                     "route-feature", {"error": "x" * 201},
                 )
             )),
+            ("canary error", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"error": canary + ("x" * 200)},
+                )
+            )),
+            ("canary key", changed(
+                lambda d: d.__setitem__(canary, "unexpected"),
+            )),
+            ("canary value", changed(
+                lambda d: d.__setitem__("head_sha", canary),
+            )),
         ])
         encoded = json.dumps(valid, separators=(",", ":")).encode("utf-8")
         raw_mutations = [
@@ -897,7 +921,6 @@ def evaluate(root, *args, **kwargs):
             )),
             ("trailing", encoded + b" trailing"),
             ("invalid utf8", encoded + b"\xff"),
-            ("oversize", b" " * (policy_driver.OBSERVATIONS_MAX_BYTES + 1)),
         ]
         deep = {
             **valid,
@@ -923,12 +946,52 @@ def evaluate(root, *args, **kwargs):
                     repos, document, "tier0_malformed",
                     name=f"{name.replace(' ', '-')}.json",
                 )
+                if name.startswith("canary "):
+                    self.assertNotIn(canary, repos.last_run_stdout)
+                    self.assertNotIn(canary, repos.last_run_stderr)
+                    self.assertNotIn(
+                        canary,
+                        (repos.tmp / "policy.json").read_text(
+                            encoding="utf-8",
+                        ),
+                    )
         for name, payload in raw_mutations:
             with self.subTest(name=name):
                 self.assert_observation_policy(
                     repos, payload, "tier0_malformed",
                     name=f"{name.replace(' ', '-')}.json",
                 )
+
+    def test_oversize_observation_is_valid_json_rejected_before_parsing(self):
+        repos = PolicyRepos(self)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"]["oversized-extra"] = {
+            "observed": {
+                "padding": "x" * (policy_driver.OBSERVATIONS_MAX_BYTES + 1),
+            },
+        }
+        payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
+        self.assertGreater(len(payload), policy_driver.OBSERVATIONS_MAX_BYTES)
+        path = repos.tmp / "valid-oversize-observations.json"
+        path.write_bytes(payload)
+
+        with mock.patch.object(
+                policy_driver, "OBSERVATIONS_MAX_BYTES", len(payload) + 1,
+        ):
+            code, verdict, _output = self.run_in_process(
+                repos, observations=path,
+            )
+        self.assertEqual(code, 0, verdict)
+        self.assertEqual(verdict["outcome"], "pass")
+        self.assertEqual(verdict["reasons"], ["no_changes"])
+
+        with mock.patch.object(policy_driver, "_strict_json") as parser:
+            code, verdict, _output = self.run_in_process(
+                repos, observations=path,
+            )
+        self.assertEqual(code, 1, verdict)
+        self.assertEqual(verdict["reasons"], ["tier0_malformed"])
+        parser.assert_not_called()
 
     def test_well_formed_unrelated_observations_are_ignored(self):
         repos = PolicyRepos(self)
@@ -939,7 +1002,9 @@ def evaluate(root, *args, **kwargs):
         )
 
     def test_missing_active_or_retired_evidence_is_incomplete_even_when_otherwise_passing(self):
-        repos = PolicyRepos(self)
+        repos = PolicyRepos(self, route="designer")
+        write(repos.head / "tools" / "changed.txt", "trigger tier zero\n")
+        repos.commit(repos.head)
         active = repos.emit()
         active_document = json.loads(active.read_text(encoding="utf-8"))
         del active_document["cases"]["route-feature"]
@@ -966,6 +1031,66 @@ def evaluate(root, *args, **kwargs):
             repos, retired_document, "tier0_unavailable",
             name="missing-retired.json",
         )
+
+    def test_tier_zero_selection_preserves_exact_active_and_retired_counts(self):
+        def selection_counts(selection):
+            return len(selection[0][0]), len(selection[1][0])
+
+        def suite_counts(suites):
+            by_name = {suite["name"]: suite["cases"] for suite in suites}
+            return (
+                by_name["routing-replay"],
+                by_name["routing-replay-retired"],
+            )
+
+        fixtures = (
+            ("baseline", (1, 0), "baseline"),
+            ("retirement", (0, 1), "retirement"),
+            ("addition", (2, 0), "addition"),
+        )
+        for _label, expected_head, fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                if fixture == "baseline":
+                    write(
+                        repos.head / "tools" / "changed.txt",
+                        "trigger tier zero\n",
+                    )
+                elif fixture == "retirement":
+                    active = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "cases" / "route-feature.json"
+                    retired = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "retired" / "route-feature.json"
+                    retired.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(active, retired)
+                    write(
+                        retired.with_name("route-feature.json.reason.json"),
+                        json.dumps({
+                            "kind": "target_removed",
+                            "path": "tools/old.py",
+                        }),
+                    )
+                    (repos.head / "tools" / "old.py").unlink()
+                else:
+                    write(
+                        repos.head / "evals" / "agents" / "routing-replay" /
+                        "cases" / "added.json",
+                        json.dumps(dict(ROUTE_CASE, id="added")),
+                    )
+                repos.commit(repos.head)
+                with mock.patch.object(
+                        policy_driver, "_validate_tier0",
+                        wraps=policy_driver._validate_tier0,
+                ) as validate:
+                    code, verdict, _output = self.run_in_process(repos)
+                self.assertEqual(code, 0, verdict)
+                self.assertEqual(verdict["reasons"], ["tier0_pass"])
+                validate.assert_called_once()
+                args = validate.call_args.args
+                self.assertEqual(suite_counts(args[1]), (1, 0))
+                self.assertEqual(suite_counts(args[2]), expected_head)
+                self.assertEqual(selection_counts(args[3]), (1, 0))
+                self.assertEqual(selection_counts(args[4]), expected_head)
 
     def test_completed_active_and_retired_errors_follow_the_original_delta_rule(self):
         repos = PolicyRepos(self)
@@ -999,29 +1124,65 @@ def evaluate(root, *args, **kwargs):
 
     def test_policy_replay_never_executes_a_head_observer_after_emit(self):
         repos = PolicyRepos(self)
-        sentinel = repos.tmp / "head-ran-in-policy"
+        events_path = repos.tmp / "observer-events.jsonl"
         agent_eval = repos.base / "tools" / "agent_eval.py"
         agent_eval.write_text(
             agent_eval.read_text(encoding="utf-8") +
             "\n_trusted_policy_observe = observe\n"
             "def observe(target, case, timeout=CASE_TIMEOUT):\n"
-            f"    if Path(target).resolve() == Path({str(repos.head)!r}).resolve():\n"
-            f"        Path({str(sentinel)!r}).write_text('ran')\n"
+            f"    with Path({str(events_path)!r}).open('a', encoding='utf-8') as stream:\n"
+            "        stream.write(json.dumps([\n"
+            "            str(Path(target).resolve()), case['id']]) + '\\n')\n"
             "    return _trusted_policy_observe(target, case, timeout)\n",
             encoding="utf-8",
         )
         repos.commit(repos.base)
+        write(
+            repos.head / "evals" / "agents" / "routing-replay" / "cases" /
+            "head-only.json",
+            json.dumps(dict(ROUTE_CASE, id="head-only")),
+        )
         write(repos.head / "tools" / "changed.txt", "trigger\n")
         repos.commit(repos.head)
         observations = repos.emit()
-        self.assertFalse(sentinel.exists())
         self.assert_policy(
             repos, "tier0_pass", "pass",
             emit=False, observations=observations,
         )
-        self.assertFalse(sentinel.exists())
+        self.assertTrue(events_path.exists())
+        events = [
+            tuple(json.loads(line))
+            for line in events_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertTrue(any(
+            Path(target) == repos.base.resolve()
+            for target, _case_id in events
+        ), events)
+        self.assertFalse(any(
+            Path(target) == repos.head.resolve()
+            for target, _case_id in events
+        ), events)
+        self.assertNotIn("head-only", [case_id for _target, case_id in events])
+
+        events_path.unlink()
+        self.assert_policy(
+            repos, "tier0_unavailable", "fail",
+            emit=False, observations=repos.tmp / "absent-observations.json",
+        )
+        self.assertFalse(events_path.exists())
+        self.assert_observation_policy(
+            repos, b"{broken", "tier0_malformed",
+            name="invalid-observations.json",
+        )
+        self.assertFalse(events_path.exists())
 
     def test_fabricated_matching_observations_pass_only_where_tier_zero_is_authoritative(self):
+        matching_case = {
+            "route-feature": {
+                "observed": {"route": "researcher", "level": 1},
+            },
+        }
+
         repos = PolicyRepos(self)
         write(
             repos.head / "tools" / "triage" / "hass_triage.py",
@@ -1032,9 +1193,7 @@ def evaluate(root, *args, **kwargs):
         )
         repos.commit(repos.head)
         document = json.loads(repos.emit().read_text(encoding="utf-8"))
-        document["cases"]["route-feature"] = {
-            "observed": {"route": "researcher", "level": 1},
-        }
+        document["cases"].update(matching_case)
         self.assert_observation_policy(
             repos, document, "tier0_pass", outcome="pass",
             name="fabricated-accepted.json",
@@ -1053,6 +1212,72 @@ def evaluate(root, *args, **kwargs):
             repos, document, "tier1_required", outcome="hold",
             name="fabricated-cannot-clear-tier1.json",
         )
+
+        fixtures = (
+            ("trusted_separation", "separation"),
+            ("retirement_invalid", "retirement"),
+            ("jev_threshold", "threshold"),
+        )
+        for reason, fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                if fixture == "separation":
+                    write(
+                        repos.head / "tools" / "triage" / "hass_triage.py",
+                        "def route_rule(issue, nightly=False):\n"
+                        "    return 'designer'\n\n"
+                        "def ledger_level(issue, nightly=False):\n"
+                        "    return 1\n",
+                    )
+                    write(
+                        repos.head / "evals" / "agents" / "routing-replay" /
+                        "cases" / "separation.json",
+                        json.dumps(dict(ROUTE_CASE, id="separation")),
+                    )
+                elif fixture == "retirement":
+                    case = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "cases" / "route-feature.json"
+                    retired = repos.head / "evals" / "agents" / \
+                        "routing-replay" / "retired" / "route-feature.json"
+                    retired.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(case, retired)
+                else:
+                    looser = json.loads(json.dumps(QUESTION))
+                    looser["accept"]["yes_above"] = 0.6
+                    write(
+                        repos.head / "contracts" / "jev" / "questions" /
+                        "policy.sample.json",
+                        json.dumps(looser),
+                    )
+                repos.commit(repos.head)
+                document = json.loads(
+                    repos.emit().read_text(encoding="utf-8")
+                )
+                document["cases"].update(matching_case)
+                self.assert_observation_policy(
+                    repos, document, reason,
+                    name=f"fabricated-{fixture}.json",
+                )
+
+    def test_malformed_head_case_entries_are_rejected_exactly(self):
+        fixtures = ("symlink", "stem", "id")
+        for fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                cases = repos.head / "evals" / "agents" / "routing-replay" / \
+                    "cases"
+                if fixture == "symlink":
+                    (cases / "linked.json").symlink_to("route-feature.json")
+                elif fixture == "stem":
+                    write(cases / "invalid stem.json", json.dumps(
+                        dict(ROUTE_CASE, id="invalid stem"),
+                    ))
+                else:
+                    write(cases / "different.json", json.dumps(
+                        dict(ROUTE_CASE, id="not-different"),
+                    ))
+                repos.commit(repos.head)
+                self.assert_policy(repos, "tier0_malformed", "fail")
 
     def test_worker_wire_results_must_have_the_closed_json_shape(self):
         payloads = (

@@ -157,7 +157,32 @@ class AggregateTests(unittest.TestCase):
     def test_policy_mode_requires_tier0_emit_independently_of_a_valid_verdict(self):
         for outcome, reasons in (("pass", ["tier0_pass"]), ("noop", ["product_only"])):
             verdict = valid_policy(outcome, reasons)
-            for state in ("missing", "skipped", "failure", "cancelled", ""):
+            expected = {
+                "missing": "tier0-emit: missing from needs",
+                "skipped": "tier0-emit: skipped (the policy result is required)",
+                "failure": "tier0-emit: failure (the policy result is required)",
+                "cancelled": "tier0-emit: cancelled (the policy result is required)",
+            }
+            with self.subTest(outcome=outcome, state="success"):
+                run = run_of()
+                run["pr-policy"] = {"result": "success", "outputs": {}}
+                with tempfile.TemporaryDirectory() as tmp:
+                    result = Path(tmp) / "policy.json"
+                    result.write_text(json.dumps(verdict))
+                    with mock.patch.dict(os.environ, {
+                        "NEEDS": json.dumps(run),
+                        "HOSTED_MACOS": "on",
+                        "EVENT": "pull_request",
+                    }):
+                        with contextlib.redirect_stdout(io.StringIO()) as out:
+                            code = agg.main([
+                                "--policy-aware",
+                                "--policy-result", str(result),
+                                "--expect-base-sha", BASE_SHA,
+                                "--expect-head-sha", HEAD_SHA,
+                            ])
+                self.assertEqual(code, 0, out.getvalue())
+            for state in ("missing", "skipped", "failure", "cancelled"):
                 with self.subTest(outcome=outcome, state=state):
                     run = run_of()
                     run["pr-policy"] = {"result": "success", "outputs": {}}
@@ -165,7 +190,25 @@ class AggregateTests(unittest.TestCase):
                         del run["tier0-emit"]
                     else:
                         run["tier0-emit"] = {"result": state, "outputs": {}}
-                    self.assertTrue(agg.problems(run, True, **policy_args(verdict)))
+                    with tempfile.TemporaryDirectory() as tmp:
+                        result = Path(tmp) / "policy.json"
+                        result.write_text(json.dumps(verdict))
+                        with mock.patch.dict(os.environ, {
+                            "NEEDS": json.dumps(run),
+                            "HOSTED_MACOS": "on",
+                            "EVENT": "pull_request",
+                        }):
+                            with contextlib.redirect_stdout(io.StringIO()) as out:
+                                code = agg.main([
+                                    "--policy-aware",
+                                    "--policy-result", str(result),
+                                    "--expect-base-sha", BASE_SHA,
+                                    "--expect-head-sha", HEAD_SHA,
+                                ])
+                    self.assertEqual(code, 1, out.getvalue())
+                    self.assertIn(expected[state], [
+                        line.strip() for line in out.getvalue().splitlines()
+                    ])
 
     def test_policy_producer_failures_are_checked_together(self):
         run = run_of()
@@ -295,29 +338,6 @@ class AggregateTests(unittest.TestCase):
                         "--expect-base-sha", BASE_SHA,
                         "--expect-head-sha", HEAD_SHA,
                     ]), 1)
-
-    def test_main_rejects_a_successful_verdict_when_emit_failed(self):
-        verdict = valid_policy()
-        run = run_of(tier0_emit="failure")
-        run["pr-policy"] = {"result": "success", "outputs": {}}
-        with tempfile.TemporaryDirectory() as tmp:
-            result = Path(tmp) / "policy.json"
-            result.write_text(json.dumps(verdict))
-            with mock.patch.dict(os.environ, {
-                "NEEDS": json.dumps(run),
-                "HOSTED_MACOS": "on",
-                "EVENT": "pull_request",
-            }):
-                with contextlib.redirect_stdout(io.StringIO()) as out:
-                    code = agg.main([
-                        "--policy-aware",
-                        "--policy-result", str(result),
-                        "--expect-base-sha", BASE_SHA,
-                        "--expect-head-sha", HEAD_SHA,
-                    ])
-        self.assertEqual(code, 1)
-        self.assertIn("tier0-emit: failure", out.getvalue())
-
 
 class DenylistMaskTests(unittest.TestCase):
     def test_mask_prints_one_command_per_term_and_skips_comments(self):
