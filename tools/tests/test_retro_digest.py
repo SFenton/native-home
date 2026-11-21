@@ -405,6 +405,44 @@ class LaneTests(Base):
         self.assertEqual(len(evidence), 2)
         self.assertTrue(any(line.startswith("journeys: EMPTY, executed 0, skipped 3") for line in evidence))
 
+    def test_superseded_empty_does_not_fire(self):
+        self.run_record("journeys", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc", "products: hit aa11\ntests: executed 0, skipped 3, failed 0")
+        self.run_record("journeys-2", "RESULT: PASS (exit 0)  journeys-2  3m05s  sha=abc", "products: hit aa11\ntests: executed 5, skipped 0, failed 0")
+        self.stamp("journeys", 100)
+        self.stamp("journeys-2", 200)
+        doc = self.lane()
+        self.assertNotIn("empty_runs", self.fired(doc))
+        self.assertEqual(doc["counts"]["runs"], 2)
+
+    def test_a_lone_empty_still_fires(self):
+        self.run_record("journeys", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc", "products: hit aa11\ntests: executed 0, skipped 3, failed 0")
+        self.assertIn("empty_runs", self.fired(self.lane()))
+
+    def test_empty_then_pass_on_other_products_still_fires(self):
+        self.run_record("journeys", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc", "products: hit aa11\ntests: executed 0, skipped 3, failed 0")
+        self.run_record("journeys-2", "RESULT: PASS (exit 0)  journeys-2  3m05s  sha=abc", "products: built bb22\ntests: executed 5, skipped 0, failed 0")
+        self.stamp("journeys", 100)
+        self.stamp("journeys-2", 200)
+        self.assertIn("empty_runs", self.fired(self.lane()))
+
+    def test_empty_then_pass_that_executed_nothing_still_fires(self):
+        self.run_record("journeys", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc", "products: hit aa11\ntests: executed 0, skipped 3, failed 0")
+        self.run_record("journeys-2", "RESULT: PASS (exit 0)  journeys-2  3m05s  sha=abc", "products: hit aa11\ntests: executed 0, skipped 3, failed 0")
+        self.stamp("journeys", 100)
+        self.stamp("journeys-2", 200)
+        evidence = self.fired(self.lane())["empty_runs"]
+        self.assertTrue(any(line.startswith("journeys: EMPTY") for line in evidence))
+
+    def test_a_built_empty_is_cleared_by_a_later_hit_on_the_same_key(self):
+        self.run_record("journeys", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc", "products: built aa11 in 247s\ntests: executed 0, skipped 3, failed 0")
+        self.run_record("journeys-2", "RESULT: PASS (exit 0)  journeys-2  3m05s  sha=abc", "products: hit aa11, saved ~247s of compile\ntests: executed 5, skipped 0, failed 0")
+        self.stamp("journeys", 100)
+        self.stamp("journeys-2", 200)
+        self.assertNotIn("empty_runs", self.fired(self.lane()))
+
+    def stamp(self, label, when):
+        os.utime(self.dir / "build" / "runs" / f"{label}.digest", (when, when))
+
     def test_the_credential_skip_case_digests_as_empty_and_fires(self):
         from importlib import import_module  # noqa: F401
         sys.path.insert(0, str(TOOLS))
