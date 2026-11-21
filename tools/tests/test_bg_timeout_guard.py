@@ -33,6 +33,15 @@ class BgTimeoutGuardTests(unittest.TestCase):
         self.assertIn("7200000", message)
         self.assertIn(COVERAGE, message)
 
+    def test_a_ci_wait_refusal_names_a_runnable_command(self):
+        """ci_wait.py is not executable, so the retry example keeps `python3`."""
+        for command in ("python3 tools/ci_wait.py 9", "tools/bg_run.py ci -- python3 tools/ci_wait.py 9"):
+            with self.subTest(command=command):
+                status, message = run_hook(bash(command=command, run_in_background=True))
+                self.assertEqual(status, 2)
+                self.assertIn("-- python3 tools/ci_wait.py 9", message)
+                self.assertIn("timeout: 4200000", message)
+
     def test_a_long_enough_timeout_allows(self):
         self.assertEqual(run_hook(bash(command=COVERAGE, run_in_background=True, timeout=4200000))[0], 0)
 
