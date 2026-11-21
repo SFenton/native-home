@@ -17,8 +17,10 @@ The base-trusted policy can opt in after a pull request policy job has run:
 
 The legacy invocation above intentionally has exactly its old behavior.  In
 policy mode a missing, skipped, failed, cancelled or malformed ``pr-policy``
-result is red on every event except a push to the default branch; a trusted
-``pass`` or ``product_only`` no-op bound to the expected SHAs is green.
+result is red on every event except a push to the default branch. On a pull
+request, the direct ``tier0-emit`` producer must also succeed independently.
+A trusted ``pass`` or ``product_only`` no-op bound to the expected SHAs is then
+green.
 
 Stdlib only (macOS system Python 3.9 and Linux).
 """
@@ -48,6 +50,7 @@ PR_ONLY = ("coverage-changed",)
 #: Jobs that only a fork pull request skips.
 BOTH = ("denylist-scan",)
 POLICY_JOB = "pr-policy"
+TIER0_EMIT_JOB = "tier0-emit"
 POLICY_OUTCOMES = {"pass", "fail", "hold", "noop"}
 POLICY_REASONS = {
     "append_only",
@@ -103,7 +106,8 @@ def _policy_result_problem(verdict: Optional[Dict[str, Any]], parse_problem: str
         return "malformed policy result (not an object)"
     outcome = verdict.get("outcome")
     reasons = verdict.get("reasons")
-    if verdict.get("schema") != 1 or outcome not in POLICY_OUTCOMES:
+    if type(verdict.get("schema")) is not int or verdict.get("schema") != 1 or \
+            outcome not in POLICY_OUTCOMES:
         return "malformed policy result (schema or outcome)"
     if not isinstance(reasons, list) or not reasons or \
             any(not isinstance(reason, str) or reason not in POLICY_REASONS for reason in reasons) or \
@@ -144,14 +148,23 @@ def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = Non
     """Why policy mode fails.  Only a default-branch push is exempt."""
     if event == "push" and github_ref == "refs/heads/main":
         return []
-    job = _policy_job(needs, job_name)
-    if job is None:
-        return [f"{job_name or POLICY_JOB}: missing from needs"]
-    state = str(job.get("result", ""))
-    if state in ("failure", "cancelled", "skipped"):
-        return [f"{job_name or POLICY_JOB}: {state} (the policy result is required)"]
-    if state != "success":
-        return [f"{job_name or POLICY_JOB}: {state or 'missing'} (the policy result is malformed)"]
+    names = [POLICY_JOB]
+    if event == "pull_request":
+        names.insert(0, TIER0_EMIT_JOB)
+    found: List[str] = []
+    for name in names:
+        job = _policy_job(needs, job_name) if name == POLICY_JOB else needs.get(name)
+        label = job_name or POLICY_JOB if name == POLICY_JOB else name
+        if job is None:
+            found.append(f"{label}: missing from needs")
+            continue
+        state = str(job.get("result", ""))
+        if state in ("failure", "cancelled", "skipped"):
+            found.append(f"{label}: {state} (the policy result is required)")
+        elif state != "success":
+            found.append(f"{label}: {state or 'missing'} (the policy result is malformed)")
+    if found:
+        return found
     parsed, problem = _policy_json(verdict)
     problem = parse_problem or problem
     problem = _policy_result_problem(parsed, problem)

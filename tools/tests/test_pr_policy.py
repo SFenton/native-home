@@ -65,7 +65,7 @@ def checkout_snapshot(repo):
     return rows
 
 
-def send_tier0_payload(connection, payload, _base, _head):
+def send_tier0_payload(connection, payload, _base, _head, *_rest):
     os.setsid()
     connection.send_bytes(payload)
     connection.close()
@@ -122,13 +122,40 @@ class PolicyRepos:
         git(repo, "-c", "user.name=Policy Test", "-c", "user.email=policy@example.invalid",
             "-c", "commit.gpgSign=false", "commit", "-q", "-m", "mutation")
 
+    def emit(self, path=None):
+        path = path or self.tmp / "tier0-observations.json"
+        base_sha = git(self.base, "rev-parse", "HEAD")
+        head_sha = git(self.head, "rev-parse", "HEAD")
+        proc = subprocess.run([
+            sys.executable,
+            "-B",
+            str(self.base / "tools" / "agent_eval.py"),
+            "--tier", "0",
+            "--root", str(self.base),
+            "--target", str(self.head),
+            "--emit-observations", str(path),
+        ], capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise AssertionError(
+                f"emit failed: stdout={proc.stdout!r} stderr={proc.stderr!r}",
+            )
+        self.last_emit_stdout = proc.stdout
+        self.last_emit_stderr = proc.stderr
+        document = json.loads(path.read_text(encoding="utf-8"))
+        self.assert_exact_shas(document, base_sha, head_sha)
+        return path
+
     def run(self, *, driver=None, base_sha=None, head_sha=None, result=None, extra_env=None,
-            with_base_sha=True, with_head_sha=True):
+            with_base_sha=True, with_head_sha=True, observations=None, emit=True):
         actual_base = git(self.base, "rev-parse", "HEAD")
         actual_head = git(self.head, "rev-parse", "HEAD")
         result = result or self.tmp / "policy.json"
+        observations_path = observations
+        if observations_path is None and emit:
+            observations_path = self.emit()
         command = [
             sys.executable,
+            "-B",
             str(driver or self.base / "tools" / "pr_policy.py"),
             "--base-checkout", str(self.base),
             "--head-checkout", str(self.head),
@@ -137,6 +164,8 @@ class PolicyRepos:
             command += ["--base-sha", base_sha or actual_base]
         if with_head_sha:
             command += ["--head-sha", head_sha or actual_head]
+        if observations_path is not None:
+            command += ["--head-observations", str(observations_path)]
         command += ["--out", str(result)]
         environment = dict(os.environ)
         environment.update(extra_env or {})
@@ -146,6 +175,8 @@ class PolicyRepos:
             text=True,
             env=environment,
         )
+        self.last_run_stdout = proc.stdout
+        self.last_run_stderr = proc.stderr
         try:
             verdict = json.loads(proc.stdout)
         except ValueError as exc:
@@ -173,12 +204,14 @@ def aggregate_needs():
         "macos-test": {"result": "skipped", "outputs": {}},
         "coverage-changed": {"result": "skipped", "outputs": {}},
         "build-release": {"result": "skipped", "outputs": {}},
+        "tier0-emit": {"result": "success", "outputs": {}},
         "pr-policy": {"result": "success", "outputs": {}},
     }
 
 
 class PrPolicyTests(unittest.TestCase):
-    def run_in_process(self, repos, *, base_sha=None, head_sha=None, out=None):
+    def run_in_process(self, repos, *, base_sha=None, head_sha=None, out=None,
+                       observations=None):
         base_sha = base_sha or git(repos.base, "rev-parse", "HEAD")
         head_sha = head_sha or git(repos.head, "rev-parse", "HEAD")
         output = out or repos.tmp / "in-process-policy.json"
@@ -187,6 +220,7 @@ class PrPolicyTests(unittest.TestCase):
             "--head-checkout", str(repos.head),
             "--base-sha", base_sha,
             "--head-sha", head_sha,
+            "--head-observations", str(observations or repos.emit()),
             "--out", str(output),
         ]
         with mock.patch.object(policy_driver, "ROOT", repos.base.resolve()):
@@ -194,8 +228,8 @@ class PrPolicyTests(unittest.TestCase):
                 code = policy_driver.main(argv)
         return code, json.loads(stdout.getvalue()), output
 
-    def assert_policy(self, repos, reason, outcome):
-        driver_code, verdict, result = repos.run()
+    def assert_policy(self, repos, reason, outcome, **run_kwargs):
+        driver_code, verdict, result = repos.run(**run_kwargs)
         self.assertEqual(verdict["outcome"], outcome, verdict)
         self.assertEqual(verdict["reasons"], [reason], verdict)
         self.assertEqual(driver_code, 0 if outcome in ("pass", "noop") else 1)
@@ -213,6 +247,18 @@ class PrPolicyTests(unittest.TestCase):
                 ])
         self.assertEqual(aggregate_code, 0 if outcome in ("pass", "noop") else 1)
         return verdict
+
+    def assert_observation_policy(self, repos, payload, reason, *, outcome="fail",
+                                  name="mutated-observations.json"):
+        path = repos.tmp / name
+        if isinstance(payload, bytes):
+            path.write_bytes(payload)
+        else:
+            path.write_text(json.dumps(payload), encoding="utf-8")
+        return self.assert_policy(
+            repos, reason, outcome,
+            emit=False, observations=path,
+        )
 
     def test_main_asserts_every_enumerated_reason_exactly(self):
         repos = PolicyRepos(self)
@@ -255,6 +301,71 @@ class PrPolicyTests(unittest.TestCase):
         repos.commit(repos.head)
         self.assert_policy(repos, "tier0_new_failure", "fail")
 
+    def test_a_forged_green_decoy_cannot_replace_the_observed_red_result(self):
+        repos = PolicyRepos(self)
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "def route_rule(issue, nightly=False):\n"
+            "    return 'designer'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        actual = repos.emit()
+        document = json.loads(actual.read_text(encoding="utf-8"))
+        decoy = dict(document)
+        decoy["cases"] = dict(document["cases"])
+        decoy["cases"]["route-feature"] = {
+            "observed": {"route": "researcher", "level": 1},
+        }
+        decoy_path = repos.tmp / "forged-green.json"
+        decoy_path.write_text(json.dumps(decoy), encoding="utf-8")
+        self.assertTrue(decoy_path.exists())
+        self.assert_policy(
+            repos, "tier0_new_failure", "fail",
+            emit=False, observations=actual,
+        )
+
+    def test_emitter_changes_are_restored_before_an_independent_consumer_runs(self):
+        repos = PolicyRepos(self)
+        emitter_base = repos.tmp / "emitter-base"
+        emitter_head = repos.tmp / "emitter-head"
+        trusted = emitter_base / "tools" / "agent_eval_case.py"
+        marker = repos.tmp / "emitter-changed-and-restored"
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "from pathlib import Path\n"
+            "def route_rule(issue, nightly=False):\n"
+            f"    trusted = Path({str(trusted)!r})\n"
+            "    original = trusted.read_bytes()\n"
+            "    trusted.write_bytes(b'changed')\n"
+            "    trusted.write_bytes(original)\n"
+            f"    Path({str(marker)!r}).write_text('yes')\n"
+            "    return 'researcher'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        git(repos.tmp, "clone", "-q", str(repos.base), str(emitter_base))
+        git(repos.tmp, "clone", "-q", str(repos.head), str(emitter_head))
+        before = trusted.read_bytes()
+        observations = repos.tmp / "separate-observations.json"
+        proc = subprocess.run([
+            sys.executable, "-B", str(emitter_base / "tools" / "agent_eval.py"),
+            "--tier", "0", "--root", str(emitter_base),
+            "--target", str(emitter_head),
+            "--emit-observations", str(observations),
+        ], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(marker.exists())
+        self.assertEqual(trusted.read_bytes(), before)
+        consumer_before = checkout_snapshot(repos.base)
+        self.assert_policy(
+            repos, "tier0_pass", "pass",
+            emit=False, observations=observations,
+        )
+        self.assertEqual(checkout_snapshot(repos.base), consumer_before)
+
     def test_the_driver_must_run_from_the_base_checkout(self):
         repos = PolicyRepos(self)
         code, verdict, _result = repos.run(driver=repos.head / "tools" / "pr_policy.py")
@@ -267,6 +378,7 @@ class PrPolicyTests(unittest.TestCase):
             with self.subTest(missing=missing):
                 args = [
                     sys.executable,
+                    "-B",
                     str(repos.base / "tools" / "pr_policy.py"),
                     "--base-checkout", str(repos.base),
                     "--head-checkout", str(repos.head),
@@ -305,11 +417,13 @@ class PrPolicyTests(unittest.TestCase):
                 repos = PolicyRepos(self)
                 base_sha = git(repos.base, "rev-parse", "HEAD")
                 head_sha = git(repos.head, "rev-parse", "HEAD")
+                observations = repos.emit()
                 git_dir = getattr(repos, label) / ".git"
                 git_dir.rename(git_dir.with_name(".git-saved"))
                 try:
                     code, verdict, _result = self.run_in_process(
                         repos, base_sha=base_sha, head_sha=head_sha,
+                        observations=observations,
                     )
                 finally:
                     git_dir.with_name(".git-saved").rename(git_dir)
@@ -333,9 +447,14 @@ class PrPolicyTests(unittest.TestCase):
         self.assertEqual(verdict["reasons"], ["git_objects_unreadable"])
 
         repos = PolicyRepos(self)
+        observations = repos.emit()
         (repos.base / "tools" / "agent_eval.py").unlink()
         repos.commit(repos.base)
-        self.assert_policy(repos, "trusted_tool_unreadable", "fail")
+        driver_code, verdict, _result = repos.run(
+            emit=False, observations=observations,
+        )
+        self.assertEqual(driver_code, 1)
+        self.assertEqual(verdict["reasons"], ["trusted_tool_unreadable"])
 
     def test_internal_policy_errors_are_an_enumerated_failure(self):
         repos = PolicyRepos(self)
@@ -388,15 +507,18 @@ class PrPolicyTests(unittest.TestCase):
     def test_a_base_change_after_tier_zero_fails_the_fingerprint(self):
         repos = PolicyRepos(self)
         trusted = repos.base / "tools" / "trusted-marker"
-        write(
-            repos.head / "tools" / "triage" / "hass_triage.py",
-            "from pathlib import Path\n"
-            "def route_rule(issue, nightly=False):\n"
-            f"    Path({str(trusted)!r}).write_text('tampered\\n', encoding='utf-8')\n"
-            "    return 'researcher'\n\n"
-            "def ledger_level(issue, nightly=False):\n"
-            "    return 1\n",
+        agent_eval = repos.base / "tools" / "agent_eval.py"
+        agent_eval.write_text(
+            agent_eval.read_text(encoding="utf-8") + "\n" +
+            "_trusted_policy_evaluate = evaluate\n"
+            "def evaluate(root, *args, **kwargs):\n"
+            "    result = _trusted_policy_evaluate(root, *args, **kwargs)\n"
+            f"    Path({str(trusted)!r}).write_text('tampered\\\\n', encoding='utf-8')\n"
+            "    return result\n",
+            encoding="utf-8",
         )
+        repos.commit(repos.base)
+        write(repos.head / "tools" / "changed.txt", "trigger tier zero\n")
         repos.commit(repos.head)
         self.assertTrue(trusted.exists() is False)
         self.assert_policy(repos, "trusted_checkout_changed", "fail")
@@ -453,16 +575,20 @@ def observe(target, case, timeout=CASE_TIMEOUT):
     def test_a_planted_cache_file_still_fails_the_fingerprint(self):
         repos = PolicyRepos(self)
         cache = repos.base / "tools" / "triage" / "__pycache__" / "planted.cpython.pyc"
-        write(
-            repos.head / "tools" / "triage" / "hass_triage.py",
-            "from pathlib import Path\n"
-            "def route_rule(issue, nightly=False):\n"
-            f"    Path({str(cache)!r}).parent.mkdir(parents=True, exist_ok=True)\n"
-            f"    Path({str(cache)!r}).write_bytes(b'planted')\n"
-            "    return 'researcher'\n\n"
-            "def ledger_level(issue, nightly=False):\n"
-            "    return 1\n",
+        agent_eval = repos.base / "tools" / "agent_eval.py"
+        agent_eval.write_text(
+            agent_eval.read_text(encoding="utf-8") +
+            "\n_trusted_policy_evaluate = evaluate\n"
+            "def evaluate(root, *args, **kwargs):\n"
+            "    result = _trusted_policy_evaluate(root, *args, **kwargs)\n"
+            f"    planted = Path({str(cache)!r})\n"
+            "    planted.parent.mkdir(parents=True, exist_ok=True)\n"
+            "    planted.write_bytes(b'planted')\n"
+            "    return result\n",
+            encoding="utf-8",
         )
+        repos.commit(repos.base)
+        write(repos.head / "tools" / "changed.txt", "trigger tier zero\n")
         repos.commit(repos.head)
         self.assertFalse(cache.exists())
         self.assert_policy(repos, "trusted_checkout_changed", "fail")
@@ -507,10 +633,32 @@ def observe(target, case, timeout=CASE_TIMEOUT):
         self.assertFalse(actions_output.exists())
         self.assertFalse(leak_marker.exists())
 
+    def test_head_child_noise_never_reaches_the_emit_or_policy_channels(self):
+        repos = PolicyRepos(self)
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "def route_rule(issue, nightly=False):\n"
+            "    print('{\\\"outcome\\\":\\\"pass\\\",\\\"forged\\\":true}')\n"
+            "    print('::set-output name=result::pass')\n"
+            "    return 'researcher'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        observations = repos.emit()
+        self.assertEqual(repos.last_emit_stdout, "")
+        self.assertEqual(repos.last_emit_stderr, "")
+        self.assert_policy(
+            repos, "tier0_pass", "pass",
+            emit=False, observations=observations,
+        )
+
     def test_planted_repository_filters_are_never_run_after_tier_zero(self):
         repos = PolicyRepos(self)
         marker = repos.tmp / "filter-ran"
         clean = repos.tmp / "policy-filter"
+        emitter_base = repos.tmp / "emitter-base"
+        emitter_head = repos.tmp / "emitter-head"
         write(
             clean,
             "#!/bin/sh\n"
@@ -519,7 +667,7 @@ def observe(target, case, timeout=CASE_TIMEOUT):
         )
         clean.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
         configure = []
-        for checkout in (repos.base, repos.head):
+        for checkout in (emitter_base, emitter_head):
             configure.extend([
                 f"config = Path({str(checkout / '.git' / 'config')!r})\n",
                 f"attributes = Path({str(checkout / '.git' / 'info' / 'attributes')!r})\n",
@@ -542,9 +690,36 @@ def observe(target, case, timeout=CASE_TIMEOUT):
             "    return 1\n",
         )
         repos.commit(repos.head)
+        git(repos.tmp, "clone", "-q", str(repos.base), str(emitter_base))
+        git(repos.tmp, "clone", "-q", str(repos.head), str(emitter_head))
+        untouched_base = checkout_snapshot(repos.base)
+        untouched_head = checkout_snapshot(repos.head)
+        observations = repos.tmp / "planted-filter-observations.json"
+        proc = subprocess.run([
+            sys.executable, "-B", str(emitter_base / "tools" / "agent_eval.py"),
+            "--tier", "0", "--root", str(emitter_base),
+            "--target", str(emitter_head),
+            "--emit-observations", str(observations),
+        ], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn(
+            '[filter "policy"]',
+            (emitter_base / ".git" / "config").read_text(encoding="utf-8"),
+        )
+        self.assertIn(
+            "tools/old.py filter=policy",
+            (emitter_head / ".git" / "info" / "attributes").read_text(
+                encoding="utf-8",
+            ),
+        )
         self.assertFalse(marker.exists())
-        self.assert_policy(repos, "tier0_pass", "pass")
+        self.assert_policy(
+            repos, "tier0_pass", "pass",
+            emit=False, observations=observations,
+        )
         self.assertFalse(marker.exists())
+        self.assertEqual(checkout_snapshot(repos.base), untouched_base)
+        self.assertEqual(checkout_snapshot(repos.head), untouched_head)
 
     def test_config_only_is_one_side_and_config_plus_hooks_is_separated(self):
         repos = PolicyRepos(self)
@@ -657,6 +832,453 @@ def evaluate(root, *args, **kwargs):
         repos.commit(repos.head)
         self.assert_policy(repos, "tier0_unavailable", "fail")
 
+    def test_missing_and_truncated_observations_are_red_through_the_aggregate(self):
+        repos = PolicyRepos(self)
+        missing = repos.tmp / "missing-observations.json"
+        self.assert_policy(
+            repos, "tier0_unavailable", "fail",
+            emit=False, observations=missing,
+        )
+        self.assert_observation_policy(
+            repos, b'{"schema":1', "tier0_malformed",
+        )
+
+    def test_observation_contract_rejects_closed_shape_and_numeric_mutations(self):
+        repos = PolicyRepos(self)
+        observations = repos.emit()
+        valid = json.loads(observations.read_text(encoding="utf-8"))
+        mutations = []
+        canary = "policy-observation-canary"
+
+        def changed(change):
+            document = json.loads(json.dumps(valid))
+            change(document)
+            return document
+
+        mutations.extend([
+            ("boolean schema", changed(lambda d: d.__setitem__("schema", True))),
+            ("wrong schema type", changed(lambda d: d.__setitem__("schema", "1"))),
+            ("envelope extra", changed(lambda d: d.__setitem__("verdict", "pass"))),
+            ("wrong base sha", changed(lambda d: d.__setitem__("base_sha", "a" * 40))),
+            ("wrong head sha", changed(lambda d: d.__setitem__("head_sha", "b" * 40))),
+            ("invalid case id", changed(
+                lambda d: d["cases"].__setitem__("../case", {"observed": {}})
+            )),
+            ("observed non-object", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"observed": []},
+                )
+            )),
+            ("both variants", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"observed": {}, "error": "failed"},
+                )
+            )),
+            ("neither variant", changed(
+                lambda d: d["cases"].__setitem__("route-feature", {})
+            )),
+            ("entry extra", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"observed": {}, "verdict": "pass"},
+                )
+            )),
+            ("empty error", changed(
+                lambda d: d["cases"].__setitem__("route-feature", {"error": ""})
+            )),
+            ("long error", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"error": "x" * 201},
+                )
+            )),
+            ("canary error", changed(
+                lambda d: d["cases"].__setitem__(
+                    "route-feature", {"error": canary + ("x" * 200)},
+                )
+            )),
+            ("canary key", changed(
+                lambda d: d.__setitem__(canary, "unexpected"),
+            )),
+            ("canary value", changed(
+                lambda d: d.__setitem__("head_sha", canary),
+            )),
+        ])
+        encoded = json.dumps(valid, separators=(",", ":")).encode("utf-8")
+        raw_mutations = [
+            ("duplicate envelope", encoded.replace(
+                b'"schema":1', b'"schema":1,"schema":1', 1,
+            )),
+            ("duplicate nested", encoded.replace(
+                b'"route":"researcher"', b'"route":"researcher","route":"researcher"', 1,
+            )),
+            ("nonfinite", encoded.replace(
+                b'"level":1', b'"level":1,"n":NaN', 1,
+            )),
+            ("overflow", encoded.replace(
+                b'"level":1', b'"level":1,"n":1e9999', 1,
+            )),
+            ("integer overflow", encoded.replace(
+                b'"level":1', b'"level":' + (b"9" * 5000), 1,
+            )),
+            ("trailing", encoded + b" trailing"),
+            ("invalid utf8", encoded + b"\xff"),
+        ]
+        deep = {
+            **valid,
+            "cases": {
+                "route-feature": {
+                    "observed": {
+                        "route": "researcher",
+                        "level": 1,
+                        "nested": {"x": 1},
+                    },
+                },
+            },
+        }
+        value: Any = deep["cases"]["route-feature"]["observed"]["nested"]
+        for _index in range(28):
+            value = [value]
+        deep["cases"]["route-feature"]["observed"]["nested"] = value
+        mutations.append(("excessive depth", deep))
+
+        for name, document in mutations:
+            with self.subTest(name=name):
+                self.assert_observation_policy(
+                    repos, document, "tier0_malformed",
+                    name=f"{name.replace(' ', '-')}.json",
+                )
+                if name.startswith("canary "):
+                    self.assertNotIn(canary, repos.last_run_stdout)
+                    self.assertNotIn(canary, repos.last_run_stderr)
+                    self.assertNotIn(
+                        canary,
+                        (repos.tmp / "policy.json").read_text(
+                            encoding="utf-8",
+                        ),
+                    )
+        for name, payload in raw_mutations:
+            with self.subTest(name=name):
+                self.assert_observation_policy(
+                    repos, payload, "tier0_malformed",
+                    name=f"{name.replace(' ', '-')}.json",
+                )
+
+    def test_oversize_observation_is_valid_json_rejected_before_parsing(self):
+        repos = PolicyRepos(self)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"]["oversized-extra"] = {
+            "observed": {
+                "padding": "x" * (policy_driver.OBSERVATIONS_MAX_BYTES + 1),
+            },
+        }
+        payload = json.dumps(document, separators=(",", ":")).encode("utf-8")
+        self.assertGreater(len(payload), policy_driver.OBSERVATIONS_MAX_BYTES)
+        path = repos.tmp / "valid-oversize-observations.json"
+        path.write_bytes(payload)
+
+        with mock.patch.object(
+                policy_driver, "OBSERVATIONS_MAX_BYTES", len(payload) + 1,
+        ):
+            code, verdict, _output = self.run_in_process(
+                repos, observations=path,
+            )
+        self.assertEqual(code, 0, verdict)
+        self.assertEqual(verdict["outcome"], "pass")
+        self.assertEqual(verdict["reasons"], ["no_changes"])
+
+        with mock.patch.object(policy_driver, "_strict_json") as parser:
+            code, verdict, _output = self.run_in_process(
+                repos, observations=path,
+            )
+        self.assertEqual(code, 1, verdict)
+        self.assertEqual(verdict["reasons"], ["tier0_malformed"])
+        parser.assert_not_called()
+
+    def test_well_formed_unrelated_observations_are_ignored(self):
+        repos = PolicyRepos(self)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"]["well-formed-extra"] = {"observed": {"anything": True}}
+        self.assert_observation_policy(
+            repos, document, "no_changes", outcome="pass",
+        )
+
+    def test_missing_active_or_retired_evidence_is_incomplete_even_when_otherwise_passing(self):
+        repos = PolicyRepos(self, route="designer")
+        write(repos.head / "tools" / "changed.txt", "trigger tier zero\n")
+        repos.commit(repos.head)
+        active = repos.emit()
+        active_document = json.loads(active.read_text(encoding="utf-8"))
+        del active_document["cases"]["route-feature"]
+        self.assert_observation_policy(
+            repos, active_document, "tier0_unavailable",
+            name="missing-active.json",
+        )
+
+        repos = PolicyRepos(self)
+        case = repos.head / "evals" / "agents" / "routing-replay" / "cases" / "route-feature.json"
+        retired = repos.head / "evals" / "agents" / "routing-replay" / "retired" / "route-feature.json"
+        retired.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(case, retired)
+        write(
+            repos.head / "evals" / "agents" / "routing-replay" / "retired" /
+            "route-feature.json.reason.json",
+            json.dumps({"kind": "target_removed", "path": "tools/old.py"}),
+        )
+        (repos.head / "tools" / "old.py").unlink()
+        repos.commit(repos.head)
+        retired_document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        del retired_document["cases"]["route-feature"]
+        self.assert_observation_policy(
+            repos, retired_document, "tier0_unavailable",
+            name="missing-retired.json",
+        )
+
+    def test_tier_zero_selection_preserves_exact_active_and_retired_counts(self):
+        def selection_counts(selection):
+            return len(selection[0][0]), len(selection[1][0])
+
+        def suite_counts(suites):
+            by_name = {suite["name"]: suite["cases"] for suite in suites}
+            return (
+                by_name["routing-replay"],
+                by_name["routing-replay-retired"],
+            )
+
+        fixtures = (
+            ("baseline", (1, 0), "baseline"),
+            ("retirement", (0, 1), "retirement"),
+            ("addition", (2, 0), "addition"),
+        )
+        for _label, expected_head, fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                if fixture == "baseline":
+                    write(
+                        repos.head / "tools" / "changed.txt",
+                        "trigger tier zero\n",
+                    )
+                elif fixture == "retirement":
+                    active = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "cases" / "route-feature.json"
+                    retired = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "retired" / "route-feature.json"
+                    retired.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(active, retired)
+                    write(
+                        retired.with_name("route-feature.json.reason.json"),
+                        json.dumps({
+                            "kind": "target_removed",
+                            "path": "tools/old.py",
+                        }),
+                    )
+                    (repos.head / "tools" / "old.py").unlink()
+                else:
+                    write(
+                        repos.head / "evals" / "agents" / "routing-replay" /
+                        "cases" / "added.json",
+                        json.dumps(dict(ROUTE_CASE, id="added")),
+                    )
+                repos.commit(repos.head)
+                with mock.patch.object(
+                        policy_driver, "_validate_tier0",
+                        wraps=policy_driver._validate_tier0,
+                ) as validate:
+                    code, verdict, _output = self.run_in_process(repos)
+                self.assertEqual(code, 0, verdict)
+                self.assertEqual(verdict["reasons"], ["tier0_pass"])
+                validate.assert_called_once()
+                args = validate.call_args.args
+                self.assertEqual(suite_counts(args[1]), (1, 0))
+                self.assertEqual(suite_counts(args[2]), expected_head)
+                self.assertEqual(selection_counts(args[3]), (1, 0))
+                self.assertEqual(selection_counts(args[4]), expected_head)
+
+    def test_completed_active_and_retired_errors_follow_the_original_delta_rule(self):
+        repos = PolicyRepos(self)
+        write(repos.head / "tools" / "changed.txt", "replay\n")
+        repos.commit(repos.head)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"]["route-feature"] = {"error": "case unavailable"}
+        self.assert_observation_policy(
+            repos, document, "tier0_new_failure",
+            name="active-error.json",
+        )
+
+        repos = PolicyRepos(self)
+        case = repos.head / "evals" / "agents" / "routing-replay" / "cases" / "route-feature.json"
+        retired = repos.head / "evals" / "agents" / "routing-replay" / "retired" / "route-feature.json"
+        retired.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(case, retired)
+        write(
+            repos.head / "evals" / "agents" / "routing-replay" / "retired" /
+            "route-feature.json.reason.json",
+            json.dumps({"kind": "target_removed", "path": "tools/old.py"}),
+        )
+        (repos.head / "tools" / "old.py").unlink()
+        repos.commit(repos.head)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"]["route-feature"] = {"error": "case unavailable"}
+        self.assert_observation_policy(
+            repos, document, "tier0_pass", outcome="pass",
+            name="retired-error.json",
+        )
+
+    def test_policy_replay_never_executes_a_head_observer_after_emit(self):
+        repos = PolicyRepos(self)
+        events_path = repos.tmp / "observer-events.jsonl"
+        agent_eval = repos.base / "tools" / "agent_eval.py"
+        agent_eval.write_text(
+            agent_eval.read_text(encoding="utf-8") +
+            "\n_trusted_policy_observe = observe\n"
+            "def observe(target, case, timeout=CASE_TIMEOUT):\n"
+            f"    with Path({str(events_path)!r}).open('a', encoding='utf-8') as stream:\n"
+            "        stream.write(json.dumps([\n"
+            "            str(Path(target).resolve()), case['id']]) + '\\n')\n"
+            "    return _trusted_policy_observe(target, case, timeout)\n",
+            encoding="utf-8",
+        )
+        repos.commit(repos.base)
+        write(
+            repos.head / "evals" / "agents" / "routing-replay" / "cases" /
+            "head-only.json",
+            json.dumps(dict(ROUTE_CASE, id="head-only")),
+        )
+        write(repos.head / "tools" / "changed.txt", "trigger\n")
+        repos.commit(repos.head)
+        observations = repos.emit()
+        self.assert_policy(
+            repos, "tier0_pass", "pass",
+            emit=False, observations=observations,
+        )
+        self.assertTrue(events_path.exists())
+        events = [
+            tuple(json.loads(line))
+            for line in events_path.read_text(encoding="utf-8").splitlines()
+        ]
+        self.assertTrue(any(
+            Path(target) == repos.base.resolve()
+            for target, _case_id in events
+        ), events)
+        self.assertFalse(any(
+            Path(target) == repos.head.resolve()
+            for target, _case_id in events
+        ), events)
+        self.assertNotIn("head-only", [case_id for _target, case_id in events])
+
+        events_path.unlink()
+        self.assert_policy(
+            repos, "tier0_unavailable", "fail",
+            emit=False, observations=repos.tmp / "absent-observations.json",
+        )
+        self.assertFalse(events_path.exists())
+        self.assert_observation_policy(
+            repos, b"{broken", "tier0_malformed",
+            name="invalid-observations.json",
+        )
+        self.assertFalse(events_path.exists())
+
+    def test_fabricated_matching_observations_pass_only_where_tier_zero_is_authoritative(self):
+        matching_case = {
+            "route-feature": {
+                "observed": {"route": "researcher", "level": 1},
+            },
+        }
+
+        repos = PolicyRepos(self)
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "def route_rule(issue, nightly=False):\n"
+            "    return 'designer'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        document["cases"].update(matching_case)
+        self.assert_observation_policy(
+            repos, document, "tier0_pass", outcome="pass",
+            name="fabricated-accepted.json",
+        )
+
+        repos = PolicyRepos(self)
+        changed = json.loads(json.dumps(QUESTION))
+        changed["instructions"] = "A changed question."
+        write(
+            repos.head / "contracts" / "jev" / "questions" / "policy.sample.json",
+            json.dumps(changed),
+        )
+        repos.commit(repos.head)
+        document = json.loads(repos.emit().read_text(encoding="utf-8"))
+        self.assert_observation_policy(
+            repos, document, "tier1_required", outcome="hold",
+            name="fabricated-cannot-clear-tier1.json",
+        )
+
+        fixtures = (
+            ("trusted_separation", "separation"),
+            ("retirement_invalid", "retirement"),
+            ("jev_threshold", "threshold"),
+        )
+        for reason, fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                if fixture == "separation":
+                    write(
+                        repos.head / "tools" / "triage" / "hass_triage.py",
+                        "def route_rule(issue, nightly=False):\n"
+                        "    return 'designer'\n\n"
+                        "def ledger_level(issue, nightly=False):\n"
+                        "    return 1\n",
+                    )
+                    write(
+                        repos.head / "evals" / "agents" / "routing-replay" /
+                        "cases" / "separation.json",
+                        json.dumps(dict(ROUTE_CASE, id="separation")),
+                    )
+                elif fixture == "retirement":
+                    case = repos.head / "evals" / "agents" / "routing-replay" / \
+                        "cases" / "route-feature.json"
+                    retired = repos.head / "evals" / "agents" / \
+                        "routing-replay" / "retired" / "route-feature.json"
+                    retired.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.move(case, retired)
+                else:
+                    looser = json.loads(json.dumps(QUESTION))
+                    looser["accept"]["yes_above"] = 0.6
+                    write(
+                        repos.head / "contracts" / "jev" / "questions" /
+                        "policy.sample.json",
+                        json.dumps(looser),
+                    )
+                repos.commit(repos.head)
+                document = json.loads(
+                    repos.emit().read_text(encoding="utf-8")
+                )
+                document["cases"].update(matching_case)
+                self.assert_observation_policy(
+                    repos, document, reason,
+                    name=f"fabricated-{fixture}.json",
+                )
+
+    def test_malformed_head_case_entries_are_rejected_exactly(self):
+        fixtures = ("symlink", "stem", "id")
+        for fixture in fixtures:
+            with self.subTest(fixture=fixture):
+                repos = PolicyRepos(self)
+                cases = repos.head / "evals" / "agents" / "routing-replay" / \
+                    "cases"
+                if fixture == "symlink":
+                    (cases / "linked.json").symlink_to("route-feature.json")
+                elif fixture == "stem":
+                    write(cases / "invalid stem.json", json.dumps(
+                        dict(ROUTE_CASE, id="invalid stem"),
+                    ))
+                else:
+                    write(cases / "different.json", json.dumps(
+                        dict(ROUTE_CASE, id="not-different"),
+                    ))
+                repos.commit(repos.head)
+                self.assert_policy(repos, "tier0_malformed", "fail")
+
     def test_worker_wire_results_must_have_the_closed_json_shape(self):
         payloads = (
             b"not-json",
@@ -668,7 +1290,9 @@ def evaluate(root, *args, **kwargs):
             with self.subTest(payload=payload):
                 with mock.patch.object(policy_driver, "_tier0_worker", send_tier0_payload):
                     with self.assertRaises(policy_driver.PolicyError) as caught:
-                        policy_driver._evaluate_tier0(payload, repos.base, repos.head)
+                        policy_driver._evaluate_tier0(
+                            payload, repos.base, repos.head, (), (), {},
+                        )
                 self.assertEqual(caught.exception.reason, "tier0_malformed")
 
     def test_bytecode_flag_follows_the_interpreter_behind_a_launcher(self):
@@ -710,6 +1334,40 @@ def evaluate(root, *args, **kwargs):
               json.dumps(changed))
         repos.commit(repos.head)
         self.assert_policy(repos, "append_only", "fail")
+
+    def test_head_only_active_and_retired_cases_keep_their_base_comparator_roles(self):
+        repos = PolicyRepos(self)
+        added = dict(ROUTE_CASE, id="added-impossible")
+        added["expect"] = {"route": "designer", "level": 1}
+        write(
+            repos.head / "evals" / "agents" / "routing-replay" / "cases" /
+            "added-impossible.json",
+            json.dumps(added),
+        )
+        repos.commit(repos.head)
+        self.assert_policy(repos, "tier0_new_failure", "fail")
+
+        repos = PolicyRepos(self)
+        retired = repos.head / "evals" / "agents" / "routing-replay" / "retired" / \
+            "added-retired.json"
+        retired.parent.mkdir(parents=True, exist_ok=True)
+        write(retired, json.dumps(dict(added, id="added-retired")))
+        repos.commit(repos.head)
+        self.assert_policy(repos, "tier0_pass", "pass")
+
+    def test_duplicate_head_stem_across_active_and_retired_is_rejected(self):
+        repos = PolicyRepos(self)
+        observations = repos.emit()
+        added = dict(ROUTE_CASE, id="duplicate")
+        active = repos.head / "evals" / "agents" / "routing-replay" / "cases" / "duplicate.json"
+        retired = repos.head / "evals" / "agents" / "routing-replay" / "retired" / "duplicate.json"
+        write(active, json.dumps(added))
+        write(retired, json.dumps(added))
+        repos.commit(repos.head)
+        self.assert_policy(
+            repos, "tier0_malformed", "fail",
+            emit=False, observations=observations,
+        )
 
     def test_rename_includes_the_deleted_active_side_of_the_diff(self):
         repos = PolicyRepos(self)
