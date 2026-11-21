@@ -20,6 +20,7 @@ OWNER = "@SFenton"
 AGENT_FILES = (
     "/.claude/", "/.agents/workflow/", "/.agents/skills/", "/AGENTS.md", "/tools/hooks/", "/.githooks/", "/tools/review/",
     "/tools/review_verdict.py", "/tools/ship.sh", "/tools/ship_guard.sh", "/tools/pr_land.py", "/tools/pr_land.sh", "/tools/pr_blockers.py", "/tools/lane_*.py",
+    "/tools/pr_policy.py", "/tools/ci_aggregate.py", "/tools/agent_eval.py", "/tools/agent_eval_case.py", "/tools/agent_eval_measure.py",
     "/tools/ruleset_gate.py", "/tools/jev_gate.py", "/tools/triage/", "/contracts/jev/", "/evals/", "/.github/", "/tools/agent_login.py",
     "/tools/release/", "/tools/hass_creds.sh", "/tools/gh_app_token.py", "/tools/devcap.py", "/tools/ci_hygiene.py",
     "/tools/release_closure.py", "/.gitmodules",
@@ -55,6 +56,19 @@ class CodeownersCoverTests(unittest.TestCase):
     def test_the_whole_github_tree_is_owned(self):
         """Fails if: a file under .github (workflows, the template, CODEOWNERS itself) is not the owner's (decision D2)."""
         for path in (".github/workflows/pr-checks.yml", ".github/CODEOWNERS", ".github/pull_request_template.md"):
+            self.assertEqual(owners_of(path, RULES), [OWNER], path)
+
+    def test_the_policy_driver_imports_and_config_are_owned(self):
+        """Fails if: the seeded driver can use a mutable lander, grader or triage config."""
+        for path in (
+            "tools/lane_land.py",
+            "tools/triage/config.json",
+            "tools/pr_policy.py",
+            "tools/ci_aggregate.py",
+            "tools/agent_eval.py",
+            "tools/agent_eval_case.py",
+            "tools/agent_eval_measure.py",
+        ):
             self.assertEqual(owners_of(path, RULES), [OWNER], path)
 
     def test_product_code_and_ordinary_tools_are_not_owned(self):
