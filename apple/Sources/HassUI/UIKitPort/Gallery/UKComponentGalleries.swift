@@ -11,6 +11,7 @@ extension UKGallery {
         case .cameraViewer: UKCameraViewerGallery.make()
         case .stateTile: UKStateTileGallery.make()
         case .textKeep: UKTextKeepGallery.make()
+        case .foldSides: UKFoldSidesGallery.make()
         default: nil
         }
     }

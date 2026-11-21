@@ -71,6 +71,40 @@ final class ServerUIRecordScrollerTests: XCTestCase {
         return (body.padding.left + (available - body.padding.left - body.padding.right - inner) / 2, inner, body.padding)
     }
 
+    // MARK: Two sides
+
+    /// A page that is one collection and uses sides keeps its scroller and narrows it to the region before the band while partly folded.
+    func testASingleCollectionOnATwoSidesPageIsNarrowedToTheLeadingRegion() throws {
+        var root = try fixture(template: "recipes")
+        root = try ServerUIRendererFixture.changing(root, path: "/document/pages/0/layout/foldSides", to: .string("auto"))
+        let capabilities = (try XCTUnwrap(root["capabilities"]?.array) + [.string("sh.fold-sides@1")]).sorted { ($0.string ?? "") < ($1.string ?? "") }
+        root = try ServerUIRendererFixture.changing(root, path: "/capabilities", to: .array(capabilities))
+        let shell = UKShellEnvironment()
+        var context = UKContext(store: EntityStore())
+        context.shell = shell
+        let renderer = try UKServerUIRenderer(publication: ServerUIRendererFixture.publication(root), context: context,
+            backdrop: ServerUIRendererFixture.backdrop(), records: UKServerUIRecords(collections: ["demo-items": ServerUIRecordFixtureSource(recipes: true)]))
+        let window = HostedPage.show(renderer, size: CGSize(width: 868, height: 669))
+        defer { window.isHidden = true }
+        window.traitOverrides.horizontalSizeClass = .regular
+        let page = try ServerUIRendererFixture.root(renderer)
+        let collection = try XCTUnwrap(page.pageScroll as? UICollectionView)
+        HostedPage.wait(0.5)
+        func cellRight() -> CGFloat { collection.visibleCells.map { $0.convert($0.bounds, to: nil).maxX }.max() ?? 0 }
+        // The band is derived from the area the collection occupies: on the Duo's hosted scene (its folded 466 pt display) the window sticks out of the scene and the page's content
+        // area ends 84 pt short of the window's trailing edge, so a band at a fixed x left the trailing side under the minimum.
+        let area = collection.convert(collection.bounds, to: nil)
+        let band = CGRect(x: area.midX - 20.2, y: 0, width: 40.4, height: window.bounds.height)
+        XCTAssertGreaterThanOrEqual((area.width - band.width) / 2, SplitPolicy.minimumPaneWidth, "the 868 pt window must hold two sides on every family")
+        XCTAssertGreaterThan(cellRight(), band.maxX, "flat, the collection fills the page")
+        shell.windowHinge = band
+        HostedPage.wait(0.8)
+        collection.layoutIfNeeded()
+        XCTAssertFalse(collection.visibleCells.isEmpty)
+        XCTAssertLessThanOrEqual(cellRight(), band.minX + 0.5, "partly folded, the collection ends at the band")
+        XCTAssertTrue(page.pageScroll === collection, "the same scroller in both poses")
+    }
+
     // MARK: Hosting
 
     func testASingleRecordCollectionIsThePageScrollerAndAMixedPageKeepsTheColumn() async throws {

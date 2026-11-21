@@ -15,38 +15,28 @@ import UIKit
 /// left mirrors the columns.
 @MainActor
 final class UKFoldColumns: UIView, UKGridMeasuring {
-    /// One section of the page.
-    struct Section {
+    /// One section of the page: a top-level component's view and the side of the hinge it sits on while split.
+    struct Section: Equatable {
         var view: UIView
         var side: FoldSide
-        /// The gap above it in the single column when it differs from the container's spacing.
-        var flatGapAbove: CGFloat?
-        /// A top section that spans only the leading region (Home's banner).
+        /// A section a rule hides keeps its slot and its place in the order but takes no room and has no view in the hierarchy.
+        var isHidden = false
+        /// A top section that spans only the leading region (the notification banner).
         var topSpansLeadingOnly = false
-        /// Its place among the sections of its side while split (``FoldColumns/Entry/splitRank``).
-        var splitRank = 0
-        /// The index of the section whose top this one starts level with while split (``FoldColumns/Entry/levelWith``).
-        var levelWith: Int?
-        /// The pose it takes part in (``FoldColumns/Entry/visibility``). The container lays out only the views of the pose; a page that
-        /// uses `.flatOnly` or `.splitOnly` moves the views between hosts itself, in ``onSplitChange``.
-        var visibility = FoldVisibility.always
         /// Ignores ``UKFoldColumns/sideInset`` (a rail that runs to the page's edges).
         var fullBleed = false
-        /// The side it takes while split at an accessibility text size, where a status rail wraps (``ChipRailMode/wrap``): the top of
-        /// the leading column, first in its accessibility group (decision rule 11). Nil keeps ``side``.
-        var wrappedSide: FoldSide?
 
-        init(_ view: UIView, side: FoldSide, flatGapAbove: CGFloat? = nil, topSpansLeadingOnly: Bool = false, splitRank: Int = 0,
-             levelWith: Int? = nil, visibility: FoldVisibility = .always, fullBleed: Bool = false, wrappedSide: FoldSide? = nil) {
-            self.fullBleed = fullBleed
-            self.wrappedSide = wrappedSide
-            self.visibility = visibility
-            self.splitRank = splitRank
-            self.levelWith = levelWith
+        init(_ view: UIView, side: FoldSide, isHidden: Bool = false, topSpansLeadingOnly: Bool = false, fullBleed: Bool = false) {
+            self.isHidden = isHidden
             self.view = view
             self.side = side
-            self.flatGapAbove = flatGapAbove
             self.topSpansLeadingOnly = topSpansLeadingOnly
+            self.fullBleed = fullBleed
+        }
+
+        static func == (lhs: Section, rhs: Section) -> Bool {
+            lhs.view === rhs.view && lhs.side == rhs.side && lhs.isHidden == rhs.isHidden
+                && lhs.topSpansLeadingOnly == rhs.topSpansLeadingOnly && lhs.fullBleed == rhs.fullBleed
         }
     }
 
@@ -105,19 +95,17 @@ final class UKFoldColumns: UIView, UKGridMeasuring {
     func setSections(_ sections: [Section]) {
         self.sections.forEach { $0.view.removeFromSuperview() }
         self.sections = sections
-        for section in sections where section.visibility == .always || (section.visibility == .flatOnly) == !isSplit {
-            addSubview(section.view)
-        }
+        sections.filter { !$0.isHidden }.forEach { addSubview($0.view) }
         setNeedsLayout()
     }
 
     private func entries() -> [FoldColumns.Entry] {
+        // At an accessibility text size every top-strip entry heads the leading column, in document order, and the trailing side starts
+        // level with it (section-sides.md rule 8).
         let wraps = traitCollection.ukIsAccessibilitySize
         return sections.map {
-            let wrapped = wraps ? $0.wrappedSide : nil
-            return FoldColumns.Entry(side: wrapped ?? $0.side, isHidden: $0.view.isHidden, flatGapAbove: $0.flatGapAbove,
-                                     topSpansLeadingOnly: $0.topSpansLeadingOnly, splitRank: wrapped == nil ? $0.splitRank : -1,
-                                     levelWith: $0.levelWith, visibility: $0.visibility, fullBleed: $0.fullBleed)
+            FoldColumns.Entry(side: wraps && $0.side == .top ? .leading : $0.side, isHidden: $0.isHidden || $0.view.isHidden,
+                              topSpansLeadingOnly: $0.topSpansLeadingOnly && !wraps, fullBleed: $0.fullBleed)
         }
     }
 
@@ -197,6 +185,7 @@ final class UKFoldColumns: UIView, UKGridMeasuring {
             section.view.frame = frame.offsetBy(dx: 0, dy: insets.top)
         }
         let total = placed.height + insets.top + insets.bottom + extraHeight
+        if poseChanged { poseChanged = false; clampScrollOffset(toContentHeight: total) }
         if total != laidOutHeight {
             laidOutHeight = total
             invalidateIntrinsicContentSize()
@@ -204,6 +193,21 @@ final class UKFoldColumns: UIView, UKGridMeasuring {
     }
 
     private var laidOutHeight: CGFloat = 0
+    /// A pose change after the first one is waiting for its layout pass, which keeps the scroll offset inside the new, shorter or taller page.
+    private var poseChanged = false
+
+    /// Brings the enclosing scroller's offset back inside the page the new pose needs (its own height, not the scroller's, which may still hold the old one), in the same pass (so inside the reflow animation).
+    /// The split page is shorter, and an offset left past its end would show empty space until the next scroll.
+    private func clampScrollOffset(toContentHeight height: CGFloat) {
+        var ancestor = superview
+        while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+        guard let scroll = ancestor as? UIScrollView else { return }
+        let inset = scroll.adjustedContentInset
+        let top = -inset.top
+        let bottom = max(top, height - scroll.bounds.height + inset.bottom)
+        let clamped = min(max(scroll.contentOffset.y, top), bottom)
+        if clamped != scroll.contentOffset.y { scroll.contentOffset.y = clamped }
+    }
 
     /// The height the sections need at the current width, for a host that sizes it with Auto Layout (Climate).
     override var intrinsicContentSize: CGSize { CGSize(width: UIView.noIntrinsicMetric, height: gridHeight(forWidth: max(bounds.width, 1))) }
@@ -214,11 +218,16 @@ final class UKFoldColumns: UIView, UKGridMeasuring {
         isSplit = split
         shouldGroupAccessibilityChildren = split
         accessibilityIdentifier = split ? splitIdentifier : nil
+        if hasLaidOutEarlier { poseChanged = true }
         onSplitChange?(split)
         // One `LayoutChange` interval spans the posture reflow, for `XCTOSSignpostMetric` (`.agents/testing/apple/performance.md`).
         if window != nil {
             let interval = Telemetry.begin(Telemetry.Name.layoutChange, page: "FoldColumns", split ? "split" : "flat")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { Telemetry.end(interval) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                Telemetry.end(interval)
+                // Tells VoiceOver the layout moved, with no element, so focus stays where it is (section-sides.md rule 10).
+                UIAccessibility.post(notification: .layoutChanged, argument: nil)
+            }
         }
     }
 

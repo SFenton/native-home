@@ -126,7 +126,7 @@ struct ServerUIComponentExpansion {
         let placement = relative.isEmpty || relative == "/type"
             || (issue.code == .invalidCombination && (relative == "/props/scopeProviderId" || relative == "/props/pinned"))
         if placement { return moved(to: region.pointer + "/componentId") }
-        if relative == "/id" || relative == "/layout" || relative == "/layout/span" { return moved(to: region.pointer + relative) }
+        if relative == "/id" || relative == "/layout" || relative == "/layout/span" || relative == "/layout/foldSide" { return moved(to: region.pointer + relative) }
         // A bound field, or anything inside one, is the argument's fault.
         if let parameter = region.bound.first(where: { relative == $0.key || relative.hasPrefix($0.key + "/") })?.value {
             return moved(to: ServerUICompositionJSON.pointer(region.pointer + "/args", parameter))
@@ -164,7 +164,8 @@ struct ServerUIComponentExpansion {
     static func placeholder(for reference: JSONValue) -> JSONValue {
         .object([
             "id": reference["id"] ?? .string(""), "title": .string(""), "type": .string("text"),
-            "layout": .object(["span": reference["layout"]?["span"] ?? .number(1)]),
+            "layout": .object(["span": reference["layout"]?["span"] ?? .number(1)].merging(
+                reference["layout"]?["foldSide"].map { ["foldSide": $0] } ?? [:]) { $1 }),
             "props": .object([
                 "value": .object(["type": .string("literal"), "value": .string("")]),
                 "style": .string("body"), "unavailableText": .string("")

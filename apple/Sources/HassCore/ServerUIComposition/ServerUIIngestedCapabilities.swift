@@ -84,10 +84,14 @@ public enum ServerUIIngestedCapabilities {
     /// sheet in a document that declares them closes every level and lands on the section stack.
     public static let sheetLevels: [String] = ["sh.sheet-levels@1"]
 
+    /// Sections on the two sides of the hinge (lane `duo-fold-reflow`): a page's `foldSides: auto` switch and a top-level component's `foldSide`, drawn by `UKFoldColumns`
+    /// while the Duo is partly folded.
+    public static let foldSides: [String] = ["sh.fold-sides@1"]
+
     /// A page's chrome hides and the tab bar's visibility (lane `gc-runtime-chrome-hide`): `pages[].hides` drops header items and the tab navigator while
     /// the page is on top, and `navigation.tabsVisibility: "root-only"` hides the navigator on a pushed page.
     public static let pageChrome: [String] = ["sh.page-chrome-hide@1", "sh.tabs-visibility@1"]
 
     /// Every ingested capability, in lane order.
-    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + styleGlyphTint + surface + styleParts + tileContract + flowRepeat + flowAverage + textKeep + dataParts + gaugeParts + edgeOperands + counting + sheetLevels + pageChrome }
+    public static var all: [String] { grammar + components + layout + rules + flow + styleFills + appearance + tileInk + styleGlyphTint + surface + styleParts + tileContract + flowRepeat + flowAverage + textKeep + dataParts + gaugeParts + edgeOperands + counting + sheetLevels + foldSides + pageChrome }
 }

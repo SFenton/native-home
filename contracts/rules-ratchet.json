@@ -23,9 +23,9 @@
    "long_lines": 2
   },
   ".agents/design/apple/split-view.md": {
-   "forbidden": 29,
+   "forbidden": 28,
    "long_lines": 18,
-   "over_words": 1194
+   "over_words": 1186
   },
   ".agents/design/apple/system-api-audit.md": {
    "forbidden": 15,
@@ -44,7 +44,7 @@
   ".agents/design/duo-widths.md": {
    "forbidden": 21,
    "long_lines": 17,
-   "over_words": 2026
+   "over_words": 2022
   },
   ".agents/design/feedback-media-compression.md": {
    "forbidden": 3,
@@ -684,7 +684,7 @@
    "forbidden": 1
   },
   ".agents/design/mockups/pages/home/home/README.md": {
-   "forbidden": 3,
+   "forbidden": 2,
    "links": 1
   },
   ".agents/design/mockups/pages/inventory/inventory-space/README.md": {
@@ -788,9 +788,7 @@
    "long_lines": 2
   },
   ".agents/design/section-sides.md": {
-   "forbidden": 26,
-   "long_lines": 24,
-   "over_words": 2692
+   "long_lines": 3
   },
   ".agents/design/settings-version-row.md": {
    "forbidden": 5
@@ -953,9 +951,9 @@
    "links": 1
   },
   ".agents/patterns/hinge-avoidance.md": {
-   "forbidden": 21,
+   "forbidden": 14,
    "long_lines": 11,
-   "over_words": 235
+   "over_words": 179
   },
   ".agents/patterns/image-card.md": {
    "forbidden": 2,

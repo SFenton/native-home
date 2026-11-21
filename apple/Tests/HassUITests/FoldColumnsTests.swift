@@ -30,27 +30,19 @@ struct FoldColumnsTests {
         #expect(FoldColumns.resolve(container: CGRect(x: 0, y: 0, width: 800, height: 600), isRegularWidth: true, hinge: hinge) == nil, "under 360 pt")
     }
 
-    // MARK: Sides
-
-    @Test func configuredSidesAlternateByIndexAndHonourAnOverride() {
-        #expect([0, 1, 2, 3].map { FoldColumns.side(forConfiguredIndex: $0) } == [.leading, .trailing, .leading, .trailing])
-        #expect(FoldColumns.side(forConfiguredIndex: 0, override: .trailing) == .trailing)
-        #expect(FoldColumns.side(forConfiguredIndex: 1, override: .top) == .trailing, "top is not a section side")
-    }
-
     // MARK: Layout
 
     private func heights(_ values: [CGFloat]) -> (Int, CGFloat) -> CGFloat { { index, _ in values[index] } }
 
     @Test func oneColumnStacksVisibleSectionsAndSkipsHiddenOnes() {
-        let entries = [FoldColumns.Entry(side: .top), FoldColumns.Entry(side: .leading, flatGapAbove: 8),
+        let entries = [FoldColumns.Entry(side: .top), FoldColumns.Entry(side: .leading),
                        FoldColumns.Entry(side: .leading, isHidden: true), FoldColumns.Entry(side: .trailing)]
         let layout = FoldColumns.layout(entries: entries, width: 400, geometry: nil, spacing: 20, rightToLeft: false,
                                         height: heights([50, 100, 70, 30]))
         #expect(layout.frames[0] == CGRect(x: 0, y: 0, width: 400, height: 50))
-        #expect(layout.frames[1].minY == 58, "the flat gap overrides the spacing")
-        #expect(layout.frames[3].minY == 178)
-        #expect(layout.height == 208)
+        #expect(layout.frames[1].minY == 70)
+        #expect(layout.frames[3].minY == 190)
+        #expect(layout.height == 220)
         #expect(layout.topHeight == 0)
     }
 
@@ -71,45 +63,49 @@ struct FoldColumnsTests {
         #expect(layout.height == CGFloat(260), "the taller side sets the height")
     }
 
-    @Test func splitRankPutsCamerasBeforeGuestsWithoutChangingTheFlatOrder() throws {
+    @Test func theLeadingColumnTakesTheRegionBesideTheBandInBothDirections() throws {
         let columns = try geometry()
-        // Flat order: guests, cameras. Cameras rank first on the trailing side.
-        let entries = [FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing, splitRank: 1), FoldColumns.Entry(side: .trailing, splitRank: 0)]
-        let flat = FoldColumns.layout(entries: entries, width: 400, geometry: nil, spacing: 10, rightToLeft: false, height: heights([50, 20, 30]))
-        #expect(flat.frames[1].minY < flat.frames[2].minY)
-        let split = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: false,
-                                       height: heights([50, 20, 30]))
-        #expect(split.frames[2].minY == split.frames[0].minY, "cameras are level with the leading column's top")
-        #expect(split.frames[1].minY == 40)
-        #expect(FoldColumns.readingOrder(entries: entries) == [0, 2, 1])
+        let entries = [FoldColumns.Entry(side: .top), FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing),
+                       FoldColumns.Entry(side: .top, topSpansLeadingOnly: true)]
+        let band = hinge.minX...hinge.maxX
+        for rightToLeft in [false, true] {
+            let layout = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: rightToLeft,
+                                            sideInset: 16, height: heights([20, 50, 50, 20]))
+            for frame in layout.frames[1...2] {
+                #expect(frame.maxX <= band.lowerBound + 0.01 || frame.minX >= band.upperBound - 0.01, "no side frame meets the band (rtl \(rightToLeft))")
+            }
+            let leading = layout.frames[1], trailing = layout.frames[2]
+            #expect(abs(leading.width - (rightToLeft ? columns.trailingWidth : columns.leadingWidth) + 32) < 0.01)
+            #expect(abs(trailing.width - (rightToLeft ? columns.leadingWidth : columns.trailingWidth) + 32) < 0.01)
+            #expect(rightToLeft ? leading.minX > trailing.minX : leading.minX < trailing.minX)
+        }
     }
 
-    @Test func aWrappedRailLeadsTheLeadingColumnAndTheTrailingColumnStartsAtTheTop() throws {
+    @Test func theCorpusWidthsComeOutOfTheLayout() throws {
+        // `evaluation/fold-sides-strip-and-four-sections`: geometry 455.3 / 40.4 / 372.3, inset 16.
         let columns = try geometry()
-        let entries = [FoldColumns.Entry(side: .leading, splitRank: -1), FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing)]
+        let entries = [FoldColumns.Entry(side: .top), FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing)]
         let layout = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: false,
-                                        height: heights([200, 80, 60]))
-        #expect(layout.topHeight == 0)
-        #expect(layout.frames[0].minY == 0 && layout.frames[2].minY == 0)
-        #expect(layout.frames[1].minY == 210)
+                                        sideInset: 16, height: heights([20, 50, 50]))
+        #expect(abs(layout.frames[0].width - 836) < 0.01)
+        #expect(abs(layout.frames[1].width - 423.3) < 0.01)
+        #expect(abs(layout.frames[2].width - 340.3) < 0.01)
     }
 
-    @Test func aTrailingBlockCanStartLevelWithTheFirstBlockUnderTheHeader() throws {
+    @Test func aSectionTheRuleHidesTakesNoRoomButTheOthersKeepTheirSides() throws {
         let columns = try geometry()
-        let entries = [FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing, levelWith: 1)]
+        let entries = [FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing, isHidden: true), FoldColumns.Entry(side: .leading),
+                       FoldColumns.Entry(side: .trailing)]
         let layout = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: false,
-                                        height: heights([30, 100, 50]))
-        #expect(layout.frames[2].minY == layout.frames[1].minY)
+                                        height: heights([30, 40, 30, 60]))
+        #expect(layout.frames[3].minY == 0, "the trailing side moves up")
+        #expect(layout.frames[2].minX == layout.frames[0].minX, "nothing changes side")
     }
 
-    @Test func poseOnlySectionsTakeRoomOnlyInTheirPose() throws {
-        let columns = try geometry()
-        let entries = [FoldColumns.Entry(side: .leading, visibility: .flatOnly), FoldColumns.Entry(side: .leading, visibility: .splitOnly)]
-        let flat = FoldColumns.layout(entries: entries, width: 400, geometry: nil, spacing: 10, rightToLeft: false, height: heights([100, 70]))
-        #expect(flat.height == 100)
-        let split = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: false, height: heights([100, 70]))
-        #expect(split.height == 70)
-        #expect(FoldColumns.readingOrder(entries: entries) == [1])
+    @Test func accessibilityReadingOrderIsTheStripThenLeadingThenTrailing() {
+        let entries = [FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing), FoldColumns.Entry(side: .top),
+                       FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .trailing, isHidden: true)]
+        #expect(FoldColumns.readingOrder(entries: entries) == [2, 0, 3, 1])
     }
 
     @Test func rightToLeftMirrorsTheColumnsAndSideInsetsNarrowThem() throws {
@@ -118,7 +114,7 @@ struct FoldColumnsTests {
         let layout = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: true, sideInset: 16,
                                         height: heights([10, 10, 10]))
         #expect(layout.frames[0].minX > layout.frames[1].minX, "the leading column is on the right")
-        #expect(abs(layout.frames[0].width - (columns.leadingWidth - 32)) < 0.01)
+        #expect(abs(layout.frames[0].width - (columns.trailingWidth - 32)) < 0.01, "the leading side takes the right region")
         #expect(layout.frames[2].width == content.width, "a full-bleed section ignores the inset")
     }
 
@@ -158,10 +154,4 @@ struct FoldColumnsTests {
         #expect(layout.frames[2].minY >= 80)
     }
 
-    @Test func aLevelEntryThatIsHiddenFallsBackToTheTopOfTheColumn() throws {
-        let columns = try geometry()
-        let entries = [FoldColumns.Entry(side: .leading), FoldColumns.Entry(side: .leading, isHidden: true), FoldColumns.Entry(side: .trailing, levelWith: 1)]
-        let layout = FoldColumns.layout(entries: entries, width: content.width, geometry: columns, spacing: 10, rightToLeft: false, height: heights([30, 100, 50]))
-        #expect(layout.frames[2].minY == 0)
-    }
 }

@@ -39,9 +39,12 @@ enum UKPageMetrics {
 /// constant of its own. Call ``contentChanged(animated:)`` after the content changes height.
 @MainActor
 class UKPageScrollView: UIScrollView {
-    let content: UIView & UKGridMeasuring
+    private(set) var content: UIView & UKGridMeasuring
     var maxWidth: CGFloat
     var padding: UIEdgeInsets
+    /// The content insets itself by ``padding`` and ``maxWidth`` (a page whose sections take the two sides of the hinge, `UKFoldColumns`): the scroller
+    /// hands it the whole width and the whole height, and a side then keeps the padding at its own edges.
+    var contentInsetsItself = false
 
     /// - Parameters:
     ///   - padding: ``UKPageMetrics/padding`` unless the content insets its own sides (``UKPageMetrics/verticalPadding``).
@@ -57,6 +60,15 @@ class UKPageScrollView: UIScrollView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+    /// Swaps the content for another measured view, keeping the scroller and its offset.
+    func replaceContent(_ new: UIView & UKGridMeasuring) {
+        guard new !== content else { return }
+        content.removeFromSuperview()
+        content = new
+        addSubview(new)
+        setNeedsLayout()
+    }
 
     /// Lays the content out again, gliding with the standard spring (`motionSafeAnimation(MotionTokens.standard, …)`) when asked.
     func contentChanged(animated: Bool) {
@@ -74,6 +86,13 @@ class UKPageScrollView: UIScrollView {
     override func layoutSubviews() {
         super.layoutSubviews()
         let available = max(0, bounds.width - adjustedContentInset.left - adjustedContentInset.right)
+        if contentInsetsItself {
+            let height = content.gridHeight(forWidth: available)
+            content.frame = CGRect(x: 0, y: 0, width: available, height: height)
+            let size = CGSize(width: available, height: height)
+            if contentSize != size { contentSize = size }
+            return
+        }
         let inner = min(maxWidth, max(0, available - padding.left - padding.right))
         let height = content.gridHeight(forWidth: inner)
         let x = padding.left + max(0, (available - padding.left - padding.right - inner) / 2)

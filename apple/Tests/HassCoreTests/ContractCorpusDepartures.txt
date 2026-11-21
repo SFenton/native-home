@@ -6,15 +6,15 @@ a line here when the Studio takes the change.
 
 | File | Departure |
 |---|---|
-| `capabilities.json` | Adds `sh.flow-average@1`, `sh.text-keep@1` and `sh.tile-ink-default@1`, the three ids the app lists that the Studio still marks pending, and `sh.sheet-levels@1`, which the Studio does not carry (its cases are in `GlobalChromeCorpus/`). It is regenerated from the app's list (`FENTON_REGEN_CAPABILITIES=1`), so it is sorted; the Studio's copy puts `sh.check-face@1` before `sh.chart@1`. |
-| `capabilities.pending.json` | Drops those three ids. |
-| `index.json`, `accept/flow-average-numbers.json`, `accept/tile-ink-default-*.json`, `accept/text-keep-*.json`, `reject/flow-average-*.json`, `reject/text-keep-*-invalid-policy.json`, `reject/text-keep-on-literal.json` | The promotion the corpus README describes: a compiled pending case moves to `accept/` with the `pending-` prefix dropped; a refused one keeps its file and takes the Studio's first issue as `issue`. |
+| `capabilities.json` | Adds `sh.flow-average@1`, `sh.fold-sides@1`, `sh.text-keep@1` and `sh.tile-ink-default@1`, the four ids the app lists that the Studio still marks pending, and `sh.sheet-levels@1`, which the Studio does not carry (its cases are in `GlobalChromeCorpus/`). It is regenerated from the app's list (`FENTON_REGEN_CAPABILITIES=1`), so it is sorted; the Studio's copy puts `sh.check-face@1` before `sh.chart@1`. |
+| `capabilities.pending.json` | Drops those ids it lists, `sh.fold-sides@1` among them. |
+| `index.json`, `accept/fold-sides-*` (nine, moved from `reject/pending-fold-sides-*`) and the `fold-sides-*` entries (the Studio branch of its promotion PR #35 records them, until it merges), `accept/flow-average-numbers.json`, `accept/tile-ink-default-*.json`, `accept/text-keep-*.json`, `reject/flow-average-*.json`, `reject/text-keep-*-invalid-policy.json`, `reject/text-keep-on-literal.json` | The promotion the corpus README describes: a compiled pending case moves to `accept/` with the `pending-` prefix dropped; a refused one keeps its file and takes the Studio's first issue as `issue`. |
 | `state-styles/built-in.json` | The app's version. The Studio's copy has none of the Robot's per-state icons (`house` when docked, `robotic.vacuum` otherwise), which the app has drawn since #122, so `ServerUIStateStyleTests` fails against it. |
 
 Cases the Studio compiles or refuses for ids the app has not ingested stay in the corpus. The tests hold them back by name until the id is in
-`ServerUIIngestedCapabilities`: the `dialctl-*`, `dial-text-place-*`, `fold-sides-*` and `badge-spoken-*` evaluation cases
+`ServerUIIngestedCapabilities`: the `dialctl-*`, `dial-text-place-*` and `badge-spoken-*` evaluation cases
 (`ServerUIExpressionCorpusTests.pendingIds`) and ten refusals that use a pending id's field without declaring it
-(`ServerUIContractCorpusTests.undeclaredUseOfAPendingId`). `sh.text-keep@1` was one of those ids; it is ingested now, so its two cases (`text-keep-read-missing-capability`, `text-keep-expr-missing-capability`) are checked for the exact first issue like any other.
+(`ServerUIContractCorpusTests.undeclaredUseOfAPendingId`). `sh.fold-sides@1` and `sh.text-keep@1` were two of those ids; the fold-sides evaluation cases now run (`foldsides` subject), the nine `accept/fold-sides-*` cases (moved from `reject/pending-fold-sides-*`, byte for byte the Studio generator's output with the id shipped) and twelve refusals are checked by `ServerUIFoldSidesCorpusTests` against `studioIssue`, and the two `*-capability-not-declared` refusals by the exact first issue. `sh.text-keep@1`: it is ingested now, so its two cases (`text-keep-read-missing-capability`, `text-keep-expr-missing-capability`) are checked for the exact first issue like any other.
 
 `evaluation/badge-cap-unavailable-hides`: a badge rule with no source loading and nothing to read gives no value in the Studio (`resolveBadge`,
 `src/shared/composition/evaluator.ts`) and `loading` in the app (`ServerUILooks.badge`).

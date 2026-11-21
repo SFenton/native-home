@@ -364,7 +364,7 @@
       }, 0);
     }
     if (cfg.frame !== false && landscape.length) root.appendChild(sec('reflow', 'Reflow and hinge', [
-      h('p', 'Landscape windows may split (SplitPolicy: regular width, wider than tall, each pane at least 360 pt). The iPad splits at the midpoint. The unfolded Duo splits at the midpoint of the free space, the window minus the trailing rail, while it is fully open, and on the hinge while it is slightly closed (owner rule, 2026-10-24; in flight, see split-view.md). Portrait never splits. Each Play restages the surface in a landscape window, then animates it; pick the hinge posture with the Hinge control.'),
+      h('p', 'Landscape windows may split (SplitPolicy: regular width, wider than tall, each pane at least 360 pt). The iPad splits at the midpoint. The unfolded Duo splits at the midpoint of the free space, the window minus the trailing rail, while it is fully open, and on the hinge while it is slightly closed (owner rule, 2026-10-24; in flight, see split-view.md). Portrait never splits. A page on Two Sides (fold columns, section-sides.md) glides each section from its old frame to its new one on the same token when the posture changes, and under Reduce Motion the old picture cross-fades into the new in 0.2 s. Each Play restages the surface in a landscape window, then animates it; pick the hinge posture with the Hinge control.'),
       splitInfo, rList]));
 
     function playAll(btn) {

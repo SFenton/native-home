@@ -2,7 +2,7 @@
 
 > **What:** the Bedroom 1 with the wake light, Bed bed sides, Streamer and humidifier cards. **Read when:** you change the bedroom lane's tiles on the room page.
 
-- Mockup: [room-master-bedroom.html](room-master-bedroom.html) · in flight (`claude/section-sides`) · reviewed 2026-10-23 (author draft; skill reviewers replace it)
+- Mockup: [room-master-bedroom.html](room-master-bedroom.html) · reviewed 2026-10-23 (author draft; skill reviewers replace it)
 - Source: `apple/Sources/HassUI/` RoomScreen.swift; RoomTiles.swift (RoomCardView); Features/Bedroom/*; HassCore/Bedroom/BedSideController.swift; HassDesign/ThermostatTileFace.swift
 - Spec: .agents/patterns/bedroom-devices.md, .agents/pages/rooms/ios.md · Patterns: bedroom-devices, room-device-sheets, entity-tile
 - States covered: default, loading, refreshing, error, offline, reconnecting (+ was), beds-idle, beds-off, beds-tint-by-state, hot-flash, solo-trip, viewer-sam, wake-ramping/snoozed/blocked, media-playing, window-open, long-text, ax5, placeholder
@@ -13,6 +13,6 @@
   - Bed tiles need a response-capable caller; otherwise generic climate cards.
 - Shared helper: `pages/rooms/_rooms.js` (rooms batch; list of kit promotions in its header).
 - Change log: 2026-10-28 tile rollout R: bed sides carry a Power disc; Humidifier a Power disc; BedSideTile and WakeLightTile are gone (the gallery draws these cards).
-- In flight (`claude/section-sides`, [section-sides](../../../../section-sides.md)): partly folded Duo, each section wholly on one side (fold columns); state `duo-part-fold`. Every other pose unchanged.
+- Partly folded Duo: when the Studio sets the page to Two Sides, each section sits wholly on one side ([section-sides](../../../../section-sides.md)), at every text size; a page left on One Column draws its flat layout with the band. State `duo-part-fold`. Every other pose unchanged.
 - Bed tiles as authored state tiles (publication r32, task bed-tile-span): each takes the tracks its longest line needs, a full row on narrow widths; the icon colour follows the state (`sh.state-style-glyph-tint@1`, `.agents/design/state-glyph-tint.md`).
 - Header: Back, Quick Links and Profile, as on every room page ([room-page](../../rooms/room-page/README.md)).

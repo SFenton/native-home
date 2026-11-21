@@ -11,6 +11,9 @@
  * for a posture change is the owner's 2026-10-24 rule and in flight: the app's layout follows the hinge rect it is handed, and the mockup shows the
  * motion it should have (the same token) rather than a cut.
  *
+ * A page on Two Sides (UKFoldColumns, section-sides.md) reflows the same way: each section glides from its old frame to its new one on `standard`, nothing re-fades, and
+ * under Reduce Motion the old picture cross-fades into the new in 0.2 s (an axis move becomes a fade).
+ *
  * Content reflows live: the panes animate their real `width`, so a TileGrid recounts its columns every frame and text rewraps. A component that
  * computes a fixed width when it is drawn (the weather card's hour count, a carousel) keeps its width until the next render and is not resized
  * mid-move; each mockup that has one says so in its notes.

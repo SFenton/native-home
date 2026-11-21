@@ -168,6 +168,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let scroll: Policy
         public let chrome: Policy
         public let ground: Policy
+        /// The page's `foldSides: auto` switch (`sh.fold-sides@1`): its sections take the two sides of the hinge while the Duo is partly folded.
+        public var foldSides = false
     }
     /// Whether a page navigates as a stack or as navigation columns.
     public enum RouteLayout: String, Sendable { case stack, columns = "navigation-columns" }
@@ -528,6 +530,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let enabledWhen: ServerUIEnabledRule?
         /// A count or text drawn on the node's corner (`sh.badges@1`); `nil` for none. A value of 0 or empty draws nothing.
         public var badgeValue: ServerUIOperand? = nil
+        /// The side of the hinge a page's top-level component says it sits on while the Duo is partly folded (`sh.fold-sides@1`); `nil` leaves it to the rule.
+        public var foldSide: ServerUIFoldSide? = nil
 
         init(id: String, title: String, span: Int, visibleWhen: ServerUIVisibility? = nil, enabledWhen: ServerUIEnabledRule? = nil) {
             self.id = id

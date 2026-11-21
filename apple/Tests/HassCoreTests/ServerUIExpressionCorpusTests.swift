@@ -46,7 +46,7 @@ struct ServerUIExpressionCorpusTests {
     /// The evaluation cases the Studio wrote for ids the app has not ingested, as the file-name test that picks them and the id each waits for. A case
     /// stays out of the run until its id is in ``ServerUIIngestedCapabilities``; from then on it must give its recorded answer like any other.
     ///
-    /// The dial control, the fold sides and the dial text place are subjects the app does not evaluate yet. The spoken badge adds a `spoken` answer.
+    /// The dial control and the dial text place are subjects the app does not evaluate yet. The spoken badge adds a `spoken` answer.
     nonisolated static let pendingIds: [(capability: String, picks: @Sendable (String) -> Bool)] = [
         ("sh.dial-control@1", { $0.hasPrefix("dialctl-") }),
         ("sh.dial-text-place@1", { $0.hasPrefix("dial-text-place-") }),
@@ -191,6 +191,7 @@ struct ServerUIExpressionCorpusTests {
         if let stack = subject["stack"] { return try ServerUIStackLayoutTests.answer(stack) }
         if let chart = subject["chart"] { return try ServerUIChartCorpusAnswers.chart(chart, reader: env) }
         if let gauge = subject["gauge"] { return ServerUIChartCorpusAnswers.gauge(gauge) }
+        if let page = subject["foldsides"] { return foldSidesAnswer(page) }
         if let dial = subject["dial"] { return try ServerUIDialCorpusAnswers.dial(dial) }
         if let arc = subject["arc"] { return try ServerUIDialCorpusAnswers.arc(arc) }
         if let condition = subject["condition"] {
@@ -291,6 +292,36 @@ struct ServerUIExpressionCorpusTests {
             return .object(["asks": .bool(ServerUIControlRules.asksFirst(when, in: env))])
         }
         throw CorpusError.unknownSubject(item.name)
+    }
+
+    /// The `foldsides` subject (`sh.fold-sides@1`): a page's top-level components, and for each one that holds a slot its side and its width.
+    static func foldSidesAnswer(_ page: JSONValue) -> JSONValue {
+        let items = page["items"]?.array ?? []
+        let inputs = items.map { item -> ServerUIFoldSides.Input in
+            let type = item["bodyType"]?.string ?? item["type"]?.string ?? ""
+            let kind: ServerUIFoldSides.Kind = switch type {
+            case "status-rail": .strip
+            case "notification-permission-banner": .staticallyHidden
+            case "pinned-actions": .pinned
+            default: .section
+            }
+            return .init(kind: kind, said: item["foldSide"]?.string.flatMap(ServerUIFoldSide.init(rawValue:)))
+        }
+        guard ServerUIFoldSides.usesFoldSides(switchedOn: page["foldSides"]?.string == "auto", items: inputs) else {
+            return .object(["foldsides": .object(["active": .bool(false), "sides": .array([])])])
+        }
+        let geometry = page["geometry"]
+        let inset = page["inset"]?.number ?? 0
+        let sides = zip(items, ServerUIFoldSides.resolve(inputs)).compactMap { item, side -> JSONValue? in
+            guard let side else { return nil }
+            var entry: [String: JSONValue] = ["id": item["id"] ?? .null, "side": .string(side.rawValue)]
+            if let geometry, let leading = geometry["leading"]?.number, let band = geometry["band"]?.number, let trailing = geometry["trailing"]?.number {
+                let width = ServerUIFoldSides.width(of: side, leading: leading, band: band, trailing: trailing, inset: inset)
+                entry["width"] = .number((width * 10).rounded() / 10)
+            }
+            return .object(entry)
+        }
+        return .object(["foldsides": .object(["active": .bool(true), "sides": .array(sides)])])
     }
 
     enum CorpusError: Error { case unknownSubject(String) }

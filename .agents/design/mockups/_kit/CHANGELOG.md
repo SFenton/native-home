@@ -2,6 +2,11 @@
 
 > **What:** what changed in `_kit/`, newest first, so a mockup author knows which local workaround can go. Existing mockups keep rendering; the entries below list what looks different.
 
+## Unreleased (2026-11-20, sections take sides)
+
+**Reflow (`lib/reflow.js`, `lib/mount.js`)**
+- The Reflow and hinge section says that a page on Two Sides glides each section on `standard` and cross-fades under Reduce Motion. No drawing changed.
+
 ## Unreleased (2026-11-16, parity-loop robot glyph)
 
 **`StateTile` (`components/StateTile.js`)**

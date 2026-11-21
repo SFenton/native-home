@@ -27,7 +27,7 @@
 
     states: {
       'default': { title: 'Living Room playing, Studio on, projector on', note: 'section columns follow the width: one on iPhone and the folded Duo, two on iPad portrait and the unfolded Duo (even), three on iPad landscape', render: function (c) { return page(c); } },
-      'duo-part-fold': { title: 'Duo partly folded: one room per side (in flight)', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Living Room and Media Room lead, Studio trails; each side stacks', render: function (c) { return page(c); } },
+      'duo-part-fold': { title: 'Duo partly folded: one room per side', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Living Room and Media Room lead, Studio trails; each side stacks', render: function (c) { return page(c); } },
       'loading': { title: 'First sign-in, nothing saved', note: 'names at once and a soft pulsing bar where each value goes (GlassTile pending); the page reads EntityStore, so there is no spinner', render: function (c) { return page(c, { mode: 'pending' }); } },
       'refreshing': { title: 'Saved snapshot, fresh values swap in', note: 'identical to default by design: nothing re-fades (owner 2026-10-17)', render: function (c) { return page(c); } },
       'error': { title: 'Every entity unavailable', note: 'subtitles read Unavailable; source and script tiles dim their glyph and cannot be tapped; lead tiles still open their remote (its Power key is how the TV turns on)', render: function (c) { return page(c, { mode: 'unavailable' }); } },
@@ -95,7 +95,7 @@
     },
 
     notes: [
-      'Partly folded Duo (claude/section-sides, section-sides.md): fold columns by configured order, Living Room and Media Room lead, Studio trails, stacked per side at every text size (was: the 340 pt grid, row-major, which fell back to one track across the band above Large); every other pose unchanged.',
+      'Partly folded Duo (section-sides.md): fold columns by configured order, Living Room and Media Room lead, Studio trails, stacked per side at every text size (was: the 340 pt grid, row-major, which fell back to one track across the band above Large); every other pose unchanged.',
       "Built on claude/action-nav-tiles: remote lead tiles are navigation tiles with actions: off shows Power beside the chevron; playing shows previous, play/pause, next below the text and the volume slider (writes on release), full-row tile only. Source and script tiles are unchanged.",
       'empty: this page has no empty state; the sections come from MediaPageConfig and every card always draws (an unavailable entity shows in the error state).',
       'The Bedroom 1 Streamer is not on this page (web parity, spec.md); it opens from the Bedroom 1 room page. The brief\'s statesHint lists it; it is drawn in the media-remote-sheet mockup.',
@@ -104,7 +104,7 @@
       'Game Console\'s tile says On only while the active source is Game Console or Game (MediaPageConfig); the Devices row in the Studio remote uses a different resolver (cloud state or the Sync Box path), so the two can disagree.',
       'Sample states are the gallery fixtures. Wallpaper and glyphs are kit stand-ins.',
     ],
-    changelog: [{ date: '2026-11-04', note: 'Lying flat in landscape, the final room section with nothing beside it spans both section columns (four tile tracks); partly folded it keeps its side. Remote app tiles never fill.' }, { date: '2026-11-03', note: 'In flight (claude/section-sides): partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: three rooms, every tile state, six devices, AX5, offline and reconnecting.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): remote lead tiles are navigation tiles with actions: off shows Power beside the chevron; playing shows previous, play/pause, next below the text and the volume slider (writes on release), full-row til" }],
+    changelog: [{ date: '2026-11-04', note: 'Lying flat in landscape, the final room section with nothing beside it spans both section columns (four tile tracks); partly folded it keeps its side. Remote app tiles never fill.' }, { date: '2026-11-03', note: 'partly folded Duo fold columns; state duo-part-fold.' }, { date: '2026-10-23', note: 'First pass: three rooms, every tile state, six devices, AX5, offline and reconnecting.' }, { date: '2026-10-27', note: "Action tiles (claude/action-nav-tiles): remote lead tiles are navigation tiles with actions: off shows Power beside the chevron; playing shows previous, play/pause, next below the text and the volume slider (writes on release), full-row til" }],
   });
 })();
 </script></body></html>

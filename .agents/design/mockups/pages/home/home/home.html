@@ -11,7 +11,7 @@
   var h = Mock.h, K = Mock.components, HW = Mock.HW;
 
   /* ---- the Home page body, section order as HomeScreen.swift draws it: status rail, weather, guests (only while a toggle is on), cameras.
-     Unfolded Duo landscape splits on the hinge (HomeColumns): the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather leads, cameras and guests trail; iPad landscape stays one column. */
+     Unfolded Duo landscape splits on the hinge when the Studio's Partly Folded setting is Two Sides: the chip rail spans the whole page above both columns and scrolls over the hinge (owner 2026-10-26), weather and guests lead, cameras trail; iPad landscape stays one column. */
   function appMin(n) { var c = Mock.current; return n / ((c && c.scale) || 1); } /* the app's ControlTileGrid (110) and CameraGrid (160) pass a plain number: not @ScaledMetric, so they do not follow Dynamic Type; the kit TileGrid scales min, so divide it out */
   function section(title, kids) { return h('div.ui-section', K.PageSectionHeader({ title: title }), kids); }
   function cameras(o) {
@@ -31,8 +31,8 @@
     var chips = K.ChipRail({ chips: o.chips || Mock.chips.home(o.chipOpts), });
     var wx = HW.card(ctx, Object.assign({ condition: 'Partly Cloudy', temp: 48, hi: 58, lo: 38, narrow: !!ctx.splitAtHinge }, o.weather));
     var cams = cameras(o), g = o.guests ? guests() : null;
-    /* HomeColumns.resolve: two columns only while the band exists (partly folded); flat, Home is one column and the weather spans (owner 2026-11-03). Home is the first fold-columns consumer (section-sides.md). */
-    var fold = Mock.foldColumns(ctx, { top: [chips], leading: [wx], trailing: [cams, g] });
+    /* Fold columns: two columns only while the band exists (partly folded) and the Studio's Partly Folded setting is Two Sides; flat, Home is one column and the weather spans (owner 2026-11-03). Home is the first fold-columns consumer (section-sides.md). */
+    var fold = Mock.foldColumns(ctx, { top: [chips], leading: [wx, g], trailing: [cams] });
     if (fold) return fold;
     return [chips, wx, g, cams];
   }
@@ -75,7 +75,7 @@
         return page(d, { weather: { condition: 'Heavy Thunderstorm With Hail', glyph: 'storm' }, chipOpts: { security: 'triggered', contacts: ['armed', 3], aqi: ['AQI 118–142 · PM2.5 38–54'], climate: ['83.4–87.9°F', 85], lights: 14 } }); } },
       'guests': { title: 'Guests staying over', note: 'the section shows only while a guest toggle is on', render: function (d) { return page(d, { guests: true }); } },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, render: function (d) { return page(d, { guests: true }); } },
-      'duo-part-fold': { title: 'Duo partly folded: the model for every page', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'HomeColumns (fold columns, section-sides.md): the rail spans the top, weather leads; Cameras sit top right, level with the weather, then Guests (rule 11, owner 2026-11-03: "Cameras top right like home page"). At accessibility sizes the rail wraps and heads the leading column, so Cameras stays top right', render: function (d) { return page(d, { guests: true }); } },
+      'duo-part-fold': { title: 'Duo partly folded: the model for every page', override: { device: 'duo-unfolded-landscape', posture: 'part' }, note: 'Fold columns (section-sides.md): the sides come from the page\'s Partly Folded setting in the Studio. The rail spans the top; the weather and Guests (when a guest toggle is on) lead, Cameras trail alone at the top right, level with the weather and never moving. At accessibility sizes the rail wraps and heads the leading column, so Cameras stays top right', render: function (d) { return page(d, { guests: true }); } },
       'duo-flat': { title: 'Duo lying flat: one column', override: { device: 'duo-unfolded-landscape', posture: 'open' }, note: 'no band, so no columns: the weather spans the page (owner 2026-11-03: "weather takes the whole span when unfolded")', render: function (d) { return page(d, { guests: true }); } },
     },
 
@@ -118,7 +118,7 @@
     ],
 
     a11y: [
-      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), then the reconnecting arc when present, Quick Links, Profile; then the page title (heading), the status chips, the weather card, Guests Staying Over, Cameras; the tab bar last.' },
+      { rule: 'Reading order', note: 'Open Navigation (iPhone, iPad), then the reconnecting arc when present, Quick Links, Profile; then the page title (heading), the status chips, the weather card, Guests Staying Over, Cameras (partly folded the same order: weather, Guests, then Cameras); the tab bar last.' },
       { rule: 'Chips', note: 'Each chip is a button named "<title>, <summary>" ("Security, Armed Home") with the hint "Opens <title>". State is colour AND glyph AND words: the contact chip adds an alert triangle when armed, and "n Open" counts.' },
       { rule: 'Weather card', note: 'One button: "<condition>, <n> degrees". The ticker text is hidden from VoiceOver; the condition is never truncated. Accessibility sizes stack the header and wrap the condition.' },
       { rule: 'Cameras', note: 'Each tile is "<name> camera" with value "Live" or "Snapshot" and the hint "Opens the camera". The red live dot is decorative.' },
@@ -164,7 +164,7 @@
       "Corrected 2026-10-23 (skill review): the guest tiles (ControlTileGrid, min 110) and cameras (CameraGrid, min 160) are plain numbers in the app, not @ScaledMetric, so at AX5 they stay three and two columns wide; the mockup had drawn one column because the kit TileGrid scales every minimum. Home now passes appMin() to undo the scaling.",
 
     ],
-    changelog: [{ date: '2026-11-03', note: 'In flight (claude/section-sides): Cameras top right made a rule (section-sides.md rule 11, owner: "Cameras top right like home page"); partly folded at accessibility sizes the wrapped rail heads the leading column instead of spanning, so Cameras stays top right.' }, { date: '2026-11-03', note: 'Corrected: the two columns are drawn only while the Duo is partly folded (HomeColumns.resolve needs the band); lying flat Home is one column. States duo-part-fold and duo-flat. Home is the model for fold columns (section-sides.md).' }, { date: '2026-10-23', note: 'First pass built with the kit (iPhone, folded Duo, unfolded Duo, iPad).' }, { date: '2026-10-26', note: 'In flight (fix/duo-tabbar-chip-rail, owner): the chip rail spans the whole page above the unfolded Duo\'s two columns and scrolls over the hinge; iPad shows one scrolling row; the unfolded Duo keeps the tab bar (trailing vertical bar).' }],
+    changelog: [{ date: '2026-11-20', note: 'Sections take sides: the Studio sets Two Sides, Guests lead under the weather and Cameras trail alone (owner: "Guests on the left").' }, { date: '2026-11-03', note: 'Cameras top right made a rule (section-sides.md rule 11, owner: "Cameras top right like home page"); partly folded at accessibility sizes the wrapped rail heads the leading column instead of spanning, so Cameras stays top right.' }, { date: '2026-11-03', note: 'Corrected: the two columns are drawn only while the Duo is partly folded (HomeColumns.resolve needs the band); lying flat Home is one column. States duo-part-fold and duo-flat. Home is the model for fold columns (section-sides.md).' }, { date: '2026-10-23', note: 'First pass built with the kit (iPhone, folded Duo, unfolded Duo, iPad).' }, { date: '2026-10-26', note: 'In flight (fix/duo-tabbar-chip-rail, owner): the chip rail spans the whole page above the unfolded Duo\'s two columns and scrolls over the hinge; iPad shows one scrolling row; the unfolded Duo keeps the tab bar (trailing vertical bar).' }],
   });
 })();
 </script></body></html>

@@ -24,6 +24,15 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// Whether the nodes' observations rest because the page is away (``restNodes()``).
     private var nodesRest = false
     private let column = UKColumnView()
+    /// The body's content while the page's sections take the two sides of the hinge (`sh.fold-sides@1`), in both poses so a posture change
+    /// only moves frames.
+    private lazy var foldColumns = UKFoldColumns(
+        spacing: 0, isRegular: { [weak self] in self?.traitCollection.horizontalSizeClass == .regular },
+        offeredHeight: { [weak self] in self?.body?.bounds.height ?? 0 })
+    /// Whether the body draws through ``foldColumns``.
+    private(set) var drawsFoldSides = false
+    /// The window's hinge while the Duo is partly folded, as the page's observer last read it; never read from a layout pass.
+    private var foldHinge: CGRect?
     private(set) var body: UKPageScrollView?
     /// The one view the page's scroller sits in: the ``body`` column, or a record collection's own scroller.
     private let slot = UIView()
@@ -173,6 +182,12 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             guard let self else { return }
             _ = self.context.shell?.chrome
             _ = self.context.shell?.inVerticalBar
+            let hinge = self.context.shell?.windowHinge
+            if self.foldHinge != hinge {
+                self.foldHinge = hinge
+                if self.drawsFoldSides { self.foldColumns.hinge = hinge }
+                self.narrowScroller()
+            }
             self.refreshTitle()
             self.refreshChrome()
             _ = self.bedroomDrafts.values.contains(where: \.blocksExit)
@@ -181,6 +196,12 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         registerForTraitChanges([UITraitPreferredContentSizeCategory.self, UITraitLayoutDirection.self]) { (page: UKServerUIPage, _) in
             page.render()
         }
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        // Moving into a column turns the sides off; moving out of one turns them on again.
+        if isViewLoaded, definition.usesFoldSides { render() }
     }
 
     /// Updates values and keyed children in place; a publication is not a new page instance.
@@ -354,6 +375,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         case .unbounded: body.maxWidth = .greatestFiniteMagnitude
         case .points(let value): body.maxWidth = value
         }
+        setFoldSides(on: allowsFoldSides && scrollerID == nil, body: body)
         var retained: [String: UKServerUINode] = [:]
         var retainedScopes: [String: UKServerUICellScope] = [:]
         defer { cellScopes = retainedScopes }
@@ -1062,16 +1084,17 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         }.map(\.1)
         scrollerCollectionID = scrollerID
         hostScroller(scrollerID.flatMap { retained[$0]?.view as? UKServerUICollectionView })
-        let rootChanged = column.views != views
+        let sections = drawsFoldSides ? foldSections(roots, scrollerID: scrollerID, renderer: renderer) : []
+        let rootChanged = drawsFoldSides ? foldColumns.sections != sections : column.views != views
         // Clear changed owners before reattaching: canonical setters remove their previous children,
         // including a keyed view another container might otherwise have already adopted.
-        if rootChanged { column.setViews([]) }
+        if rootChanged { clearRoots() }
         sectionChanges.forEach { $0.releaseItems() }
         for change in containerChanges { change.clear() }
         for (rail, _) in railChanges { rail.setChips([]) }
         for change in containerChanges { change.install() }
         for (rail, children) in railChanges { rail.setChips(children) }
-        if rootChanged { column.setViews(views) }
+        if rootChanged { drawsFoldSides ? foldColumns.setSections(sections) : column.setViews(views) }
         for (key, node) in nodes where retained[key]?.view !== node.view {
             (node.view as? UKServerUIFormView)?.detach()
             (node.view as? UKServerUILocalTabs)?.detach()
@@ -1109,7 +1132,13 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                 if case .pinnedActions = $0.0 { return false }
                 return $0.0.node.id != scrollerID && renderer.componentVisible($0.0)
             }.map(\.1)
-            if self.column.views != views {
+            if self.drawsFoldSides {
+                let sections = self.foldSections(roots, scrollerID: scrollerID, renderer: renderer)
+                if self.foldColumns.sections != sections {
+                    self.foldColumns.setSections(sections)
+                    self.body?.contentChanged(animated: false)
+                }
+            } else if self.column.views != views {
                 self.column.setViews(views)
                 self.body?.contentChanged(animated: false)
             }
@@ -1117,6 +1146,76 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
         body.contentChanged(animated: false)
         refreshChrome()
         restNodes()
+    }
+
+    // MARK: - Fold sides (sh.fold-sides@1)
+
+    /// Whether this page may take the two sides of the hinge: the page says so, and it is not a sheet, not a page of a column and not a page that hosts columns.
+    private var allowsFoldSides: Bool {
+        guard definition.usesFoldSides, !isSheet, columnPlaceholder == nil else { return false }
+        var ancestor = parent
+        while let controller = ancestor {
+            if controller is UKColumnsViewController { return false }
+            ancestor = controller.parent
+        }
+        return true
+    }
+
+    /// Hosts the keyed root views in ``foldColumns`` (on) or in the plain column (off), and hands the container the page's padding.
+    private func setFoldSides(on: Bool, body: UKPageScrollView) {
+        if on != drawsFoldSides {
+            clearRoots()
+            drawsFoldSides = on
+            body.contentInsetsItself = on
+            if on { body.replaceContent(foldColumns) } else { body.replaceContent(column) }
+        }
+        guard on else { return }
+        foldColumns.spacing = definition.layout.spacing.points
+        foldColumns.insets = UIEdgeInsets(top: body.padding.top, left: 0, bottom: body.padding.bottom, right: 0)
+        foldColumns.sideInset = max(body.padding.left, body.padding.right)
+        foldColumns.flatMaxWidth = body.maxWidth
+        foldColumns.hinge = foldHinge
+    }
+
+    private func clearRoots() {
+        column.setViews([])
+        foldColumns.setSections([])
+    }
+
+    /// The page's top-level views with their sides: a hidden one keeps its slot; the pinned bar and a hosted scroller are not in the column.
+    private func foldSections(_ roots: [(D.Component, UIView)], scrollerID: String?, renderer: UKServerUIRenderer) -> [UKFoldColumns.Section] {
+        let sides = definition.foldSides
+        return roots.enumerated().compactMap { index, root in
+            let (component, view) = root
+            if case .pinnedActions = component { return nil }
+            guard component.node.id != scrollerID else { return nil }
+            let hidden = !renderer.componentVisible(component)
+            switch sides[index] {
+            case nil: return .init(view, side: .top, isHidden: hidden, topSpansLeadingOnly: true)
+            case .span: return .init(view, side: .top, isHidden: hidden)
+            case .leading: return .init(view, side: .leading, isHidden: hidden)
+            case .trailing: return .init(view, side: .trailing, isHidden: hidden)
+            }
+        }
+    }
+
+    /// A page whose body is one scrolling collection keeps that scroller and narrows it to the leading region while split.
+    private func narrowScroller() {
+        guard let id = scrollerCollectionID, let body, let collection = nodes[id]?.view as? UKServerUICollectionView else { return }
+        collection.applyPageLayout(padding: scrollerPadding(body.padding), maxWidth: body.maxWidth)
+    }
+
+    private func scrollerPadding(_ padding: UIEdgeInsets) -> UIEdgeInsets {
+        guard allowsFoldSides, let foldHinge, slot.window != nil,
+              let geometry = FoldColumns.resolve(container: HomeColumns.container(from: slot.convert(slot.bounds, to: nil)),
+                                                 isRegularWidth: traitCollection.horizontalSizeClass == .regular, hinge: foldHinge) else { return padding }
+        var narrowed = padding
+        if view.effectiveUserInterfaceLayoutDirection == .rightToLeft {
+            narrowed.left += slot.bounds.width - geometry.trailingWidth
+        } else {
+            narrowed.right += slot.bounds.width - geometry.leadingWidth
+        }
+        return narrowed
     }
 
     // MARK: - Resting while away
@@ -1175,7 +1274,7 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             setPageScrollView(scroll)
         }
         if let collection {
-            collection.applyPageLayout(padding: body.padding, maxWidth: body.maxWidth)
+            collection.applyPageLayout(padding: scrollerPadding(body.padding), maxWidth: body.maxWidth)
         }
     }
 

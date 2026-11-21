@@ -220,17 +220,22 @@ enum ServerUICompositionShape {
             "replace": object(["type": fixed("replace"), "groups": groups])
         ])
     }()
-    static let body: Shape = {
-        object([
+    static let body: Shape = { body(page: false) }()
+    /// A page's column carries the `foldSides` switch (`sh.fold-sides@1`); a sheet's and a level's does not.
+    static let pageBody: Shape = { body(page: true) }()
+    private static func body(page: Bool) -> Shape {
+        var fields: [String: Shape] = [
             "type": fixed("column"), "padding": insets, "spacing": space, "maxWidth": width,
             "scroll": fixed("content-fit@1"), "chrome": fixed("canonical-page@1"), "ground": fixed("host")
-        ])
-    }()
+        ]
+        if page { fields["foldSides"] = .optional(.choice(["auto"])) }
+        return object(fields)
+    }
     /// A surface's shape: a page by default, a modal with `modal`, a level of a sheet with `level` (no route style, no presentation, no page-only fields).
     static func surface(modal: Bool = false, level: Bool = false) -> Shape {
         var fields: [String: Shape] = [
             "id": id, "title": title, "icon": symbol, "parameters": arguments,
-            "layout": body, "toolbar": toolbar, "components": array(.component, 100),
+            "layout": modal || level ? body : pageBody, "toolbar": toolbar, "components": array(.component, 100),
             "titleSourceId": .optional(id)
         ]
         if modal {
