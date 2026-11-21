@@ -49,6 +49,7 @@
         "PerformanceJourneyTests",
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
+        "RoomChromeLiveJourneyTests",
         "RoomDevicesCaptureJourneyTests",
         "RoomTabLiveJourneyTests",
         "ServerUIProdSmokeJourneyTests",
