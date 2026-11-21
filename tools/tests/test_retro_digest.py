@@ -58,6 +58,18 @@ class TriggerTests(Base):
         self.assertEqual(doc["counts"]["turns"], 0)
         self.assertEqual(doc["aar"]["why_different"], "")
 
+    def test_status_defaults_to_the_worktree_status_file(self):
+        self.write("build/status/T.json", {"status": "blocked", "blocked_reason": "owner_review"})
+        doc = self.run_digest(task="T")
+        self.assertEqual(doc["outcome"], "blocked")
+        self.assertNotIn("no status", doc["aar"]["happened"])
+        self.assertIn("owner_review", self.fired(doc)["blocked"][0])
+
+    def test_a_missing_worktree_status_file_is_fine(self):
+        doc = self.run_digest(task="T")
+        self.assertEqual(doc["triggers"], [])
+        self.assertIsNone(doc["outcome"])
+
     def test_blocked_from_status(self):
         status = self.write("status.json", {"state": "blocked", "blocked_reason": "needs a key", "summary": "s"})
         self.assertIn("needs a key", self.fired(self.run_digest("--status", str(status)))["blocked"][0])

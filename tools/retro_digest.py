@@ -228,6 +228,9 @@ def find_sources(args: argparse.Namespace) -> Dict[str, Optional[Path]]:
         src.update(ledger=build / "tasks" / f"{task}.json", review=build / "review", gate=build / "jev" / "gate.jsonl",
                    shadow=build / "jev" / "shadow.jsonl", runs=build / "runs", status=None, log=None, comments=None,
                    out=build / "retro" / f"{task}.json")
+        default_status = build / "status" / f"{task}.json"  # tools/agent_status.py writes it, when the worktree holds one
+        if default_status.is_file():
+            src["status"] = default_status
     for key, flag in (("status", args.status), ("log", args.log), ("comments", args.comments), ("out", args.json)):
         if flag:
             src[key] = Path(flag)
