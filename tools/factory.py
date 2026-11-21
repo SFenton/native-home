@@ -158,7 +158,7 @@ class ReadOnlyRunner:
         return (
             list(command) == ["xcrun", "simctl", "list", "devices", "-j"]
             or list(command) == ["lsof", "-d", "cwd", "-Fn"]
-            or list(command) == ["ps", "-axo", "pid=,command="]
+            or list(command) == ["ps", "-axo", "pid="]
         )
 
     def run(
@@ -174,15 +174,31 @@ class ReadOnlyRunner:
         environment["GIT_TERMINAL_PROMPT"] = "0"
         environment["LC_ALL"] = "C"
         try:
-            return self._runner(
+            completed = self._runner(
                 args,
                 cwd=str(cwd) if cwd is not None else None,
                 capture_output=True,
-                text=True,
+                text=False,
                 env=environment,
                 timeout=60,
             )
-        except (OSError, subprocess.SubprocessError) as error:
+            stdout = completed.stdout
+            stderr = completed.stderr
+            return subprocess.CompletedProcess(
+                args,
+                completed.returncode,
+                (
+                    stdout.decode("utf-8", errors="replace")
+                    if isinstance(stdout, bytes)
+                    else (stdout or "")
+                ),
+                (
+                    stderr.decode("utf-8", errors="replace")
+                    if isinstance(stderr, bytes)
+                    else (stderr or "")
+                ),
+            )
+        except (OSError, subprocess.SubprocessError, UnicodeError) as error:
             raise ProviderError("read command failed") from error
 
 
@@ -194,7 +210,7 @@ class ReadOnlyProcessProvider:
 
     def inventory(self) -> ProcessObservation:
         try:
-            ps = self._runner.run(["ps", "-axo", "pid=,command="])
+            ps = self._runner.run(["ps", "-axo", "pid="])
             pids = (
                 frozenset(
                     int(parts[0])
@@ -204,7 +220,7 @@ class ReadOnlyProcessProvider:
                 if ps.returncode == 0
                 else None
             )
-        except ProviderError:
+        except Exception:
             pids = None
         try:
             lsof = self._runner.run(["lsof", "-d", "cwd", "-Fn"])
@@ -217,7 +233,7 @@ class ReadOnlyProcessProvider:
                 if lsof.returncode == 0
                 else None
             )
-        except ProviderError:
+        except Exception:
             cwds = None
         return ProcessObservation(pids=pids, cwds=cwds)
 
@@ -404,7 +420,7 @@ class GitResourceProvider:
                 return self._scratch(worktrees, processes)
             if self.resource_class == "run_markers":
                 return self._run_markers(worktrees, processes)
-        except ProviderError:
+        except Exception:
             return Inventory(unreadable=1)
         return Inventory(unreadable=1)
 
@@ -419,20 +435,18 @@ class GitResourceProvider:
             try:
                 dirty, untracked, ignored = self._reader.status(tree.path)
                 unreadable = False
-            except ProviderError:
+            except Exception:
                 dirty = untracked = ignored = False
                 unreadable = True
             live, process_partial = process_status(tree.path, processes)
+            merge_evidence = self._reader.merge_evidence(
+                tree.head, base_sha
+            )
             observations.append(
                 ResourceObservation(
                     resource_class=self.resource_class,
-                    finished=(
-                        self._reader.merge_evidence(tree.head, base_sha)
-                        == "ancestor"
-                    ),
-                    merge_evidence=self._reader.merge_evidence(
-                        tree.head, base_sha
-                    ),
+                    finished=None,
+                    merge_evidence=merge_evidence,
                     active_hold=live,
                     fresh_at_main=bool(base_sha and tree.head == base_sha),
                     dirty=dirty,
@@ -465,12 +479,12 @@ class GitResourceProvider:
             branch, sha = parts
             if branch == "main":
                 continue
+            merge_evidence = self._reader.merge_evidence(sha, base_sha)
             observations.append(
                 ResourceObservation(
                     resource_class=self.resource_class,
-                    finished=self._reader.merge_evidence(sha, base_sha)
-                    == "ancestor",
-                    merge_evidence=self._reader.merge_evidence(sha, base_sha),
+                    finished=None,
+                    merge_evidence=merge_evidence,
                     active_hold=branch in checked_out,
                     fresh_at_main=bool(base_sha and sha == base_sha),
                     locked=checked_out.get(branch, False),
@@ -513,9 +527,9 @@ class GitResourceProvider:
         observations = []
         for tree in worktrees:
             build = tree.path / "build"
-            if not build.exists():
-                continue
             try:
+                if not build.exists():
+                    continue
                 children = tuple(
                     child
                     for child in build.iterdir()
@@ -536,9 +550,9 @@ class GitResourceProvider:
         observations = []
         for tree in worktrees:
             directory = tree.path / "build" / "runs"
-            if not directory.exists():
-                continue
             try:
+                if not directory.exists():
+                    continue
                 markers = tuple(directory.glob("*.running"))
             except OSError as error:
                 raise ProviderError("run markers unreadable") from error
@@ -755,7 +769,10 @@ def classify(observation: ResourceObservation) -> frozenset[str]:
         reasons.add("untracked")
     if observation.merge_evidence == "unmerged":
         reasons.add("unmerged")
-    elif observation.merge_evidence not in ("ancestor", "not_required"):
+    elif observation.merge_evidence == "ancestor":
+        if not observation.fresh_at_main:
+            reasons.add("insufficient_merge_evidence")
+    elif observation.merge_evidence != "not_required":
         reasons.add("insufficient_merge_evidence")
     return frozenset(reasons)
 
@@ -797,18 +814,27 @@ def build_report(
     """Aggregate provider observations into counts and enumerated reasons."""
 
     report = empty_report()
-    process_snapshot = processes.inventory()
+    try:
+        process_snapshot = processes.inventory()
+    except Exception:
+        process_snapshot = ProcessObservation(pids=None, cwds=None)
+    if not isinstance(process_snapshot, ProcessObservation):
+        process_snapshot = ProcessObservation(pids=None, cwds=None)
     seen = set()
     for provider in providers:
-        resource_class = provider.resource_class
+        try:
+            resource_class = provider.resource_class
+        except Exception:
+            continue
         if resource_class not in RESOURCE_CLASSES:
             continue
         seen.add(resource_class)
         try:
             inventory = provider.inventory(process_snapshot)
-        except ProviderError:
+            add_inventory(report, resource_class, inventory)
+        except Exception:
             inventory = Inventory(unreadable=1)
-        add_inventory(report, resource_class, inventory)
+            add_inventory(report, resource_class, inventory)
     for resource_class in RESOURCE_CLASSES:
         if resource_class not in seen:
             add_inventory(report, resource_class, Inventory(unreadable=1))
@@ -864,12 +890,16 @@ def main(arguments: Sequence[str] | None = None) -> int:
         help="repository checkout to inspect read-only",
     )
     args = parser.parse_args(arguments)
-    providers, processes = default_providers(args.repo.resolve())
-    result = build_report(providers, processes)
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        sys.stdout.write(render_text(result))
+    try:
+        providers, processes = default_providers(args.repo.resolve())
+        result = build_report(providers, processes)
+        if args.json:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        else:
+            sys.stdout.write(render_text(result))
+    except Exception:
+        sys.stderr.write("factory report failed\n")
+        return 1
     return 0
 
 

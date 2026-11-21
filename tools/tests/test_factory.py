@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -30,10 +31,15 @@ class StaticProcessProvider:
         self,
         pids: frozenset[int] | None = frozenset(),
         cwds: tuple[Path, ...] | None = (),
+        *,
+        error: Exception | None = None,
     ) -> None:
         self.value = factory.ProcessObservation(pids=pids, cwds=cwds)
+        self.error = error
 
     def inventory(self) -> factory.ProcessObservation:
+        if self.error is not None:
+            raise self.error
         return self.value
 
 
@@ -63,9 +69,6 @@ class StaticResourceProvider:
         return factory.Inventory(
             self.observations, self.unreadable, self.partial
         )
-
-    def mutate(self) -> None:
-        raise AssertionError("report called a mutating provider method")
 
 
 def observation(
@@ -143,10 +146,17 @@ class ReportContractTests(unittest.TestCase):
                 {"untracked": True},
             )
         )
+        # This eligible fixture carries explicit provider attestation, not Git ancestry.
+        eligible_attestation = observation(
+            "worktrees",
+            owned=True,
+            finished=True,
+            merge_evidence="not_required",
+        )
         providers = [
             StaticResourceProvider(
                 resource_class,
-                (*held, observation("worktrees"))
+                (*held, eligible_attestation)
                 if resource_class == "worktrees"
                 else (observation(resource_class),),
             )
@@ -201,6 +211,60 @@ class ReportContractTests(unittest.TestCase):
         self.assertIn("worktrees.unknown_owner=0", rendered)
         self.assertIn("simulators total=0", rendered)
 
+    def test_unexpected_provider_errors_are_unreadable_without_stderr(self):
+        private = "/synthetic/provider-private-path"
+        failures = (
+            PermissionError(13, "synthetic denied", private),
+            UnicodeDecodeError(
+                "utf-8", b"\xff", 0, 1, "synthetic decode failure"
+            ),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__):
+                providers = [
+                    StaticResourceProvider(
+                        resource_class,
+                        error=failure
+                        if resource_class == "worktrees"
+                        else None,
+                    )
+                    for resource_class in factory.RESOURCE_CLASSES
+                ]
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    report = factory.build_report(
+                        providers, StaticProcessProvider()
+                    )
+                self.assertEqual(err.getvalue(), "")
+                self.assertEqual(out.getvalue(), "")
+                self.assertEqual(
+                    report["worktrees"]["hold_reasons"]["unreadable"], 1
+                )
+
+    def test_process_provider_error_supplies_a_none_snapshot(self):
+        private = "/synthetic/process-private-path"
+
+        class RecordingProvider(StaticResourceProvider):
+            snapshot = None
+
+            def inventory(
+                self, processes: factory.ProcessObservation
+            ) -> factory.Inventory:
+                self.snapshot = processes
+                return factory.Inventory()
+
+        recording = RecordingProvider("worktrees")
+        processes = StaticProcessProvider(
+            error=OSError(13, "synthetic denied", private)
+        )
+        with redirect_stderr(io.StringIO()) as err:
+            factory.build_report((recording,), processes)
+        self.assertEqual(err.getvalue(), "")
+        self.assertEqual(
+            recording.snapshot,
+            factory.ProcessObservation(pids=None, cwds=None),
+        )
+
     def test_provider_wide_incomplete_counts_are_reported(self):
         providers = [
             StaticResourceProvider(
@@ -241,6 +305,20 @@ class ReportContractTests(unittest.TestCase):
             all(result[name]["total"] == 0 for name in factory.RESOURCE_CLASSES)
         )
 
+    def test_cli_reports_one_fixed_error_without_private_exception_text(self):
+        private = "/synthetic/cli-private-path"
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(
+            factory,
+            "default_providers",
+            side_effect=PermissionError(13, "synthetic denied", private),
+        ), redirect_stdout(out), redirect_stderr(err):
+            result = factory.main(["report"])
+        self.assertEqual(result, 1)
+        self.assertEqual(out.getvalue(), "")
+        self.assertEqual(err.getvalue(), "factory report failed\n")
+        self.assertNotIn(private, err.getvalue())
+
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
     def test_only_allowlisted_read_commands_reach_the_runner(self):
@@ -273,35 +351,57 @@ class ReadOnlyBoundaryTests(unittest.TestCase):
                 runner.run(command)
         self.assertEqual(len(calls), before)
 
-    def test_repeated_provider_reports_never_call_a_mutator(self):
-        provider = StaticResourceProvider(
-            "worktrees", (observation("worktrees"),)
+    def test_refused_provider_command_becomes_unreadable_without_stderr(self):
+        calls = []
+
+        def run(command, **values):
+            calls.append((command, values))
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+
+        class RefusingProvider:
+            resource_class = "worktrees"
+
+            def __init__(self) -> None:
+                self.runner = factory.ReadOnlyRunner(run)
+
+            def inventory(
+                self, _processes: factory.ProcessObservation
+            ) -> factory.Inventory:
+                self.runner.run(
+                    ["git", "-C", "/synthetic/repo", "clean", "-fd"]
+                )
+                return factory.Inventory()
+
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            report = factory.build_report(
+                (RefusingProvider(),), StaticProcessProvider()
+            )
+        self.assertEqual(err.getvalue(), "")
+        self.assertEqual(out.getvalue(), "")
+        self.assertEqual(calls, [])
+        self.assertEqual(
+            report["worktrees"]["hold_reasons"]["unreadable"], 1
         )
-        providers = [
-            provider,
-            *(
-                StaticResourceProvider(resource_class)
-                for resource_class in factory.RESOURCE_CLASSES
-                if resource_class != "worktrees"
-            ),
-        ]
-        first = factory.build_report(providers, StaticProcessProvider())
-        second = factory.build_report(providers, StaticProcessProvider())
-        self.assertEqual(first, second)
-        self.assertEqual(provider.calls, 2)
 
     def test_process_provider_uses_read_only_commands_and_handles_empty_ps(self):
+        commands = []
+
         def run(command, **_values):
+            commands.append(command)
             if command[:1] == ["ps"]:
-                return subprocess.CompletedProcess(command, 0, "\n7 task\n", "")
+                return subprocess.CompletedProcess(
+                    command, 0, b"\n7\n\xff\n", b""
+                )
             return subprocess.CompletedProcess(
-                command, 0, "n/synthetic/path\n", ""
+                command, 0, b"n/synthetic/path\n", b""
             )
 
         provider = factory.ReadOnlyProcessProvider(factory.ReadOnlyRunner(run))
         result = provider.inventory()
         self.assertEqual(result.pids, frozenset({7}))
         self.assertEqual(result.cwds, (Path("/synthetic/path"),))
+        self.assertEqual(commands[0], ["ps", "-axo", "pid="])
 
 
 class SimulatorProviderTests(unittest.TestCase):
@@ -474,12 +574,7 @@ class GitProviderProofTests(unittest.TestCase):
         (self.repo / "apple").mkdir()
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-qm", "base")
-        git(
-            self.repo,
-            "update-ref",
-            "refs/remotes/origin/main",
-            "HEAD",
-        )
+        old_main = git(self.repo, "rev-parse", "HEAD")
         git(
             self.repo,
             "worktree",
@@ -504,6 +599,16 @@ class GitProviderProofTests(unittest.TestCase):
         (self.lane / "build" / "runs" / "left.running").write_text(
             json.dumps({"pid": 4242, "cwd": "/synthetic/raw-cwd"})
         )
+        git(self.repo, "branch", "agents/older", old_main)
+        (self.repo / "main-only.txt").write_text("new main\n")
+        git(self.repo, "add", "main-only.txt")
+        git(self.repo, "commit", "-qm", "advance main")
+        git(
+            self.repo,
+            "update-ref",
+            "refs/remotes/origin/main",
+            "HEAD",
+        )
         git(self.repo, "branch", "agents/fresh", "main")
 
         runner = factory.ReadOnlyRunner()
@@ -523,11 +628,6 @@ class GitProviderProofTests(unittest.TestCase):
         )
 
     def test_repeated_reports_preserve_files_ignored_files_and_git_state(self):
-        fake_external = {
-            "holders": ["synthetic holder"],
-            "simulators": ["synthetic simulator"],
-        }
-        external_before = json.dumps(fake_external, sort_keys=True)
         before_repo = snapshot(self.repo)
         before_lane = snapshot(self.lane)
         first = factory.build_report(self.providers, self.processes)
@@ -535,7 +635,6 @@ class GitProviderProofTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(snapshot(self.repo), before_repo)
         self.assertEqual(snapshot(self.lane), before_lane)
-        self.assertEqual(json.dumps(fake_external, sort_keys=True), external_before)
 
         reasons = first["worktrees"]["hold_reasons"]
         self.assertEqual(
@@ -547,11 +646,13 @@ class GitProviderProofTests(unittest.TestCase):
         self.assertEqual(first["worktrees"]["held"], 1)
 
         branches = first["branches"]["hold_reasons"]
-        self.assertEqual(first["branches"]["total"], 2)
+        self.assertEqual(first["branches"]["total"], 3)
         self.assertEqual(branches["fresh_at_main"], 1)
+        self.assertEqual(branches["insufficient_merge_evidence"], 1)
         self.assertEqual(branches["unmerged"], 1)
         self.assertEqual(branches["active_hold"], 1)
-        self.assertEqual(first["branches"]["held"], 2)
+        self.assertEqual(branches["unknown_owner"], 3)
+        self.assertEqual(first["branches"]["held"], 3)
 
         self.assertEqual(first["build_output"]["total"], 1)
         self.assertEqual(first["scratch"]["total"], 1)
@@ -564,6 +665,59 @@ class GitProviderProofTests(unittest.TestCase):
         self.assertNotIn(str(self.lane), rendered)
         self.assertNotIn("4242", rendered)
         self.assertNotIn("/synthetic/", rendered)
+
+    def test_cwd_inside_lane_holds_real_worktree_for_live_process(self):
+        report = factory.build_report(
+            self.providers,
+            StaticProcessProvider(
+                pids=frozenset({4242}), cwds=(self.lane / "apple",)
+            ),
+        )
+        reasons = report["worktrees"]["hold_reasons"]
+        self.assertEqual(reasons["active_hold"], 1)
+        self.assertEqual(reasons["live_process"], 1)
+        self.assertEqual(report["worktrees"]["held"], 1)
+
+    def test_locked_second_lane_holds_real_worktree(self):
+        locked = self.root / "locked-lane"
+        git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "agents/locked",
+            str(locked),
+            "main",
+        )
+        git(
+            self.repo,
+            "worktree",
+            "lock",
+            "--reason",
+            "synthetic lock",
+            str(locked),
+        )
+        report = factory.build_report(self.providers, self.processes)
+        self.assertEqual(report["worktrees"]["hold_reasons"]["locked"], 1)
+
+    def test_removed_lane_directory_holds_for_failed_real_git_status(self):
+        shutil.rmtree(self.lane)
+        report = factory.build_report(self.providers, self.processes)
+        self.assertEqual(
+            report["worktrees"]["hold_reasons"]["unreadable"], 1
+        )
+        self.assertEqual(report["worktrees"]["held"], 1)
+
+    def test_missing_cwd_snapshot_holds_real_worktree_as_partial(self):
+        report = factory.build_report(
+            self.providers,
+            StaticProcessProvider(pids=frozenset({4242}), cwds=None),
+        )
+        self.assertEqual(
+            report["worktrees"]["hold_reasons"]["partial_observation"], 1
+        )
+        self.assertEqual(report["worktrees"]["held"], 1)
 
     def test_malformed_marker_is_an_unreadable_count_without_raw_error(self):
         (self.lane / "build" / "runs" / "broken.running").write_text("no json")
