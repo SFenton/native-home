@@ -480,6 +480,71 @@ class PerFamilyTests(unittest.TestCase):
             self.assertFalse(rule.get("layout_sensitive") and rule.get("layout_journeys"), rule["prefix"])
 
 
+class HostedFamilyTagTests(unittest.TestCase):
+    """``hosted_families`` in the test map opts a hosted class into the Duo leg beyond the iPhone default."""
+    CLASSES = {"UKFoldATests": "UKFoldATests", "UKPlainTests": "UKPlainTests", "UKOtherFoldTests": "UKOtherFoldTests"}
+    MAP = {"rules": [
+        {"prefix": "apple/Apps/iOSTests/UKFoldATests", "hosted": ["UKFoldATests"], "hosted_families": ["duo"]},
+        {"prefix": "apple/Apps/iOSTests/UKOtherFold", "hosted": ["UKOtherFold*"], "hosted_families": ["duo"]},
+        {"prefix": "apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns", "hosted": ["UKFoldATests", "UKPlainTests"]},
+    ]}
+
+    def test_a_fold_file_selects_the_duo_leg_and_a_plain_one_does_not(self):
+        with TemporaryDirectory() as tmp:
+            tests = Path(tmp) / "apple" / "Apps" / "iOSTests"
+            tests.mkdir(parents=True)
+            (tests / "UKFoldATests.swift").write_text("final class UKFoldATests: XCTestCase {}\n")
+            (tests / "UKPlainTests.swift").write_text("final class UKPlainTests: XCTestCase {}\n")
+            fold = affected_tests.select(["apple/Apps/iOSTests/UKFoldATests.swift"], self.MAP, root=Path(tmp))
+            plain = affected_tests.select(["apple/Apps/iOSTests/UKPlainTests.swift"], self.MAP, root=Path(tmp))
+        self.assertEqual((fold["hosted"], fold["hosted_by_family"]["duo"]), (["UKFoldATests"], ["UKFoldATests"]))
+        self.assertEqual((plain["hosted"], plain["hosted_by_family"]["duo"]), (["UKPlainTests"], []))  # iPhone only: the default
+
+    def test_a_source_the_map_places_runs_only_its_tagged_classes_on_the_duo(self):
+        with mock.patch.object(affected_tests, "hosted_classes", return_value=self.CLASSES):
+            result = affected_tests.select(["apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns.swift"], self.MAP)
+        self.assertEqual(result["hosted"], ["UKFoldATests", "UKPlainTests"])  # iPhone runs both
+        self.assertEqual(result["hosted_by_family"]["duo"], ["UKFoldATests"])  # the Duo only the tagged one
+        self.assertEqual(affected_tests.hosted_args(result), "UKFoldATests UKPlainTests")
+        self.assertEqual(affected_tests.hosted_args(result, "duo"), "UKFoldATests")
+
+    def test_every_tagged_class_for_the_nightly_leg_expands_globs(self):
+        self.assertEqual(affected_tests.tagged_hosted(self.MAP, "duo", self.CLASSES), ["UKFoldATests", "UKOtherFoldTests"])
+
+    def test_an_untagged_family_is_refused_as_a_tag_and_as_a_request(self):
+        bad = {"rules": [{"prefix": "x", "hosted": ["UKPlainTests"], "hosted_families": ["ipad"]}]}
+        with self.assertRaises(ValueError):
+            affected_tests.tagged_hosted(bad, "duo", self.CLASSES)
+        with self.assertRaises(ValueError):
+            affected_tests.tagged_hosted(self.MAP, "ipad", self.CLASSES)
+        with self.assertRaises(ValueError):
+            affected_tests.select(["apple/Sources/HassUI/UIKitPort/Design/UKFoldColumns.swift"], bad)
+
+    def test_the_cli_refuses_a_family_with_no_hosted_leg_and_lists_the_tagged_classes(self):
+        tool = [sys.executable, str(TOOLS / "affected_tests.py")]
+        out = subprocess.run(tool + ["--tagged", "ipad"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("no hosted leg for 'ipad'", out.stderr)
+        out = subprocess.run(tool + ["--hosted", "--device", "ipad", "--files", "README.md"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 2)
+        out = subprocess.run(tool + ["--tagged", "duo"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("ServerUIFoldSidesHostedTests", out.stdout.split())
+
+    def test_the_real_map_tags_the_fold_classes_and_names_only_real_ones(self):
+        tagged = affected_tests.tagged_hosted(MAP, "duo", affected_tests.hosted_classes())
+        for name in ("ServerUIFoldSidesHostedTests", "ServerUIRecordScrollerTests", "UKHostedGridTests", "UKHostedColumnsTests"):
+            self.assertIn(name, tagged)
+        for rule in MAP["rules"]:
+            if "hosted_families" in rule:
+                self.assertTrue(set(rule["hosted_families"]) <= set(affected_tests.HOSTED_FAMILIES), rule["prefix"])
+                self.assertTrue(affected_tests.expand_hosted(rule["hosted"], affected_tests.hosted_classes()), rule["prefix"])
+        # a changed fold test file, and the HostedWindow helper, reach the Duo leg
+        for file in ("apple/Apps/iOSTests/UKHostedGridTests.swift", "apple/Apps/iOSTests/HostedWindow.swift"):
+            self.assertTrue(pick(file)["hosted_by_family"]["duo"], file)
+        self.assertIn("UKHostedGridTests", pick("apple/Apps/iOSTests/UKHostedGridTests.swift")["hosted_by_family"]["duo"])
+
+
 class HostedSelectionTests(unittest.TestCase):
     """The app-hosted classes (``apple/Apps/iOSTests``) a diff reaches: rules, the area convention, test files, helpers and picks."""
     UK = "apple/Sources/HassUI/UIKitPort/"

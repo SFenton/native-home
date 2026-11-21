@@ -212,14 +212,15 @@ final class UKHostedColumnsTests: XCTestCase {
 
     func testTheHingeSplitsTheColumnsAtTheBand() {
         let shell = UKShellEnvironment()
-        shell.windowHinge = CGRect(x: 500, y: 0, width: 24, height: 768)
+        let hinge = HostedWindow.hingeBand(sceneWidth: 1024, width: 24, height: 768)  // `make` shows a 1024 by 768 window
+        shell.windowHinge = hinge
         let (_, columns, window) = make(shell: shell)
         defer { window.isHidden = true }
         columns.open(page("A"), tag: nil, animated: false)
         settle(0.3)
         columns.view.layoutIfNeeded()
         let host = columns.entries.first!.host
-        XCTAssertGreaterThanOrEqual(host.frame.minX, 500, "the open page keeps to the far side of the hinge")
+        XCTAssertGreaterThanOrEqual(host.frame.minX, hinge.minX, "the open page keeps to the far side of the hinge")
         shell.windowHinge = nil
         settle(0.3)
     }

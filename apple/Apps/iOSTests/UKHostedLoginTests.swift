@@ -253,7 +253,7 @@ final class UKHostedLoginTests: XCTestCase {
     /// The same, partly folded: the regions sit either side of the hinge band.
     func testThePartlyFoldedDuoSplitsEitherSideOfTheHinge() {
         let size = CGSize(width: 900, height: 600)
-        let hinge = CGRect(x: 430, y: 0, width: 40, height: 600)
+        let hinge = HostedWindow.hingeBand(sceneWidth: size.width, width: 40, height: size.height)
         let (page, window, _) = hostedPage(size: size, regular: true, hinge: hinge)
         defer { window.isHidden = true }
         assertSplit(page, size: size, rtl: false)

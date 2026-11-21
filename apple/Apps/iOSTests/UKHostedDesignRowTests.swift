@@ -321,8 +321,8 @@ final class UKHostedDesignRowTests: XCTestCase {
         XCTAssertNotNil(scroll)
         XCTAssertGreaterThan(scroll?.contentSize.width ?? 0, 300, "four chips overflow the rail")
         XCTAssertGreaterThan(chips[0].frame.minX, chips[3].frame.minX, "in right-to-left the first chip is rightmost")
-        rail.hinge = CGRect(x: 150, y: 0, width: 20, height: 800)
-        rail.hinge = CGRect(x: 150, y: 0, width: 20, height: 800)
+        rail.hinge = HostedWindow.hingeBand(sceneWidth: 300, width: 20, height: 800)
+        rail.hinge = HostedWindow.hingeBand(sceneWidth: 300, width: 20, height: 800)
         rail.layoutIfNeeded()
         XCTAssertLessThanOrEqual(scroll?.frame.width ?? 0, 300)
     }

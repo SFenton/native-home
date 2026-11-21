@@ -255,7 +255,7 @@ class HostedWorkflowTests(unittest.TestCase):
         """Fails if: no scheduled job runs all of FentonHomeTests plain on iPhone, loses its headroom, drops out of the report's expectation, or cannot fail the run."""
         hosted = self.TEXT.split("\n  hosted:\n", 1)[1].split("\n  live:\n", 1)[0]
         self.assertIn("tools/ios_uitest.sh --only iphone --hosted --force", hosted)
-        self.assertNotIn("FENTON_HOSTED_FILTER", hosted)  # the whole suite, not a diff's classes
+        self.assertNotIn("FENTON_HOSTED_FILTER", hosted.split("Slim and settle the duo simulator", 1)[0])  # the whole suite on iPhone, not a diff's classes (the Duo leg after it takes the tagged ones)
         self.assertGreaterEqual(int(re.search(r"timeout-minutes: (\d+)", hosted).group(1)), 90)
         self.assertIn("--area hosted", hosted)
         self.assertIn("name: nightly-hosted", hosted)  # matches the report job's nightly-* pattern
