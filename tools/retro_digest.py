@@ -61,6 +61,8 @@ DEVICE_LABEL = re.compile(r"(?i)(?<![a-z])(?:uitest|journeys?|device|iphone|duo|
 RERUN_SKIP = re.compile(r"already passed on this tree|== nothing to run")
 RUN_HEAD = re.compile(r"^RESULT: (?P<verdict>\w+)(?: \(exit (?P<exit>-?\d+)\))?(?:  (?P<label>\S+))?(?:  (?P<time>\S+))?")
 RUN_DURATION = re.compile(r"^(?:(\d+)h(\d+)m|(\d+)m(\d+)s|(\d+)s)$")
+RUN_SHA = re.compile(r"\bsha=(\S+)")
+RUN_PRODUCTS = re.compile(r"(?m)^products: (?:hit|built) ([0-9a-f]+)")
 RUN_COUNTS = re.compile(r"executed (\d+), skipped (\d+), failed (\d+)")
 
 WAITING = re.compile(r"(?i)\b(i'?ll wait|i will wait|waiting (for|on)|will report back|i'?ll report back|"
@@ -226,6 +228,9 @@ def find_sources(args: argparse.Namespace) -> Dict[str, Optional[Path]]:
         src.update(ledger=build / "tasks" / f"{task}.json", review=build / "review", gate=build / "jev" / "gate.jsonl",
                    shadow=build / "jev" / "shadow.jsonl", runs=build / "runs", status=None, log=None, comments=None,
                    out=build / "retro" / f"{task}.json")
+        default_status = build / "status" / f"{task}.json"  # tools/agent_status.py writes it, when the worktree holds one
+        if default_status.is_file():
+            src["status"] = default_status
     for key, flag in (("status", args.status), ("log", args.log), ("comments", args.comments), ("out", args.json)):
         if flag:
             src[key] = Path(flag)
@@ -336,6 +341,8 @@ def run_records(runs: Optional[Path]) -> List[Dict[str, Any]]:
         records.append({
             "label": label or path.stem, "verdict": head["verdict"], "exit": int(head["exit"]) if head["exit"] else None,
             "seconds": seconds, "finished": finished,
+            "sha": (RUN_SHA.search(lines[0]) or [None, ""])[1],
+            "products": frozenset(RUN_PRODUCTS.findall(text)),  # keys only: `built K in 9s` and `hit K, saved` name one build
             "executed": int(counts[1]) if counts else None, "skipped": int(counts[2]) if counts else None,
             "failed": int(counts[3]) if counts else None,
             "rerun_skip": bool(RERUN_SKIP.search(log_text) or RERUN_SKIP.search(text)),
@@ -423,7 +430,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         triggers.append({"id": trigger, "evidence": [clip(e) for e in evidence if str(e).strip()]})
 
     outcome = args.outcome or ""
-    state = str(status.get("state") or "")
+    state = str(status.get("state") or status.get("status") or "")  # the runner writes state; agents write status
     if state == "blocked" or outcome.startswith("blocked"):
         fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
     if outcome in ("timeout", "blocked:timeout"):
@@ -517,7 +524,13 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     if len(long_rounds) >= REPEATED_LONG_ROUNDS:
         fire("repeated_long_device_rounds", *[f"{r['label']}: {describe_seconds(r['seconds'] or 0)} ({r['verdict']})" for r in long_rounds],
              f"{len(long_rounds)} device rounds of {LONG_ROUND_MINUTES}+ minutes (limit {REPEATED_LONG_ROUNDS - 1})")
-    empties = [r for r in runs if r["verdict"] == "EMPTY"
+    def superseded(record: Dict[str, Any]) -> bool:
+        """An EMPTY record is cleared by an equal-or-later PASS that executed tests on the same sha and products."""
+        return bool(record["sha"]) and any(
+            o["verdict"] == "PASS" and (o["executed"] or 0) > 0 and o["finished"] >= record["finished"]
+            and o["sha"] == record["sha"] and o["products"] == record["products"] for o in runs)
+
+    empties = [r for r in runs if (r["verdict"] == "EMPTY" and not superseded(r))
                or (r["verdict"] == "PASS" and r["device"] and (r["executed"] == 0 or (r["seconds"] is not None and r["seconds"] < 2))
                                              and not r["rerun_skip"])]
     if empties:
