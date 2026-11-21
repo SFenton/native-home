@@ -30,4 +30,8 @@ Decided 2026-10-24 (`duo-ipad-fold-layout`, every section's recommendation); pos
 
 - **Owned files** (also in `contracts/patterns.json`): `WindowHingeEnvironment.swift`; `UKFoldColumns.swift`, `FoldColumns.swift`.
 
-- **Leading-region mode (2026-11-06).** `UKHingeClearingView(content:leadingOnly:active:)` can take the leading region of the band instead of its wider side (`leadingOnly`), and with `leadingOnly` it lets touches through where the content takes none; `active: false` makes it a plain full-size host. `UKStateMessageOverlay(leadingOnHinge:)` uses it and defaults to off; only the house-layout gate turns it on, so other state messages keep their centring until a separate change adopts it.
+- **Leading-region mode.** `UKHingeClearingView(content:leadingOnly:active:)` can take the band's leading region instead of its wider side, and then lets touches through where the content takes none; `active: false` makes it a plain full-size host. `UKStateMessageOverlay(leadingOnHinge:)` uses it, off by default.
+
+## Guards
+
+- `hinge-avoidance/hosted-literal-hinge`: a hosted test builds its hinge with `HostedWindow.hingeBand`, never a literal x.

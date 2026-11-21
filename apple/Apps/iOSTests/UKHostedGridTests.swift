@@ -80,7 +80,7 @@ final class UKHostedGridTests: XCTestCase {
         XCTAssertGreaterThan(grid.intrinsicContentSize.height, 0)
 
         grid.configuration.equalRowHeights = true
-        grid.hinge = CGRect(x: 190, y: 0, width: 12, height: 852)
+        grid.hinge = HostedWindow.hingeBand(sceneWidth: 393, width: 12, height: 852)
         grid.invalidateLayout(); grid.invalidateMeasure(); grid.invalidateMeasurements()
         grid.layoutIfNeeded()
         grid.followsFold = true
@@ -127,7 +127,7 @@ final class UKHostedGridTests: XCTestCase {
         XCTAssertGreaterThan(layout.collectionViewContentSize.height, 100)
         XCTAssertTrue(layout.shouldInvalidateLayout(forBoundsChange: CGRect(x: 0, y: 0, width: 500, height: 600)))
         XCTAssertFalse(layout.shouldInvalidateLayout(forBoundsChange: CGRect(x: 0, y: 40, width: 393, height: 600)))
-        layout.hinge = CGRect(x: 190, y: 0, width: 12, height: 852)
+        layout.hinge = HostedWindow.hingeBand(sceneWidth: 393, width: 12, height: 852)
         layout.configuration.evenColumns = true
         view.layoutIfNeeded()
         view.reloadData()

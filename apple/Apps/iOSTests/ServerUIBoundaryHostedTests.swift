@@ -215,7 +215,7 @@ final class ServerUIBoundaryHostedTests: XCTestCase {
     // MARK: Hinge
 
     /// A partly folded Duo: a vertical band down the middle of the inner display (455.3 to 495.7 pt, measured on the simulator).
-    private let band = CGRect(x: 455.3, y: 0, width: 40.4, height: 682)
+    private let band = HostedWindow.hingeBand(sceneWidth: 951, height: 682)
     private let duoInner = CGSize(width: 951, height: 682)
 
     private func columnFrames(_ rig: Rig) throws -> [CGRect] {

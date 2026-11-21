@@ -227,6 +227,47 @@ class GuardTests(unittest.TestCase):
         self.assertEqual([(h[0], h[3]) for h in hits], [("image-cache/no-async-image", "error")])
 
 
+class HostedLiteralHingeGuardTests(unittest.TestCase):
+    """``hinge-avoidance/hosted-literal-hinge``: a hosted test builds its hinge from the scene width, never a literal x."""
+
+    def hits(self, text, rel="apple/Apps/iOSTests/UKHostedFoldTests.swift"):
+        data = guard.load(REPO)
+        pattern = next(p for p in data["patterns"] if p["id"] == "hinge-avoidance")
+        with TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write(root, rel, text)
+            return [h[0] for h in guard.run_guards(pattern, root, guard.Report())]
+
+    def test_a_literal_x_hinge_fails(self):
+        for line in ("grid.hinge = CGRect(x: 190, y: 0, width: 12, height: 852)",
+                     "shell.windowHinge = CGRect(x: 500, y: 0, width: 24, height: 768)",
+                     "private let foldBand = CGRect(x: 455.3, y: 0, width: 40.4, height: 682)",
+                     "let (page, _, _) = hostedPage(size: size, hinge: CGRect(x: 430, y: 0, width: 40, height: 600))"):
+            self.assertEqual(self.hits(line + "\n"), ["hinge-avoidance/hosted-literal-hinge"], line)
+
+    def test_the_helper_and_other_rects_pass(self):
+        for line in ("grid.hinge = HostedWindow.hingeBand(sceneWidth: 393, width: 12, height: 852)",
+                     "let band = HostedWindow.hingeBand(centredOn: collection, in: window)",
+                     "scroll.frame = CGRect(x: 0, y: 0, width: 868, height: 669)",
+                     "XCTAssertEqual(fold.hinge, CGRect(x: 288, y: 0, width: 24, height: 600))",
+                     "// grid.hinge = CGRect(x: 190, y: 0, width: 12, height: 852)"):
+            self.assertEqual(self.hits(line + "\n"), [], line)
+
+    def test_a_sideways_band_at_x_zero_passes(self):
+        # Unfolded portrait: the hinge is a horizontal band across the full width, so x is 0.
+        for line in ("shell.windowHinge = CGRect(x: 0, y: 455, width: 669, height: 40)",
+                     "let band = CGRect(x: 0, y: 455.3, width: 669, height: 40.4)"):
+            self.assertEqual(self.hits(line + "\n"), [], line)
+        self.assertEqual(self.hits("let band = CGRect(x: 10, y: 455, width: 669, height: 40)\n"), ["hinge-avoidance/hosted-literal-hinge"])
+
+    def test_the_helper_file_itself_may_compute_a_band(self):
+        self.assertEqual(self.hits("let band = CGRect(x: 1, y: 0, width: 2, height: 3)\n", rel="apple/Apps/iOSTests/HostedWindow.swift"), [])
+
+    def test_no_hosted_test_in_the_repo_assigns_a_literal_hinge(self):
+        report = guard.check(REPO)
+        self.assertEqual([e for e in report.errors if "hosted-literal-hinge" in e], [])
+
+
 class ChangedAndIndexTests(unittest.TestCase):
     def test_changed_flags_component_without_doc(self):
         with TemporaryDirectory() as tmp:

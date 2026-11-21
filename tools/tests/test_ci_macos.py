@@ -11,8 +11,9 @@ SCRIPT = Path(__file__).resolve().parents[1] / "ci_macos.sh"
 #: Logs its arguments; fails when STUB_FAIL names the script (e.g. "settle").
 STUB = '#!/bin/bash\necho "$(basename "$0") $*${FENTON_SIM_SLIM:+ [FENTON_SIM_SLIM=$FENTON_SIM_SLIM]}${FENTON_HOSTED_FILTER:+ [FENTON_HOSTED_FILTER=$FENTON_HOSTED_FILTER]}" >> "$STUB_LOG"\n[ "$STUB_FAIL" = "$(basename "$0")" ] && exit "${STUB_RC:-1}"\nexit 0\n'
 HEARTBEAT = '#!/bin/bash\necho "heartbeat $*" >> "$STUB_LOG"\nshift 2\nexec "$@"\n'
-#: A selection tool: prints STUB_HOSTED (exit STUB_HOSTED_RC) for --hosted, STUB_RUNNABLE for a --plan Gate call and STUB_ALL otherwise.
-AFFECTED = '#!/bin/bash\nfor a in "$@"; do [ "$a" = --hosted ] && { echo -n "$STUB_HOSTED"; exit "${STUB_HOSTED_RC:-0}"; }; done\nfor a in "$@"; do [ "$a" = Gate ] && { echo -n "$STUB_RUNNABLE"; exit "${STUB_AFFECTED_RC:-0}"; }; done\necho -n "$STUB_ALL"\n'
+#: A selection tool: prints STUB_HOSTED (exit STUB_HOSTED_RC) for --hosted (STUB_HOSTED_DUO with `--device duo`), STUB_TAGGED for --tagged,
+#: STUB_RUNNABLE for a --plan Gate call and STUB_ALL otherwise.
+AFFECTED = '#!/bin/bash\nfor a in "$@"; do [ "$a" = --tagged ] && { echo -n "$STUB_TAGGED"; exit 0; }; done\nfor a in "$@"; do [ "$a" = --hosted ] && { for b in "$@"; do [ "$b" = duo ] && { echo -n "$STUB_HOSTED_DUO"; exit "${STUB_HOSTED_RC:-0}"; }; done; echo -n "$STUB_HOSTED"; exit "${STUB_HOSTED_RC:-0}"; }; done\nfor a in "$@"; do [ "$a" = Gate ] && { echo -n "$STUB_RUNNABLE"; exit "${STUB_AFFECTED_RC:-0}"; }; done\necho -n "$STUB_ALL"\n'
 
 
 class CiMacosTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class CiMacosTests(unittest.TestCase):
     def run_script(self, *args, **extra):
         env = {"CI_MACOS_UITEST": str(self.dir / "uitest"), "CI_MACOS_SETTLE": str(self.dir / "settle"), "CI_MACOS_SLIM": str(self.dir / "slim"),
                "CI_MACOS_HEARTBEAT": str(self.dir / "heartbeat"), "CI_MACOS_AFFECTED": str(self.dir / "affected"),
-               "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "", "STUB_HOSTED": "", "STUB_HOSTED_RC": "0",
+               "CI_MACOS_TIMINGS": str(self.timings), "CI_MACOS_RELEASE": str(self.dir / "release"), "CI_MACOS_SWIFT": str(self.dir / "swift"), "FENTON_AFFECTED_BASE": "", "STUB_LOG": str(self.log), "STUB_FAIL": "", "STUB_RUNNABLE": "", "STUB_ALL": "", "STUB_HOSTED": "", "STUB_HOSTED_DUO": "", "STUB_TAGGED": "", "STUB_HOSTED_RC": "0",
                "GITHUB_STEP_SUMMARY": str(self.dir / "summary")}
         env.update(extra)
         with mock.patch.dict("os.environ", env):
@@ -150,11 +151,36 @@ class CiMacosTests(unittest.TestCase):
         self.assertEqual(out.returncode, 1)
         self.assertEqual(self.phases()[-1][2], "1")
 
-    def test_hosted_is_iphone_only(self):
-        for family in ("duo", "ipad", "all"):
-            out, log = self.run_script("hosted", family, STUB_HOSTED="UKHostedAATests")
+    def test_hosted_runs_on_iphone_and_duo_only(self):
+        for family in ("ipad", "all"):
+            out, log = self.run_script("hosted", family, STUB_HOSTED="UKHostedAATests", STUB_HOSTED_DUO="UKHostedAATests")
             self.assertEqual(out.returncode, 2, family)
             self.assertNotIn("uitest", log)
+        out, _ = self.run_script("hosted", "ipad")
+        self.assertIn("iphone and duo only", out.stderr)
+
+    def test_hosted_duo_runs_the_tagged_classes_the_diff_reaches_on_the_duo_and_is_timed(self):
+        # iPhone would run both classes; the Duo leg takes the tagged one the selection tool names for `--device duo`.
+        out, log = self.run_script("hosted", "duo", STUB_HOSTED="UKHostedAATests UKHostedBBTests", STUB_HOSTED_DUO="UKHostedBBTests")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("uitest --only duo --hosted --force [FENTON_HOSTED_FILTER=UKHostedBBTests]", log)
+        self.assertNotIn("UKHostedAATests", log)
+        self.assertEqual([p[0] for p in self.phases()], ["hosted-duo"])
+
+    def test_hosted_duo_skips_when_no_tagged_class_is_reached(self):
+        out, log = self.run_script("hosted", "duo", STUB_HOSTED="UKHostedAATests", STUB_HOSTED_DUO="")
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("skipped: no hosted class the diff reaches", out.stdout)
+        self.assertNotIn("uitest", log)
+
+    def test_hosted_duo_runs_every_tagged_class_not_the_whole_suite_when_a_file_cannot_be_placed(self):
+        out, log = self.run_script("hosted", "duo", STUB_HOSTED_DUO="x", STUB_HOSTED_RC="3", STUB_TAGGED="UKHostedFoldTests UKHostedGridTests")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("every hosted class tagged for duo", out.stdout)
+        self.assertIn("uitest --only duo --hosted --force [FENTON_HOSTED_FILTER=UKHostedFoldTests UKHostedGridTests]", log)
+
+    def test_the_hosted_comment_no_longer_claims_the_nightly_runs_every_family(self):
+        self.assertNotIn("nightly runs them on every family", SCRIPT.read_text())
 
     def test_a_crash_of_the_selection_tool_fails_the_step(self):
         out, _ = self.run_script("journeys", "iphone", STUB_AFFECTED_RC="2")

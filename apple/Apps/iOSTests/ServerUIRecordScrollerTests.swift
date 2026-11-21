@@ -94,7 +94,7 @@ final class ServerUIRecordScrollerTests: XCTestCase {
         // The band is derived from the area the collection occupies: on the Duo's hosted scene (its folded 466 pt display) the window sticks out of the scene and the page's content
         // area ends 84 pt short of the window's trailing edge, so a band at a fixed x left the trailing side under the minimum.
         let area = collection.convert(collection.bounds, to: nil)
-        let band = CGRect(x: area.midX - 20.2, y: 0, width: 40.4, height: window.bounds.height)
+        let band = HostedWindow.hingeBand(centredOn: collection, in: window)
         XCTAssertGreaterThanOrEqual((area.width - band.width) / 2, SplitPolicy.minimumPaneWidth, "the 868 pt window must hold two sides on every family")
         XCTAssertGreaterThan(cellRight(), band.maxX, "flat, the collection fills the page")
         shell.windowHinge = band
