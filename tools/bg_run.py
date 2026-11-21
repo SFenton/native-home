@@ -21,15 +21,19 @@ The harness stops a background Bash call after 30 minutes unless the call passes
 ``--expect-minutes N`` with N over 25 prints the timeout to pass; ``tools/hooks/bg_timeout_guard.py`` denies a background
 coverage run or full UI run that carries none.
 
-While the command runs, ``LABEL.running`` (JSON: pid, label, started, cwd) sits next to the log. The Stop hook
+While the command runs, ``LABEL.running`` sits next to the log with the legacy
+``pid``, ``label``, ``started`` and ``cwd`` fields plus private lease and
+process-incarnation evidence. The Stop hook
 ``tools/hooks/stop_continue_guard.py`` reads it to refuse to end a session whose background job has not finished.
 """
 
 from __future__ import annotations
 
 import argparse
+import fcntl
 import json
 import os
+import secrets
 import signal
 import subprocess
 import sys
@@ -40,6 +44,7 @@ from typing import List, Optional
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import log_digest  # noqa: E402
+import factory_lease  # noqa: E402
 from redact import redact, redact_lines  # noqa: E402
 
 
@@ -98,6 +103,107 @@ def kill_group(process: "subprocess.Popen[bytes]", grace: float = KILL_GRACE) ->
     process.wait()
 
 
+def _marker_bytes(record: dict) -> bytes:
+    return (
+        json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+
+
+def _replace_marker(
+    marker: Path, record: dict, expected: Optional[bytes] = None
+) -> bytes:
+    if expected is not None and marker.read_bytes() != expected:
+        raise FileExistsError("marker changed")
+    data = _marker_bytes(record)
+    temporary = marker.parent / (
+        "." + marker.name + ".tmp-" + secrets.token_hex(8)
+    )
+    descriptor = os.open(
+        temporary,
+        os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        os.fchmod(descriptor, 0o600)
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            view = view[written:]
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    try:
+        os.replace(temporary, marker)
+        directory = os.open(marker.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+    return data
+
+
+def _claim_marker(marker: Path, record: dict):
+    lock_path = marker.with_name(marker.name + ".lock")
+    lock = os.open(
+        lock_path,
+        os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW,
+        0o600,
+    )
+    try:
+        os.fchmod(lock, 0o600)
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        if marker.exists() or marker.is_symlink():
+            try:
+                lock_path.unlink()
+            except OSError:
+                pass
+            fcntl.flock(lock, fcntl.LOCK_UN)
+            os.close(lock)
+            return None
+        return lock, _replace_marker(marker, record)
+    except Exception:
+        os.close(lock)
+        raise
+
+
+def _release_marker(marker: Path, lock: int, expected: bytes) -> None:
+    try:
+        if marker.read_bytes() == expected:
+            marker.unlink()
+            directory = os.open(marker.parent, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                os.fsync(directory)
+            finally:
+                os.close(directory)
+    except OSError:
+        pass
+    lock_path = marker.with_name(marker.name + ".lock")
+    try:
+        lock_path.unlink()
+    except OSError:
+        pass
+    try:
+        fcntl.flock(lock, fcntl.LOCK_UN)
+    finally:
+        os.close(lock)
+
+
+def _begin_lease(cwd: str, marker: Path, label: str):
+    try:
+        store = factory_lease.LeaseStore.for_repo(Path(cwd))
+        lease_id = store.begin_run(
+            Path(cwd), marker.resolve(), label, os.getpid()
+        )
+        return store, lease_id
+    except (factory_lease.LeaseError, OSError, UnicodeError):
+        return None, None
+
+
 def run(label: str, command: List[str], directory: Path, timeout: Optional[float], allow_empty: bool = False,
         cwd: Optional[str] = None) -> int:
     """Run ``command`` with output to ``directory/label.log``, print its digest and return its status.
@@ -109,10 +215,38 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
     started = time.monotonic()
     status = 0
     marker = directory / f"{label}.running"
+    marker_claim = None
+    marker_bytes = b""
+    lease_store = None
+    lease_id = None
+    marker_record = {
+        "v": 1,
+        "pid": os.getpid(),
+        "label": label,
+        "started": time.time(),
+        "cwd": cwd,
+        "lease_id": None,
+        "start": factory_lease.process_start(os.getpid()) or "",
+        "pgid": None,
+    }
     try:
-        marker.write_text(json.dumps({"pid": os.getpid(), "label": label, "started": time.time(), "cwd": cwd}))
-    except OSError:
+        marker_claim = _claim_marker(marker, marker_record)
+        if marker_claim is not None:
+            marker_claim, marker_bytes = marker_claim
+    except (OSError, BlockingIOError):
         pass
+    if marker_claim is not None:
+        lease_store, lease_id = _begin_lease(cwd, marker, label)
+        if lease_id is not None:
+            enriched = dict(marker_record)
+            enriched["lease_id"] = lease_id
+            try:
+                marker_bytes = _replace_marker(marker, enriched, marker_bytes)
+                marker_record = enriched
+            except OSError:
+                if lease_store is not None:
+                    lease_store.abort_run(lease_id)
+                lease_id = None
     previous = {}
     try:
         for sig in STOP_SIGNALS:
@@ -125,6 +259,16 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
             try:
                 process = subprocess.Popen(command, stdout=handle, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
                                            start_new_session=True, cwd=cwd)
+                if marker_claim is not None:
+                    child_record = dict(marker_record)
+                    child_record["pgid"] = process.pid
+                    try:
+                        marker_bytes = _replace_marker(
+                            marker, child_record, marker_bytes
+                        )
+                        marker_record = child_record
+                    except OSError:
+                        pass
                 status = process.wait(timeout=timeout)
             except subprocess.TimeoutExpired:
                 kill_group(process)
@@ -151,10 +295,10 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
     finally:  # a failing or killed command never leaves the marker behind
         while previous:
             signal.signal(*previous.popitem())
-        try:
-            marker.unlink()
-        except OSError:
-            pass
+        if lease_id is not None and lease_store is not None:
+            lease_store.end_run(lease_id)
+        if marker_claim is not None:
+            _release_marker(marker, marker_claim, marker_bytes)
     print(digest)
     return status
 

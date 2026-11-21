@@ -27,9 +27,14 @@ COMMON="$(git -C "$MAIN" rev-parse --git-common-dir)"
 [[ "$COMMON" = /* ]] || COMMON="$MAIN/$COMMON"
 MAIN="$(cd "$COMMON/.." && pwd)"
 DIR="$MAIN/.claude/worktrees/$NAME"
+LEASE_HELPER="$(dirname "${BASH_SOURCE[0]}")/factory_lease.py"
+BRANCH_CREATED=0
 
 if [[ -e "$DIR/.git" ]]; then
   echo "lane exists: $DIR ($(git -C "$DIR" rev-parse --abbrev-ref HEAD))"
+  if ! python3 "$LEASE_HELPER" renew --repo "$MAIN" --worktree "$DIR" --branch "$BRANCH" >/dev/null 2>&1; then
+    echo "lane_new: lease bookkeeping unavailable (lane preserved)" >&2
+  fi
 else
   git -C "$MAIN" fetch -q origin
   if git -C "$MAIN" show-ref --verify --quiet "refs/heads/$BRANCH"; then
@@ -38,11 +43,22 @@ else
     [[ $BASE_GIVEN == 1 ]] && git -C "$MAIN" config "branch.$BRANCH.sh-base" "$BASE"
   else
     git -C "$MAIN" worktree add -q -b "$BRANCH" "$DIR" "$BASE"
+    BRANCH_CREATED=1
     # Record the parent so the test tier (tools/lane_base.py) diffs against it. A worktree made another way records it with:
     #   git config branch.<branch>.sh-base <parent ref>
     git -C "$MAIN" config "branch.$BRANCH.sh-base" "$BASE"
   fi
   echo "lane created: $DIR on $BRANCH from $BASE ($(git -C "$DIR" rev-parse --short HEAD))"
+  if [[ $BRANCH_CREATED == 1 ]]; then
+    LEASE_OK=0
+    python3 "$LEASE_HELPER" create --repo "$MAIN" --worktree "$DIR" --creator lane_new --task "$NAME" --branch-created "$BRANCH" >/dev/null 2>&1 || LEASE_OK=1
+  else
+    LEASE_OK=0
+    python3 "$LEASE_HELPER" create --repo "$MAIN" --worktree "$DIR" --creator lane_new --task "$NAME" >/dev/null 2>&1 || LEASE_OK=1
+  fi
+  if [[ $LEASE_OK != 0 ]]; then
+    echo "lane_new: lease bookkeeping unavailable (lane preserved)" >&2
+  fi
 fi
 ENV_FILE="shell"  # the script loads the credentials in-process from ~/.config/fenton-hass/env (tools/hass_creds.sh)
 cat <<TEXT

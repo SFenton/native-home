@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping, Protocol, Sequence, TypedDict
 
+import factory_lease
+
 
 RESOURCE_CLASSES = (
     "branches",
@@ -86,6 +88,8 @@ class ProcessObservation:
 
     pids: frozenset[int] | None
     cwds: tuple[Path, ...] | None
+    starts: Mapping[int, str] | None = None
+    pgids: frozenset[int] | None = None
 
 
 @dataclass(frozen=True)
@@ -152,6 +156,7 @@ class ReadOnlyRunner:
                 (subcommand == "worktree" and rest[:1] == ["list"])
                 or (subcommand == "for-each-ref")
                 or (subcommand == "rev-parse")
+                or (subcommand == "rev-list")
                 or (subcommand == "merge-base" and "--is-ancestor" in rest)
                 or (subcommand == "status")
             )
@@ -159,6 +164,7 @@ class ReadOnlyRunner:
             list(command) == ["xcrun", "simctl", "list", "devices", "-j"]
             or list(command) == ["lsof", "-d", "cwd", "-Fn"]
             or list(command) == ["ps", "-axo", "pid="]
+            or list(command) == ["ps", "-axo", "pid=,lstart=,pgid="]
         )
 
     def run(
@@ -210,32 +216,48 @@ class ReadOnlyProcessProvider:
 
     def inventory(self) -> ProcessObservation:
         try:
-            ps = self._runner.run(["ps", "-axo", "pid="])
-            pids = (
-                frozenset(
-                    int(parts[0])
-                    for line in ps.stdout.splitlines()
-                    if (parts := line.split(None, 1)) and parts[0].isdigit()
-                )
-                if ps.returncode == 0
-                else None
-            )
+            ps = self._runner.run(["ps", "-axo", "pid=,lstart=,pgid="])
+            pids: frozenset[int] | None
+            starts: dict[int, str] | None
+            pgids: set[int] | None
+            if ps.returncode == 0:
+                values = set()
+                started: dict[int, str] = {}
+                groups: set[int] = set()
+                for line in ps.stdout.splitlines():
+                    parts = line.split()
+                    if not parts or not parts[0].isdigit():
+                        continue
+                    pid = int(parts[0])
+                    values.add(pid)
+                    if len(parts) >= 6 and parts[-1].isdigit():
+                        started[pid] = " ".join(parts[1:-1])
+                        groups.add(int(parts[-1]))
+                pids = frozenset(values)
+                starts = started
+                pgids = groups
+            else:
+                pids = starts = pgids = None
         except Exception:
             pids = None
+            starts = None
+            pgids = None
         try:
             lsof = self._runner.run(["lsof", "-d", "cwd", "-Fn"])
-            cwds = (
-                tuple(
+            if lsof.returncode == 0:
+                found = tuple(
                     Path(line[1:])
                     for line in lsof.stdout.splitlines()
                     if line.startswith("n/")
                 )
-                if lsof.returncode == 0
-                else None
-            )
+                cwds = found if found else None
+            else:
+                cwds = None
         except Exception:
             cwds = None
-        return ProcessObservation(pids=pids, cwds=cwds)
+        return ProcessObservation(
+            pids=pids, cwds=cwds, starts=starts, pgids=frozenset(pgids) if pgids is not None else None
+        )
 
 
 class GitReader:
@@ -280,6 +302,32 @@ class GitReader:
         if common.name == ".git":
             return common.parent.name
         return common.name or None
+
+    def repository_identity(self) -> factory_lease.RepositoryIdentity:
+        common = Path(
+            self.read(
+                "rev-parse",
+                "--path-format=absolute",
+                "--git-common-dir",
+            ).strip()
+        ).resolve()
+        shallow = self.read(
+            "rev-parse", "--is-shallow-repository"
+        ).strip()
+        if shallow != "false":
+            raise ProviderError("repository identity is shallow")
+        roots = tuple(
+            line
+            for line in self.read(
+                "rev-list", "--max-parents=0", "main"
+            ).splitlines()
+            if line
+        )
+        if len(roots) != 1:
+            raise ProviderError("repository identity is ambiguous")
+        return factory_lease.RepositoryIdentity(
+            common_dir=common, root_commit=roots[0]
+        )
 
     def worktrees(self) -> tuple["Worktree", ...]:
         output = self.read("worktree", "list", "--porcelain")
@@ -375,6 +423,23 @@ class Worktree:
     locked: bool
 
 
+@dataclass(frozen=True)
+class LeaseSnapshot:
+    """Validated read-only lease records and their incomplete-read count."""
+
+    identity: factory_lease.RepositoryIdentity | None
+    records: tuple[dict, ...] = ()
+    invalid: int = 0
+
+    @property
+    def partial(self) -> bool:
+        return self.invalid > 0
+
+    @classmethod
+    def empty(cls) -> "LeaseSnapshot":
+        return cls(identity=None)
+
+
 def path_is_within(child: Path, parent: Path) -> bool:
     child_name = os.path.realpath(str(child))
     parent_name = os.path.realpath(str(parent))
@@ -388,8 +453,30 @@ def process_status(
 ) -> tuple[bool, bool]:
     if processes.cwds is None:
         return False, True
+    if not processes.cwds and processes.pids:
+        return False, True
     return (
         any(path_is_within(cwd, resource) for cwd in processes.cwds),
+        False,
+    )
+
+
+def holder_status(
+    record: Mapping, processes: ProcessObservation
+) -> tuple[bool, bool]:
+    """Return live-holder and partial-holder facts without signaling the pid."""
+
+    holder = record.get("holder")
+    if holder is None:
+        return False, False
+    if processes.pids is None or processes.starts is None:
+        return False, True
+    pid = holder.get("pid")
+    start = holder.get("start")
+    if not isinstance(pid, int) or not isinstance(start, str):
+        return False, True
+    return (
+        pid in processes.pids and processes.starts.get(pid) == start,
         False,
     )
 
@@ -398,13 +485,34 @@ class GitResourceProvider:
     """Inventory one Git-backed resource class without changing repository state."""
 
     def __init__(
-        self, resource_class: str, repo: Path, reader: GitReader
+        self,
+        resource_class: str,
+        repo: Path,
+        reader: GitReader,
+        leases: LeaseSnapshot | None = None,
+        now: float | None = None,
     ) -> None:
         if resource_class not in RESOURCE_CLASSES or resource_class == "simulators":
             raise ValueError("invalid Git resource class")
         self.resource_class = resource_class
         self.repo = repo
         self._reader = reader
+        self._leases = leases or LeaseSnapshot.empty()
+        self._now = now
+
+    @property
+    def now(self) -> int:
+        return int(time.time()) if self._now is None else int(self._now)
+
+    def _candidate_worktrees(
+        self, worktrees: Sequence[Worktree]
+    ) -> tuple[Worktree, ...]:
+        current = self.repo.resolve()
+        return tuple(
+            tree
+            for index, tree in enumerate(worktrees)
+            if index != 0 and tree.path.resolve() != current
+        )
 
     def inventory(self, processes: ProcessObservation) -> Inventory:
         try:
@@ -413,7 +521,7 @@ class GitResourceProvider:
             if self.resource_class == "worktrees":
                 return self._worktrees(worktrees, base_sha, processes)
             if self.resource_class == "branches":
-                return self._branches(worktrees, base_sha)
+                return self._branches(worktrees, base_sha, processes)
             if self.resource_class == "build_output":
                 return self._build_output(worktrees, processes)
             if self.resource_class == "scratch":
@@ -431,37 +539,107 @@ class GitResourceProvider:
         processes: ProcessObservation,
     ) -> Inventory:
         observations = []
-        for tree in worktrees[1:]:
-            try:
-                dirty, untracked, ignored = self._reader.status(tree.path)
-                unreadable = False
-            except Exception:
-                dirty = untracked = ignored = False
-                unreadable = True
-            live, process_partial = process_status(tree.path, processes)
-            merge_evidence = self._reader.merge_evidence(
-                tree.head, base_sha
-            )
+        for tree in self._candidate_worktrees(worktrees):
             observations.append(
-                ResourceObservation(
-                    resource_class=self.resource_class,
-                    finished=None,
-                    merge_evidence=merge_evidence,
-                    active_hold=live,
-                    fresh_at_main=bool(base_sha and tree.head == base_sha),
-                    dirty=dirty,
-                    ignored=ignored,
-                    live_process=live,
-                    locked=tree.locked,
-                    partial=process_partial,
-                    unreadable=unreadable,
-                    untracked=untracked,
-                )
+                self._worktree_observation(tree, base_sha, processes)
             )
         return Inventory(tuple(observations))
 
+    def _unique_lease(
+        self, resource_class: str, matches
+    ) -> tuple[Mapping | None, bool]:
+        candidates = tuple(
+            record
+            for record in self._leases.records
+            if record["class"] == resource_class and matches(record)
+        )
+        return (
+            candidates[0] if len(candidates) == 1 else None,
+            len(candidates) > 1 or self._leases.partial,
+        )
+
+    def _lease_timing(
+        self, lease: Mapping | None
+    ) -> tuple[bool, bool]:
+        if lease is None:
+            return False, False
+        unexpired = self.now < lease["expires"]
+        released = lease["state"] == "released"
+        return released and not unexpired, unexpired
+
+    def _attested(
+        self, lease: Mapping | None, branch: str, head: str
+    ) -> bool:
+        if lease is None or lease["state"] != "released":
+            return False
+        release = lease["release"]
+        if release is None or release["reason"] != "merged":
+            return False
+        merged = release["merged"]
+        return bool(
+            merged
+            and merged["generation"] == lease["generation"]
+            and merged["branch"] == branch
+            and merged["local_tip"] == head
+            and merged["head_oid"]
+        )
+
+    def _worktree_observation(
+        self, tree: Worktree, base_sha: str | None, processes: ProcessObservation
+    ) -> ResourceObservation:
+        try:
+            dirty, untracked, ignored = self._reader.status(tree.path)
+            unreadable = False
+        except Exception:
+            dirty = untracked = ignored = False
+            unreadable = True
+        lease, lease_partial = self._unique_lease(
+            "worktree",
+            lambda record: (
+                record["subject"]["path"] == str(tree.path.resolve())
+                and factory_lease.lease_matches_worktree(
+                    record, tree.path, tree.branch, tree.head
+                )
+            ),
+        )
+        owned = lease is not None
+        finished, lease_active = self._lease_timing(lease)
+        holder_live, holder_partial = holder_status(
+            lease if lease is not None else {}, processes
+        )
+        live, process_partial = process_status(tree.path, processes)
+        merge_evidence = (
+            "attested"
+            if self._attested(lease, tree.branch, tree.head)
+            else self._reader.merge_evidence(tree.head, base_sha)
+        )
+        return ResourceObservation(
+            resource_class=self.resource_class,
+            owned=True if owned else None,
+            finished=finished if owned else None,
+            merge_evidence=merge_evidence if owned else self._reader.merge_evidence(
+                tree.head, base_sha
+            ),
+            active_hold=lease_active or holder_live or live,
+            fresh_at_main=bool(base_sha and tree.head == base_sha),
+            dirty=dirty,
+            ignored=ignored,
+            live_process=holder_live or live,
+            locked=tree.locked,
+            partial=(
+                lease_partial
+                or holder_partial
+                or process_partial
+            ),
+            unreadable=unreadable,
+            untracked=untracked,
+        )
+
     def _branches(
-        self, worktrees: Sequence[Worktree], base_sha: str | None
+        self,
+        worktrees: Sequence[Worktree],
+        base_sha: str | None,
+        processes: ProcessObservation,
     ) -> Inventory:
         output = self._reader.read(
             "for-each-ref",
@@ -480,42 +658,126 @@ class GitResourceProvider:
             if branch == "main":
                 continue
             merge_evidence = self._reader.merge_evidence(sha, base_sha)
+            lease, partial = self._unique_lease(
+                "branch",
+                lambda record, name=branch, tip=sha: (
+                    record["subject"]["name"] == name
+                    and record["subject"]["head"] == tip
+                ),
+            )
+            if lease is not None:
+                parent = tuple(
+                    record
+                    for record in self._leases.records
+                    if record["class"] == "worktree"
+                    and record["lease_id"] == lease["subject"]["parent_lease_id"]
+                )
+                if (
+                    len(parent) != 1
+                    or parent[0]["generation"]
+                    != lease["subject"]["parent_generation"]
+                ):
+                    lease = None
+                    partial = True
+            finished, lease_active = self._lease_timing(lease)
+            holder_live, holder_partial = holder_status(
+                lease if lease is not None else {}, processes
+            )
+            if self._attested(lease, branch, sha):
+                merge_evidence = "attested"
             observations.append(
                 ResourceObservation(
                     resource_class=self.resource_class,
-                    finished=None,
+                    owned=True if lease is not None else None,
+                    finished=finished if lease is not None else None,
                     merge_evidence=merge_evidence,
-                    active_hold=branch in checked_out,
+                    active_hold=branch in checked_out or lease_active or holder_live,
                     fresh_at_main=bool(base_sha and sha == base_sha),
                     locked=checked_out.get(branch, False),
+                    partial=partial or holder_partial,
+                    live_process=holder_live,
                 )
             )
         return Inventory(tuple(observations))
 
     def _directory_observation(
-        self, path: Path, processes: ProcessObservation
+        self,
+        path: Path,
+        worktree: Worktree,
+        base_sha: str | None,
+        processes: ProcessObservation,
     ) -> ResourceObservation:
         live, partial = process_status(path, processes)
+        parent = self._worktree_observation(
+            worktree, base_sha, processes
+        )
+        owned = parent.owned is True
+        merge_evidence = (
+            "not_required"
+            if owned and parent.finished is True
+            else "unknown"
+        )
+        recent = self._directory_recent(path)
         return ResourceObservation(
             resource_class=self.resource_class,
-            finished=True,
-            merge_evidence="not_required",
-            active_hold=live,
-            live_process=live,
-            partial=partial,
+            owned=True if owned else None,
+            finished=parent.finished if owned else None,
+            merge_evidence=merge_evidence,
+            active_hold=live or parent.active_hold,
+            dirty=parent.dirty,
+            ignored=parent.ignored,
+            live_process=live or parent.live_process,
+            locked=parent.locked,
+            partial=partial or parent.partial,
+            recent=recent,
+            unreadable=parent.unreadable,
+            untracked=parent.untracked,
         )
+
+    def _directory_recent(self, path: Path) -> bool:
+        newest = float(path.lstat().st_mtime)
+        seen = 0
+        try:
+            if path.is_symlink():
+                return True
+            for base, directories, files in os.walk(path, followlinks=False):
+                directories.sort()
+                files.sort()
+                seen += len(directories) + len(files)
+                if seen > 10_000:
+                    return True
+                for name in directories + files:
+                    child = Path(base) / name
+                    info = child.lstat()
+                    newest = max(newest, info.st_mtime)
+            return newest > self.now - factory_lease.LEASE_TTL_SECONDS
+        except OSError:
+            return True
 
     def _build_output(
         self, worktrees: Sequence[Worktree], processes: ProcessObservation
     ) -> Inventory:
         observations = []
-        for tree in worktrees:
+        base_sha = self._reader.base_sha()
+        for tree in self._candidate_worktrees(worktrees):
             for relative in BUILD_OUTPUT_PATHS:
                 path = tree.path / relative
                 try:
-                    if path.exists() and stat.S_ISDIR(path.stat().st_mode):
+                    if not os.path.lexists(path):
+                        continue
+                    mode = path.lstat().st_mode
+                    if path.is_symlink() or not stat.S_ISDIR(mode):
                         observations.append(
-                            self._directory_observation(path, processes)
+                            ResourceObservation(
+                                resource_class=self.resource_class,
+                                unreadable=True,
+                            )
+                        )
+                    else:
+                        observations.append(
+                            self._directory_observation(
+                                path, tree, base_sha, processes
+                            )
                         )
                 except OSError as error:
                     raise ProviderError("build output unreadable") from error
@@ -525,7 +787,8 @@ class GitResourceProvider:
         self, worktrees: Sequence[Worktree], processes: ProcessObservation
     ) -> Inventory:
         observations = []
-        for tree in worktrees:
+        base_sha = self._reader.base_sha()
+        for tree in self._candidate_worktrees(worktrees):
             build = tree.path / "build"
             try:
                 if not build.exists():
@@ -534,21 +797,30 @@ class GitResourceProvider:
                     child
                     for child in build.iterdir()
                     if child.name not in PROTECTED_SCRATCH
-                    and stat.S_ISDIR(child.stat().st_mode)
                 )
             except OSError as error:
                 raise ProviderError("scratch inventory unreadable") from error
-            observations.extend(
-                self._directory_observation(child, processes)
-                for child in children
-            )
+            for child in children:
+                if child.is_symlink():
+                    observations.append(
+                        ResourceObservation(
+                            resource_class=self.resource_class,
+                            unreadable=True,
+                        )
+                    )
+                elif stat.S_ISDIR(child.lstat().st_mode):
+                    observations.append(
+                        self._directory_observation(
+                            child, tree, base_sha, processes
+                        )
+                    )
         return Inventory(tuple(observations))
 
     def _run_markers(
         self, worktrees: Sequence[Worktree], processes: ProcessObservation
     ) -> Inventory:
         observations = []
-        for tree in worktrees:
+        for tree in self._candidate_worktrees(worktrees):
             directory = tree.path / "build" / "runs"
             try:
                 if not directory.exists():
@@ -559,22 +831,111 @@ class GitResourceProvider:
             for marker in markers:
                 unreadable = False
                 live = False
-                partial = processes.pids is None
+                partial = processes.pids is None or self._leases.partial
+                owned = False
+                finished = None
+                active_hold = False
+                lease_id = None
+                marker_record = None
                 try:
-                    record = json.loads(marker.read_text(encoding="utf-8"))
+                    record = factory_lease.strict_json_loads(
+                        marker.read_text(encoding="utf-8")
+                    )
                     pid = record.get("pid") if isinstance(record, dict) else None
                     if not isinstance(pid, int) or pid <= 0:
                         raise ValueError("invalid marker")
+                    marker_start = record.get("start")
+                    marker_pgid = record.get("pgid")
+                    lease_id = record.get("lease_id")
+                    if record.get("v") == 1:
+                        expected = (
+                            "v",
+                            "pid",
+                            "label",
+                            "started",
+                            "cwd",
+                            "lease_id",
+                            "start",
+                            "pgid",
+                        )
+                        if set(record) != set(expected):
+                            raise ValueError("invalid marker")
                     if processes.pids is not None:
-                        live = pid in processes.pids
-                except (OSError, ValueError, UnicodeError):
+                        if marker_start is None:
+                            live = pid in processes.pids
+                            partial = True
+                        elif processes.starts is None:
+                            partial = True
+                        else:
+                            live = (
+                                pid in processes.pids
+                                and processes.starts.get(pid) == marker_start
+                            )
+                    if isinstance(marker_pgid, int):
+                        if processes.pgids is None:
+                            partial = True
+                        else:
+                            live = live or marker_pgid in processes.pgids
+                    elif record.get("v") == 1:
+                        partial = True
+                    if lease_id is not None:
+                        matches = tuple(
+                            candidate
+                            for candidate in self._leases.records
+                            if candidate["class"] == "run_marker"
+                            and candidate["lease_id"] == lease_id
+                            and candidate["subject"]["path"]
+                            == str(marker.resolve())
+                            and candidate["subject"]["label"] == marker.stem
+                            and candidate["subject"]["nonce"] == lease_id
+                        )
+                        if len(matches) != 1:
+                            partial = True
+                        else:
+                            marker_lease = matches[0]
+                            parent = tuple(
+                                candidate
+                                for candidate in self._leases.records
+                                if candidate["class"] == "worktree"
+                                and candidate["lease_id"]
+                                == marker_lease["subject"]["parent_lease_id"]
+                            )
+                            if (
+                                len(parent) == 1
+                                and parent[0]["generation"]
+                                == marker_lease["subject"]["parent_generation"]
+                                and factory_lease.lease_matches_worktree(
+                                    parent[0],
+                                    tree.path,
+                                    tree.branch,
+                                    tree.head,
+                                )
+                            ):
+                                owned = True
+                                marker_record = marker_lease
+                                finished, active_hold = self._lease_timing(
+                                    marker_lease
+                                )
+                    if marker_record is not None:
+                        holder_live, holder_partial = holder_status(
+                            marker_record, processes
+                        )
+                        live = live or holder_live
+                        partial = partial or holder_partial
+                except (
+                    OSError,
+                    ValueError,
+                    UnicodeError,
+                    TypeError,
+                ):
                     unreadable = True
                 observations.append(
                     ResourceObservation(
                         resource_class=self.resource_class,
-                        finished=not live if not partial else None,
+                        owned=True if owned else None,
+                        finished=finished if owned and not partial else None,
                         merge_evidence="not_required",
-                        active_hold=live,
+                        active_hold=live or active_hold,
                         live_process=live,
                         partial=partial,
                         unreadable=unreadable,
@@ -772,7 +1133,13 @@ def classify(observation: ResourceObservation) -> frozenset[str]:
     elif observation.merge_evidence == "ancestor":
         if not observation.fresh_at_main:
             reasons.add("insufficient_merge_evidence")
-    elif observation.merge_evidence != "not_required":
+    elif observation.merge_evidence == "attested":
+        if observation.resource_class == "simulators":
+            reasons.add("insufficient_merge_evidence")
+    elif observation.merge_evidence == "not_required":
+        if observation.resource_class in ("worktrees", "branches"):
+            reasons.add("insufficient_merge_evidence")
+    else:
         reasons.add("insufficient_merge_evidence")
     return frozenset(reasons)
 
@@ -862,8 +1229,16 @@ def default_providers(
 ) -> tuple[tuple[ResourceProvider, ...], ProcessProvider]:
     command_runner = runner or ReadOnlyRunner()
     git = GitReader(repo, command_runner)
+    try:
+        identity = git.repository_identity()
+        records, invalid = factory_lease.LeaseStore(identity).read_records()
+        leases = LeaseSnapshot(
+            identity=identity, records=tuple(records), invalid=invalid
+        )
+    except Exception:
+        leases = LeaseSnapshot(identity=None, invalid=1)
     providers: list[ResourceProvider] = [
-        GitResourceProvider(resource_class, repo, git)
+        GitResourceProvider(resource_class, repo, git, leases)
         for resource_class in (
             "worktrees",
             "branches",
