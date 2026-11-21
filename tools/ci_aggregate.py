@@ -12,12 +12,13 @@ leg fails the job. A matrix job's result is the worst of its legs. Failed and ca
 
 The base-trusted policy can opt in after a pull request policy job has run:
 
-    python3 tools/ci_aggregate.py --policy-aware --policy-job pr-policy --policy-result verdict.json
+    python3 tools/ci_aggregate.py --policy-aware --policy-result verdict.json \
+        --expect-base-sha BASE_SHA --expect-head-sha HEAD_SHA
 
 The legacy invocation above intentionally has exactly its old behavior.  In
 policy mode a missing, skipped, failed, cancelled or malformed ``pr-policy``
-result is red on a pull request; a trusted ``pass`` or ``product_only`` no-op
-is green.
+result is red on every event except a push to the default branch; a trusted
+``pass`` or ``product_only`` no-op bound to the expected SHAs is green.
 
 Stdlib only (macOS system Python 3.9 and Linux).
 """
@@ -47,7 +48,6 @@ PR_ONLY = ("coverage-changed",)
 #: Jobs that only a fork pull request skips.
 BOTH = ("denylist-scan",)
 POLICY_JOB = "pr-policy"
-POLICY_ALIASES = ("pr-policy", "policy")
 POLICY_OUTCOMES = {"pass", "fail", "hold", "noop"}
 POLICY_REASONS = {
     "append_only",
@@ -75,6 +75,8 @@ POLICY_REASONS = {
     "tier0_pass",
     "tier0_unavailable",
     "tier1_required",
+    "trusted_checkout_changed",
+    "trusted_fingerprint_unreadable",
     "trusted_separation",
     "trusted_tool_unreadable",
 }
@@ -130,19 +132,17 @@ def _policy_result_problem(verdict: Optional[Dict[str, Any]], parse_problem: str
 
 
 def _policy_job(needs: Mapping[str, Mapping], name: str) -> Optional[Mapping]:
-    names = POLICY_ALIASES if name in ("", POLICY_JOB) else (name,)
-    found = [(candidate, needs[candidate]) for candidate in names if candidate in needs]
-    if not found:
-        return None
-    if len(found) > 1:
-        return {"result": "ambiguous"}
-    return found[0][1]
+    if name != POLICY_JOB:
+        return {"result": "wrong-name"}
+    return needs.get(POLICY_JOB)
 
 
 def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = None,
-                    parse_problem: str = "", job_name: str = POLICY_JOB) -> List[str]:
-    """Why the base-trusted policy verdict fails for this pull request."""
-    if event != "pull_request":
+                    parse_problem: str = "", job_name: str = POLICY_JOB,
+                    expect_base_sha: str = "", expect_head_sha: str = "") -> List[str]:
+    """Why policy mode fails.  Only a default-branch push is exempt."""
+    if event == "push":
+        # pr-checks is triggered for pushes only on the default branch.
         return []
     job = _policy_job(needs, job_name)
     if job is None:
@@ -152,18 +152,19 @@ def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = Non
         return [f"{job_name or POLICY_JOB}: {state} (the policy result is required)"]
     if state != "success":
         return [f"{job_name or POLICY_JOB}: {state or 'missing'} (the policy result is malformed)"]
-    selected = verdict
-    if selected is None:
-        outputs = job.get("outputs", {}) or {}
-        for key in ("verdict", "policy", "result_json"):
-            if key in outputs:
-                selected = outputs[key]
-                break
-    parsed, problem = _policy_json(selected)
+    parsed, problem = _policy_json(verdict)
     problem = parse_problem or problem
     problem = _policy_result_problem(parsed, problem)
     if problem:
         return [problem]
+    for label, expected, actual in (
+        ("base", expect_base_sha, parsed.get("base_sha")),
+        ("head", expect_head_sha, parsed.get("head_sha")),
+    ):
+        if not expected or not SHA_RE.fullmatch(expected):
+            return [f"malformed policy request (expected {label} SHA)"]
+        if actual != expected:
+            return [f"malformed policy result ({label} SHA mismatch)"]
     if parsed["outcome"] in ("fail", "hold"):
         return [f"policy: {parsed['outcome']} ({', '.join(parsed['reasons'])})"]
     return []
@@ -171,7 +172,8 @@ def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = Non
 
 def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pull_request",
             *, policy: Any = None, policy_aware: bool = False, policy_parse_problem: str = "",
-            policy_job: str = POLICY_JOB) -> List[str]:
+            policy_job: str = POLICY_JOB, expect_base_sha: str = "",
+            expect_head_sha: str = "") -> List[str]:
     """Why the aggregate must fail, one line per job; empty when it may pass."""
     result: Dict[str, str] = {name: str(job.get("result", "")) for name, job in needs.items()}
     found: List[str] = []
@@ -200,13 +202,14 @@ def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pul
             if result.get(name) not in ("failure", "cancelled"):
                 found.append("%s: %s" % (name, result.get(name, "missing")))
     if policy_aware:
-        found.extend(policy_problems(needs, event, policy, policy_parse_problem, policy_job))
+        found.extend(policy_problems(
+            needs, event, policy, policy_parse_problem, policy_job,
+            expect_base_sha, expect_head_sha,
+        ))
     return found
 
 
-def _read_policy(path: str, inline: str) -> Tuple[Any, str]:
-    if inline:
-        return _policy_json(inline)
+def _read_policy(path: str) -> Tuple[Any, str]:
     if not path:
         return None, ""
     try:
@@ -222,6 +225,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--policy-aware", action="store_true")
     parser.add_argument("--policy-job", default=POLICY_JOB)
     parser.add_argument("--policy-result", default="", metavar="PATH")
+    parser.add_argument("--expect-base-sha", default="")
+    parser.add_argument("--expect-head-sha", default="")
     cli = list(argv) if argv is not None else (sys.argv[1:] if __name__ == "__main__" else [])
     args = parser.parse_args(cli)
     settings = dict(os.environ)
@@ -229,9 +234,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     hosted_macos = settings.get("HOSTED_MACOS", "") == "on"
     event = settings.get("EVENT", "pull_request")
     aware = args.policy_aware or settings.get("POLICY_AWARE", "").lower() in ("1", "on", "true")
-    result_path = args.policy_result or settings.get("POLICY_RESULT", "")
-    inline = settings.get("POLICY_VERDICT", "")
-    policy, parse_problem = _read_policy(result_path, inline)
+    policy, parse_problem = _read_policy(args.policy_result) if aware else (None, "")
     found = problems(
         needs,
         hosted_macos,
@@ -240,6 +243,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         policy_aware=aware,
         policy_parse_problem=parse_problem,
         policy_job=args.policy_job,
+        expect_base_sha=args.expect_base_sha,
+        expect_head_sha=args.expect_head_sha,
     )
     summary = " ".join("%s=%s" % (n, j.get("result")) for n, j in sorted(needs.items()))
     print("job results: %s" % summary)

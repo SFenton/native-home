@@ -10,23 +10,36 @@ policy and evaluator only from the base, and emits one small JSON verdict.
 
 Tier 0 runs locally from trusted code.  A changed Jev question deliberately
 remains a ``hold`` until a trusted tier-1 result can be enforced without a
-pull-request credential.
+pull-request credential. Head code runs as the same user as the driver.  The
+driver scrubs child environments, hides its output path, fingerprints trusted
+inputs and terminates evaluator process groups, but it is not a security wall:
+same-user code can still interfere in ways a before/after fingerprint cannot
+see. Activation must add separate-user or sandboxed execution before this
+driver is treated as a wall.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
+import multiprocessing
 import os
 import re
+import signal
+import stat
 import subprocess
 import sys
+import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
 SCHEMA = 1
+EVALUATOR_TIMEOUT = 300.0
+ENV_ALLOWLIST = ("PATH", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR")
 
 PASS = "pass"
 FAIL = "fail"
@@ -45,7 +58,18 @@ EXTRA_BEHAVIOUR_PATHS = (
     "tools/**/*runner*.py",
     "tools/**/*adapter*.py",
 )
-EXTRA_EVAL_PATHS: Tuple[str, ...] = ()
+EXTRA_EVAL_PATHS = (
+    "tools/agent_eval.py",
+    "tools/agent_eval_case.py",
+    "tools/agent_eval_measure.py",
+    "tools/pr_policy.py",
+    "tools/ci_aggregate.py",
+    "tools/lane_land.py",
+    "tools/triage/config.json",
+    "tools/jev_*.py",
+    "evals/**/*.py",
+    "evals/**/run*",
+)
 
 Change = Tuple[str, str, str, str]
 
@@ -62,19 +86,41 @@ def _git(checkout: Path, *args: str, text: bool = True) -> subprocess.CompletedP
     """Run one read-only Git plumbing command with repository hooks disabled."""
     safe = ("-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
             "-c", "protocol.ext.allow=never")
-    env = dict(os.environ)
-    env.update({"GIT_NO_REPLACE_OBJECTS": "1", "GIT_TERMINAL_PROMPT": "0"})
-    env.pop("LANE_LAND", None)
     return subprocess.run(
         ["git", "-C", str(checkout), *safe, *args],
         capture_output=True,
         text=text,
-        env=env,
+        env=_child_environment(),
     )
 
 
-def verify_checkout(path: Path, expected: str, label: str) -> str:
-    """Return the clean checkout's exact commit after verifying its advertised SHA."""
+def _child_environment() -> Dict[str, str]:
+    """A fresh process environment with no inherited Git, Python or Actions state."""
+    env = {key: os.environ[key] for key in ENV_ALLOWLIST if key in os.environ}
+    env.setdefault("PATH", os.defpath)
+    env.update({
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_ATTR_NOSYSTEM": "1",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    })
+    return env
+
+
+@contextmanager
+def _scrubbed_process_environment() -> Iterator[None]:
+    saved = dict(os.environ)
+    os.environ.clear()
+    os.environ.update(_child_environment())
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(saved)
+
+
+def _checkout_sha(path: Path, label: str) -> str:
     checkout = path.resolve()
     if not checkout.is_dir() or not (checkout / ".git").exists():
         raise PolicyError(f"{label}_checkout_unreadable")
@@ -85,7 +131,16 @@ def verify_checkout(path: Path, expected: str, label: str) -> str:
     actual = head.stdout.strip()
     if not SHA_RE.fullmatch(actual):
         raise PolicyError(f"{label}_sha_unreadable")
-    if expected and (not SHA_RE.fullmatch(expected.lower()) or expected.lower() != actual):
+    return actual
+
+
+def verify_checkout(path: Path, expected: str, label: str) -> str:
+    """Return the clean checkout's exact commit after verifying its advertised SHA."""
+    checkout = path.resolve()
+    actual = _checkout_sha(checkout, label)
+    if not expected or not SHA_RE.fullmatch(expected.lower()):
+        raise PolicyError(f"{label}_sha_unreadable")
+    if expected.lower() != actual:
         raise PolicyError(f"{label}_sha_mismatch")
     status = _git(checkout, "status", "--porcelain=v1", "--untracked-files=all")
     if status.returncode != 0 or status.stdout:
@@ -164,8 +219,12 @@ def _tree(checkout: Path, sha: str) -> Dict[str, Tuple[str, str, str]]:
 
 
 def changed_paths(base: Path, base_sha: str, head: Path, head_sha: str) -> List[Change]:
-    """Return a complete, no-renames base-to-head diff, with both rename sides."""
-    before, after = _tree(base, base_sha), _tree(head, head_sha)
+    """Return the pull request's merge-base-to-head diff, with both rename sides."""
+    with trusted_object_repo(base, head) as objects:
+        merge = _git(objects.path, "merge-base", base_sha, head_sha)
+        if merge.returncode != 0 or not SHA_RE.fullmatch(merge.stdout.strip()):
+            raise PolicyError("scope_unreadable")
+        before, after = _tree(objects.path, merge.stdout.strip()), _tree(objects.path, head_sha)
     rows: List[Change] = []
     for path in sorted(before.keys() | after.keys()):
         old, new = before.get(path), after.get(path)
@@ -271,12 +330,114 @@ def _active_failures(suite: Dict[str, Any]) -> Set[str]:
     return failures
 
 
-def _run_tier0(evaluator: Any, base: Path, head: Path) -> None:
+def _terminate_process_group(process: multiprocessing.Process) -> None:
+    """Terminate a worker group and any children that outlived its leader."""
     try:
-        base_suites = evaluator.evaluate(base, tier=0, target=base)
-        head_suites = evaluator.evaluate(base, tier=0, target=head)
-    except (OSError, RuntimeError, ValueError) as exc:
+        os.killpg(process.pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return
+    time.sleep(0.05)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _case_run(original: Any, *popenargs: Any, **kwargs: Any) -> subprocess.CompletedProcess:
+    """Run one evaluator child and end its whole process group before returning."""
+    command = popenargs[0] if popenargs else kwargs.get("args")
+    if not isinstance(command, (list, tuple)) or \
+            not any(str(part).endswith("agent_eval_case.py") for part in command):
+        return original(*popenargs, **kwargs)
+    input_value = kwargs.pop("input", None)
+    timeout = kwargs.pop("timeout", None)
+    check = kwargs.pop("check", False)
+    if input_value is not None and "stdin" not in kwargs:
+        kwargs["stdin"] = subprocess.PIPE
+    if kwargs.pop("capture_output", False):
+        if "stdout" in kwargs or "stderr" in kwargs:
+            raise ValueError("stdout and stderr arguments may not be used with capture_output")
+        kwargs["stdout"] = subprocess.PIPE
+        kwargs["stderr"] = subprocess.PIPE
+    kwargs["start_new_session"] = True
+    process = subprocess.Popen(*popenargs, **kwargs)
+    try:
+        stdout, stderr = process.communicate(input=input_value, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        _terminate_process(process.pid)
+        stdout, stderr = process.communicate()
+        raise subprocess.TimeoutExpired(command, timeout, stdout or exc.output, stderr or exc.stderr) from exc
+    finally:
+        _terminate_process(process.pid)
+    result = subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
+    if check:
+        result.check_returncode()
+    return result
+
+
+def _terminate_process(pid: int) -> None:
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return
+    time.sleep(0.05)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+
+
+def _tier0_worker(connection: Any, evaluator: Any, base: Path, head: Path) -> None:
+    """Run trusted tier 0 in a private process group and return only its suites."""
+    devnull: Optional[int] = None
+    try:
+        os.setsid()
+        devnull = os.open(os.devnull, os.O_RDWR)
+        os.dup2(devnull, 1)
+        os.dup2(devnull, 2)
+        with _scrubbed_process_environment():
+            original = evaluator.subprocess.run
+            evaluator.subprocess.run = lambda *args, **kwargs: _case_run(original, *args, **kwargs)
+            base_suites = evaluator.evaluate(base, tier=0, target=base)
+            head_suites = evaluator.evaluate(base, tier=0, target=head)
+        connection.send(("ok", base_suites, head_suites))
+    except BaseException:
+        try:
+            connection.send(("error",))
+        except (BrokenPipeError, EOFError, OSError):
+            pass
+    finally:
+        connection.close()
+        if devnull is not None:
+            os.close(devnull)
+
+
+def _evaluate_tier0(evaluator: Any, base: Path, head: Path) -> Tuple[Any, Any]:
+    context = multiprocessing.get_context("fork")
+    receive, send = context.Pipe(duplex=False)
+    process = context.Process(target=_tier0_worker, args=(send, evaluator, base, head))
+    process.start()
+    send.close()
+    try:
+        if not receive.poll(EVALUATOR_TIMEOUT):
+            raise PolicyError("tier0_unavailable")
+        message = receive.recv()
+        if not isinstance(message, tuple) or not message or message[0] != "ok":
+            raise PolicyError("tier0_unavailable")
+    except (EOFError, OSError) as exc:
         raise PolicyError("tier0_unavailable") from exc
+    finally:
+        receive.close()
+        _terminate_process_group(process)
+        process.join(1.0)
+        if process.is_alive():
+            process.kill()
+            process.join()
+    return message[1], message[2]
+
+
+def _validate_tier0(evaluator: Any, base_suites: Any, head_suites: Any) -> None:
+    """Compare trusted and target tier-0 suites without accepting child text."""
     base_map, head_map = _suite_map(evaluator, base_suites), _suite_map(evaluator, head_suites)
     base_total = sum(suite["cases"] for suite in base_map.values())
     head_total = sum(suite["cases"] for suite in head_map.values())
@@ -286,6 +447,59 @@ def _run_tier0(evaluator: Any, base: Path, head: Path) -> None:
     head_failures = _active_failures(head_map[evaluator.SUITE])
     if head_failures - base_failures:
         raise PolicyError("tier0_new_failure")
+
+
+def _fingerprint(base: Path) -> str:
+    """Hash tracked files plus every untracked file under trusted input trees."""
+    tracked = _git(base, "ls-files", "-z", text=False)
+    untracked = _git(
+        base, "ls-files", "--others", "-z", "--", "tools", "evals", "contracts",
+        text=False,
+    )
+    ignored = _git(
+        base, "ls-files", "--others", "--ignored", "--exclude-standard", "-z",
+        "--", "tools", "evals", "contracts", text=False,
+    )
+    if tracked.returncode != 0 or untracked.returncode != 0 or ignored.returncode != 0:
+        raise PolicyError("trusted_fingerprint_unreadable")
+    rows: List[Tuple[str, str]] = []
+    for raw_path in (
+        tracked.stdout.split(b"\0")
+        + untracked.stdout.split(b"\0")
+        + ignored.stdout.split(b"\0")
+    ):
+        if not raw_path:
+            continue
+        try:
+            relative = raw_path.decode("utf-8")
+            if relative.startswith("/") or ".." in Path(relative).parts:
+                raise PolicyError("trusted_fingerprint_unreadable")
+            path = base / relative
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                value = f"link:{os.readlink(path)}"
+            elif stat.S_ISREG(metadata.st_mode):
+                value = f"{stat.S_IMODE(metadata.st_mode)}:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+            else:
+                value = f"type:{stat.S_IFMT(metadata.st_mode)}:{stat.S_IMODE(metadata.st_mode)}"
+            rows.append((relative, value))
+        except (OSError, UnicodeDecodeError) as exc:
+            raise PolicyError("trusted_fingerprint_unreadable") from exc
+    encoded = json.dumps(sorted(set(rows)), ensure_ascii=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _run_tier0(evaluator: Any, base: Path, head: Path) -> None:
+    before = _fingerprint(base)
+    try:
+        base_suites, head_suites = _evaluate_tier0(evaluator, base, head)
+    except PolicyError:
+        raise
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise PolicyError("tier0_unavailable") from exc
+    if _fingerprint(base) != before:
+        raise PolicyError("trusted_checkout_changed")
+    _validate_tier0(evaluator, base_suites, head_suites)
 
 
 def _verdict(base_sha: str, head_sha: str, outcome: str, reasons: Sequence[str]) -> Dict[str, Any]:
@@ -298,7 +512,7 @@ def _verdict(base_sha: str, head_sha: str, outcome: str, reasons: Sequence[str])
     }
 
 
-def evaluate_policy(base: Path, head: Path, base_sha: str = "", head_sha: str = "") -> Dict[str, Any]:
+def evaluate_policy(base: Path, head: Path, base_sha: str, head_sha: str) -> Dict[str, Any]:
     """Evaluate one pull request and return a diff-independent machine verdict."""
     base, head = base.resolve(), head.resolve()
     if base == head or base != ROOT:
@@ -340,8 +554,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Base-trusted pull-request policy.")
     parser.add_argument("--base-checkout", "--base", dest="base", required=True, type=Path)
     parser.add_argument("--head-checkout", "--head", dest="head", required=True, type=Path)
-    parser.add_argument("--base-sha", default="")
-    parser.add_argument("--head-sha", default="")
+    parser.add_argument("--base-sha", required=True)
+    parser.add_argument("--head-sha", required=True)
     parser.add_argument("--out", default="")
     args = parser.parse_args(argv)
     verdict: Dict[str, Any]
@@ -349,10 +563,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         verdict = evaluate_policy(args.base, args.head, args.base_sha, args.head_sha)
     except PolicyError as exc:
         try:
-            base_sha = verify_checkout(args.base.resolve(), args.base_sha, "base")
-            head_sha = verify_checkout(args.head.resolve(), args.head_sha, "head")
+            base_sha = _checkout_sha(args.base.resolve(), "base")
         except PolicyError:
-            base_sha = head_sha = ""
+            base_sha = ""
+        try:
+            head_sha = _checkout_sha(args.head.resolve(), "head")
+        except PolicyError:
+            head_sha = ""
         verdict = _verdict(base_sha, head_sha, FAIL, (exc.reason,))
     except Exception:
         print("pr_policy: internal policy failure", file=sys.stderr)

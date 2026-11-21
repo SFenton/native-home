@@ -56,7 +56,14 @@ class PolicyRepos:
         self.base = self.tmp / "base"
         self.head = self.tmp / "head"
         self.base.mkdir()
-        for name in ("pr_policy.py", "lane_land.py", "agent_eval.py", "agent_eval_case.py"):
+        for name in (
+            "pr_policy.py",
+            "lane_land.py",
+            "agent_eval.py",
+            "agent_eval_case.py",
+            "agent_eval_measure.py",
+            "ci_aggregate.py",
+        ):
             (self.base / "tools").mkdir(exist_ok=True)
             shutil.copy2(TOOLS / name, self.base / "tools" / name)
         agent_eval = self.base / "tools" / "agent_eval.py"
@@ -76,8 +83,7 @@ class PolicyRepos:
         write(self.base / "contracts" / "jev" / "questions" / "policy.sample.json", json.dumps(QUESTION))
         write(self.base / "tools" / "old.py", "OLD = True\n")
         self._initialize(self.base)
-        shutil.copytree(self.base, self.head, ignore=shutil.ignore_patterns(".git", "__pycache__"))
-        self._initialize(self.head)
+        git(self.tmp, "clone", "-q", str(self.base), str(self.head))
 
     @staticmethod
     def _initialize(repo):
@@ -92,27 +98,35 @@ class PolicyRepos:
         git(repo, "-c", "user.name=Policy Test", "-c", "user.email=policy@example.invalid",
             "-c", "commit.gpgSign=false", "commit", "-q", "-m", "mutation")
 
-    def run(self):
-        base_sha, head_sha = git(self.base, "rev-parse", "HEAD"), git(self.head, "rev-parse", "HEAD")
-        result = self.tmp / "policy.json"
+    def run(self, *, driver=None, base_sha=None, head_sha=None, result=None, extra_env=None,
+            with_base_sha=True, with_head_sha=True):
+        actual_base = git(self.base, "rev-parse", "HEAD")
+        actual_head = git(self.head, "rev-parse", "HEAD")
+        result = result or self.tmp / "policy.json"
+        command = [
+            sys.executable,
+            str(driver or self.base / "tools" / "pr_policy.py"),
+            "--base-checkout", str(self.base),
+            "--head-checkout", str(self.head),
+        ]
+        if with_base_sha:
+            command += ["--base-sha", base_sha or actual_base]
+        if with_head_sha:
+            command += ["--head-sha", head_sha or actual_head]
+        command += ["--out", str(result)]
+        environment = dict(os.environ)
+        environment.update(extra_env or {})
         proc = subprocess.run(
-            [
-                sys.executable,
-                str(self.base / "tools" / "pr_policy.py"),
-                "--base-checkout", str(self.base),
-                "--head-checkout", str(self.head),
-                "--base-sha", base_sha,
-                "--head-sha", head_sha,
-                "--out", str(result),
-            ],
+            command,
             capture_output=True,
             text=True,
+            env=environment,
         )
         try:
             verdict = json.loads(proc.stdout)
         except ValueError as exc:
             raise AssertionError(f"driver did not print JSON: stdout={proc.stdout!r} stderr={proc.stderr!r}") from exc
-        self.assert_exact_shas(verdict, base_sha, head_sha)
+        self.assert_exact_shas(verdict, actual_base, actual_head)
         return proc.returncode, verdict, result
 
     @staticmethod
@@ -151,7 +165,12 @@ class PrPolicyTests(unittest.TestCase):
             "EVENT": "pull_request",
         }):
             with contextlib.redirect_stdout(io.StringIO()):
-                aggregate_code = aggregate.main(["--policy-aware", "--policy-result", str(result)])
+                aggregate_code = aggregate.main([
+                    "--policy-aware",
+                    "--policy-result", str(result),
+                    "--expect-base-sha", verdict["base_sha"],
+                    "--expect-head-sha", verdict["head_sha"],
+                ])
         self.assertEqual(aggregate_code, 0 if outcome in ("pass", "noop") else 1)
         return verdict
 
@@ -172,7 +191,170 @@ class PrPolicyTests(unittest.TestCase):
             "sys.exit(0)\n",
         )
         repos.commit(repos.head)
-        self.assert_policy(repos, "tier0_new_failure", "fail")
+        self.assert_policy(repos, "trusted_separation", "fail")
+
+    def test_the_driver_must_run_from_the_base_checkout(self):
+        repos = PolicyRepos(self)
+        code, verdict, _result = repos.run(driver=repos.head / "tools" / "pr_policy.py")
+        self.assertEqual(code, 1)
+        self.assertEqual(verdict["reasons"], ["driver_not_base"])
+
+    def test_both_sha_arguments_are_required_and_bound_to_checkout_heads(self):
+        repos = PolicyRepos(self)
+        for missing in ("base", "head"):
+            with self.subTest(missing=missing):
+                args = [
+                    sys.executable,
+                    str(repos.base / "tools" / "pr_policy.py"),
+                    "--base-checkout", str(repos.base),
+                    "--head-checkout", str(repos.head),
+                    "--out", str(repos.tmp / f"missing-{missing}.json"),
+                ]
+                if missing != "base":
+                    args += ["--base-sha", git(repos.base, "rev-parse", "HEAD")]
+                if missing != "head":
+                    args += ["--head-sha", git(repos.head, "rev-parse", "HEAD")]
+                proc = subprocess.run(args, capture_output=True, text=True)
+                self.assertEqual(proc.returncode, 2)
+        for label in ("base", "head"):
+            with self.subTest(mismatch=label):
+                wrong = "0" * 40
+                kwargs = {f"{label}_sha": wrong}
+                code, verdict, _result = repos.run(**kwargs)
+                self.assertEqual(code, 1)
+                self.assertEqual(verdict["reasons"], [f"{label}_sha_mismatch"])
+                self.assertEqual(
+                    verdict[f"{label}_sha"],
+                    git(getattr(repos, label), "rev-parse", "HEAD"),
+                )
+
+    def test_dirty_base_or_head_checkout_is_refused(self):
+        for label in ("base", "head"):
+            with self.subTest(label=label):
+                repos = PolicyRepos(self)
+                write(getattr(repos, label) / "tools" / "old.py", "DIRTY = True\n")
+                code, verdict, _result = repos.run()
+                self.assertEqual(code, 1)
+                self.assertEqual(verdict["reasons"], [f"{label}_checkout_dirty"])
+
+    def test_head_driver_grader_and_threshold_are_never_trusted(self):
+        mutations = (
+            (
+                "driver",
+                "tools/pr_policy.py",
+                "print('{\\\"schema\\\":1,\\\"outcome\\\":\\\"pass\\\"}')\n",
+                "tier0_pass",
+                "pass",
+            ),
+            (
+                "grader",
+                "tools/agent_eval_case.py",
+                "raise SystemExit(0)\n",
+                "tier0_pass",
+                "pass",
+            ),
+            (
+                "threshold",
+                "contracts/jev/questions/policy.sample.json",
+                json.dumps(dict(
+                    QUESTION,
+                    accept=dict(QUESTION["accept"], yes_above=0.6),
+                )),
+                "jev_threshold",
+                "fail",
+            ),
+        )
+        for name, path, content, reason, outcome in mutations:
+            with self.subTest(name=name):
+                repos = PolicyRepos(self)
+                write(repos.head / path, content)
+                repos.commit(repos.head)
+                self.assert_policy(repos, reason, outcome)
+
+    def test_a_base_change_after_tier_zero_fails_the_fingerprint(self):
+        repos = PolicyRepos(self)
+        trusted = repos.base / "tools" / "trusted-marker"
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "from pathlib import Path\n"
+            "def route_rule(issue, nightly=False):\n"
+            f"    Path({str(trusted)!r}).write_text('tampered\\n', encoding='utf-8')\n"
+            "    return 'researcher'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        self.assertTrue(trusted.exists() is False)
+        self.assert_policy(repos, "trusted_checkout_changed", "fail")
+        self.assertTrue(trusted.exists())
+
+    def test_child_cannot_forge_the_output_or_inherit_actions_state(self):
+        repos = PolicyRepos(self)
+        output = repos.tmp / "parent-verdict.json"
+        actions_output = repos.tmp / "actions-output"
+        leak_marker = repos.tmp / "environment-leak"
+        inherited = {
+            "GITHUB_OUTPUT": str(actions_output),
+            "GITHUB_ENV": str(actions_output),
+            "GITHUB_STEP_SUMMARY": str(actions_output),
+            "GITHUB_TOKEN": str(actions_output),
+            "GH_TOKEN": str(actions_output),
+            "ACTIONS_RUNTIME_TOKEN": str(actions_output),
+            "GIT_DIR": str(actions_output),
+            "GIT_CONFIG_GLOBAL": str(actions_output),
+            "PYTHONUSERBASE": str(actions_output),
+            "PYTHONWARNINGS": "ignore",
+            "PYTHONHASHSEED": "123",
+        }
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "import os\n"
+            "from pathlib import Path\n"
+            "def route_rule(issue, nightly=False):\n"
+            f"    leaked = [name for name, value in {inherited!r}.items() "
+            "if os.environ.get(name) == value]\n"
+            f"    if leaked: Path({str(leak_marker)!r}).write_text(','.join(leaked))\n"
+            f"    Path({str(output)!r}).write_text('{{\"outcome\":\"pass\",\"forged\":true}}')\n"
+            "    return 'researcher'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        code, verdict, result = repos.run(result=output, extra_env=inherited)
+        self.assertEqual(code, 0, verdict)
+        self.assertEqual(verdict["outcome"], "pass")
+        self.assertEqual(json.loads(result.read_text(encoding="utf-8")), verdict)
+        self.assertFalse(actions_output.exists())
+        self.assertFalse(leak_marker.exists())
+
+    def test_scope_uses_merge_base_when_the_head_is_behind_the_base(self):
+        repos = PolicyRepos(self)
+        base_only = dict(ROUTE_CASE, id="base-only")
+        write(
+            repos.base / "evals" / "agents" / "routing-replay" / "cases" /
+            "base-only.json",
+            json.dumps(base_only),
+        )
+        repos.commit(repos.base)
+        write(repos.head / "apple" / "Sources" / "Product.swift", "struct Product {}\n")
+        repos.commit(repos.head)
+        self.assert_policy(repos, "product_only", "noop")
+
+    def test_scope_without_a_merge_base_is_unreadable(self):
+        repos = PolicyRepos(self)
+        shutil.rmtree(repos.head / ".git")
+        git(repos.head, "init", "-q")
+        git(repos.head, "add", "-A")
+        git(
+            repos.head,
+            "-c", "user.name=Policy Test",
+            "-c", "user.email=policy@example.invalid",
+            "-c", "commit.gpgSign=false",
+            "commit", "-q", "-m", "unrelated",
+        )
+        code, verdict, _result = repos.run()
+        self.assertEqual(code, 1)
+        self.assertEqual(verdict["reasons"], ["scope_unreadable"])
 
     def test_lost_count_without_a_new_failure_id_is_red(self):
         tail = """
