@@ -71,3 +71,16 @@ tools/bg_run.py x -- true	allow	the main session foreground job without a timeou
 @fg:600000 git diff -- tools/bg_run.py	allow	-- before a path is a separator, not a launcher	agent
 @fg:600000 git log -- tools/bg_run.py	allow	a path after -- in git log	agent
 @fg:600000 for i in 1 2; do tools/bg_run.py s$i --timeout 1000 -- true; done	allow	a loop is not this rule for the main session	main
+@bg python3 tools/bg_run.py ci-9 --timeout 7200 -- python3 tools/ci_wait.py 9	block	a CI wait through bg_run needs the long Bash timeout, no --full	main
+@bg:1800000 python3 tools/ci_wait.py 9	block	a CI wait with the 30-minute default	main
+@bg:7200000 python3 tools/bg_run.py ci-9 -- python3 tools/ci_wait.py 9	allow	a CI wait with the harness maximum	main
+@bg:7200000 python3 tools/ci_wait.py 9	allow	a CI wait with a long timeout	main
+python3 tools/ci_wait.py 9	allow	foreground CI wait	main
+@bg grep -n ci_wait.py .agents/workflow/ci.md	allow	a name in grep	main
+@bg git add tools/ci_wait.py	allow	a name in git add	main
+@bg git diff -- tools/ci_wait.py	allow	`--` before a path is not a launcher	main
+@bg:1800000 python3.12 tools/ci_wait.py 9	block	a versioned interpreter	main
+@fg:600000 python3 tools/ci_wait.py 9	block	a sub-agent foreground CI wait with no bg_run bound	agent
+@fg:600000 tools/bg_run.py ci-9 --timeout 570 -- python3 tools/ci_wait.py 9	allow	a bounded CI wait through bg_run	agent
+@fg:600000 git add tools/ci_wait.py	allow	a name in git add is not a run	agent
+@fg:600000 git diff -- tools/ci_wait.py	allow	`--` before a path is not a launcher	agent

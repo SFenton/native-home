@@ -75,12 +75,17 @@ LAUNCHERS = {"--", "bash", "sh", "zsh", "time", "env", "nohup", "exec", "command
 RUNNERS = LAUNCHERS - {"--"}
 
 
+def _interpreter(token: str) -> bool:
+    """Whether ``token`` is a Python interpreter (``python``, ``python3``, ``python3.12``)."""
+    return _script(token).startswith("python")
+
+
 def _script(token: str) -> str:
     return token.rsplit("/", 1)[-1]
 
 
 def long_job(command: str) -> Optional[str]:
-    """The long job ``command`` starts (``ios_uitest.sh --full``), or ``None``."""
+    """The long job ``command`` starts (``ios_uitest.sh --full`` or any ``ci_wait.py`` run), or ``None``."""
     body = HEREDOC.sub("", command)
     for segment in SEPARATORS.split(body):
         try:
@@ -89,15 +94,19 @@ def long_job(command: str) -> Optional[str]:
             tokens = segment.split()
         for index, token in enumerate(tokens):
             name = _script(token)
-            if name != "ios_uitest.sh":
+            if name not in ("ios_uitest.sh", "ci_wait.py"):
                 continue
             before = tokens[index - 1] if index else ""
-            if index and not (before in LAUNCHERS or ASSIGNMENT.match(before) or _script(before) in LAUNCHERS):
-                continue  # `grep ios_uitest.sh`, `git add tools/ios_uitest.sh`: a name, not a run
+            launchers = RUNNERS if name == "ci_wait.py" else LAUNCHERS
+            interpreter = bool(name == "ci_wait.py" and index and _interpreter(before))
+            if index and not (before in launchers or ASSIGNMENT.match(before) or _script(before) in launchers or interpreter):
+                continue  # `grep ci_wait.py`, `git add tools/ci_wait.py`: a name, not a run
             rest = tokens[index + 1:]
-            if "--full" not in rest:
-                continue
-            return " ".join([token] + rest[:6]).strip()
+            if name == "ios_uitest.sh" and "--full" not in rest:
+                continue  # only the full UI run is long; a `ci_wait.py` run always is
+            # ci_wait.py is not executable: keep the interpreter so the retry example runs.
+            start = [before, token] if interpreter else [token]
+            return " ".join(start + rest[:6]).strip()
     return None
 
 
