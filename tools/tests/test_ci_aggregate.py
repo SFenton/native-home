@@ -102,6 +102,91 @@ class AggregateTests(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(agg.main(), code)
 
+    def test_legacy_invocation_does_not_require_or_read_a_policy_result(self):
+        run = run_of()
+        run["pr-policy"] = {"result": "skipped", "outputs": {}}
+        with mock.patch.dict(os.environ, {"NEEDS": json.dumps(run), "HOSTED_MACOS": "on"}):
+            self.assertEqual(agg.problems(run, True), [])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agg.main(), 0)
+
+        del run["pr-policy"]
+        self.assertEqual(agg.problems(run, True, policy_aware=False), [])
+
+    def test_policy_mode_requires_one_successful_job_and_verdict_on_pull_requests(self):
+        valid = {
+            "schema": 1,
+            "outcome": "pass",
+            "reasons": ["tier0_pass"],
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        }
+        base = run_of()
+        self.assertTrue(agg.problems(base, True, policy=valid, policy_aware=True))
+        for state in ("skipped", "failure", "cancelled", ""):
+            run = dict(base)
+            run["pr-policy"] = {"result": state, "outputs": {"verdict": json.dumps(valid)}}
+            self.assertTrue(agg.problems(run, True, policy=valid, policy_aware=True), state)
+        run = dict(base)
+        run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(valid)}}
+        self.assertEqual(agg.problems(run, True, policy_aware=True), [])
+
+    def test_policy_mode_rejects_malformed_and_nonpassing_results(self):
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        for verdict in (
+                None,
+                "{broken",
+                {"schema": 2, "outcome": "pass", "reasons": ["tier0_pass"], "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "pass", "reasons": ["unknown"], "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "hold", "reasons": ["tier1_required"],
+                 "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "fail", "reasons": ["tier0_new_failure"],
+                 "base_sha": "a" * 40, "head_sha": "b" * 40}):
+            self.assertTrue(agg.problems(run, True, policy=verdict, policy_aware=True), verdict)
+
+    def test_policy_mode_accepts_a_proved_product_only_noop_and_push_unchanged(self):
+        noop = {
+            "schema": 1,
+            "outcome": "noop",
+            "reasons": ["product_only"],
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        }
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(noop)}}
+        self.assertEqual(agg.problems(run, True, policy_aware=True), [])
+        self.assertEqual(agg.problems(run_of(), True, "push", policy_aware=True), [])
+
+    def test_main_policy_aware_reads_an_actual_result_file(self):
+        verdict = {
+            "schema": 1,
+            "outcome": "pass",
+            "reasons": ["tier0_pass"],
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        }
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / "policy.json"
+            result.write_text(json.dumps(verdict))
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "EVENT": "pull_request",
+            }):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(agg.main(["--policy-aware", "--policy-result", str(result)]), 0)
+            result.write_text("{broken")
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "EVENT": "pull_request",
+            }):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(agg.main(["--policy-aware", "--policy-result", str(result)]), 1)
+
 
 class DenylistMaskTests(unittest.TestCase):
     def test_mask_prints_one_command_per_term_and_skips_comments(self):

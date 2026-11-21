@@ -22,6 +22,11 @@
 /tools/pr_blockers.py @SFenton
 /tools/pr_land.sh @SFenton
 /tools/lane_*.py @SFenton
+/tools/pr_policy.py @SFenton
+/tools/ci_aggregate.py @SFenton
+/tools/agent_eval.py @SFenton
+/tools/agent_eval_case.py @SFenton
+/tools/agent_eval_measure.py @SFenton
 /tools/ruleset_gate.py @SFenton
 /tools/jev_gate.py @SFenton
 /tools/triage/ @SFenton
