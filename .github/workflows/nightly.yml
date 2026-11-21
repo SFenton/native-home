@@ -345,6 +345,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/products-download/test-products.tar.gz" -C "$FENTON_PRODUCTS_DIR"
           ls "$FENTON_PRODUCTS_DIR"
       - name: Reuse the built products
+        id: products
         run: |
           set -o pipefail
           tools/ci_macos.sh build 2>&1 | tee "$RUNNER_TEMP/products-reuse.log"
@@ -376,7 +377,7 @@ jobs:
           exit 0
       - name: Slim and settle the duo simulator
         id: simduo
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.products.outcome == 'success' }}
         run: |
           set -uo pipefail
           # One device at a time: the iPhone's simulator is shut down first (a second boot beside a warm one took 20 minutes on this runner).
@@ -387,7 +388,7 @@ jobs:
           tools/ci_heartbeat.sh run -- tools/sim_settle.sh duo || true
       - name: Run the Duo hosted classes (the tagged fold classes)
         id: runduo
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.products.outcome == 'success' }}
         env:
           SLIM: ${{ steps.simduo.outputs.slim }}
         run: |

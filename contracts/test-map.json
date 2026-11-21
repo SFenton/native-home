@@ -2430,6 +2430,7 @@
   {
    "prefix": "apple/Apps/iOSTests/HostedWindow",
    "hosted": [
+    "ServerUIBoundaryHostedTests",
     "ServerUIFoldSidesHostedTests",
     "ServerUIRecordScrollerTests",
     "ServerUIRoomsRendererTests",
@@ -2437,6 +2438,15 @@
     "UKHostedDesignRowTests",
     "UKHostedGridTests",
     "UKHostedLoginTests"
+   ],
+   "hosted_families": [
+    "duo"
+   ]
+  },
+  {
+   "prefix": "apple/Apps/iOSTests/ServerUIBoundaryHostedTests",
+   "hosted": [
+    "ServerUIBoundaryHostedTests"
    ],
    "hosted_families": [
     "duo"

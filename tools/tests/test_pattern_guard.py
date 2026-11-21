@@ -253,6 +253,13 @@ class HostedLiteralHingeGuardTests(unittest.TestCase):
                      "// grid.hinge = CGRect(x: 190, y: 0, width: 12, height: 852)"):
             self.assertEqual(self.hits(line + "\n"), [], line)
 
+    def test_a_sideways_band_at_x_zero_passes(self):
+        # Unfolded portrait: the hinge is a horizontal band across the full width, so x is 0.
+        for line in ("shell.windowHinge = CGRect(x: 0, y: 455, width: 669, height: 40)",
+                     "let band = CGRect(x: 0, y: 455.3, width: 669, height: 40.4)"):
+            self.assertEqual(self.hits(line + "\n"), [], line)
+        self.assertEqual(self.hits("let band = CGRect(x: 10, y: 455, width: 669, height: 40)\n"), ["hinge-avoidance/hosted-literal-hinge"])
+
     def test_the_helper_file_itself_may_compute_a_band(self):
         self.assertEqual(self.hits("let band = CGRect(x: 1, y: 0, width: 2, height: 3)\n", rel="apple/Apps/iOSTests/HostedWindow.swift"), [])
 

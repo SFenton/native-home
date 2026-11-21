@@ -951,9 +951,9 @@
    "links": 1
   },
   ".agents/patterns/hinge-avoidance.md": {
-   "forbidden": 14,
+   "forbidden": 13,
    "long_lines": 10,
-   "over_words": 176
+   "over_words": 168
   },
   ".agents/patterns/image-card.md": {
    "forbidden": 2,

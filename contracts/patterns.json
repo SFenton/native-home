@@ -589,12 +589,12 @@
         {
           "id": "hosted-literal-hinge",
           "glob": "apple/Apps/iOSTests/**/*.swift",
-          "regex": "(?i)(hinge|band)\\w*\\s*[:=]\\s*CGRect\\(\\s*x:\\s*-?[0-9]",
+          "regex": "(?i)(hinge|band)\\w*\\s*[:=]\\s*CGRect\\(\\s*x:\\s*-?(?!0\\b)[0-9]",
           "allow": [
             "apple/Apps/iOSTests/HostedWindow.swift"
           ],
           "debt": {},
-          "message": "A hosted fold test takes its hinge from the scene width through HostedWindow.hingeBand, never a literal x: a literal is the middle of one scene only and stops splitting on the Duo (hinge-avoidance)."
+          "message": "A hosted fold test takes a vertical hinge band from the scene width through HostedWindow.hingeBand, never a literal non-zero x: a literal is the middle of one scene only and stops splitting on the Duo (hinge-avoidance)."
         }
       ],
       "related": {

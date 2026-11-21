@@ -251,6 +251,10 @@ class RuleTests(unittest.TestCase):
         self.assertIn('expect="$expect,hosted-duo=1"', text)  # the report expects the Duo result as well
         self.assertIn("steps.runduo.outputs.code != '0'", hosted.split("Fail the hosted run", 1)[1])
         self.assertLess(hosted.index("--only iphone --hosted"), hosted.index("--only duo --hosted"))
+        for step in ("Slim and settle the duo simulator", "Run the Duo hosted classes"):
+            condition = hosted.split(step, 1)[1].split("if: ", 1)[1].split("\n", 1)[0]
+            self.assertIn("steps.products.outcome == 'success'", condition)  # no Duo run after the products failed to load
+        self.assertIn("id: products", hosted.split("Reuse the built products", 1)[1].split("- name:", 1)[0])
         self.assertIn("tools/ci_release_sims.sh", hosted.split("Slim and settle the duo simulator", 1)[1].split("- name:", 1)[0])  # one device at a time
 
     def test_the_scope_filter_watches_every_file_that_decides_hosted_selection(self):
