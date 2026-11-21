@@ -4,16 +4,18 @@
 
 ## Self-change
 
-- A change to agents, skills, hooks, tools or decision-model questions passes the eval gate (`tools/agent_eval.py`) and an independent review before it merges. Run the gate yourself before pushing.
-- A self-change lane is a branch `agents/<topic>-<date>` cut from the workflow base.
-- The session that wrote a self-change never reviews it and never records its verdict.
-- A headless session pushes only its lanes and lists them in its status file as `lanes`; it never lands one.
-- A lane with a pull request lands as any pull request does ([landing](pr-lifecycle.md#landing)). A lane without one lands through `tools/lane_land.py`, which runs the gate and the tool tests on the passed head, merges that head into the workflow base and pushes the base.
-- The runner calls `lane_land.py` for a headless session's lanes, with a Reviewer it launches from a trusted checkout ([triage-agent](triage-agent.md)); an interactive session calls it after a recorded `pass`.
-- A merge or push the remote refuses lands nothing; the tool reports it and the runner files a workflow issue.
-- One change touches agent behavior (agents, skills, hooks, questions) or the evals, labels, splits and thresholds that grade it, never both. `tools/lane_land.py` refuses the mix in a lane.
-- The gate cannot be changed by the change it grades: the harness, the cases and the measuring code run from the trusted base, never from the lane.
-- Decision-model thresholds may only tighten in a lane, and a new question starts in shadow ([jev](jev.md)).
+- Agent, skill, hook, tool and decision-question changes pass `tools/agent_eval.py` and independent review; run the gate before pushing.
+- A self-change lane branches `agents/<topic>-<date>` from the workflow base.
+- Every plain pull request runs two jobs. `tier0-emit` runs the base collector against the head in an isolated VM and emits observations. `pr-policy` trusts the base code and exact event SHAs, treats the artifact bytes as hostile data and publishes the verdict. A red result blocks the pull request.
+- Recorded observations can be fabricated by a hostile change, so replay guards accidents; independent review of the changed code is the control. The owner still reviews workflow wiring and owner-held grader, review and deny inputs.
+- The author never reviews or records the verdict.
+- A headless session pushes lanes and lists them as `lanes` in status; it never lands them.
+- A pull-request lane lands normally ([landing](pr-lifecycle.md#landing)). A lane without one uses `tools/lane_land.py`, which runs the gate and tool tests, merges the passed head and pushes the base.
+- The runner uses `lane_land.py` with a Reviewer from a trusted checkout ([triage-agent](triage-agent.md)); an interactive session waits for a recorded `pass`.
+- A refused merge or push lands nothing; the tool reports it and the runner files a Workflow issue.
+- One lane changes agent behavior or eval grading, never both; `tools/lane_land.py` refuses the mix.
+- The trusted base runs the harness, cases and measuring code; the lane never grades itself.
+- Question thresholds only tighten, and a new question starts in shadow ([jev](jev.md)).
 
 ## Post-mortems
 

@@ -1,8 +1,21 @@
 """Lints the hosted-CI rules in the workflow files (text only: no YAML library on the runner's system Python)."""
 
 import fnmatch
+import hashlib
+import http.server
+import importlib.util
+import io
+import json
+import os
 import re
+import stat
+import subprocess
+import sys
+import tempfile
+import textwrap
+import threading
 import unittest
+import zipfile
 from pathlib import Path
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
@@ -22,6 +35,43 @@ def needs_list(text):
     code = "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
     match = re.search(r"^    needs:\s*(\[[^\]]*\]|\S+)", code, flags=re.M)
     return [n.strip() for n in match.group(1).strip("[]").split(",")] if match else []
+
+
+def executable(text):
+    """Executable YAML text: comment-only lines never satisfy a wiring proof."""
+    return "\n".join(line for line in text.splitlines() if not line.lstrip().startswith("#"))
+
+
+def step_blocks(text):
+    """The workflow's executable `steps:` entries, without a YAML dependency."""
+    code = executable(text)
+    body = code.split("\n    steps:\n", 1)[1] if "\n    steps:\n" in code else ""
+    starts = list(re.finditer(r"(?m)^      - (?:name:|uses:|id:)", body))
+    return [
+        body[match.start():starts[index + 1].start() if index + 1 < len(starts) else len(body)]
+        for index, match in enumerate(starts)
+    ]
+
+
+def named_step(text, name):
+    return next(
+        (block for block in step_blocks(text)
+         if re.search(r"(?m)^      - name: %s$" % re.escape(name), block)),
+        "",
+    )
+
+
+def inline_python(text, step_name):
+    """One heredoc body from a named workflow step, after YAML block indentation."""
+    block = named_step(text, step_name)
+    match = re.search(
+        r"(?m)^          python3 -B -[^\n]*<<'PY'\n(.*?)^          PY$",
+        block,
+        flags=re.S,
+    )
+    if match is None:
+        raise AssertionError("missing inline Python in %s" % step_name)
+    return textwrap.dedent(match.group(1))
 
 
 def all_files():
@@ -85,7 +135,7 @@ class RuleTests(unittest.TestCase):
             self.assertRegex(text, r"[\[ ,]%s[,\]\s]" % re.escape(needed))
         self.assertTrue((WORKFLOWS / "pr-checks.yml").read_text(encoding="utf-8").startswith("name: pr-checks\n"))
         self.assertIn("toJSON(needs)", text)
-        self.assertIn("python3 tools/ci_aggregate.py", text)
+        self.assertRegex(text, r"python3 (?:-B )?tools/ci_aggregate\.py")
         self.assertNotIn("success|skipped", text)
 
     def test_python_tool_test_jobs_leave_hosted_mode_off_and_compare_against_the_base(self):
@@ -191,7 +241,7 @@ class RuleTests(unittest.TestCase):
         self.assertIn("name: macos-test-products", build)
         self.assertIn("retention-days: 1", build)
         self.assertIn("if-no-files-found: error", build)
-        self.assertIn("name: macos-test-products", test)
+        self.assertIn("artifact-ids: ${{ needs.macos-build.outputs.artifact-id }}", test)
         order = [test.index(text) for text in ("name: Download the test products", "name: Unpack the test products",
                                                "name: Reuse the built products", "tools/ci_macos.sh smoke")]
         self.assertEqual(order, sorted(order))
@@ -437,7 +487,9 @@ class MergeGateTests(unittest.TestCase):
         self.assertIn('*",$AUTHOR,"*) ;;', step)
         self.assertIn('"$HEAD_REPO" != "$THIS_REPO"', step)
         self.assertIn("exit 1", step)
-        self.assertIn("if: ${{ !cancelled() }}", text.split("- name: Aggregate", 1)[1])  # both steps run, so the summary shows both
+        aggregate_steps = text.split("- name: Aggregate", 1)[1]
+        self.assertIn("if: ${{ !cancelled() && github.event_name == 'pull_request' }}", aggregate_steps)
+        self.assertIn("if: ${{ !cancelled() && github.event_name != 'pull_request' }}", aggregate_steps)
 
 
 if __name__ == "__main__":
@@ -450,3 +502,525 @@ class NeedsListTests(unittest.TestCase):
         listed = needs_list(jobs("pr-checks.yml")["pr-checks"])
         for needed in ("macos-build", "macos-test", "build-release", "linux-checks", "tool-tests-core"):
             self.assertIn(needed, listed)
+
+
+class PullRequestPolicyWiringTests(unittest.TestCase):
+    @staticmethod
+    def problems(parsed):
+        found = []
+        emit = parsed.get("tier0-emit", "")
+        policy = parsed.get("pr-policy", "")
+        aggregate = parsed.get("pr-checks", "")
+        if not emit:
+            return ["job:tier0-emit"]
+        if not re.search(r"(?m)^    if: .*github\.event_name == 'pull_request'", executable(emit)):
+            found.append("job:tier0-emit:event")
+        if "outputs:" in executable(emit) or "GITHUB_OUTPUT" in executable(emit):
+            found.append("job:tier0-emit:no-output")
+        if "permissions:\n      contents: read" not in executable(emit) or "secrets." in emit:
+            found.append("job:tier0-emit:credentials")
+        for name, ref in (
+            ("Check out the event base", "${{ github.event.pull_request.base.sha }}"),
+            ("Check out the event head", "${{ github.event.pull_request.head.sha }}"),
+        ):
+            step = named_step(emit, name)
+            if not step or "ref: %s" % ref not in step or "fetch-depth: 0" not in step or \
+                    "persist-credentials: false" not in step:
+                found.append("checkout:tier0-emit:%s" % name.split()[-1])
+        isolate = named_step(emit, "Collect tier-0 observations in isolation")
+        for value, boundary in (
+            ("sudo unshare --mount --pid --fork --net --mount-proc", "isolation:namespaces"),
+            ("mount -o remount,bind,ro /", "isolation:read-only"),
+            ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=32m tmpfs /tmp", "isolation:scratch"),
+            ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs /run", "isolation:control-sockets"),
+            ('mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs "$runner_temp"',
+             "isolation:runner-files"),
+            ("setpriv --reuid=65534 --regid=65534 --clear-groups", "isolation:non-root"),
+            ("env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C", "isolation:environment"),
+            ("timeout --signal=TERM --kill-after=5s 300s", "isolation:time"),
+            ("ulimit -f 16384", "isolation:output"),
+            ('python3 -B "$base/tools/agent_eval.py" --tier 0 --root "$base"', "collector:base"),
+            ('--target "$head" --emit-observations /tmp/tier0-observations.json', "collector:contract"),
+            ("> /dev/null 2>&1", "collector:child-logging"),
+        ):
+            if not isolate or value not in executable(isolate):
+                found.append(boundary)
+        upload = named_step(emit, "Upload tier-0 observations")
+        if not upload or "actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f" not in upload or \
+                "if: ${{ always() }}" not in upload or \
+                "${{ format('tier0-observations-{0}-{1}', github.run_id, github.run_attempt) }}" not in upload or \
+                "path: ${{ runner.temp }}/tier0-observations.json" not in upload or \
+                "retention-days: 1" not in upload or "if-no-files-found: error" not in upload or \
+                "overwrite: false" not in upload:
+            found.append("artifact:emit-upload")
+
+        if not policy:
+            return found + ["job:pr-policy"]
+        if needs_list(policy) != ["tier0-emit"]:
+            found.append("job:pr-policy:needs")
+        if "if: ${{ always() && github.event_name == 'pull_request' }}" not in executable(policy):
+            found.append("job:pr-policy:event")
+        if "actions: read" not in executable(policy) or "secrets." in policy:
+            found.append("job:pr-policy:credentials")
+        if "verdict: ${{ steps.verdict.outputs.verdict }}" not in executable(policy):
+            found.append("verdict:trusted-output")
+        for name, ref in (
+            ("Check out the event base", "${{ github.event.pull_request.base.sha }}"),
+            ("Check out the event head", "${{ github.event.pull_request.head.sha }}"),
+        ):
+            step = named_step(policy, name)
+            if not step or "ref: %s" % ref not in step or "fetch-depth: 0" not in step or \
+                    "persist-credentials: false" not in step:
+                found.append("checkout:pr-policy:%s" % name.split()[-1])
+        transport = named_step(policy, "Fetch one bounded artifact without unpacking")
+        for value, boundary in (
+            ("id: transport", "transport:identity"),
+            ("continue-on-error: true", "transport:failed-download"),
+            ("GH_TOKEN: ${{ github.token }}", "transport:permission"),
+            ("ARTIFACT_NAME: ${{ format('tier0-observations-{0}-{1}', github.run_id, github.run_attempt) }}",
+             "transport:attempt-name"),
+            ("/actions/runs/%s/artifacts?%s", "transport:query"),
+            ("ARCHIVE_LIMIT = 9 * 1024 * 1024", "transport:archive-bound"),
+            ("MEMBER_LIMIT = 8 * 1024 * 1024", "transport:member-bound"),
+            ('member.filename != "tier0-observations.json"', "transport:member-name"),
+            ("len(members) != 1", "transport:member-count"),
+            ("not stat.S_ISREG(mode)", "transport:member-type"),
+            ("member.flag_bits & 0x1", "transport:member-encryption"),
+            ('hmac.compare_digest(digest, digest_text)', "transport:digest"),
+            ("os.open(str(output_path), flags, 0o600)", "transport:quarantine"),
+        ):
+            if not transport or value not in executable(transport):
+                found.append(boundary)
+        drive = named_step(policy, "Run the base policy driver")
+        if not drive or "if: ${{ always() }}" not in drive or "id: verdict" not in drive or \
+                'python3 -B "$GITHUB_WORKSPACE/policy-base/tools/pr_policy.py"' not in executable(drive) or \
+                "--head-observations" not in drive or "--out" not in drive or \
+                "driver_exit" not in drive or "GITHUB_OUTPUT" not in drive:
+            found.append("verdict:driver-publication")
+        if "$GITHUB_WORKSPACE/policy-head/tools/pr_policy.py" in policy:
+            found.append("verdict:wrong-driver")
+
+        if not aggregate:
+            return found + ["job:pr-checks"]
+        direct = needs_list(aggregate)
+        if "tier0-emit" not in direct or "pr-policy" not in direct:
+            found.append("aggregate:direct-needs")
+        checkout = next(
+            (step for step in step_blocks(aggregate)
+             if "actions/checkout@" in step),
+            "",
+        )
+        if "github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.sha" not in checkout or \
+                "fetch-depth: 0" not in checkout or "persist-credentials: false" not in checkout:
+            found.append("aggregate:base-checkout")
+        author = named_step(aggregate, "Author check")
+        if not author or "github.event.pull_request.user.login" not in author or \
+                "AGENT_LOGINS: ${{ vars.AGENT_LOGINS }}" not in author:
+            found.append("aggregate:author")
+        pr_step = named_step(aggregate, "Aggregate pull request")
+        legacy = named_step(aggregate, "Aggregate trusted event")
+        if not pr_step or "POLICY_VERDICT: ${{ needs.pr-policy.outputs.verdict }}" not in pr_step or \
+                "printf '%s' \"$POLICY_VERDICT\"" not in pr_step or \
+                "tools/ci_aggregate.py --policy-aware --policy-result" not in pr_step or \
+                "--expect-base-sha \"$BASE_SHA\" --expect-head-sha \"$HEAD_SHA\"" not in pr_step:
+            found.append("aggregate:pull-request")
+        if not legacy or "github.event_name != 'pull_request'" not in legacy or \
+                "--policy-aware" in legacy or "python3 -B tools/ci_aggregate.py" not in legacy:
+            found.append("aggregate:legacy")
+        return found
+
+    def test_policy_workflow_wiring_is_complete(self):
+        parsed = jobs("pr-checks.yml")
+        self.assertEqual(self.problems(parsed), [])
+        self.assertIn("if: always()", parsed["pr-checks"])
+
+    def test_policy_workflow_mutations_fail_at_the_owned_boundary(self):
+        parsed = jobs("pr-checks.yml")
+        mutations = []
+
+        def changed(label, expected, transform):
+            copy = dict(parsed)
+            transform(copy)
+            mutations.append((label, expected, self.problems(copy)))
+
+        changed(
+            "missing emit", "job:tier0-emit",
+            lambda graph: graph.pop("tier0-emit"),
+        )
+        changed(
+            "emit output trusted", "job:tier0-emit:no-output",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "    steps:\n", "    outputs:\n      verdict: bad\n    steps:\n", 1
+                )
+            ),
+        )
+        changed(
+            "wrong head checkout", "checkout:tier0-emit:head",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "ref: ${{ github.event.pull_request.head.sha }}",
+                    "ref: ${{ github.event.pull_request.base.sha }}", 1
+                )
+            ),
+        )
+        changed(
+            "emit job skipped", "job:tier0-emit:event",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "if: ${{ github.event_name == 'pull_request' }}",
+                    "if: ${{ false }}", 1
+                )
+            ),
+        )
+        changed(
+            "collector can use the network", "isolation:namespaces",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(" --net", "", 1)
+            ),
+        )
+        changed(
+            "artifact is overwritten", "artifact:emit-upload",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "overwrite: false", "overwrite: true", 1
+                )
+            ),
+        )
+        changed(
+            "artifact ignores the attempt", "artifact:emit-upload",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "github.run_id, github.run_attempt",
+                    "github.run_id, github.run_number", 1
+                )
+            ),
+        )
+        changed(
+            "policy no longer waits", "job:pr-policy:needs",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    "needs: tier0-emit", "needs: scope", 1
+                )
+            ),
+        )
+        changed(
+            "policy job skipped", "job:pr-policy:event",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    "if: ${{ always() && github.event_name == 'pull_request' }}",
+                    "if: ${{ false }}", 1
+                )
+            ),
+        )
+        changed(
+            "checkout credentials persist", "checkout:tier0-emit:base",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "persist-credentials: false", "persist-credentials: true", 1
+                )
+            ),
+        )
+        changed(
+            "broken transport stops running", "transport:failed-download",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    "continue-on-error: true", "continue-on-error: false", 1
+                )
+            ),
+        )
+        changed(
+            "download query is broken", "transport:query",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    "/actions/runs/%s/artifacts?%s",
+                    "/actions/runs/%s/artifact?%s", 1
+                )
+            ),
+        )
+        changed(
+            "quarantine member bound grows", "transport:member-bound",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    "MEMBER_LIMIT = 8 * 1024 * 1024",
+                    "MEMBER_LIMIT = 9 * 1024 * 1024", 1
+                )
+            ),
+        )
+        changed(
+            "wrong driver checkout", "verdict:wrong-driver",
+            lambda graph: graph.__setitem__(
+                "pr-policy", graph["pr-policy"].replace(
+                    'GITHUB_WORKSPACE/policy-base/tools/pr_policy.py',
+                    'GITHUB_WORKSPACE/policy-head/tools/pr_policy.py', 1
+                )
+            ),
+        )
+        changed(
+            "emit job removed from aggregate", "aggregate:direct-needs",
+            lambda graph: graph.__setitem__(
+                "pr-checks", graph["pr-checks"].replace("tier0-emit, ", "", 1)
+            ),
+        )
+        changed(
+            "aggregate uses the head checkout", "aggregate:base-checkout",
+            lambda graph: graph.__setitem__(
+                "pr-checks", graph["pr-checks"].replace(
+                    "github.event.pull_request.base.sha || github.sha",
+                    "github.event.pull_request.head.sha || github.sha", 1
+                )
+            ),
+        )
+        changed(
+            "wrong verdict producer", "aggregate:pull-request",
+            lambda graph: graph.__setitem__(
+                "pr-checks", graph["pr-checks"].replace(
+                    "needs.pr-policy.outputs.verdict",
+                    "needs.tier0-emit.outputs.verdict", 1
+                )
+            ),
+        )
+        changed(
+            "legacy aggregate becomes policy-aware", "aggregate:legacy",
+            lambda graph: graph.__setitem__(
+                "pr-checks", graph["pr-checks"].replace(
+                    "name: Aggregate trusted event",
+                    "name: Aggregate trusted event --policy-aware", 1
+                ) + "\n        # --policy-aware\n"
+            ),
+        )
+        changed(
+            "author gate removed", "aggregate:author",
+            lambda graph: graph.__setitem__(
+                "pr-checks", graph["pr-checks"].replace(
+                    "      - name: Author check", "      - name: Removed author gate", 1
+                )
+            ),
+        )
+
+        for label, expected, actual in mutations:
+            self.assertIn(expected, actual, label)
+
+    def test_macos_test_consumes_only_the_build_upload_artifact_id(self):
+        build = jobs("pr-checks.yml")["macos-build"]
+        test = jobs("pr-checks.yml")["macos-test"]
+        upload = named_step(build, "Upload the test products")
+        download = named_step(test, "Download the test products")
+        require = named_step(test, "Require the immutable test-products artifact")
+        self.assertIn("outputs:\n      artifact-id: ${{ steps.products.outputs.artifact-id }}", build)
+        self.assertIn("id: products", upload)
+        self.assertIn("ARTIFACT_ID: ${{ needs.macos-build.outputs.artifact-id }}", require)
+        self.assertIn("artifact-ids: ${{ needs.macos-build.outputs.artifact-id }}", download)
+        self.assertNotIn("name: macos-test-products", download)
+        self.assertRegex(require, r"\*\[!0-9\]\*")
+
+
+class PolicyInlinePythonTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        policy = jobs("pr-checks.yml")["pr-policy"]
+        cls.transport = inline_python(policy, "Fetch one bounded artifact without unpacking")
+        cls.validator = inline_python(policy, "Run the base policy driver")
+        module_path = WORKFLOWS.parents[1] / "tools" / "pr_policy.py"
+        specification = importlib.util.spec_from_file_location("policy_driver_fixture", module_path)
+        cls.policy_driver = importlib.util.module_from_spec(specification)
+        specification.loader.exec_module(cls.policy_driver)
+
+    def test_every_inline_python_block_has_an_executable_fixture(self):
+        policy = jobs("pr-checks.yml")["pr-policy"]
+        self.assertEqual(policy.count("<<'PY'"), 2)
+        self.assertTrue(self.transport.strip().startswith("import hashlib"))
+        self.assertTrue(self.validator.strip().startswith("import json"))
+
+    @staticmethod
+    def archive(members):
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, "w", zipfile.ZIP_STORED) as bundle:
+            for name, payload, mode in members:
+                member = zipfile.ZipInfo(name)
+                member.create_system = 3
+                member.external_attr = mode << 16
+                bundle.writestr(member, payload)
+        return data.getvalue()
+
+    @staticmethod
+    def encrypted(archive):
+        data = bytearray(archive)
+        local = data.index(b"PK\x03\x04")
+        central = data.index(b"PK\x01\x02")
+        data[local + 6] |= 1
+        data[central + 8] |= 1
+        return bytes(data)
+
+    def run_transport(self, archive, download_status=200, http_status=200):
+        state = {"archive": archive, "download_status": download_status, "http_status": http_status}
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, _format, *_args):
+                pass
+
+            def do_GET(self):
+                if "/artifacts?" in self.path:
+                    if state["http_status"] != 200:
+                        self.send_response(state["http_status"])
+                        self.end_headers()
+                        return
+                    name = "tier0-observations-11-2"
+                    metadata = {
+                        "total_count": 1,
+                        "artifacts": [{
+                            "id": 7,
+                            "name": name,
+                            "expired": False,
+                            "workflow_run": {"id": 11},
+                            "digest": "sha256:" + hashlib.sha256(state["archive"]).hexdigest(),
+                        }],
+                    }
+                    body = json.dumps(metadata).encode("utf-8")
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    return
+                if self.path.endswith("/artifacts/7/zip"):
+                    self.send_response(state["download_status"])
+                    if state["download_status"] != 200:
+                        self.end_headers()
+                        return
+                    self.send_header("Content-Length", str(len(state["archive"])))
+                    self.end_headers()
+                    try:
+                        self.wfile.write(state["archive"])
+                    except BrokenPipeError:
+                        pass
+                    return
+                self.send_response(404)
+                self.end_headers()
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever)
+        thread.daemon = True
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory(prefix="policy-transport-") as directory:
+                path = Path(directory) / "tier0-observations.json"
+                env = dict(os.environ)
+                env.update({
+                    "GH_TOKEN": "fixture-token",
+                    "API_URL": "http://127.0.0.1:%s" % server.server_port,
+                    "REPOSITORY": "fixture/repository",
+                    "RUN_ID": "11",
+                    "RUN_ATTEMPT": "2",
+                    "ARTIFACT_NAME": "tier0-observations-11-2",
+                    "OBSERVATIONS_PATH": str(path),
+                })
+                result = subprocess.run(
+                    [sys.executable, "-B", "-"],
+                    input=self.transport,
+                    text=True,
+                    env=env,
+                    capture_output=True,
+                )
+                payload = path.read_bytes() if path.exists() else None
+                return result, payload
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+    def test_transport_accepts_only_one_bounded_regular_member(self):
+        regular = stat.S_IFREG | 0o644
+        payload = b'{"schema":1,"base_sha":"a","head_sha":"b","cases":{}}'
+        valid = self.archive([("tier0-observations.json", payload, regular)])
+        good, extracted = self.run_transport(valid)
+        self.assertEqual(good.returncode, 0, good.stderr)
+        self.assertEqual(extracted, payload)
+
+        invalid = {
+            "transfer-too-large": b"x" * (9 * 1024 * 1024 + 1),
+            "two-members": self.archive([
+                ("tier0-observations.json", payload, regular),
+                ("other.json", b"{}", regular),
+            ]),
+            "directory": self.archive([("tier0-observations.json/", b"", stat.S_IFDIR | 0o755)]),
+            "link": self.archive([("tier0-observations.json", b"target", stat.S_IFLNK | 0o777)]),
+            "wrong-name": self.archive([("observations.json", payload, regular)]),
+            "encrypted": self.encrypted(valid),
+            "truncated": valid[:-9],
+        }
+        oversized = self.archive([
+            ("tier0-observations.json", b"x" * (8 * 1024 * 1024 + 1), regular),
+        ])
+        invalid["member-too-large"] = oversized
+        for label, archive in invalid.items():
+            result, extracted = self.run_transport(archive)
+            self.assertNotEqual(result.returncode, 0, label)
+            self.assertEqual(extracted, b"", label)
+
+    def test_failed_download_leaves_no_observation_and_delivers_unavailable(self):
+        regular = stat.S_IFREG | 0o644
+        valid = self.archive([("tier0-observations.json", b"{}", regular)])
+        result, extracted = self.run_transport(valid, download_status=503)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIsNone(extracted)
+        with self.assertRaises(self.policy_driver.PolicyError) as caught:
+            self.policy_driver._read_observations(
+                Path("does-not-exist"), "a" * 40, "b" * 40,
+            )
+        self.assertEqual(caught.exception.reason, "tier0_unavailable")
+
+    def run_validator(self, verdict, driver_exit, base_sha=None, head_sha=None):
+        base_sha = base_sha or "a" * 40
+        head_sha = head_sha or "b" * 40
+        with tempfile.TemporaryDirectory(prefix="policy-verdict-") as directory:
+            path = Path(directory) / "verdict.json"
+            output = Path(directory) / "output"
+            if isinstance(verdict, bytes):
+                path.write_bytes(verdict)
+            else:
+                path.write_text(
+                    json.dumps(verdict, sort_keys=True, separators=(",", ":")) + "\n",
+                    encoding="utf-8",
+                )
+            env = dict(os.environ)
+            env["GITHUB_OUTPUT"] = str(output)
+            result = subprocess.run(
+                [
+                    sys.executable, "-B", "-", str(path), str(driver_exit),
+                    base_sha, head_sha,
+                ],
+                input=self.validator,
+                text=True,
+                env=env,
+                capture_output=True,
+            )
+            published = output.read_text(encoding="utf-8") if output.exists() else ""
+            return result, published
+
+    def test_verdict_publication_accepts_only_sha_bound_exit_pairings(self):
+        passing = {
+            "schema": 1,
+            "outcome": "pass",
+            "reasons": ["tier0_pass"],
+            "base_sha": "a" * 40,
+            "head_sha": "b" * 40,
+        }
+        failing = dict(passing, outcome="fail", reasons=["tier0_new_failure"])
+        result, published = self.run_validator(passing, 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(published.startswith("verdict="), published)
+
+        result, published = self.run_validator(failing, 1)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(published.startswith("verdict="), published)
+
+        result, published = self.run_validator(
+            dict(passing, base_sha="c" * 40), 0
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(published, "")
+
+        result, published = self.run_validator(failing, 0)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(published, "")
