@@ -14,3 +14,4 @@
 - Shared helper: `pages/rooms/_rooms.js` (rooms batch; list of kit promotions in its header).
 - Change log: 2026-10-27 action tiles (claude/action-nav-tiles). renders the shared room-card builders, so its PC, towel rack, garage and remote cards are action tiles (see room-card-tile).
 - In flight (`claude/section-sides`, [section-sides](../../../../section-sides.md)): partly folded Duo, each section wholly on one side (fold columns); state `duo-part-fold`. Every other pose unchanged.
+- Header: Back, Quick Links and Profile, as on every room page ([room-page](../room-page/README.md)).

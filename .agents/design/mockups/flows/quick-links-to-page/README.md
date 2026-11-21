@@ -10,4 +10,5 @@
 - Devices: iPhone, folded Duo, unfolded Duo landscape, iPad (both)
 - Rule: a page link in any sheet closes every level of it, then pushes; a level stays in the sheet. See `.agents/patterns/modal-sheet.md`.
 - Other tab: a homed page lands under its home tab by a cut after the sheet closes; Back pops there.
+- Landed page: a room or any page link lands with Back, Quick Links and Profile and the tab navigator, on every tab.
 - Open notes: Target pages are trimmed stand-ins. Media's symbol (appletvremote.gen4) is not in the kit map; tv is drawn.
