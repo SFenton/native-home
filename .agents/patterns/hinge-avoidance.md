@@ -30,10 +30,8 @@ Decided 2026-10-24 (`duo-ipad-fold-layout`, every section's recommendation); pos
 
 - **Owned files** (also in `contracts/patterns.json`): `WindowHingeEnvironment.swift`; `UKFoldColumns.swift`, `FoldColumns.swift`.
 
-- **Leading-region mode (2026-11-06).** `UKHingeClearingView(content:leadingOnly:active:)` can take the leading region of the band instead of its wider side (`leadingOnly`), and with `leadingOnly` it lets touches through where the content takes none; `active: false` makes it a plain full-size host. `UKStateMessageOverlay(leadingOnHinge:)` uses it and defaults to off; only the house-layout gate turns it on, so other state messages keep their centring until a separate change adopts it.
+- **Leading-region mode (2026-11-06).** `UKHingeClearingView(content:leadingOnly:active:)` can take the band's leading region instead of its wider side, and then lets touches through where the content takes none; `active: false` makes it a plain full-size host. `UKStateMessageOverlay(leadingOnHinge:)` uses it, off by default; only the house-layout gate turns it on.
 
 ## Guards
 
-Checked by `python3 tools/pattern_guard.py` against `contracts/patterns.json` (comment lines are ignored).
-
-- `hinge-avoidance/hosted-literal-hinge`: a hosted test (`apple/Apps/iOSTests`) never assigns a hinge or band from `CGRect(x: <literal>, ...)`. It builds it with `HostedWindow.hingeBand(sceneWidth:width:height:)` or `hingeBand(centredOn:in:)`, which centre the band on the scene or the content area. A literal x is the middle of one scene only (`CGRect(x: 190, ...)` is an iPhone-width scene's); on the Duo's hosted scene it leaves one side under `SplitPolicy.minimumPaneWidth` and the test passes without splitting. Classes that exercise the band opt into the Duo hosted leg with `hosted_families: ["duo"]` in `contracts/test-map.json` (the pull request's Duo leg and the nightly `hosted` job run them there; [ci](../workflow/ci.md)).
+- `hinge-avoidance/hosted-literal-hinge`: a hosted test builds its hinge with `HostedWindow.hingeBand`, never a literal x.
