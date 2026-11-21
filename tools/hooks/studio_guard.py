@@ -32,7 +32,7 @@ Blocked, in an agent session:
 Prose in a ``git commit -m`` or ``gh --body`` value is not read. Heredocs: when any simple command in the line runs code (an interpreter, shell,
 network client or task runner), every heredoc body is read for routes, ports, the data directory and the tool's name, whichever line opens it
 (``python3 - <<EOF``, ``cat <<EOF | python3 -``, ``cat > x.py <<EOF`` then ``python3 x.py``). Only a heredoc whose own command is ``git`` or ``gh``
-(``git commit -F - <<EOF``), or ``cat`` or ``tee`` writing a ``.md`` or ``.txt`` file (``cat > note.md <<EOF``), is skipped. A command piped into or out of code has its ports read too; a separate command (``lsof -i :4801 && python3 x.py``)
+(``git commit -F - <<EOF``) is skipped. A command piped into or out of code has its ports read too; a separate command (``lsof -i :4801 && python3 x.py``)
 does not. Same limits as ``signing_guard``: a path or URL built at run time, a script file that opens the URL, and a Write whose content runs later
 are not seen. Exit 2 sends the message back.
 """
@@ -77,7 +77,7 @@ DATA_DIR_VAR = re.compile(r"\$\{?DATA_DIR(?![A-Za-z0-9_])")
 STUDIO_DATA = re.compile(r"(?:ha-native-home-app|studio-releases)(?:[/\\][^/\\]+)?[/\\]data(?:[/\\]|$)", re.I)
 #: A word that names the CLI (``scripts/studio-publish.ts``, ``studio:publish``, ``import studio_publish``) but not ``test_studio_publish`` or a test file
 #: such as ``tests/studio-publish.test.ts``, nor the record store ``studio-publish/<id>/...`` and its log ``studio-publish.jsonl``.
-TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_-])studio[_:-]publish(?![A-Za-z0-9_-]|\.test\.|/|\.jsonl)", re.I)
+TOOL_WORD = re.compile(r"(?<![A-Za-z0-9_-])studio[_:-]publish(?![A-Za-z0-9_-]|\.test\.|/|\.jsonl(?![A-Za-z0-9_.-]))", re.I)
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n(.*?)(?:\n\s*\2\s*(?:\n|$)|\Z)", re.S)
 #: Programs that run code or other programs: a word naming the tool is refused for them unless it is the exact exempt form.
 RUNNERS = {"uv", "uvx", "pipx", "poetry", "pdm", "hatch", "tox", "pytest", "make", "just", "npm", "pnpm", "yarn"}
@@ -306,23 +306,13 @@ def runs_code(words: List[str]) -> bool:
 
 
 def prose_heredoc(command: str, match: "re.Match[str]") -> bool:
-    """Is the command that opens this heredoc prose, whose body is a message or a note, not code?
-
-    Prose is ``git commit -F - <<EOF``, ``gh ... --body-file - <<EOF``, and ``cat`` or ``tee`` writing a ``.md`` or ``.txt`` file when nothing is
-    piped on from it (``cat > note.md <<EOF``); ``cat > x.py <<EOF`` and ``cat <<EOF | python3 -`` stay code."""
+    """Is the command that opens this heredoc prose (``git commit -F - <<EOF``, ``gh ... --body-file - <<EOF``), whose body is a message, not code?"""
     start = command.rfind("\n", 0, match.start()) + 1
     end = command.find("\n", match.start())
-    segments = tokenize(command[start:end if end >= 0 else len(command)])
-    for i, (_op, words) in enumerate(segments):
+    for _op, words in tokenize(command[start:end if end >= 0 else len(command)]):
         if any(w.startswith("<<") for w in words):
             words = strip_prefixes(words)
-            if not words:
-                return False
-            program = os.path.basename(words[0])
-            if program in ("git", "gh"):
-                return True
-            piped_on = i + 1 < len(segments) and segments[i + 1][0].startswith("|")
-            return program in ("cat", "tee") and not piped_on and any(w.lower().endswith((".md", ".txt")) for w in words[1:])
+            return bool(words) and os.path.basename(words[0]) in ("git", "gh")
     return False
 
 
