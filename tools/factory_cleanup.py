@@ -24,11 +24,13 @@ from __future__ import annotations
 import argparse
 import base64
 import binascii
+import errno
 import hashlib
 import json
 import os
 import re
 import secrets
+import selectors
 import stat
 import subprocess
 import sys
@@ -77,6 +79,8 @@ CANDIDATE_KEYS = (
     "expires",
     "binding",
     "release",
+    "task",
+    "holder_pid",
     "expected",
 )
 BINDING_KEYS = (
@@ -208,6 +212,7 @@ def _run(
     command: Sequence[str],
     cwd: Optional[Path] = None,
     input_bytes: Optional[bytes] = None,
+    write_root: Optional[Path] = None,
 ) -> subprocess.CompletedProcess:
     if not command or not all(isinstance(item, str) for item in command):
         raise CleanupError("command_invalid")
@@ -253,36 +258,124 @@ def _run(
         )
         or (subcommand == "remote" and rest[:1] == ("get-url",))
         or (subcommand == "hash-object" and rest == ("-w", "--stdin"))
-        or (subcommand in ("rev-parse", "rev-list", "symbolic-ref"))
+        or (subcommand in ("rev-parse", "rev-list"))
+        or (
+            subcommand == "symbolic-ref"
+            and rest[:1] == ("-q",)
+            and len(rest) == 2
+            and not rest[1].startswith("-")
+        )
         or (subcommand == "sparse-checkout" and rest[:1] == ("list",))
         or (subcommand == "worktree" and rest[:1] == ("list",))
     )
     if not accepted:
         raise CleanupError("command_denied")
+    command_root = Path(args[2])
+    write_path = None
+    if subcommand == "bundle" and rest[:1] == ("create",):
+        if len(rest) != 3:
+            raise CleanupError("command_denied")
+        value = Path(rest[1])
+        write_path = value if value.is_absolute() else command_root / value
+    elif subcommand == "clone":
+        value = Path(rest[3])
+        write_path = value if value.is_absolute() else command_root / value
+    elif subcommand in ("checkout", "hash-object", "init"):
+        write_path = Path(args[2])
+    if write_path is not None:
+        if write_root is None:
+            raise CleanupError("command_denied")
+        root = Path(write_root).absolute()
+        destination = write_path.absolute()
+        try:
+            destination.relative_to(root)
+        except ValueError as error:
+            raise CleanupError("command_denied") from error
+        _assert_nonlinked_absolute(root)
+        _assert_nonlinked_absolute(destination.parent)
     try:
-        completed = subprocess.run(
+        process = subprocess.Popen(
             list(args),
             cwd=str(cwd) if cwd is not None else None,
-            input=input_bytes,
+            stdin=subprocess.PIPE if input_bytes is not None else subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=COMMAND_TIMEOUT_SECONDS,
             env=_fixed_environment(),
-            check=False,
         )
-        if (
-            len(completed.stdout or b"") > MAX_COMMAND_OUTPUT_BYTES
-            or len(completed.stderr or b"") > MAX_COMMAND_OUTPUT_BYTES
-        ):
-            raise CleanupError("command_output_too_large")
-        return completed
+        stdout, stderr = _bounded_communicate(process, input_bytes)
+        return subprocess.CompletedProcess(args, process.returncode, stdout, stderr)
     except (OSError, subprocess.SubprocessError) as error:
         raise CleanupError("command_failed") from error
 
 
-def _git(root: Path, *arguments: str, input_bytes: Optional[bytes] = None) -> bytes:
+def _bounded_communicate(
+    process: subprocess.Popen, input_bytes: Optional[bytes]
+) -> Tuple[bytes, bytes]:
+    selector = selectors.DefaultSelector()
+    output = {1: bytearray(), 2: bytearray()}
+    output_too_large = False
+    for stream, label in ((process.stdout, 1), (process.stderr, 2)):
+        if stream is not None:
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, label)
+    pending = memoryview(input_bytes or b"")
+    if process.stdin is not None:
+        os.set_blocking(process.stdin.fileno(), False)
+        if pending:
+            selector.register(process.stdin, selectors.EVENT_WRITE, 0)
+        else:
+            process.stdin.close()
+    deadline = time.monotonic() + COMMAND_TIMEOUT_SECONDS
+    try:
+        while selector.get_map():
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CleanupError("command_failed")
+            for key, _mask in selector.select(remaining):
+                if key.data in (1, 2):
+                    chunk = os.read(
+                        key.fd, min(65536, MAX_COMMAND_OUTPUT_BYTES + 1)
+                    )
+                    if not chunk:
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+                        continue
+                    output[key.data].extend(chunk)
+                    if len(output[key.data]) > MAX_COMMAND_OUTPUT_BYTES:
+                        output_too_large = True
+                        del output[key.data][MAX_COMMAND_OUTPUT_BYTES:]
+                else:
+                    try:
+                        written = os.write(key.fd, pending[:65536])
+                        if written <= 0:
+                            raise BrokenPipeError()
+                        pending = pending[written:]
+                    except BrokenPipeError:
+                        pending = pending[len(pending) :]
+                    if not pending:
+                        selector.unregister(key.fileobj)
+                        key.fileobj.close()
+        process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        if output_too_large:
+            raise CleanupError("command_output_too_large")
+        return bytes(output[1]), bytes(output[2])
+    finally:
+        selector.close()
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None and not stream.closed:
+                stream.close()
+
+
+def _git(
+    root: Path,
+    *arguments: str,
+    input_bytes: Optional[bytes] = None,
+    write_root: Optional[Path] = None,
+) -> bytes:
     completed = _run(
-        ("git", "-C", str(root), *arguments), input_bytes=input_bytes
+        ("git", "-C", str(root), *arguments),
+        input_bytes=input_bytes,
+        write_root=write_root,
     )
     if completed.returncode != 0:
         raise CleanupError("git_read_failed")
@@ -292,6 +385,21 @@ def _git(root: Path, *arguments: str, input_bytes: Optional[bytes] = None) -> by
 
 def _git_text(root: Path, *arguments: str) -> str:
     return _git(root, *arguments).decode("utf-8")
+
+
+def _workflow_base(repo: Path) -> str:
+    path = repo / "tools" / "triage" / "config.json"
+    _assert_nonlinked_absolute(path.parent)
+    try:
+        raw = _read_file_nofollow(path, 1024 * 1024)
+        value = factory_lease.strict_json_loads(raw.decode("utf-8"))
+        if not isinstance(value, dict):
+            raise ValueError("invalid configuration")
+        return _text(value.get("workflow_base"), 255, "config_invalid")
+    except CleanupError:
+        raise
+    except (UnicodeError, TypeError, ValueError) as error:
+        raise CleanupError("config_invalid") from error
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -660,6 +768,7 @@ def _release_matches(
     branch: Mapping[str, Any],
     binding: factory_lease.WorktreeBinding,
     now: int,
+    origin: str,
 ) -> Mapping[str, Any]:
     if now < max(worktree["expires"], branch["expires"]):
         raise CleanupError("lease_live")
@@ -673,6 +782,8 @@ def _release_matches(
     if release is None or release["reason"] != "merged":
         raise CleanupError("lease_unattested")
     merged = release["merged"]
+    if merged["target"] != "main" or merged["repository"] != origin:
+        raise CleanupError("pr_changed")
     if (
         branch["generation"] != worktree["generation"]
         or branch["subject"]["parent_lease_id"] != worktree["lease_id"]
@@ -822,6 +933,12 @@ def _validate_candidate(value: Any) -> Dict[str, Any]:
     candidate = _exact_keys(value, CANDIDATE_KEYS, "input_candidate")
     if candidate["action"] != "archive_only":
         raise CleanupError("input_action")
+    task = candidate["task"]
+    if task is not None:
+        _text(task, 128, "input_candidate")
+    holder_pid = candidate["holder_pid"]
+    if holder_pid is not None:
+        _integer(holder_pid, "input_candidate", 1)
     return {
         "action": "archive_only",
         "lease_id": _lease_id(candidate["lease_id"]),
@@ -835,6 +952,8 @@ def _validate_candidate(value: Any) -> Dict[str, Any]:
         "expires": _integer(candidate["expires"], "input_expiry"),
         "binding": _validate_binding_json(candidate["binding"]),
         "release": _validate_release_json(candidate["release"]),
+        "task": task,
+        "holder_pid": holder_pid,
         "expected": _validate_expected(candidate["expected"]),
     }
 
@@ -981,6 +1100,7 @@ def _tree_entries(
     root: Path,
     root_fd: int,
     payload_dir: Optional[Path],
+    payloads: Optional[Dict[bytes, str]] = None,
 ) -> List[Dict[str, Any]]:
     entries: List[Dict[str, Any]] = []
     total = 0
@@ -1074,6 +1194,8 @@ def _tree_entries(
                         os.fsync(descriptor)
                     finally:
                         os.close(descriptor)
+                    if payloads is not None:
+                        payloads[relative] = payload_name
                 entries.append(
                     {
                         "path": display,
@@ -1104,11 +1226,21 @@ def _read_index(binding: factory_lease.WorktreeBinding) -> bytes:
 def _capture_expected(
     binding: factory_lease.WorktreeBinding,
     payload_dir: Optional[Path] = None,
-) -> Tuple[Dict[str, Any], Dict[str, bytes]]:
+) -> Tuple[Dict[str, Any], Dict[bytes, str]]:
     root = Path(binding.path)
-    descriptor = os.open(
-        root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
-    )
+    try:
+        descriptor = os.open(
+            root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+        )
+    except OSError as error:
+        if error.errno in (errno.ENOENT, errno.ENOTDIR, errno.ELOOP):
+            raise CleanupError("path_changed") from error
+        reason = (
+            "archive_failed"
+            if payload_dir is not None
+            else "tree_unreadable"
+        )
+        raise CleanupError(reason) from error
     try:
         root_info = os.fstat(descriptor)
         if (
@@ -1116,7 +1248,8 @@ def _capture_expected(
             or root_info.st_ino != binding.inode
         ):
             raise CleanupError("path_changed")
-        entries = _tree_entries(root, descriptor, payload_dir)
+        payloads: Dict[bytes, str] = {}
+        entries = _tree_entries(root, descriptor, payload_dir, payloads)
         if any(
             _encoded_path(entry["path"]) == b"build/runs"
             or _encoded_path(entry["path"]).startswith(b"build/runs/")
@@ -1127,7 +1260,8 @@ def _capture_expected(
     except CleanupError:
         raise
     except OSError as error:
-        raise CleanupError("tree_unreadable") from error
+        reason = "archive_failed" if payload_dir is not None else "tree_unreadable"
+        raise CleanupError(reason) from error
     finally:
         os.close(descriptor)
     ignored = _ignored_paths(root, entries)
@@ -1161,7 +1295,7 @@ def _capture_expected(
         "entries": entries,
         "deletions": sorted(deletions),
     }
-    return _validate_expected(expected), {}
+    return _validate_expected(expected), payloads
 
 
 def _same_binding(
@@ -1169,6 +1303,26 @@ def _same_binding(
     binding: factory_lease.WorktreeBinding,
 ) -> bool:
     return expected == _binding_json(binding)
+
+
+def _same_binding_location(
+    expected: Mapping[str, Any],
+    binding: factory_lease.WorktreeBinding,
+) -> bool:
+    actual = _binding_json(binding)
+    return all(
+        expected[key] == actual[key]
+        for key in (
+            "path",
+            "device",
+            "inode",
+            "gitfile",
+            "admin_dir",
+            "backpointer",
+            "nonce_path",
+            "common_dir",
+        )
+    )
 
 
 def _open_record_paths_first(
@@ -1259,6 +1413,14 @@ def _marker_and_holder_holds(
     ]
     if any(now_record["state"] == "active" for now_record in current_markers):
         raise CleanupError("active_marker")
+    relevant = (worktree,) + tuple(current_markers)
+    for record in relevant:
+        holder = record.get("holder")
+        if (
+            holder is not None
+            and holder["pid"] in processes.pgids
+        ):
+            raise CleanupError("active_hold")
 
 
 def _candidate_containment(
@@ -1309,7 +1471,8 @@ def _evaluate_candidate(
         return None, "lease_changed"
     if invalid:
         return None, "lease_unknown"
-    merged = _release_matches(worktree, branch, binding, now)
+    origin = _trusted_origin(repo)
+    merged = _release_matches(worktree, branch, binding, now, origin)
     external = external_provider.observe(repo, target_path, binding, worktree)
     if not external.complete:
         return None, "external_unknown"
@@ -1344,7 +1507,6 @@ def _evaluate_candidate(
     reader = factory.GitReader(repo, runner)
     if reader.base_sha() is None:
         return None, "base_unavailable"
-    origin = _trusted_origin(repo)
     _pr_evidence_matches(repo, origin, binding, merged, pr_provider)
     expected, _payloads = _capture_expected(binding)
     if expected["head"] != target.head or expected["branch"] != target.branch:
@@ -1359,6 +1521,12 @@ def _evaluate_candidate(
             "expires": max(worktree["expires"], branch["expires"]),
             "binding": _binding_json(binding),
             "release": dict(merged),
+            "task": worktree.get("task"),
+            "holder_pid": (
+                worktree["holder"]["pid"]
+                if worktree.get("holder") is not None
+                else None
+            ),
             "expected": expected,
         },
         "planned",
@@ -1414,7 +1582,6 @@ def plan_cleanup(
     repo: Path,
     *,
     now: Optional[int] = None,
-    workflow_base: str = "main",
     pr_provider: Optional[factory_lease.PullRequestProvider] = None,
     process_provider: Optional[factory.ProcessProvider] = None,
     external_provider: Optional[ExternalProvider] = None,
@@ -1424,6 +1591,7 @@ def plan_cleanup(
 
     timestamp = _clock_value(now)
     invocation = _invocation_root(repo)
+    workflow_base = _workflow_base(invocation)
     store = factory_lease.LeaseStore.for_repo(invocation, now=timestamp)
     _verify_store(store.identity)
     actual_runner, processes, full, primary, records, invalid = (
@@ -1498,16 +1666,39 @@ def _open_plan_path(
     if any(part == ".." for part in plan_path.parts):
         raise CleanupError("input_path")
     expected_dir = identity.common_dir / "factory" / "plans"
+    plan_absolute = plan_path.absolute()
+    if plan_absolute.parent != expected_dir.absolute():
+        raise CleanupError("input_outside_store")
+    if plan_absolute.name != digest + ".json":
+        raise CleanupError("input_name")
     _assert_nonlinked_absolute(expected_dir)
+    directory = None
+    descriptor = None
     try:
-        actual = plan_path.resolve(strict=True)
+        directory = os.open(
+            expected_dir,
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
+        )
+        descriptor = os.open(
+            plan_absolute.name,
+            os.O_RDONLY | os.O_NOFOLLOW,
+            dir_fd=directory,
+        )
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            raise CleanupError("input_not_regular")
+        if stat.S_IMODE(info.st_mode) != 0o600:
+            raise CleanupError("input_mode")
+        return _read_all(descriptor, MAX_PLAN_BYTES)
+    except CleanupError:
+        raise
     except OSError as error:
         raise CleanupError("input_file") from error
-    if actual.parent != expected_dir.resolve():
-        raise CleanupError("input_outside_store")
-    if actual.name != digest + ".json" or plan_path.is_symlink():
-        raise CleanupError("input_name")
-    return _read_file_nofollow(actual, MAX_PLAN_BYTES, 0o600)
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        if directory is not None:
+            os.close(directory)
 
 
 def _input_gate(
@@ -1577,6 +1768,14 @@ def _validate_fresh_candidate(
     if not stat.S_ISDIR(target_info.st_mode):
         return None, "path_changed"
     try:
+        planned_binding = factory_lease.inspect_worktree(
+            Path(plan_candidate["binding"]["path"]), store.identity
+        )
+    except (OSError, factory_lease.LeaseError):
+        return None, "path_changed"
+    if not _same_binding_location(plan_candidate["binding"], planned_binding):
+        return None, "path_changed"
+    try:
         fresh, reason = _evaluate_candidate(
             repo,
             store.identity,
@@ -1608,6 +1807,8 @@ def _validate_fresh_candidate(
             or fresh["branch_lease_id"] != plan_candidate["branch_lease_id"]
             or fresh["branch_generation"] != plan_candidate["branch_generation"]
             or fresh["release"] != plan_candidate["release"]
+            or fresh["task"] != plan_candidate["task"]
+            or fresh["holder_pid"] != plan_candidate["holder_pid"]
         ):
             return None, "lease_changed"
         if fresh["binding"]["head"] != plan_candidate["binding"]["head"]:
@@ -1640,6 +1841,7 @@ def _bundle(
         "create",
         str(path),
         "HEAD",
+        write_root=candidate_dir,
     )
     info = path.lstat()
     if path.is_symlink() or not stat.S_ISREG(info.st_mode) or info.st_size == 0:
@@ -1870,7 +2072,10 @@ def _restore_archive(
     verify_dir = restore_dir.parent / (restore_dir.name + "-verify")
     _mkdir_private(verify_dir)
     try:
-        initialized = _run(("git", "-C", str(verify_dir), "init", "-q"))
+        initialized = _run(
+            ("git", "-C", str(verify_dir), "init", "-q"),
+            write_root=restore_dir.parent,
+        )
         if initialized.returncode != 0:
             raise CleanupError("bundle_invalid")
         verifier = _run(
@@ -1897,12 +2102,20 @@ def _restore_archive(
             "--no-hardlinks",
             str(bundle),
             str(restore_dir),
-        )
+        ),
+        write_root=restore_dir.parent,
     )
     if completed.returncode != 0:
         raise CleanupError("restore_failed")
     _assert_nonlinked_absolute(restore_dir)
-    _git(restore_dir, "checkout", "-q", "--detach", expected["head"])
+    _git(
+        restore_dir,
+        "checkout",
+        "-q",
+        "--detach",
+        expected["head"],
+        write_root=restore_dir.parent,
+    )
     if (restore_dir / ".git" / "objects" / "info" / "alternates").exists():
         raise CleanupError("restore_alternates")
     for object_id, content in index_objects.items():
@@ -1916,6 +2129,7 @@ def _restore_archive(
                 "--stdin",
             ),
             input_bytes=content,
+            write_root=restore_dir.parent,
         )
         if written.returncode != 0 or written.stdout.strip() != object_id.encode("ascii"):
             raise CleanupError("restore_index")
@@ -1983,7 +2197,7 @@ def _archive_candidate(
     _mkdir_private(files_dir)
     object_dir = candidate_dir / "index-objects"
     _mkdir_private(object_dir)
-    expected, _payloads = _capture_expected(binding, files_dir)
+    expected, payloads = _capture_expected(binding, files_dir)
     if expected != candidate["expected"]:
         raise CleanupError("tree_changed")
     bundle = _bundle(binding, candidate_dir)
@@ -2008,19 +2222,11 @@ def _archive_candidate(
                 "size": len(content),
             }
         )
-    payload_by_digest: Dict[str, str] = {}
-    for path in sorted(files_dir.iterdir()):
-        if not path.is_file():
-            raise CleanupError("archive_manifest")
-        content_digest = hashlib.sha256(
-            _read_file_nofollow(path, MAX_LEAF_BYTES, 0o600)
-        ).hexdigest()
-        payload_by_digest.setdefault(content_digest, path.name)
     files = []
     for entry in expected["entries"]:
         if entry["kind"] != "file":
             continue
-        payload = payload_by_digest.get(entry["sha256"])
+        payload = payloads.get(_encoded_path(entry["path"]))
         if payload is None:
             raise CleanupError("archive_manifest")
         files.append(
@@ -2059,6 +2265,10 @@ def _outcome(
         "lease_id": candidate["lease_id"],
         "generation": candidate["lease_generation"],
         "outcome": status,
+        "task": candidate["task"],
+        "holder_pid": candidate["holder_pid"],
+        "path": candidate["binding"]["path"],
+        "branch": candidate["binding"]["branch"],
     }
     if reason is not None:
         value["reason"] = reason
@@ -2069,13 +2279,28 @@ def _validate_outcome(value: Any) -> Dict[str, Any]:
     if not isinstance(value, dict):
         raise CleanupError("receipt_invalid")
     keys = set(value)
+    base = {
+        "lease_id",
+        "generation",
+        "outcome",
+        "task",
+        "holder_pid",
+        "path",
+        "branch",
+    }
     if keys not in (
-        {"lease_id", "generation", "outcome"},
-        {"lease_id", "generation", "outcome", "reason"},
+        base,
+        base | {"reason"},
     ):
         raise CleanupError("receipt_invalid")
     if value["outcome"] not in ("archived", "held"):
         raise CleanupError("receipt_invalid")
+    if value["task"] is not None:
+        _text(value["task"], 128, "receipt_invalid")
+    if value["holder_pid"] is not None:
+        _integer(value["holder_pid"], "receipt_invalid", 1)
+    _path_text(value["path"])
+    _text(value["branch"], 255, "receipt_invalid")
     return value
 
 
@@ -2206,6 +2431,9 @@ def apply_cleanup(
         store, Path(plan_path), approve, timestamp
     )
     _verify_store(store.identity)
+    workflow_base = _workflow_base(invocation)
+    if plan["workflow_base"] != workflow_base:
+        raise CleanupError("workflow_base_changed")
     candidate_ids = tuple(
         (item["lease_id"], item["lease_generation"])
         for item in plan["candidates"]
@@ -2263,14 +2491,11 @@ def apply_cleanup(
                         / candidate["lease_id"]
                         / str(candidate["lease_generation"])
                     )
-                    _mkdir_private(
-                        stage / candidate["lease_id"]
-                    )
                     candidate_binding, reason = _validate_fresh_candidate(
                         invocation,
                         store,
                         candidate,
-                        plan["workflow_base"],
+                        workflow_base,
                         process_source,
                         provider,
                         external,
@@ -2281,6 +2506,8 @@ def apply_cleanup(
                         outcomes.append(_outcome(candidate, "held", reason))
                         held += 1
                         continue
+                    lease_dir = stage / candidate["lease_id"]
+                    _mkdir_private(lease_dir)
                     candidate_restore = restore_root / ("%04d" % index)
                     try:
                         _archive_candidate(
@@ -2289,13 +2516,26 @@ def apply_cleanup(
                             candidate_dir,
                             candidate_restore,
                         )
-                    except CleanupError:
-                        raise
+                    except CleanupError as error:
+                        if error.reason not in (
+                            "tree_changed",
+                            "index_changed",
+                            "path_changed",
+                        ):
+                            raise
+                        for changed in (candidate_dir, candidate_restore):
+                            if changed.exists() or changed.is_symlink():
+                                _remove_private_tree(changed)
+                        if lease_dir.exists() and not tuple(lease_dir.iterdir()):
+                            _remove_private_tree(lease_dir)
+                        outcomes.append(_outcome(candidate, "held", error.reason))
+                        held += 1
+                        continue
                     final_binding, final_reason = _validate_fresh_candidate(
                         invocation,
                         store,
                         candidate,
-                        plan["workflow_base"],
+                        workflow_base,
                         process_source,
                         provider,
                         external,
@@ -2304,6 +2544,8 @@ def apply_cleanup(
                     )
                     if final_binding is None:
                         _remove_private_tree(candidate_dir)
+                        if lease_dir.exists() and not tuple(lease_dir.iterdir()):
+                            _remove_private_tree(lease_dir)
                         outcomes.append(
                             _outcome(candidate, "held", final_reason)
                         )
