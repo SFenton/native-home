@@ -30,8 +30,8 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     }
 
     /// The hinge band across the middle of the area the page's content occupies, in window coordinates. The area comes from the laid-out page, not from a fixed x: the Duo's hosted
-    /// scene is its folded 466 pt outer display, the 868 pt window sticks out of it, and the page starts 84 pt in from the window's leading edge (safe area), so a band at 428 would leave
-    /// the leading side under ``SplitPolicy/minimumPaneWidth`` and never split.
+    /// scene is its folded 466 pt outer display, the 868 pt window sticks out of it, and the page's content area is 784 pt wide (sections at x 16 to 768), 84 pt short of the window's trailing edge, so a band at 428
+    /// left the trailing side 316 pt, under ``SplitPolicy/minimumPaneWidth``, and nothing split.
     private func band(of page: UKServerUIPage, in window: UIWindow) -> CGRect {
         let area = contentArea(of: page)
         return CGRect(x: area.midX - bandWidth / 2, y: 0, width: bandWidth, height: window.bounds.height)
@@ -42,9 +42,10 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
         return (contentArea(of: page).width - bandWidth) / 2 >= SplitPolicy.minimumPaneWidth
     }
 
-    /// The band of `page`, skipping the test where its content area is too narrow for two sides (each at least ``SplitPolicy/minimumPaneWidth``).
-    private func splitBand(of page: UKServerUIPage, in window: UIWindow) throws -> CGRect {
-        try XCTSkipUnless(canSplit(page, in: window), "the page's content area is too narrow for two sides of \(SplitPolicy.minimumPaneWidth) pt")
+    /// The band of `page`, after asserting that its content area holds two sides (each at least ``SplitPolicy/minimumPaneWidth``). The tests that use it open an 868 pt window, which
+    /// must split on every family (iPhone, iPad and the Duo), so a window that stopped splitting fails here instead of passing or skipping.
+    private func splitBand(of page: UKServerUIPage, in window: UIWindow, file: StaticString = #filePath, line: UInt = #line) -> CGRect {
+        XCTAssertTrue(canSplit(page, in: window), "the page's content area (\(contentArea(of: page).width) pt) must hold two sides of \(SplitPolicy.minimumPaneWidth) pt", file: file, line: line)
         return band(of: page, in: window)
     }
 
@@ -135,7 +136,8 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
             shell.windowHinge = band
             settle(page)
             let partly = try frames(page)
-            if family.splits && canSplit(page, in: window) {
+            if family.splits {
+                XCTAssertTrue(canSplit(page, in: window), "\(family.name): the window must hold two sides of \(SplitPolicy.minimumPaneWidth) pt")
                 for frame in partly { XCTAssertTrue(frame.maxX <= band.minX + 0.5 || frame.minX >= band.maxX - 0.5, "\(family.name): no section meets the band") }
                 XCTAssertLessThanOrEqual(partly[0].maxX, band.minX + 0.5)
                 XCTAssertLessThanOrEqual(partly[2].maxX, band.minX + 0.5)
@@ -164,7 +166,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
 
     func testRightToLeftMirrorsTheSidesAndNoSideFrameMeetsTheBand() throws {
         let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true, rightToLeft: true)
-        let band = try splitBand(of: page, in: window)
+        let band = splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let partly = try frames(page)
@@ -175,7 +177,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
 
     func testTheTopStripRunsAcrossTheBandAndBothSidesStartUnderIt() throws {
         let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
-        let band = try splitBand(of: page, in: window)
+        let band = splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let rail = try frame(page, "rail"), note = try frame(page, "notice"), sections = try frames(page)
@@ -190,7 +192,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
     func testAccessibilitySizeKeepsTwoSidesAndTheStripHeadsTheLeadingColumn() throws {
         let (page, window, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
         window.traitOverrides.preferredContentSizeCategory = .accessibilityExtraExtraExtraLarge
-        let band = try splitBand(of: page, in: window)
+        let band = splitBand(of: page, in: window)
         shell.windowHinge = band
         settle(page)
         let partly = try frames(page), rail = try frame(page, "rail"), note = try frame(page, "notice")
@@ -225,7 +227,7 @@ final class ServerUIFoldSidesHostedTests: XCTestCase {
 
     func testASheetNeverTakesSides() throws {
         let (host, hostWindow, shell) = try hosted(size: CGSize(width: 868, height: 669), regular: true)
-        let band = try splitBand(of: host, in: hostWindow)
+        let band = splitBand(of: host, in: hostWindow)
         let sheet = UKServerUIPage(surface: host.definition, context: host.context.with { $0.surface = .sheet }, root: host.root,
                                    presentationID: nil, depth: 0, inheritedGroups: [], close: nil, renderer: try XCTUnwrap(host.renderer))
         let window = HostedPage.show(sheet, size: CGSize(width: 868, height: 669))
