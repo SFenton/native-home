@@ -2,11 +2,10 @@
 
 > **What:** the rules that keep usage proportional to the work: how to wait, which model does what, and how simulators and builds are shared. **Read when:** starting a session or lane, launching a build or test, or spawning an agent.
 
-Cost is turns times context; a turn that only waits costs as much as one that works.
-
 ## Waiting
 
-- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest. A sub-agent's background job dies with its turn: it runs foreground (`timeout` up to 600000, a piece per call) or reports `blocked` with the exact command. Hooks enforce this.
+- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest.
+- **A sub-agent's background job dies with its turn,** as does a foreground call moved to the background at its `timeout`: it runs foreground in pieces (`timeout` up to 600000, with `bg_run.py --timeout S`, S at most the timeout in seconds minus 30) or reports `blocked` with the exact command.
 - **Read the digest, not the log.** Open the log only for a failure the digest cannot explain.
 - **Infra is the machine, not the test.** Rerun once, then report it.
 - **Long jobs carry a timeout.** `tools/bg_run.py --expect-minutes` prints the value; `tools/hooks/bg_timeout_guard.py` refuses a long background test run without one.
@@ -44,5 +43,5 @@ Cost is turns times context; a turn that only waits costs as much as one that wo
 - Every simulator, physical device and heavy compile runs inside a `tools/devcap.py` hold. Never boot a simulator outside one ([capacity](../platforms/apple/capacity.md)).
 - `tools/ios_uitest.sh` takes the hold and slims the simulator itself; `tools/apple_coverage.sh` takes a build hold and boots none. A simulator booted any other way is slimmed with `tools/sim_slim.sh`.
 - A slot wait yields. A sub-agent passes `--max-wait 300`, or `FENTON_DEVCAP_MAX_WAIT=300` to a script that holds (`ios_uitest.sh`, `uikit_build.sh`, the perf scripts), so the wait and the run fit one 600 s call; when the wait runs out it reports `blocked` with `blocked_reason: "slot_wait: <gate>"` and does not retry in a loop.
-- A process kill is scoped to the agent's own work; the machine is shared with other sessions, the CI runner and simulators.
+- A kill is scoped to the agent's own work; the machine is shared.
 - Scroll cost is measured with `tools/ios_scrollcost.sh` ([performance](../testing/apple/performance.md)).
