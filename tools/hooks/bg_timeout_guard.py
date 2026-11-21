@@ -4,7 +4,7 @@
 The harness stops a ``run_in_background`` Bash call after 30 minutes unless the call passes ``timeout`` (milliseconds,
 at most 7200000). A full UI run takes about 50 minutes, so launched without one the job is killed mid-way and its
 children are orphaned. This guard denies a background call whose command runs ``ios_uitest.sh --full`` (also through
-``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
+``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) or any ``python3 tools/ci_wait.py`` run (a CI wait, which can outlast 30 minutes) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
 how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
 
 A sub-agent's background job dies when its turn ends, so a ``run_in_background`` Bash call from a payload with ``agent_id``
@@ -27,7 +27,7 @@ import shlex
 import sys
 from typing import List, Optional
 
-#: 70 minutes: a 50-minute full UI run plus slack, under the harness maximum of 7200000.
+#: 70 minutes: a 50-minute full UI run (or a long CI wait) plus slack, under the harness maximum of 7200000.
 MIN_TIMEOUT_MS = 4_200_000
 MAX_TIMEOUT_MS = 7_200_000
 
