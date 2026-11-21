@@ -47,6 +47,10 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 LAUNCHERS = {"--", "bash", "sh", "zsh", "time", "env", "nohup", "exec", "command", "then", "do", "-c", "-lc"}
 
 
+#: Interpreters that may stand before ``ci_wait.py``, a Python script.
+INTERPRETERS = {"python", "python3"}
+
+
 def _script(token: str) -> str:
     return token.rsplit("/", 1)[-1]
 
@@ -61,14 +65,15 @@ def long_job(command: str) -> Optional[str]:
             tokens = segment.split()
         for index, token in enumerate(tokens):
             name = _script(token)
-            if name != "ios_uitest.sh":
+            if name not in ("ios_uitest.sh", "ci_wait.py"):
                 continue
             before = tokens[index - 1] if index else ""
-            if index and not (before in LAUNCHERS or ASSIGNMENT.match(before) or _script(before) in LAUNCHERS):
+            launchers = LAUNCHERS | INTERPRETERS if name == "ci_wait.py" else LAUNCHERS
+            if index and not (before in launchers or ASSIGNMENT.match(before) or _script(before) in launchers):
                 continue  # `grep ios_uitest.sh`, `git add tools/ios_uitest.sh`: a name, not a run
             rest = tokens[index + 1:]
-            if "--full" not in rest:
-                continue
+            if name == "ios_uitest.sh" and "--full" not in rest:
+                continue  # only the full UI run is long; a `ci_wait.py` run always is
             return " ".join([token] + rest[:6]).strip()
     return None
 

@@ -44,3 +44,10 @@ tools/ios_uitest.sh --full	allow	foreground full run belongs to another guard
 @bg:7200000 tools/ios_uitest.sh --full	block	a sub-agent background job is denied even with a long timeout	agent
 @bg tools/bg_run.py x -- true	allow	the main session may run a background job	main
 tools/bg_run.py x -- true	allow	a sub-agent foreground job	agent
+@bg python3 tools/bg_run.py ci-9 --timeout 7200 -- python3 tools/ci_wait.py 9	block	a CI wait through bg_run needs the long Bash timeout, no --full	main
+@bg:1800000 python3 tools/ci_wait.py 9	block	a CI wait with the 30-minute default	main
+@bg:7200000 python3 tools/bg_run.py ci-9 -- python3 tools/ci_wait.py 9	allow	a CI wait with the harness maximum	main
+@bg:7200000 python3 tools/ci_wait.py 9	allow	a CI wait with a long timeout	main
+python3 tools/ci_wait.py 9	allow	foreground CI wait
+@bg grep -n ci_wait.py .agents/workflow/ci.md	allow	a name in grep	main
+@bg git add tools/ci_wait.py	allow	a name in git add	main
