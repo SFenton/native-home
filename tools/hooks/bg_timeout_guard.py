@@ -10,10 +10,10 @@ how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic ga
 A sub-agent's background job dies when its turn ends, so a ``run_in_background`` Bash call from a payload with ``agent_id``
 (the main session never carries one) is denied whatever the command is.
 
-A sub-agent's foreground call is also moved to the background, not killed, when it reaches its ``timeout`` (probe, 2026-11-20: a
-130 s job with ``timeout`` 100000 was moved; ``timeout`` 5000 killed it), and the moved job dies with the turn. So a sub-agent's
-foreground ``tools/bg_run.py`` or full UI run must end the job first: ``bg_run.py --timeout S`` with S at most the call's ``timeout``
-(capped at ``FOREGROUND_CAP_MS``) minus ``MARGIN_S`` seconds, and the call's ``timeout`` given.
+A sub-agent's foreground call that reaches its ``timeout`` moves to the background and dies with the turn. So a sub-agent's
+foreground call that runs ``tools/bg_run.py`` or a full UI run must end the job first: every ``bg_run.py`` run carries ``--timeout S``,
+the sum of the S values is at most the call's ``timeout`` (capped at ``FOREGROUND_CAP_MS``) minus ``MARGIN_S`` seconds, and the call
+passes its ``timeout``. A loop, or a bare full run beside no bound, is denied.
 
 A tripwire for a habit, not a wall: it reads the command text only, and it fails open on any error of its own (bad payload,
 unparsable command). Exit 2 sends the message back to the model.
@@ -53,15 +53,26 @@ MARGIN_S = 30
 UNBOUNDED = (
     "Blocked: a sub-agent's foreground `{what}` that reaches the Bash `timeout` is moved to the background by the harness and dies "
     "when your turn ends. End the job before the call does: pass timeout (milliseconds, at most {cap}) on the Bash call and "
-    "`tools/bg_run.py LABEL --timeout S -- COMMAND` with S at most the call's timeout in seconds minus {margin}{limit}. "
+    "`tools/bg_run.py LABEL --timeout S -- COMMAND` with S (summed over every bg_run in the call) at most the call's timeout in seconds minus {margin}{limit}; a full UI run goes through bg_run. "
     "A job that cannot fit: report `blocked` with the exact command. See .agents/workflow/token-economy.md."
+)
+
+LOOP = (
+    "Blocked: `{what}` sits in a loop or a pipe-fed list of runs whose total time cannot be bounded, so a sub-agent's foreground "
+    "call could pass its Bash `timeout` and be moved to the background, where it dies with the turn. Split the work into one "
+    "bounded `tools/bg_run.py LABEL --timeout S -- COMMAND` run per call. See .agents/workflow/token-economy.md."
 )
 
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)(\w+)\1[^\n]*\n.*?\n\s*\2\b", re.S)
 SEPARATORS = re.compile(r"\n|;|&&|\|\||\||&(?!>)")
 ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 #: Tokens that may stand directly before a script path and leave it the program being run.
+LOOPS = {"for", "while", "until", "xargs", "parallel"}
 LAUNCHERS = {"--", "bash", "sh", "zsh", "time", "env", "nohup", "exec", "command", "then", "do", "-c", "-lc"}
+
+
+#: ``LAUNCHERS`` without ``--``: before ``bg_run.py`` it is the end of another command's options (``git diff -- tools/bg_run.py``).
+RUNNERS = LAUNCHERS - {"--"}
 
 
 def _script(token: str) -> str:
@@ -90,51 +101,72 @@ def long_job(command: str) -> Optional[str]:
     return None
 
 
-def bg_run_bound(command: str) -> Optional[tuple]:
-    """``(text, seconds)`` for the ``tools/bg_run.py`` run in ``command``; seconds is its ``--timeout`` or ``None``. ``None`` if none runs."""
-    body = HEREDOC.sub("", command)
-    for segment in SEPARATORS.split(body):
+def _segments(command: str) -> List[List[str]]:
+    """The token list of each simple command in ``command`` (heredoc bodies dropped)."""
+    out = []
+    for segment in SEPARATORS.split(HEREDOC.sub("", command)):
         try:
-            tokens = shlex.split(segment, comments=True)
+            out.append(shlex.split(segment, comments=True))
         except ValueError:
-            tokens = segment.split()
-        for index, token in enumerate(tokens):
-            if _script(token) != "bg_run.py":
-                continue
-            before = tokens[index - 1] if index else ""
-            if index and not (before in LAUNCHERS or ASSIGNMENT.match(before) or _script(before) in LAUNCHERS
-                              or _script(before).startswith("python")):
-                continue  # a name in `grep bg_run.py`, not a run
-            options = tokens[index + 1:]
-            options = options[:options.index("--")] if "--" in options else options
-            seconds = None
-            for position, option in enumerate(options):
-                value = None
-                if option.startswith("--timeout="):
-                    value = option.split("=", 1)[1]
-                elif option == "--timeout" and position + 1 < len(options):
-                    value = options[position + 1]
-                if value is not None:
-                    try:
-                        seconds = float(value)
-                    except ValueError:
-                        seconds = None
-            return " ".join([token] + tokens[index + 1:index + 7]), seconds
+            out.append(segment.split())
+    return out
+
+
+def bg_run_bound(tokens: List[str]) -> Optional[tuple]:
+    """``(text, seconds)`` for the ``tools/bg_run.py`` run in one command's ``tokens``; seconds is its ``--timeout`` or ``None``."""
+    for index, token in enumerate(tokens):
+        if _script(token) != "bg_run.py":
+            continue
+        before = tokens[index - 1] if index else ""
+        if index and not (before in RUNNERS or ASSIGNMENT.match(before) or _script(before) in RUNNERS
+                          or _script(before).startswith("python")):
+            continue  # a name in `grep bg_run.py` or `git diff -- tools/bg_run.py`, not a run
+        options = tokens[index + 1:]
+        options = options[:options.index("--")] if "--" in options else options
+        seconds = None
+        for position, option in enumerate(options):
+            value = None
+            if option.startswith("--timeout="):
+                value = option.split("=", 1)[1]
+            elif option == "--timeout" and position + 1 < len(options):
+                value = options[position + 1]
+            if value is not None:
+                try:
+                    seconds = float(value)
+                except ValueError:
+                    seconds = None
+        return " ".join([token] + tokens[index + 1:index + 7]), seconds
     return None
 
 
 def foreground_verdict(tool_input: dict) -> Optional[str]:
-    """The denial text for a sub-agent's foreground call whose long job could outlive the call's ``timeout``, or ``None`` to allow."""
+    """The denial text for a sub-agent's foreground call whose long jobs could outlive the call's ``timeout``, or ``None`` to allow.
+
+    Every ``bg_run.py`` run and every bare full UI run in the command counts. Each bg_run needs a ``--timeout`` and their sum must
+    fit; a loop, or a bare full run, cannot be bounded, so it is denied.
+    """
     command = str(tool_input.get("command", ""))
-    run = bg_run_bound(command)
-    what = run[0] if run else long_job(command)
-    if not what:
+    runs, bare, loop = [], [], False
+    for tokens in _segments(command):
+        if tokens and tokens[0] in LOOPS:
+            loop = True
+        run = bg_run_bound(tokens)
+        if run:
+            runs.append(run)
+        elif long_job(" ".join(shlex.quote(t) for t in tokens)):
+            bare.append(" ".join(tokens[:7]))
+    if not runs and not bare:
         return None
     call_ms = min(timeout_ms(tool_input), FOREGROUND_CAP_MS)
-    if run and run[1] and call_ms and run[1] * 1000 <= call_ms - MARGIN_S * 1000:
-        return None
     limit = f" (here at most {call_ms // 1000 - MARGIN_S})" if call_ms > MARGIN_S * 1000 else ""
-    return UNBOUNDED.format(what=what, cap=FOREGROUND_CAP_MS, margin=MARGIN_S, limit=limit)
+    what = (runs[0][0] if runs else bare[0])
+    if loop:
+        return LOOP.format(what=what)
+    if bare or not call_ms or any(not seconds or seconds <= 0 for _, seconds in runs):
+        return UNBOUNDED.format(what=what, cap=FOREGROUND_CAP_MS, margin=MARGIN_S, limit=limit)
+    if sum(seconds for _, seconds in runs) * 1000 > call_ms - MARGIN_S * 1000:
+        return UNBOUNDED.format(what=what, cap=FOREGROUND_CAP_MS, margin=MARGIN_S, limit=limit)
+    return None
 
 
 def timeout_ms(tool_input: dict) -> int:

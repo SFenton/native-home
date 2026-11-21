@@ -62,3 +62,12 @@ tools/bg_run.py x --timeout 60 -- true	block	a bound without the call's timeout 
 @fg:600000 tools/bg_run.py ui --timeout 570 -- tools/ios_uitest.sh --full	allow	a bounded full UI run through bg_run	agent
 @fg:600000 tools/bg_run.py x -- true	allow	the main session is not bound by this rule	main
 tools/bg_run.py x -- true	allow	the main session foreground job without a timeout	main
+@fg:600000 tools/bg_run.py a --timeout 200 -- true && tools/bg_run.py b --timeout 300 -- true	allow	a chain whose bounds sum to 500 s fits	agent
+@fg:600000 tools/bg_run.py a --timeout 300 -- true && tools/bg_run.py b --timeout 300 -- true	block	a chain whose bounds sum past the margin	agent
+@fg:600000 tools/bg_run.py a --timeout 100 -- true; tools/bg_run.py b -- true	block	the second run of a chain has no bound	agent
+@fg:600000 for i in 1 2 3; do tools/bg_run.py s$i --timeout 100 -- true; done	block	a loop of bounded runs has an unknown total	agent
+@fg:600000 while true; do tools/bg_run.py s --timeout 10 -- true; done	block	a while loop of runs	agent
+@fg:600000 tools/bg_run.py a --timeout 100 -- true && tools/ios_uitest.sh --full	block	a bg_run next to a bare full UI run	agent
+@fg:600000 git diff -- tools/bg_run.py	allow	-- before a path is a separator, not a launcher	agent
+@fg:600000 git log -- tools/bg_run.py	allow	a path after -- in git log	agent
+@fg:600000 for i in 1 2; do tools/bg_run.py s$i --timeout 1000 -- true; done	allow	a loop is not this rule for the main session	main

@@ -126,6 +126,34 @@ class SubagentForegroundTests(unittest.TestCase):
             with self.subTest(tool_input=tool_input):
                 self.assertEqual(run_hook(self.payload(agent_id=False, **tool_input))[0], 0)
 
+    def test_a_chain_must_fit_in_total(self):
+        fits = "tools/bg_run.py a --timeout 200 -- true && tools/bg_run.py b --timeout 300 -- true"
+        over = "tools/bg_run.py a --timeout 300 -- true && tools/bg_run.py b --timeout 300 -- true"
+        self.assertEqual(run_hook(self.payload(command=fits, timeout=600000))[0], 0)
+        status, message = run_hook(self.payload(command=over, timeout=600000))
+        self.assertEqual(status, 2)
+        self.assertIn("summed", message)
+
+    def test_every_run_in_a_chain_needs_a_bound(self):
+        raw = self.payload(command="tools/bg_run.py a --timeout 100 -- true; tools/bg_run.py b -- true", timeout=600000)
+        self.assertEqual(run_hook(raw)[0], 2)
+
+    def test_a_loop_is_denied_with_the_split_advice(self):
+        loop = "for i in 1 2 3; do tools/bg_run.py s$i --timeout 100 -- true; done"
+        status, message = run_hook(self.payload(command=loop, timeout=600000))
+        self.assertEqual(status, 2)
+        self.assertIn("one bounded", message)
+        self.assertEqual(run_hook(self.payload(agent_id=False, command=loop, timeout=600000))[0], 0)
+
+    def test_a_bg_run_beside_a_bare_full_run_is_denied(self):
+        raw = self.payload(command=f"tools/bg_run.py a --timeout 100 -- true && {COVERAGE}", timeout=600000)
+        self.assertEqual(run_hook(raw)[0], 2)
+
+    def test_a_path_after_double_dash_is_not_a_run(self):
+        for command in ("git diff -- tools/bg_run.py", "git log -- tools/bg_run.py"):
+            with self.subTest(command=command):
+                self.assertEqual(run_hook(self.payload(command=command, timeout=600000))[0], 0)
+
     def test_a_name_in_another_command_is_not_a_run(self):
         raw = self.payload(command="grep -n bg_run.py tools/bg_run.py", timeout=600000)
         self.assertEqual(run_hook(raw)[0], 0)
