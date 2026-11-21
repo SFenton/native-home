@@ -991,11 +991,16 @@ class GitProviderProofTests(unittest.TestCase):
             values.update(changes)
             return factory_lease.PullRequestEvidence(**values)
 
+        created = [
+            record["created"]
+            for record in store.read_records()[0]
+            if record["lease_id"] == worktree_id
+        ][0]
         invalid = (
             pull(repository="example/other"),
             pull(base="other"),
             pull(branch="agents/other"),
-            pull(created_at=int(store.now()) - 1),
+            pull(created_at=created - 1),
             pull(created_at=None),
             pull(state="CLOSED"),
         )
@@ -1579,16 +1584,63 @@ class GitProviderProofTests(unittest.TestCase):
     def test_checked_out_branch_and_child_of_held_parent_are_held(self):
         self.clean_lane()
         (self.lane / "build" / "plans").mkdir(parents=True)
+        self.git_result(
+            self.repo, "branch", "-D", "agents/older", "agents/fresh"
+        )
         store = factory_lease.LeaseStore.for_repo(self.lane)
         self.attest_lane(store)
-        providers = self.leased_providers(store, store.now())
-        report = factory.build_report(providers, StaticProcessProvider())
-        branch = report["branches"]
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        branch_report = factory.build_report(
+            self.leased_providers(store, expiry + 1),
+            StaticProcessProvider(),
+        )
+        branch = branch_report["branches"]
         self.assertEqual(branch["eligible"], 0)
-        self.assertEqual(branch["hold_reasons"]["active_hold"], 1)
-        scratch = report["scratch"]
+        self.assertEqual(
+            {
+                reason
+                for reason, count in branch["hold_reasons"].items()
+                if count
+            },
+            {"active_hold"},
+        )
+        active_report = factory.build_report(
+            self.leased_providers(store, store.now()),
+            StaticProcessProvider(),
+        )
+        scratch = active_report["scratch"]
         self.assertEqual(scratch["eligible"], 0)
         self.assertGreater(scratch["hold_reasons"]["active_hold"], 0)
+
+    def test_branch_without_worktree_has_unknown_owner(self):
+        self.clean_lane()
+        self.git_result(
+            self.repo, "branch", "-D", "agents/older", "agents/fresh"
+        )
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        self.attest_lane(store)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        self.git_result(
+            self.repo, "worktree", "remove", "--force", str(self.lane)
+        )
+        report = factory.build_report(
+            self.leased_providers(store, expiry + 1),
+            StaticProcessProvider(),
+        )["branches"]
+        self.assertEqual(
+            (report["total"], report["eligible"], report["held"]),
+            (1, 0, 1),
+        )
+        self.assertEqual(
+            {
+                reason
+                for reason, count in report["hold_reasons"].items()
+                if count
+            },
+            {"partial_observation", "unknown_owner", "unmerged"},
+        )
 
 
 class MissingProviderTests(unittest.TestCase):

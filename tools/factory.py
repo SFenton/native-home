@@ -4,6 +4,9 @@
 ``factory.py report [--json] [--repo PATH]`` prints counts only. Providers
 observe resources; the classifier never performs cleanup. All incomplete
 observations are holds, and no patch/tree equivalence counts as merge proof.
+This lane reports every branch as held: a checked-out branch is an active hold,
+and a branch without its worktree has an unknown owner. A branch route belongs
+to the later cleanup lane.
 """
 
 from __future__ import annotations

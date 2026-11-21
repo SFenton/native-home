@@ -136,7 +136,33 @@ class LaneNewLeaseTests(unittest.TestCase):
             after,
         )
 
-    def test_unleased_or_mismatched_existing_lane_is_never_adopted(self):
+    def test_unleased_existing_lane_is_never_adopted(self):
+        lane = self.repo / ".claude" / "worktrees" / "manual"
+        self.git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            "-b",
+            "claude/manual",
+            str(lane),
+            "main",
+        )
+        result = self.run_lane("manual")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            result.stderr.count(
+                "lane_new: lease bookkeeping unavailable (lane preserved)\n"
+            ),
+            1,
+        )
+        self.assertEqual(self.store_records(), ())
+        admin = Path(
+            (lane / ".git").read_text().strip().removeprefix("gitdir: ")
+        )
+        self.assertFalse((admin / "factory-lease").exists())
+
+    def test_mismatched_existing_lane_is_never_adopted(self):
         lane = self.repo / ".claude" / "worktrees" / "manual"
         self.git(
             self.repo,

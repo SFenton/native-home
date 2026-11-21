@@ -17,6 +17,7 @@ from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS))
+import factory  # noqa: E402
 import factory_lease  # noqa: E402
 
 
@@ -262,27 +263,137 @@ class LeaseTests(unittest.TestCase):
             if child.stdout is not None:
                 child.stdout.close()
 
-    def test_replaced_path_does_not_reuse_stale_admin_identity(self):
+    def worktree_report_with_inode(self, record, inode, now):
+        snapshot = factory.LeaseSnapshot(
+            identity=self.identity,
+            records=(record,),
+            invalid=0,
+        )
+        provider = factory.GitResourceProvider(
+            "worktrees",
+            self.repo,
+            factory.GitReader(self.repo, factory.ReadOnlyRunner()),
+            snapshot,
+            now=now,
+        )
+        processes = mock.Mock()
+        processes.inventory.return_value = factory.ProcessObservation(
+            pids=frozenset(),
+            cwds=(),
+            starts={},
+            pgids=frozenset(),
+        )
+        original_lstat = Path.lstat
+
+        def lstat(path):
+            info = original_lstat(path)
+            if path == self.lane:
+                values = list(info)
+                values[stat.ST_INO] = inode
+                return os.stat_result(values)
+            return info
+
+        with mock.patch.object(Path, "lstat", new=lstat):
+            return factory.build_report((provider,), processes)["worktrees"]
+
+    def test_rebuilt_path_with_reused_inode_is_held_by_content(self):
         worktree_id, _branch_id = self.store.create_worktree(
             self.lane, "lane_new", branch_created="agents/proof"
         )
         record = [
             value for value in self.records() if value["lease_id"] == worktree_id
         ][0]
+        original_inode = record["subject"]["inode"]
         gitfile = (self.lane / ".git").read_bytes()
         shutil.rmtree(self.lane)
         self.lane.mkdir()
         (self.lane / ".git").write_bytes(gitfile)
         (self.lane / "sentinel").write_text("foreign")
-        self.assertFalse(
-            factory_lease.lease_matches_worktree(
-                record,
-                self.lane,
-                "agents/proof",
-                self.git(self.repo, "rev-parse", "agents/proof"),
-            )
+        report = self.worktree_report_with_inode(
+            record, original_inode, self.now
         )
-        self.assertTrue((self.lane / "sentinel").exists())
+        self.assertEqual(report["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in report["hold_reasons"].items()
+                if count
+            },
+            {
+                "active_hold",
+                "dirty",
+                "not_finished",
+                "unmerged",
+                "untracked",
+            },
+        )
+
+    def test_rebuilt_path_with_different_inode_has_unknown_owner(self):
+        worktree_id, _branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        record = [
+            value for value in self.records() if value["lease_id"] == worktree_id
+        ][0]
+        different_inode = record["subject"]["inode"] + 1
+        gitfile = (self.lane / ".git").read_bytes()
+        shutil.rmtree(self.lane)
+        self.lane.mkdir()
+        (self.lane / ".git").write_bytes(gitfile)
+        (self.lane / "sentinel").write_text("foreign")
+        report = self.worktree_report_with_inode(
+            record, different_inode, self.now
+        )
+        self.assertEqual(report["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in report["hold_reasons"].items()
+                if count
+            },
+            {"dirty", "unknown_owner", "unmerged", "untracked"},
+        )
+
+    def test_matching_rebuilt_clean_attested_tree_is_eligible_after_expiry(self):
+        worktree_id, branch_id = self.store.create_worktree(
+            self.lane, "lane_new", branch_created="agents/proof"
+        )
+        head = self.git(self.lane, "rev-parse", "HEAD")
+        self.store.reconcile(
+            branch_id,
+            provider=FakePullRequests(
+                (
+                    factory_lease.PullRequestEvidence(
+                        40,
+                        FakePullRequests.repository,
+                        "main",
+                        "agents/proof",
+                        "MERGED",
+                        head,
+                        self.now,
+                    ),
+                )
+            ),
+        )
+        record = [
+            value for value in self.records() if value["lease_id"] == worktree_id
+        ][0]
+        original_inode = record["subject"]["inode"]
+        gitfile = (self.lane / ".git").read_bytes()
+        shutil.rmtree(self.lane)
+        self.lane.mkdir()
+        (self.lane / ".git").write_bytes(gitfile)
+        self.git(self.lane, "reset", "--hard", "-q", "HEAD")
+        report = self.worktree_report_with_inode(
+            record, original_inode, record["expires"] + 1
+        )
+        self.assertEqual(
+            (report["total"], report["eligible"], report["held"]),
+            (1, 1, 0),
+        )
+        self.assertTrue(
+            all(count == 0 for count in report["hold_reasons"].values())
+        )
 
     def test_prunable_worktree_does_not_break_an_existing_subject(self):
         missing = self.root / "missing-lane"

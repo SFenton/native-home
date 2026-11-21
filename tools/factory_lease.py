@@ -6,6 +6,11 @@ readers never create it and never take its writer lock. Every mutation is
 serialized by the same ``flock`` and publishes a bounded, closed-schema record
 through a private file, ``fsync`` and atomic replacement. A lease is evidence
 for ownership and finish; it is never permission to remove a resource.
+
+Worktree identity is path, device and inode, gitfile, Git admin backpointer and
+nonce. A directory rebuilt with all of those values still matching is
+indistinguishable from the original incarnation. Content holds, not identity,
+protect it, and consumers must not rely on the inode changing.
 """
 
 from __future__ import annotations
