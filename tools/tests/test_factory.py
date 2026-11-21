@@ -17,6 +17,7 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import factory  # noqa: E402
+import factory_lease  # noqa: E402
 
 ENV = {
     "GIT_AUTHOR_NAME": "factory-test",
@@ -31,10 +32,14 @@ class StaticProcessProvider:
         self,
         pids: frozenset[int] | None = frozenset(),
         cwds: tuple[Path, ...] | None = (),
+        starts: dict[int, str] | None = {},
+        pgids: frozenset[int] | None = frozenset(),
         *,
         error: Exception | None = None,
     ) -> None:
-        self.value = factory.ProcessObservation(pids=pids, cwds=cwds)
+        self.value = factory.ProcessObservation(
+            pids=pids, cwds=cwds, starts=starts, pgids=pgids
+        )
         self.error = error
 
     def inventory(self) -> factory.ProcessObservation:
@@ -101,15 +106,22 @@ def snapshot(root: Path) -> dict[str, tuple[str, int, int, int]]:
         files.sort()
         base_path = Path(base)
         relative_base = str(base_path.relative_to(root))
+        base_info = base_path.lstat()
+        found[relative_base or "."] = (
+            "directory",
+            stat.S_IMODE(base_info.st_mode),
+            base_info.st_mtime_ns,
+            base_info.st_size,
+        )
         for name in directories:
             path = base_path / name
-            if path.is_symlink():
-                found[f"{relative_base}/{name}"] = (
-                    "link",
-                    stat.S_IMODE(path.lstat().st_mode),
-                    path.lstat().st_mtime_ns,
-                    len(os.readlink(path)),
-                )
+            info = path.lstat()
+            found[f"{relative_base}/{name}"] = (
+                "link" if path.is_symlink() else "directory",
+                stat.S_IMODE(info.st_mode),
+                info.st_mtime_ns,
+                len(os.readlink(path)) if path.is_symlink() else info.st_size,
+            )
         for name in files:
             path = base_path / name
             info = path.lstat()
@@ -125,7 +137,11 @@ def snapshot(root: Path) -> dict[str, tuple[str, int, int, int]]:
 class ReportContractTests(unittest.TestCase):
     def test_every_reason_is_exact_and_an_eligible_fixture_is_attested(self):
         held = tuple(
-            observation(**values)
+            observation(
+                **(
+                    {"merge_evidence": "attested", **values}
+                )
+            )
             for values in (
                 {"active_hold": True},
                 {"booted": True},
@@ -151,14 +167,23 @@ class ReportContractTests(unittest.TestCase):
             "worktrees",
             owned=True,
             finished=True,
-            merge_evidence="not_required",
+            merge_evidence="attested",
         )
         providers = [
             StaticResourceProvider(
                 resource_class,
                 (*held, eligible_attestation)
                 if resource_class == "worktrees"
-                else (observation(resource_class),),
+                else (
+                    observation(
+                        resource_class,
+                        merge_evidence=(
+                            "attested"
+                            if resource_class == "branches"
+                            else "not_required"
+                        ),
+                    ),
+                ),
             )
             for resource_class in factory.RESOURCE_CLASSES
         ]
@@ -319,6 +344,60 @@ class ReportContractTests(unittest.TestCase):
         self.assertEqual(err.getvalue(), "factory report failed\n")
         self.assertNotIn(private, err.getvalue())
 
+    def test_not_required_and_attested_have_class_specific_effects(self):
+        worktree = observation(
+            "worktrees",
+            finished=True,
+            merge_evidence="not_required",
+        )
+        self.assertIn(
+            "insufficient_merge_evidence", factory.classify(worktree)
+        )
+        simulator = observation(
+            "simulators",
+            finished=True,
+            merge_evidence="attested",
+        )
+        self.assertIn(
+            "insufficient_merge_evidence", factory.classify(simulator)
+        )
+        attested = observation(
+            "worktrees",
+            finished=True,
+            merge_evidence="attested",
+        )
+        self.assertEqual(factory.classify(attested), frozenset())
+        ancestor = observation(
+            "worktrees",
+            finished=True,
+            merge_evidence="ancestor",
+        )
+        self.assertEqual(
+            factory.classify(ancestor),
+            frozenset(("insufficient_merge_evidence",)),
+        )
+
+    def test_holder_start_and_missing_inventory_are_exact_hold_facts(self):
+        record = {"holder": {"pid": 71, "start": "synthetic-start"}}
+        complete = factory.ProcessObservation(
+            pids=frozenset({71}),
+            cwds=(),
+            starts={71: "synthetic-start"},
+            pgids=frozenset(),
+        )
+        reused = factory.ProcessObservation(
+            pids=frozenset({71}),
+            cwds=(),
+            starts={71: "different-start"},
+            pgids=frozenset(),
+        )
+        missing = factory.ProcessObservation(
+            pids=None, cwds=None, starts=None, pgids=None
+        )
+        self.assertEqual(factory.holder_status(record, complete), (True, False))
+        self.assertEqual(factory.holder_status(record, reused), (False, False))
+        self.assertEqual(factory.holder_status(record, missing), (False, True))
+
 
 class ReadOnlyBoundaryTests(unittest.TestCase):
     def test_only_allowlisted_read_commands_reach_the_runner(self):
@@ -401,7 +480,30 @@ class ReadOnlyBoundaryTests(unittest.TestCase):
         result = provider.inventory()
         self.assertEqual(result.pids, frozenset({7}))
         self.assertEqual(result.cwds, (Path("/synthetic/path"),))
-        self.assertEqual(commands[0], ["ps", "-axo", "pid="])
+        self.assertEqual(
+            commands[0], ["ps", "-axo", "pid=,lstart=,pgid="]
+        )
+
+    def test_process_provider_normalizes_a_padded_day_from_real_ps_shape(self):
+        raw_start = "Sat Nov  7 09:26:17 2026"
+
+        def run(command, **_values):
+            if command[:1] == ["ps"]:
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    b"  73  " + raw_start.encode("ascii") + b"  91\n",
+                    b"",
+                )
+            return subprocess.CompletedProcess(command, 0, b"", b"")
+
+        provider = factory.ReadOnlyProcessProvider(factory.ReadOnlyRunner(run))
+        result = provider.inventory()
+        self.assertEqual(
+            result.starts,
+            {73: "Sat Nov 7 09:26:17 2026"},
+        )
+        self.assertEqual(result.pgids, frozenset({91}))
 
 
 class SimulatorProviderTests(unittest.TestCase):
@@ -731,6 +833,814 @@ class GitProviderProofTests(unittest.TestCase):
             report["run_markers"]["hold_reasons"]["unreadable"], 1
         )
         self.assertNotIn("no json", factory.render_text(report))
+
+    def leased_providers(self, store, now):
+        records, invalid = store.__class__(store.identity, now=now).read_records()
+        self.assertEqual(invalid, 0)
+        snapshot = factory.LeaseSnapshot(
+            identity=store.identity, records=tuple(records), invalid=invalid
+        )
+        reader = factory.GitReader(self.repo, factory.ReadOnlyRunner())
+        return tuple(
+            factory.GitResourceProvider(
+                resource_class, self.repo, reader, snapshot, now=now
+            )
+            for resource_class in (
+                "worktrees",
+                "branches",
+                "build_output",
+                "scratch",
+                "run_markers",
+            )
+        )
+
+    def attest_lane(self, store, worktree_id=None, branch_id=None):
+        if worktree_id is None or branch_id is None:
+            worktree_id, branch_id = store.create_worktree(
+                self.lane,
+                "lane_new",
+                task="proof",
+                branch_created="agents/lane",
+            )
+        head = git(self.lane, "rev-parse", "HEAD")
+
+        class Pulls(factory_lease.PullRequestProvider):
+            repository = "example/project"
+
+            def list_for_branch(inner, repository, branch):
+                return (
+                    factory_lease.PullRequestEvidence(
+                        80,
+                        repository,
+                        "main",
+                        branch,
+                        "MERGED",
+                        head,
+                        int(store.now()),
+                    ),
+                )
+
+        store.reconcile(branch_id, provider=Pulls())
+        return worktree_id, branch_id, head
+
+    def clean_lane(self):
+        commit_text = self.git_result(
+            self.lane, "show", "HEAD:tracked.txt"
+        ).rstrip("\n") + "\n"
+        (self.lane / "tracked.txt").write_text(commit_text)
+        for name in ("untracked.txt", "ignored.txt"):
+            path = self.lane / name
+            if path.exists():
+                path.unlink()
+        for relative in ("apple/.build", "apple/build", "build"):
+            path = self.lane / relative
+            if path.exists():
+                shutil.rmtree(path)
+
+    def git_result(self, cwd, *arguments):
+        return subprocess.run(
+            ["git", "-C", str(cwd), *arguments],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=dict(os.environ, **ENV),
+        ).stdout
+
+    def test_production_git_provider_admits_only_expired_attested_lease(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        _worktree_id, branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        head = git(self.lane, "rev-parse", "HEAD")
+
+        class Pulls(factory_lease.PullRequestProvider):
+            repository = "example/project"
+
+            def list_for_branch(self, repository, branch):
+                return (
+                    factory_lease.PullRequestEvidence(
+                        71,
+                        repository,
+                        "main",
+                        branch,
+                        "MERGED",
+                        head,
+                        int(store.now()),
+                    ),
+                )
+
+        store.reconcile(branch_id, provider=Pulls())
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        providers = self.leased_providers(store, expiry + 1)
+        processes = StaticProcessProvider(
+            pids=frozenset(), cwds=(), starts={}, pgids=frozenset()
+        )
+        report = factory.build_report(providers, processes)
+        self.assertEqual(
+            (
+                report["worktrees"]["total"],
+                report["worktrees"]["eligible"],
+                report["worktrees"]["held"],
+            ),
+            (1, 1, 0),
+        )
+        self.assertEqual(
+            report["worktrees"]["hold_reasons"]["insufficient_merge_evidence"],
+            0,
+        )
+        (self.lane / "tracked.txt").write_text("later commit candidate\n")
+        changed = factory.build_report(providers, processes)
+        self.assertEqual(changed["worktrees"]["eligible"], 0)
+        self.assertEqual(changed["worktrees"]["hold_reasons"]["dirty"], 1)
+
+    def test_invalid_reconciliation_ancestry_and_fresh_branch_stay_held(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        worktree_id, branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        head = git(self.lane, "rev-parse", "HEAD")
+
+        class Pulls(factory_lease.PullRequestProvider):
+            repository = "example/project"
+
+            def __init__(self, evidence):
+                self.evidence = tuple(evidence)
+
+            def list_for_branch(self, repository, branch):
+                return self.evidence
+
+        def pull(**changes):
+            values = {
+                "number": 81,
+                "repository": Pulls.repository,
+                "base": "main",
+                "branch": "agents/lane",
+                "state": "MERGED",
+                "head_oid": head,
+                "created_at": int(store.now()),
+            }
+            values.update(changes)
+            return factory_lease.PullRequestEvidence(**values)
+
+        created = [
+            record["created"]
+            for record in store.read_records()[0]
+            if record["lease_id"] == worktree_id
+        ][0]
+        invalid = (
+            pull(repository="example/other"),
+            pull(base="other"),
+            pull(branch="agents/other"),
+            pull(created_at=created - 1),
+            pull(created_at=None),
+            pull(state="CLOSED"),
+        )
+        for item in invalid:
+            with self.subTest(item=item):
+                with self.assertRaises(factory_lease.InvalidLease):
+                    store.reconcile(
+                        branch_id, provider=Pulls((item,))
+                    )
+        with self.assertRaises(factory_lease.InvalidLease):
+            store.reconcile(branch_id, provider=Pulls(()))
+
+        class Broken(factory_lease.PullRequestProvider):
+            def list_for_branch(self, repository, branch):
+                raise factory_lease.LeaseError("provider unavailable")
+
+        with self.assertRaises(factory_lease.LeaseError):
+            store.reconcile(branch_id, provider=Broken())
+
+        records = store.read_records()[0]
+        branch_record = [
+            record for record in records if record["lease_id"] == branch_id
+        ][0]
+        changed_branch = dict(branch_record)
+        changed_branch["subject"] = dict(branch_record["subject"])
+        changed_branch["subject"]["parent_generation"] += 1
+        store._write_record(changed_branch)
+        with self.assertRaises(factory_lease.InvalidLease):
+            store.reconcile(branch_id, provider=Pulls((pull(),)))
+        store._write_record(branch_record)
+
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        unresolved = factory.build_report(
+            (self.leased_providers(store, expiry + 1)[0],),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(unresolved["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in unresolved["hold_reasons"].items()
+                if count
+            },
+            {"not_finished", "unmerged"},
+        )
+
+        git(self.repo, "merge", "--no-ff", "-qm", "fixture merge", "agents/lane")
+        git(self.repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+        git(self.repo, "branch", "-f", "agents/fresh", "main")
+        fresh = self.root / "fresh-lane"
+        git(
+            self.repo,
+            "worktree",
+            "add",
+            "-q",
+            str(fresh),
+            "agents/fresh",
+        )
+        store.create_worktree(
+            fresh, "lane_new", task="fresh", branch_created=None
+        )
+        refreshed_records, _invalid = store.read_records()
+        refreshed_expiry = max(
+            record["expires"] for record in refreshed_records
+        )
+        report = factory.build_report(
+            (self.leased_providers(store, refreshed_expiry + 1)[0],),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(
+            (report["total"], report["eligible"], report["held"]),
+            (2, 0, 2),
+        )
+        self.assertEqual(report["hold_reasons"]["fresh_at_main"], 1)
+        self.assertEqual(
+            report["hold_reasons"]["insufficient_merge_evidence"], 1
+        )
+        self.assertEqual(report["hold_reasons"]["not_finished"], 2)
+
+    def test_unreconciled_owned_git_resources_remain_held(self):
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        records, _invalid = store.read_records()
+        future = max(record["expires"] for record in records) + 1
+        report = factory.build_report(
+            self.leased_providers(store, future),
+            StaticProcessProvider(),
+        )
+        self.assertEqual(report["worktrees"]["eligible"], 0)
+        self.assertEqual(
+            report["worktrees"]["hold_reasons"]["insufficient_merge_evidence"],
+            0,
+        )
+        self.assertEqual(report["worktrees"]["hold_reasons"]["unmerged"], 1)
+        self.assertEqual(report["worktrees"]["hold_reasons"]["not_finished"], 1)
+
+    def test_wrong_repo_class_and_nonce_are_exact_unknown_owners(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        worktree_id, _branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        record_path = (
+            store.identity.common_dir
+            / "factory"
+            / "leases"
+            / "worktree"
+            / (worktree_id + ".json")
+        )
+        original = json.loads(record_path.read_text())
+        mutations = (
+            (
+                "wrong_repo",
+                {
+                    **original,
+                    "repo": {
+                        "common_dir": str(self.root / "foreign"),
+                        "root_commit": original["repo"]["root_commit"],
+                    },
+                },
+            ),
+            ("wrong_class", {**original, "class": "branch"}),
+        )
+        for label, value in mutations:
+            with self.subTest(label=label):
+                record_path.write_text(json.dumps(value) + "\n")
+                records, invalid = store.read_records()
+                snapshot = factory.LeaseSnapshot(
+                    identity=store.identity,
+                    records=tuple(records),
+                    invalid=invalid,
+                )
+                provider = factory.GitResourceProvider(
+                    "worktrees",
+                    self.repo,
+                    factory.GitReader(self.repo, factory.ReadOnlyRunner()),
+                    snapshot,
+                    now=store.now(),
+                )
+                report = factory.build_report(
+                    (provider,), StaticProcessProvider()
+                )["worktrees"]
+                self.assertEqual(report["eligible"], 0)
+                self.assertEqual(
+                    {
+                        reason
+                        for reason, count in report["hold_reasons"].items()
+                        if count
+                    },
+                    {
+                        "partial_observation",
+                        "unknown_owner",
+                        "unmerged",
+                    },
+                )
+                record_path.write_text(json.dumps(original) + "\n")
+
+        nonce_path = Path(original["subject"]["nonce_path"])
+        original_nonce = nonce_path.read_text()
+        nonce_path.write_text("f" * 32 + "\n")
+        report = factory.build_report(
+            (self.leased_providers(store, store.now())[0],),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(report["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in report["hold_reasons"].items()
+                if count
+            },
+            {"unknown_owner", "unmerged"},
+        )
+        nonce_path.write_text(original_nonce)
+
+    def test_report_preserves_store_and_directory_state_when_present(self):
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        store_root = store.identity.common_dir / "factory"
+        before_store = snapshot(store_root)
+        before_lane = snapshot(self.lane)
+        processes = StaticProcessProvider()
+        providers = self.leased_providers(store, store.now())
+        with mock.patch.object(
+            factory_lease.fcntl,
+            "flock",
+            side_effect=AssertionError("report took the writer lock"),
+        ):
+            first = factory.build_report(providers, processes)
+            second = factory.build_report(providers, processes)
+        self.assertEqual(first, second)
+        self.assertEqual(snapshot(store_root), before_store)
+        self.assertEqual(snapshot(self.lane), before_lane)
+
+    def test_marker_start_and_group_inventory_are_independent_holds(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        marker = self.lane / "build" / "runs" / "proof.running"
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        lease_id = store.begin_run(
+            self.lane, marker.resolve(), "proof", os.getpid()
+        )
+        self.assertIsNotNone(lease_id)
+        store.end_run(lease_id)
+        wrapper_pid = 200001
+        wrapper_start = "synthetic wrapper start"
+        group = 200002
+        marker.write_text(
+            json.dumps(
+                {
+                    "v": 1,
+                    "pid": wrapper_pid,
+                    "label": "proof",
+                    "started": 1,
+                    "cwd": str(self.lane),
+                    "lease_id": lease_id,
+                    "start": wrapper_start,
+                    "pgid": group,
+                }
+            )
+        )
+        records, _invalid = store.read_records()
+        future = max(record["expires"] for record in records) + 1
+        provider = [
+            value
+            for value in self.leased_providers(store, future)
+            if value.resource_class == "run_markers"
+        ][0]
+
+        cases = (
+            (
+                factory.ProcessObservation(
+                    pids=frozenset({wrapper_pid}),
+                    cwds=(),
+                    starts={wrapper_pid: wrapper_start},
+                    pgids=frozenset(),
+                ),
+                frozenset(("active_hold", "live_process")),
+                0,
+            ),
+            (
+                factory.ProcessObservation(
+                    pids=frozenset({wrapper_pid}),
+                    cwds=(),
+                    starts={wrapper_pid: "synthetic reused start"},
+                    pgids=frozenset(),
+                ),
+                frozenset(),
+                1,
+            ),
+            (
+                factory.ProcessObservation(
+                    pids=frozenset(),
+                    cwds=(),
+                    starts={},
+                    pgids=frozenset({group}),
+                ),
+                frozenset(("active_hold", "live_process")),
+                0,
+            ),
+            (
+                factory.ProcessObservation(
+                    pids=None, cwds=None, starts=None, pgids=None
+                ),
+                frozenset(("not_finished", "partial_observation")),
+                0,
+            ),
+        )
+        for processes, expected, eligible in cases:
+            with self.subTest(expected=expected):
+                inventory = provider.inventory(processes)
+                self.assertEqual(
+                    factory.classify(inventory.observations[0]), expected
+                )
+                report = factory.build_report(
+                    (provider,),
+                    StaticProcessProvider(
+                        pids=processes.pids,
+                        cwds=processes.cwds,
+                        starts=processes.starts,
+                        pgids=processes.pgids,
+                    ),
+                )
+                self.assertEqual(report["run_markers"]["eligible"], eligible)
+        marker_value = json.loads(marker.read_text())
+        marker_value["start"] = ""
+        marker.write_text(json.dumps(marker_value))
+        missing_start = factory.ProcessObservation(
+            pids=frozenset({wrapper_pid}),
+            cwds=(),
+            starts={wrapper_pid: wrapper_start},
+            pgids=frozenset(),
+        )
+        inventory = provider.inventory(missing_start)
+        self.assertEqual(
+            factory.classify(inventory.observations[0]),
+            frozenset(
+                (
+                    "active_hold",
+                    "live_process",
+                    "not_finished",
+                    "partial_observation",
+                )
+            ),
+        )
+        self.assertEqual(
+            factory.build_report(
+                (provider,),
+                StaticProcessProvider(
+                    pids=missing_start.pids,
+                    cwds=missing_start.cwds,
+                    starts=missing_start.starts,
+                    pgids=missing_start.pgids,
+                ),
+            )["run_markers"]["eligible"],
+            0,
+        )
+
+    def test_reused_pid_with_cwd_holds_worktree_even_after_holder_reuse(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        worktree_id, branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        records, _invalid = store.read_records()
+        worktree = [
+            record for record in records if record["lease_id"] == worktree_id
+        ][0]
+        holder = {"pid": 71, "start": "synthetic start"}
+        worktree = dict(worktree)
+        worktree["holder"] = holder
+        store._write_record(worktree)
+        self.attest_lane(store, worktree_id, branch_id)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        processes = factory.ProcessObservation(
+            pids=frozenset({71}),
+            starts={71: "different start"},
+            pgids=frozenset(),
+            cwds=(self.root / "outside",),
+        )
+        providers = self.leased_providers(store, expiry + 1)
+        reused = factory.build_report(
+            (providers[0],),
+            StaticProcessProvider(
+                pids=processes.pids,
+                starts=processes.starts,
+                pgids=processes.pgids,
+                cwds=processes.cwds,
+            ),
+        )["worktrees"]
+        self.assertEqual(reused["eligible"], 1)
+        with_cwd = factory.build_report(
+            (providers[0],),
+            StaticProcessProvider(
+                pids=processes.pids,
+                starts=processes.starts,
+                pgids=processes.pgids,
+                cwds=(self.lane / "apple",),
+            ),
+        )["worktrees"]
+        self.assertEqual(with_cwd["eligible"], 0)
+        self.assertEqual(
+            with_cwd["hold_reasons"],
+            {
+                reason: int(reason in {"active_hold", "live_process"})
+                for reason in factory.HOLD_REASONS
+            },
+        )
+        self.assertFalse(factory.holder_status(worktree, processes)[0])
+
+    def test_missing_holder_start_empty_cwd_and_partial_table_hold_exactly(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        worktree_id, branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        records, _invalid = store.read_records()
+        worktree = [
+            record for record in records if record["lease_id"] == worktree_id
+        ][0]
+        worktree = dict(worktree)
+        worktree["holder"] = {"pid": 91, "start": "synthetic holder"}
+        store._write_record(worktree)
+        self.attest_lane(store, worktree_id, branch_id)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        provider = self.leased_providers(store, expiry + 1)[0]
+        cases = (
+            (
+                StaticProcessProvider(
+                    pids=frozenset({91}),
+                    cwds=(self.root / "outside",),
+                    starts={},
+                ),
+                frozenset(("partial_observation",)),
+            ),
+            (
+                StaticProcessProvider(
+                    pids=frozenset({999}),
+                    cwds=(),
+                    starts={999: "synthetic"},
+                ),
+                frozenset(("partial_observation",)),
+            ),
+            (
+                StaticProcessProvider(
+                    pids=frozenset({91}),
+                    cwds=None,
+                    starts={91: "synthetic holder"},
+                ),
+                frozenset(
+                    ("active_hold", "live_process", "partial_observation")
+                ),
+            ),
+            (
+                StaticProcessProvider(
+                    pids=None,
+                    cwds=(self.root / "outside",),
+                    starts=None,
+                ),
+                frozenset(("partial_observation",)),
+            ),
+        )
+        for processes, expected in cases:
+            with self.subTest(expected=expected):
+                observation = provider.inventory(
+                    processes.inventory()
+                ).observations[0]
+                self.assertEqual(factory.classify(observation), expected)
+                report = factory.build_report((provider,), processes)
+                self.assertEqual(report["worktrees"]["eligible"], 0)
+                self.assertEqual(
+                    report["worktrees"]["hold_reasons"][
+                        "partial_observation"
+                    ],
+                    1,
+                )
+
+    def test_unexpired_release_future_expiry_and_unreleased_lease_hold(self):
+        self.clean_lane()
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        worktree_id, branch_id = store.create_worktree(
+            self.lane,
+            "lane_new",
+            task="proof",
+            branch_created="agents/lane",
+        )
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        active = factory.build_report(
+            (self.leased_providers(store, store.now())[0],),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(active["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in active["hold_reasons"].items()
+                if count
+            },
+            {"active_hold", "not_finished", "unmerged"},
+        )
+        store.release(worktree_id, "ended")
+        store.release(branch_id, "ended", "branch")
+        released = factory.build_report(
+            (self.leased_providers(store, expiry - 1)[0],),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(released["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in released["hold_reasons"].items()
+                if count
+            },
+            {"active_hold", "not_finished", "unmerged"},
+        )
+        expired_unreleased_store = factory_lease.LeaseStore.for_repo(self.lane)
+        expired = factory.build_report(
+            (
+                self.leased_providers(
+                    expired_unreleased_store, expiry + 1
+                )[0],
+            ),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(expired["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in expired["hold_reasons"].items()
+                if count
+            },
+            {"unmerged"},
+        )
+        expired_unreleased_store.renew_worktree(self.lane, "agents/lane")
+        renewed_records, _invalid = expired_unreleased_store.read_records()
+        renewed_expiry = max(
+            record["expires"] for record in renewed_records
+        )
+        unreleased = factory.build_report(
+            (
+                self.leased_providers(
+                    expired_unreleased_store, renewed_expiry + 1
+                )[0],
+            ),
+            StaticProcessProvider(),
+        )["worktrees"]
+        self.assertEqual(unreleased["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in unreleased["hold_reasons"].items()
+                if count
+            },
+            {"not_finished", "unmerged"},
+        )
+
+    def test_owned_finished_build_plans_is_explicitly_held_not_ignored(self):
+        self.clean_lane()
+        ignore = self.lane / ".gitignore"
+        ignore.write_text(
+            ignore.read_text().replace("build/\n", "")
+        )
+        self.git_result(self.lane, "add", ".gitignore")
+        self.git_result(self.lane, "commit", "-qm", "track build")
+        plans = self.lane / "build" / "plans"
+        plans.mkdir(parents=True)
+        (plans / "plan.md").write_text("fixture")
+        self.git_result(self.lane, "add", "build/plans/plan.md")
+        self.git_result(self.lane, "commit", "-qm", "track plan")
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        self.attest_lane(store)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        provider = self.leased_providers(store, expiry + 1)[3]
+        inventory = provider.inventory(StaticProcessProvider().inventory())
+        self.assertEqual(
+            factory.classify(inventory.observations[0]),
+            frozenset(("insufficient_merge_evidence",)),
+        )
+        report = factory.build_report(
+            (provider,), StaticProcessProvider()
+        )
+        self.assertEqual(report["scratch"]["eligible"], 0)
+        self.assertEqual(
+            report["scratch"]["hold_reasons"][
+                "insufficient_merge_evidence"
+            ],
+            1,
+        )
+        self.assertEqual(report["scratch"]["hold_reasons"]["ignored"], 0)
+
+    def test_checked_out_branch_and_child_of_held_parent_are_held(self):
+        self.clean_lane()
+        (self.lane / "build" / "plans").mkdir(parents=True)
+        self.git_result(
+            self.repo, "branch", "-D", "agents/older", "agents/fresh"
+        )
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        self.attest_lane(store)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        branch_report = factory.build_report(
+            self.leased_providers(store, expiry + 1),
+            StaticProcessProvider(),
+        )
+        branch = branch_report["branches"]
+        self.assertEqual(branch["eligible"], 0)
+        self.assertEqual(
+            {
+                reason
+                for reason, count in branch["hold_reasons"].items()
+                if count
+            },
+            {"active_hold"},
+        )
+        active_report = factory.build_report(
+            self.leased_providers(store, store.now()),
+            StaticProcessProvider(),
+        )
+        scratch = active_report["scratch"]
+        self.assertEqual(scratch["eligible"], 0)
+        self.assertGreater(scratch["hold_reasons"]["active_hold"], 0)
+
+    def test_branch_without_worktree_has_unknown_owner(self):
+        self.clean_lane()
+        self.git_result(
+            self.repo, "branch", "-D", "agents/older", "agents/fresh"
+        )
+        store = factory_lease.LeaseStore.for_repo(self.lane)
+        self.attest_lane(store)
+        records, _invalid = store.read_records()
+        expiry = max(record["expires"] for record in records)
+        self.git_result(
+            self.repo, "worktree", "remove", "--force", str(self.lane)
+        )
+        report = factory.build_report(
+            self.leased_providers(store, expiry + 1),
+            StaticProcessProvider(),
+        )["branches"]
+        self.assertEqual(
+            (report["total"], report["eligible"], report["held"]),
+            (1, 0, 1),
+        )
+        self.assertEqual(
+            {
+                reason
+                for reason, count in report["hold_reasons"].items()
+                if count
+            },
+            {"partial_observation", "unknown_owner", "unmerged"},
+        )
 
 
 class MissingProviderTests(unittest.TestCase):
