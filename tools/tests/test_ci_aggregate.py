@@ -29,6 +29,29 @@ def run_of(macos="success", **overrides):
     return base
 
 
+BASE_SHA = "a" * 40
+HEAD_SHA = "b" * 40
+
+
+def policy_args(verdict):
+    return {
+        "policy": verdict,
+        "policy_aware": True,
+        "expect_base_sha": BASE_SHA,
+        "expect_head_sha": HEAD_SHA,
+    }
+
+
+def valid_policy(outcome="pass", reasons=None):
+    return {
+        "schema": 1,
+        "outcome": outcome,
+        "reasons": reasons or ["tier0_pass"],
+        "base_sha": BASE_SHA,
+        "head_sha": HEAD_SHA,
+    }
+
+
 class AggregateTests(unittest.TestCase):
     def test_the_set_passes_with_and_without_hosted_macos(self):
         self.assertEqual(agg.problems(run_of(), True), [])
@@ -98,9 +121,147 @@ class AggregateTests(unittest.TestCase):
 
     def test_main_reads_the_context_and_exits_nonzero_on_a_problem(self):
         for run, code in ((run_of(), 0), (run_of(linux_checks="skipped"), 1)):
-            with mock.patch.dict(os.environ, {"NEEDS": json.dumps(run), "HOSTED_MACOS": "on"}):
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "POLICY_VERDICT": "{broken",
+                "POLICY_RESULT": "/not-used",
+            }):
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(agg.main(), code)
+
+    def test_legacy_invocation_does_not_require_or_read_a_policy_result(self):
+        run = run_of()
+        run["pr-policy"] = {"result": "skipped", "outputs": {}}
+        with mock.patch.dict(os.environ, {"NEEDS": json.dumps(run), "HOSTED_MACOS": "on"}):
+            self.assertEqual(agg.problems(run, True), [])
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(agg.main(), 0)
+
+        del run["pr-policy"]
+        self.assertEqual(agg.problems(run, True, policy_aware=False), [])
+
+    def test_policy_mode_requires_one_successful_job_and_verdict_on_pull_requests(self):
+        valid = valid_policy()
+        base = run_of()
+        self.assertTrue(agg.problems(base, True, **policy_args(valid)))
+        for state in ("skipped", "failure", "cancelled", ""):
+            run = dict(base)
+            run["pr-policy"] = {"result": state, "outputs": {"verdict": json.dumps(valid)}}
+            self.assertTrue(agg.problems(run, True, **policy_args(valid)), state)
+        run = dict(base)
+        run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(valid)}}
+        self.assertEqual(agg.problems(run, True, **policy_args(valid)), [])
+
+    def test_policy_mode_requires_every_event_except_the_default_branch_push(self):
+        missing = run_of()
+        for event in ("pull_request", "workflow_dispatch", "", "merge_group", "unknown"):
+            with self.subTest(event=event):
+                self.assertTrue(agg.problems(
+                    missing, True, event, **policy_args(valid_policy())
+                ))
+        self.assertEqual(agg.problems(
+            missing, True, "push", policy_aware=True,
+            github_ref="refs/heads/main",
+        ), [])
+
+    def test_policy_mode_requires_policy_for_non_main_and_empty_push_refs(self):
+        missing = run_of()
+        for ref in ("refs/heads/feature", ""):
+            with self.subTest(ref=ref):
+                self.assertTrue(agg.problems(
+                    missing, True, "push", policy_aware=True, github_ref=ref,
+                ))
+
+    def test_policy_mode_rejects_malformed_and_nonpassing_results(self):
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        for verdict in (
+                None,
+                "{broken",
+                {"schema": 2, "outcome": "pass", "reasons": ["tier0_pass"], "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "pass", "reasons": ["unknown"], "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "hold", "reasons": ["tier1_required"],
+                 "base_sha": "a" * 40, "head_sha": "b" * 40},
+                {"schema": 1, "outcome": "fail", "reasons": ["tier0_new_failure"],
+                 "base_sha": "a" * 40, "head_sha": "b" * 40}):
+            self.assertTrue(agg.problems(run, True, **policy_args(verdict)), verdict)
+
+    def test_policy_mode_binds_both_shas_and_rejects_missing_values(self):
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        verdict = valid_policy()
+        self.assertEqual(agg.problems(run, True, **policy_args(verdict)), [])
+        for label in ("base", "head"):
+            with self.subTest(label=label):
+                changed = dict(verdict)
+                changed[f"{label}_sha"] = "c" * 40
+                self.assertTrue(agg.problems(run, True, **policy_args(changed)))
+                missing = dict(policy_args(verdict))
+                missing[f"expect_{label}_sha"] = ""
+                self.assertTrue(agg.problems(run, True, **missing))
+
+    def test_policy_mode_uses_one_file_source_and_one_job_name(self):
+        verdict = valid_policy()
+        run = run_of()
+        run["pr-policy"] = {
+            "result": "success",
+            "outputs": {
+                "verdict": json.dumps(verdict),
+                "policy": json.dumps(verdict),
+                "result_json": json.dumps(verdict),
+            },
+        }
+        self.assertTrue(agg.problems(run, True, policy_aware=True,
+                                     expect_base_sha=BASE_SHA,
+                                     expect_head_sha=HEAD_SHA))
+        self.assertTrue(agg.problems(run, True, **{
+            **policy_args(verdict),
+            "policy_job": "policy",
+        }))
+
+    def test_policy_mode_accepts_a_proved_product_only_noop_and_push_unchanged(self):
+        noop = valid_policy("noop", ["product_only"])
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(noop)}}
+        self.assertEqual(agg.problems(run, True, **policy_args(noop)), [])
+        self.assertEqual(agg.problems(
+            run_of(), True, "push", policy_aware=True,
+            github_ref="refs/heads/main",
+        ), [])
+
+    def test_main_policy_aware_reads_an_actual_result_file(self):
+        verdict = valid_policy()
+        run = run_of()
+        run["pr-policy"] = {"result": "success", "outputs": {}}
+        with tempfile.TemporaryDirectory() as tmp:
+            result = Path(tmp) / "policy.json"
+            result.write_text(json.dumps(verdict))
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "EVENT": "pull_request",
+            }):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(agg.main([
+                        "--policy-aware",
+                        "--policy-result", str(result),
+                        "--expect-base-sha", BASE_SHA,
+                        "--expect-head-sha", HEAD_SHA,
+                    ]), 0)
+            result.write_text("{broken")
+            with mock.patch.dict(os.environ, {
+                "NEEDS": json.dumps(run),
+                "HOSTED_MACOS": "on",
+                "EVENT": "pull_request",
+            }):
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.assertEqual(agg.main([
+                        "--policy-aware",
+                        "--policy-result", str(result),
+                        "--expect-base-sha", BASE_SHA,
+                        "--expect-head-sha", HEAD_SHA,
+                    ]), 1)
 
 
 class DenylistMaskTests(unittest.TestCase):
