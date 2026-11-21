@@ -297,9 +297,15 @@ jobs:
           set -euo pipefail
           pending="$RUNNER_TEMP/tier0-observations.pending"
           observations="$RUNNER_TEMP/tier0-observations.json"
+          sandbox="/mnt/tier0-sandbox-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           rm -f "$pending" "$observations"
-          sudo unshare --mount --pid --fork --net --mount-proc \
-            bash -s -- "$GITHUB_WORKSPACE/policy-base" "$GITHUB_WORKSPACE/policy-head" "$RUNNER_TEMP" > "$pending" <<'SANDBOX'
+          sudo install -d -m 755 "$sandbox" "$sandbox/base" "$sandbox/head"
+          sudo cp -a "$GITHUB_WORKSPACE/policy-base/." "$sandbox/base/"
+          sudo cp -a "$GITHUB_WORKSPACE/policy-head/." "$sandbox/head/"
+          sudo chown -R 65534:65534 "$sandbox"
+          sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C \
+            unshare --mount --pid --fork --net --mount-proc \
+            bash -s -- "$sandbox/base" "$sandbox/head" "$RUNNER_TEMP" > "$pending" <<'SANDBOX'
           set -euo pipefail
           base="$1"
           head="$2"
@@ -313,6 +319,18 @@ jobs:
           mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs "$runner_temp"
           cd /
           ulimit -f 16384
+          if ! setpriv --reuid=65534 --regid=65534 --clear-groups \
+            env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C \
+            git -C "$base" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+            echo "collector: sandbox user cannot read the verified base checkout" >&2
+            exit 1
+          fi
+          if ! setpriv --reuid=65534 --regid=65534 --clear-groups \
+            env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C \
+            git -C "$head" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+            echo "collector: sandbox user cannot read the verified head checkout" >&2
+            exit 1
+          fi
           rc=0
           timeout --signal=TERM --kill-after=5s 300s \
             setpriv --reuid=65534 --regid=65534 --clear-groups \

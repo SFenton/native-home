@@ -6,7 +6,7 @@
 
 - Agent, skill, hook, tool and decision-question changes pass `tools/agent_eval.py` and independent review; run the gate before pushing.
 - A self-change lane branches `agents/<topic>-<date>` from the workflow base.
-- Every plain pull request runs two jobs. `tier0-emit` runs the base collector against the head in an isolated VM and emits observations. `pr-policy` trusts the base code and exact event SHAs, treats the artifact bytes as hostile data and publishes the verdict. A red result blocks the pull request.
+- Every plain pull request runs two jobs on separate VMs. `tier0-emit` stages exact base/head checkouts for a non-root collector with no network or credentials, read-only inputs, private scratch and execution bounds. `pr-policy` trusts base code and event SHAs, validates hostile artifact bytes and publishes the verdict. A red result blocks.
 - Recorded observations can be fabricated by a hostile change, so replay guards accidents; independent review of the changed code is the control. The owner still reviews workflow wiring and owner-held grader, review and deny inputs.
 - The author never reviews or records the verdict.
 - A headless session pushes lanes and lists them as `lanes` in status; it never lands them.

@@ -529,7 +529,16 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
                 found.append("checkout:tier0-emit:%s" % name.split()[-1])
         isolate = named_step(emit, "Collect tier-0 observations in isolation")
         for value, boundary in (
-            ("sudo unshare --mount --pid --fork --net --mount-proc", "isolation:namespaces"),
+            ("sudo install -d -m 755", "isolation:input-copy"),
+            ('sudo cp -a "$GITHUB_WORKSPACE/policy-base/." "$sandbox/base/"',
+             "isolation:input-copy"),
+            ('sudo cp -a "$GITHUB_WORKSPACE/policy-head/." "$sandbox/head/"',
+             "isolation:input-copy"),
+            ("sudo chown -R 65534:65534", "isolation:input-owner"),
+            ("sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C", "isolation:outer-environment"),
+            ("unshare --mount --pid --fork --net --mount-proc", "isolation:namespaces"),
+            ('bash -s -- "$sandbox/base" "$sandbox/head" "$RUNNER_TEMP"',
+             "isolation:staged-inputs"),
             ("mount -o remount,bind,ro /", "isolation:read-only"),
             ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=32m tmpfs /tmp", "isolation:scratch"),
             ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs /run", "isolation:control-sockets"),
@@ -537,6 +546,8 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
              "isolation:runner-files"),
             ("setpriv --reuid=65534 --regid=65534 --clear-groups", "isolation:non-root"),
             ("env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C", "isolation:environment"),
+            ('git -C "$base" rev-parse --verify -q HEAD', "isolation:base-readable"),
+            ('git -C "$head" rev-parse --verify -q HEAD', "isolation:head-readable"),
             ("timeout --signal=TERM --kill-after=5s 300s", "isolation:time"),
             ("ulimit -f 16384", "isolation:output"),
             ('python3 -B "$base/tools/agent_eval.py" --tier 0 --root "$base"', "collector:base"),
@@ -677,6 +688,22 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
             "collector can use the network", "isolation:namespaces",
             lambda graph: graph.__setitem__(
                 "tier0-emit", graph["tier0-emit"].replace(" --net", "", 1)
+            ),
+        )
+        changed(
+            "collector Git checkouts retain the runner owner", "isolation:input-owner",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "sudo chown -R 65534:65534", "sudo chown -R 0:0", 1
+                )
+            ),
+        )
+        changed(
+            "collector inherits the runner environment", "isolation:outer-environment",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    "sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C", "sudo", 1
+                )
             ),
         )
         changed(
