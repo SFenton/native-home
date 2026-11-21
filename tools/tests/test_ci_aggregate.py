@@ -162,7 +162,16 @@ class AggregateTests(unittest.TestCase):
                 ))
         self.assertEqual(agg.problems(
             missing, True, "push", policy_aware=True,
+            github_ref="refs/heads/main",
         ), [])
+
+    def test_policy_mode_requires_policy_for_non_main_and_empty_push_refs(self):
+        missing = run_of()
+        for ref in ("refs/heads/feature", ""):
+            with self.subTest(ref=ref):
+                self.assertTrue(agg.problems(
+                    missing, True, "push", policy_aware=True, github_ref=ref,
+                ))
 
     def test_policy_mode_rejects_malformed_and_nonpassing_results(self):
         run = run_of()
@@ -216,7 +225,10 @@ class AggregateTests(unittest.TestCase):
         run = run_of()
         run["pr-policy"] = {"result": "success", "outputs": {"verdict": json.dumps(noop)}}
         self.assertEqual(agg.problems(run, True, **policy_args(noop)), [])
-        self.assertEqual(agg.problems(run_of(), True, "push", policy_aware=True), [])
+        self.assertEqual(agg.problems(
+            run_of(), True, "push", policy_aware=True,
+            github_ref="refs/heads/main",
+        ), [])
 
     def test_main_policy_aware_reads_an_actual_result_file(self):
         verdict = valid_policy()

@@ -15,9 +15,9 @@ driver scrubs child environments, hides its output path, fingerprints trusted
 inputs and terminates evaluator process groups. Bytecode writes stay disabled
 for the driver's trusted imports and every evaluator child; no cache or other
 new file is exempted from the before/after fingerprint. The driver is not a
-security wall: same-user code can still interfere in ways a before/after
-fingerprint cannot see. Activation must add separate-user or sandboxed
-execution before this driver is treated as a wall.
+security wall. Head code runs as the same user as the driver and can still
+interfere with the verdict in ways a before/after fingerprint cannot see.
+Activation waits for a separate-user or sandboxed follow-up.
 """
 from __future__ import annotations
 
@@ -62,6 +62,7 @@ EXTRA_BEHAVIOUR_PATHS = (
     "tools/**/*runner*.py",
     "tools/**/*adapter*.py",
 )
+BEHAVIOUR_EXCLUDED_PATHS = frozenset(("tools/triage/config.json",))
 EXTRA_EVAL_PATHS = (
     "tools/agent_eval.py",
     "tools/agent_eval_case.py",
@@ -84,6 +85,8 @@ class PolicyError(Exception):
     def __init__(self, reason: str):
         super().__init__(reason)
         self.reason = reason
+        self.base_sha = ""
+        self.head_sha = ""
 
 
 def _git(checkout: Path, *args: str, text: bool = True) -> subprocess.CompletedProcess:
@@ -189,6 +192,9 @@ class TemporaryObjectRepo:
                 f"{_object_dir(base)}\n{_object_dir(head)}\n",
                 encoding="utf-8",
             )
+        except PolicyError:
+            self.close()
+            raise
         except OSError as exc:
             self.close()
             raise PolicyError("git_objects_unreadable") from exc
@@ -268,7 +274,8 @@ def _check_separation(lander: Any, rows: Sequence[Change]) -> None:
     paths = [path for _status, path, _old, _new in rows]
     behaviour = lander.BEHAVIOUR_PATHS + EXTRA_BEHAVIOUR_PATHS
     evaluation = lander.EVAL_PATHS + EXTRA_EVAL_PATHS
-    if any(lander.matches(path, behaviour) for path in paths) and \
+    if any(path not in BEHAVIOUR_EXCLUDED_PATHS and lander.matches(path, behaviour)
+           for path in paths) and \
             any(lander.matches(path, evaluation) for path in paths):
         raise PolicyError("trusted_separation")
 
@@ -348,15 +355,31 @@ def _terminate_process_group(process: multiprocessing.Process) -> None:
         pass
 
 
+def _bytecode_safe_command(command: Any) -> Any:
+    """Add Python's bytecode flag after its interpreter, including behind a launcher."""
+    if not isinstance(command, (list, tuple)):
+        return command
+    result = list(command)
+    interpreter = str(sys.executable)
+    try:
+        position = next(index for index, part in enumerate(result)
+                        if str(part) == interpreter)
+        script = next(index for index, part in enumerate(result[position + 1:], position + 1)
+                      if str(part).endswith("agent_eval_case.py"))
+    except StopIteration:
+        return command
+    if "-B" not in result[position + 1:script]:
+        result.insert(position + 1, "-B")
+    return result
+
+
 def _case_run(original: Any, *popenargs: Any, **kwargs: Any) -> subprocess.CompletedProcess:
     """Run one evaluator child and end its whole process group before returning."""
     command = popenargs[0] if popenargs else kwargs.get("args")
     if not isinstance(command, (list, tuple)) or \
             not any(str(part).endswith("agent_eval_case.py") for part in command):
         return original(*popenargs, **kwargs)
-    command = list(command)
-    if "-B" not in command:
-        command.insert(1, "-B")
+    command = _bytecode_safe_command(command)
     if popenargs:
         popenargs = (command, *popenargs[1:])
     else:
@@ -403,7 +426,7 @@ def _terminate_process(pid: int) -> None:
 
 
 def _tier0_worker(connection: Any, evaluator: Any, base: Path, head: Path) -> None:
-    """Run trusted tier 0 in a private process group and return only its suites."""
+    """Run trusted tier 0 in a private process group and return validated data shapes."""
     devnull: Optional[int] = None
     try:
         os.setsid()
@@ -415,10 +438,15 @@ def _tier0_worker(connection: Any, evaluator: Any, base: Path, head: Path) -> No
             evaluator.subprocess.run = lambda *args, **kwargs: _case_run(original, *args, **kwargs)
             base_suites = evaluator.evaluate(base, tier=0, target=base)
             head_suites = evaluator.evaluate(base, tier=0, target=head)
-        connection.send(("ok", base_suites, head_suites))
+        payload = json.dumps(
+            {"status": "ok", "base_suites": base_suites, "head_suites": head_suites},
+            ensure_ascii=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        connection.send_bytes(payload)
     except BaseException:
         try:
-            connection.send(("error",))
+            connection.send_bytes(b'{"status":"error"}')
         except (BrokenPipeError, EOFError, OSError):
             pass
     finally:
@@ -436,10 +464,25 @@ def _evaluate_tier0(evaluator: Any, base: Path, head: Path) -> Tuple[Any, Any]:
     try:
         if not receive.poll(EVALUATOR_TIMEOUT):
             raise PolicyError("tier0_unavailable")
-        message = receive.recv()
-        if not isinstance(message, tuple) or not message or message[0] != "ok":
+        try:
+            payload = receive.recv_bytes(8 * 1024 * 1024)
+        except OSError as exc:
+            raise PolicyError("tier0_malformed") from exc
+        try:
+            message = json.loads(payload.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise PolicyError("tier0_malformed") from exc
+        if not isinstance(message, dict) or \
+                not isinstance(message.get("status"), str) or \
+                message["status"] not in ("ok", "error"):
+            raise PolicyError("tier0_malformed")
+        if message["status"] == "error":
+            if set(message) != {"status"}:
+                raise PolicyError("tier0_malformed")
             raise PolicyError("tier0_unavailable")
-    except (EOFError, OSError) as exc:
+        if set(message) != {"status", "base_suites", "head_suites"}:
+            raise PolicyError("tier0_malformed")
+    except EOFError as exc:
         raise PolicyError("tier0_unavailable") from exc
     finally:
         receive.close()
@@ -448,7 +491,7 @@ def _evaluate_tier0(evaluator: Any, base: Path, head: Path) -> Tuple[Any, Any]:
         if process.is_alive():
             process.kill()
             process.join()
-    return message[1], message[2]
+    return message["base_suites"], message["head_suites"]
 
 
 def _validate_tier0(evaluator: Any, base_suites: Any, head_suites: Any) -> None:
@@ -465,41 +508,42 @@ def _validate_tier0(evaluator: Any, base_suites: Any, head_suites: Any) -> None:
 
 
 def _fingerprint(base: Path) -> str:
-    """Hash tracked files plus every untracked file under trusted input trees."""
-    tracked = _git(base, "ls-files", "-z", text=False)
-    untracked = _git(
-        base, "ls-files", "--others", "-z", "--", "tools", "evals", "contracts",
-        text=False,
-    )
-    ignored = _git(
-        base, "ls-files", "--others", "--ignored", "--exclude-standard", "-z",
-        "--", "tools", "evals", "contracts", text=False,
-    )
-    if tracked.returncode != 0 or untracked.returncode != 0 or ignored.returncode != 0:
-        raise PolicyError("trusted_fingerprint_unreadable")
+    """Hash checkout entries without Git, repository config or attribute filters."""
     rows: List[Tuple[str, str]] = []
-    for raw_path in (
-        tracked.stdout.split(b"\0")
-        + untracked.stdout.split(b"\0")
-        + ignored.stdout.split(b"\0")
-    ):
-        if not raw_path:
-            continue
-        try:
-            relative = raw_path.decode("utf-8")
-            if relative.startswith("/") or ".." in Path(relative).parts:
-                raise PolicyError("trusted_fingerprint_unreadable")
-            path = base / relative
-            metadata = path.lstat()
-            if stat.S_ISLNK(metadata.st_mode):
-                value = f"link:{os.readlink(path)}"
-            elif stat.S_ISREG(metadata.st_mode):
-                value = f"{stat.S_IMODE(metadata.st_mode)}:{hashlib.sha256(path.read_bytes()).hexdigest()}"
-            else:
-                value = f"type:{stat.S_IFMT(metadata.st_mode)}:{stat.S_IMODE(metadata.st_mode)}"
-            rows.append((relative, value))
-        except (OSError, UnicodeDecodeError) as exc:
-            raise PolicyError("trusted_fingerprint_unreadable") from exc
+    try:
+        def unreadable(error: OSError) -> None:
+            raise error
+
+        for root, directories, files in os.walk(
+                base, topdown=True, onerror=unreadable, followlinks=False):
+            directories[:] = sorted(name for name in directories if name != ".git")
+            entries = directories + sorted(name for name in files if name != ".git")
+            for name in entries:
+                path = Path(root) / name
+                relative = path.relative_to(base).as_posix()
+                if relative.startswith("/") or ".." in Path(relative).parts:
+                    raise PolicyError("trusted_fingerprint_unreadable")
+                path = base / relative
+                metadata = path.lstat()
+                if stat.S_ISLNK(metadata.st_mode):
+                    value = f"link:{os.readlink(path)}"
+                elif stat.S_ISDIR(metadata.st_mode):
+                    value = f"dir:{stat.S_IMODE(metadata.st_mode)}"
+                elif stat.S_ISREG(metadata.st_mode):
+                    value = (
+                        f"{stat.S_IMODE(metadata.st_mode)}:"
+                        f"{hashlib.sha256(path.read_bytes()).hexdigest()}"
+                    )
+                else:
+                    value = (
+                        f"type:{stat.S_IFMT(metadata.st_mode)}:"
+                        f"{stat.S_IMODE(metadata.st_mode)}"
+                    )
+                rows.append((relative, value))
+    except PolicyError:
+        raise
+    except (OSError, UnicodeError) as exc:
+        raise PolicyError("trusted_fingerprint_unreadable") from exc
     encoded = json.dumps(sorted(set(rows)), ensure_ascii=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
@@ -534,25 +578,28 @@ def evaluate_policy(base: Path, head: Path, base_sha: str, head_sha: str) -> Dic
         raise PolicyError("driver_not_base")
     actual_base = verify_checkout(base, base_sha, "base")
     actual_head = verify_checkout(head, head_sha, "head")
-    lander, evaluator = load_tool(base, "lane_land"), load_tool(base, "agent_eval")
-    rows = changed_paths(base, actual_base, head, actual_head)
-    with trusted_object_repo(base, head) as objects:
-        _run_prechecks(lander, objects, rows, actual_head)
-        _retirement_agreement(lander, evaluator, base, head, rows)
-    if not rows:
-        return _verdict(actual_base, actual_head, PASS, ("no_changes",))
-    if all(lander.matches(path, PRODUCT_PATHS) for _s, path, _o, _n in rows):
-        return _verdict(actual_base, actual_head, NOOP, ("product_only",))
-    _run_tier0(evaluator, base, head)
-    verify_checkout(base, actual_base, "base")
-    verify_checkout(head, actual_head, "head")
-    changed_questions = any(
-        lander.matches(path, (lander.JEV_QUESTIONS,))
-        for _status, path, _old, _new in rows
-    )
-    if changed_questions:
-        return _verdict(actual_base, actual_head, HOLD, ("tier1_required",))
-    return _verdict(actual_base, actual_head, PASS, ("tier0_pass",))
+    try:
+        lander, evaluator = load_tool(base, "lane_land"), load_tool(base, "agent_eval")
+        rows = changed_paths(base, actual_base, head, actual_head)
+        with trusted_object_repo(base, head) as objects:
+            _run_prechecks(lander, objects, rows, actual_head)
+            _retirement_agreement(lander, evaluator, base, head, rows)
+        if not rows:
+            return _verdict(actual_base, actual_head, PASS, ("no_changes",))
+        if all(lander.matches(path, PRODUCT_PATHS) for _s, path, _o, _n in rows):
+            return _verdict(actual_base, actual_head, NOOP, ("product_only",))
+        _run_tier0(evaluator, base, head)
+        changed_questions = any(
+            lander.matches(path, (lander.JEV_QUESTIONS,))
+            for _status, path, _old, _new in rows
+        )
+        if changed_questions:
+            return _verdict(actual_base, actual_head, HOLD, ("tier1_required",))
+        return _verdict(actual_base, actual_head, PASS, ("tier0_pass",))
+    except PolicyError as exc:
+        exc.base_sha = actual_base
+        exc.head_sha = actual_head
+        raise
 
 
 def _write(path: Optional[str], verdict: Dict[str, Any]) -> None:
@@ -577,14 +624,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         verdict = evaluate_policy(args.base, args.head, args.base_sha, args.head_sha)
     except PolicyError as exc:
-        try:
-            base_sha = _checkout_sha(args.base.resolve(), "base")
-        except PolicyError:
-            base_sha = ""
-        try:
-            head_sha = _checkout_sha(args.head.resolve(), "head")
-        except PolicyError:
-            head_sha = ""
+        base_sha, head_sha = exc.base_sha, exc.head_sha
+        if not base_sha:
+            try:
+                base_sha = _checkout_sha(args.base.resolve(), "base")
+            except PolicyError:
+                base_sha = ""
+        if not head_sha:
+            try:
+                head_sha = _checkout_sha(args.head.resolve(), "head")
+            except PolicyError:
+                head_sha = ""
         verdict = _verdict(base_sha, head_sha, FAIL, (exc.reason,))
     except Exception:
         print("pr_policy: internal policy failure", file=sys.stderr)

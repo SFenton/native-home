@@ -139,10 +139,10 @@ def _policy_job(needs: Mapping[str, Mapping], name: str) -> Optional[Mapping]:
 
 def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = None,
                     parse_problem: str = "", job_name: str = POLICY_JOB,
-                    expect_base_sha: str = "", expect_head_sha: str = "") -> List[str]:
+                    expect_base_sha: str = "", expect_head_sha: str = "",
+                    github_ref: str = "") -> List[str]:
     """Why policy mode fails.  Only a default-branch push is exempt."""
-    if event == "push":
-        # pr-checks is triggered for pushes only on the default branch.
+    if event == "push" and github_ref == "refs/heads/main":
         return []
     job = _policy_job(needs, job_name)
     if job is None:
@@ -173,7 +173,7 @@ def policy_problems(needs: Mapping[str, Mapping], event: str, verdict: Any = Non
 def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pull_request",
             *, policy: Any = None, policy_aware: bool = False, policy_parse_problem: str = "",
             policy_job: str = POLICY_JOB, expect_base_sha: str = "",
-            expect_head_sha: str = "") -> List[str]:
+            expect_head_sha: str = "", github_ref: str = "") -> List[str]:
     """Why the aggregate must fail, one line per job; empty when it may pass."""
     result: Dict[str, str] = {name: str(job.get("result", "")) for name, job in needs.items()}
     found: List[str] = []
@@ -204,7 +204,7 @@ def problems(needs: Mapping[str, Mapping], hosted_macos: bool, event: str = "pul
     if policy_aware:
         found.extend(policy_problems(
             needs, event, policy, policy_parse_problem, policy_job,
-            expect_base_sha, expect_head_sha,
+            expect_base_sha, expect_head_sha, github_ref,
         ))
     return found
 
@@ -233,6 +233,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     needs = json.loads(settings.get("NEEDS", "{}"))
     hosted_macos = settings.get("HOSTED_MACOS", "") == "on"
     event = settings.get("EVENT", "pull_request")
+    github_ref = settings.get("GITHUB_REF", "")
     aware = args.policy_aware or settings.get("POLICY_AWARE", "").lower() in ("1", "on", "true")
     policy, parse_problem = _read_policy(args.policy_result) if aware else (None, "")
     found = problems(
@@ -245,6 +246,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         policy_job=args.policy_job,
         expect_base_sha=args.expect_base_sha,
         expect_head_sha=args.expect_head_sha,
+        github_ref=github_ref,
     )
     summary = " ".join("%s=%s" % (n, j.get("result")) for n, j in sorted(needs.items()))
     print("job results: %s" % summary)
