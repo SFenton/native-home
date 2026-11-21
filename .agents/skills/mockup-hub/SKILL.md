@@ -14,8 +14,8 @@ Any change under `.agents/design/mockups/` ends with steps 3 to 5, unasked, and 
 4. **Publish** with the Artifact tool, always to the hub link as `url`; omit `icon` and `capabilities`.
    - `file_path` is `build/mockups-hub/index.html`; `root` is `build/mockups-hub`.
    - `files` is one list from `python3 tools/mockups_hub.py --batches`. Publish each batch in turn to the same `url`.
-   - After a small change publish only the changed files; files left out are kept. After a kit change publish everything.
-   - Remove a deleted mockup by publishing `files` as `{"a/<path>": null}`.
+   - `--batches` lists only the files this build changed, plus `index.html`, and last the files to remove as `{"a/<path>": null}`. Files left out are kept.
+   - The build compares itself with a manifest of what is published, shared by every worktree. It keeps another branch's published mockups and lists them in the index. It exits 1 only when it would overwrite or delete a published file that branch changed: merge that branch first.
 5. **Mark and tell:** `python3 tools/mockups_hub.py --mark-published`, then give the owner the hub link. Sharing the page is theirs to do.
 
 A session without the Artifact tool does steps 1 to 3, says in the pull request that the republish is pending and names the hub link. Never publish a mockup as its own Artifact.

@@ -5,12 +5,19 @@
     python3 tools/mockups_hub.py --batches    # print the Artifact `files` lists (JSON), one per publish call
     python3 tools/mockups_hub.py --inline     # as above, but every mockup is one self-contained file (no shared kit)
     python3 tools/mockups_hub.py --mark-published   # after the Artifact publish succeeded
-    python3 tools/mockups_hub.py --allow-older      # build even though the published hub came from a newer commit
+    python3 tools/mockups_hub.py --allow-older      # build even though it would overwrite or delete another session's published file
 
-Every build prints "built from <branch>@<sha7>, N pages" and records that pair in build/mockups-hub.built.json
-(--mark-published copies it to build/mockups-hub.published.json, beside the old mtime stamps the Stop hook reads).
-A build whose head does not contain the published hub's commit would replace a hub built from a newer commit or
-another branch, so it exits 1 unless --allow-older is given.
+Every build prints "built from <branch>@<sha7>, N pages" and records that pair, with the build's per-file hashes, in
+build/mockups-hub.built.json. --mark-published copies the pair to build/mockups-hub.published.json (beside the old mtime
+stamps the Stop hook reads) and folds the build into the manifest of what is published.
+
+The manifest is one file shared by every worktree of the repo (`mockups-hub.manifest.json` in the git common dir): per
+published file its content hash and the branch@commit that published it, and the catalog items the index was built from.
+A build compares itself with it, file by file, against the merge-base of that file's publisher and this head:
+a file only this build changed is published; a file another session published and this build did not change is kept as it
+is, and its catalog entry is carried into the index; a file this build would overwrite or delete that the other session
+changed is a conflict, so the build exits 1 unless --allow-older is given. --batches lists only the changed files
+(plus index.html and, last, the files to remove).
 
 A build writes build/mockups-hub.built; --mark-published writes build/mockups-hub.published. The Stop hook
 tools/hooks/mockup_hub_guard.py blocks a session that changed mockups unless both are newer than the change.
@@ -23,6 +30,9 @@ Input is `.agents/design/mockups/` (`catalog.json` plus the proposals and the ki
 The Artifact tool takes at most 255 files per publish, so the file list comes in batches; publish `index.html`
 with each batch to the same `url`. See `.agents/skills/mockup-hub/SKILL.md`. Stdlib only.
 """
+from __future__ import annotations
+
+import hashlib
 import html
 import json
 from datetime import datetime, timezone
@@ -89,6 +99,18 @@ def card(it: dict, by_id: dict = None) -> str:
     )
 
 
+def uncatalogued(items: list[dict]) -> list[dict]:
+    """Proposals on disk that no catalog item names yet; they still show, as proposed."""
+    listed = {i["mockup"] for i in items}
+    out = []
+    for p in sorted(MOCKUPS.glob("proposals/*/*.html")):
+        rel = p.relative_to(MOCKUPS).as_posix()
+        if rel not in listed:
+            out.append({"kind": "proposal", "area": "proposals", "id": p.stem, "title": proposal_title(p), "mockup": rel,
+                        "status": "proposed", "note": "Owner-review proposal, not catalogued yet."})
+    return out
+
+
 def sections(cat: dict) -> tuple[str, str, int]:
     areas = cat["areas"]
     order = {a: i for i, a in enumerate(areas)}
@@ -107,13 +129,7 @@ def sections(cat: dict) -> tuple[str, str, int]:
 
     # Proposals: those awaiting the owner are current; decided and superseded ones are history, kept only to explain why.
     by_id = {i["id"]: i for i in cat["items"]}
-    listed = {i["mockup"] for i in cat["items"]}
     proposals = [i for i in cat["items"] if i["kind"] == "proposal"]
-    for p in sorted(MOCKUPS.glob("proposals/*/*.html")):  # a folder the catalog does not know yet still shows, as proposed
-        rel = p.relative_to(MOCKUPS).as_posix()
-        if rel not in listed:
-            proposals.append({"kind": "proposal", "area": "proposals", "id": p.stem, "title": proposal_title(p), "mockup": rel,
-                              "status": "proposed", "note": "Owner-review proposal, not catalogued yet."})
     open_props = sorted((i for i in proposals if i.get("status", "proposed") == "proposed"), key=lambda i: i["title"].lower())
     if open_props:
         total += len(open_props)
@@ -147,11 +163,15 @@ def publishable() -> list[Path]:
     )
 
 
-def build(inline: bool) -> dict[str, Path]:
+def build(inline: bool, carried: list[dict] = ()) -> tuple[dict[str, Path], list[dict]]:
+    """Write the hub; returns the files and the catalog items the index lists (own, carried and uncatalogued)."""
     cat = json.loads((MOCKUPS / "catalog.json").read_text(encoding="utf-8"))
     missing = [i["mockup"] for i in cat["items"] if not (MOCKUPS / i["mockup"]).is_file()]
     if missing:
         sys.exit(f"catalog.json lists missing files: {missing[:5]}")
+    known = {i["id"] for i in cat["items"]} | {i["mockup"] for i in cat["items"]}
+    cat["items"] = cat["items"] + [i for i in carried if i["id"] not in known and i["mockup"] not in known]
+    cat["items"] = cat["items"] + uncatalogued(cat["items"])
     body, nav, total = sections(cat)
     if OUT.exists():
         shutil.rmtree(OUT)
@@ -180,7 +200,7 @@ def build(inline: bool) -> dict[str, Path]:
         else:
             shutil.copyfile(src, dest)
         files[f"a/{rel.as_posix()}"] = dest
-    return files
+    return files, cat["items"]
 
 
 def batches(files: dict[str, Path]) -> list[list[str]]:
@@ -225,46 +245,125 @@ def read_pair(name: str) -> dict:
     return data if isinstance(data, dict) and data.get("sha") else {}
 
 
-def would_replace_newer(published: dict, head: dict) -> bool:
-    """True when the published hub came from a different branch and its commit is not an ancestor of (or equal to) the head.
+def sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
-    The same named branch (a rebase or amend rewrote the commit) never refuses; ``detached`` names no branch.
-    """
-    if not published or not head.get("sha") or published["sha"] == head["sha"]:
-        return False
-    if published.get("branch") == head.get("branch") and head.get("branch") != "detached":
-        return False
-    return git("merge-base", "--is-ancestor", published["sha"], head["sha"]).returncode != 0
+
+def source_hashes(inline: bool) -> dict[str, str]:
+    """Content hash of each file the build publishes, from its repo source, keyed ``a/<path>``."""
+    return {f"a/{p.relative_to(MOCKUPS).as_posix()}": sha256(p.read_bytes()) for p in publishable()
+            if not (inline and p.relative_to(MOCKUPS).parts[0] == "_kit" and p.suffix in {".js", ".css"})}
+
+
+def manifest_path() -> Path:
+    """The manifest of what is published, in the git common dir so every worktree of the repo shares it."""
+    common = git("rev-parse", "--git-common-dir").stdout.strip()
+    return (ROOT / common if common else ROOT / "build").resolve() / "mockups-hub.manifest.json"
+
+
+def read_manifest() -> dict:
+    """``{files: {a/<path>: {hash, branch, sha}}, items: [...], inline}``; empty when nothing is recorded."""
+    try:
+        data = json.loads(manifest_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    return {"files": data.get("files", {}), "items": data.get("items", []), "inline": data.get("inline", False)}
+
+
+def base_hash(rel: str, sha: str, head: str) -> str | None:
+    """Hash of ``rel`` at the merge-base of the commit that published it and this head; None when absent there."""
+    if not sha or not head:
+        return None
+    mb = git("merge-base", sha, head).stdout.strip()
+    if not mb:
+        return None
+    path = (MOCKUPS / rel[2:]).relative_to(ROOT).as_posix()
+    shown = subprocess.run(["git", "-C", str(ROOT), "show", f"{mb}:{path}"], capture_output=True)
+    return sha256(shown.stdout) if shown.returncode == 0 else None
+
+
+def plan(manifest: dict, mine: dict[str, str], head: dict, inline: bool) -> dict:
+    """Decide each file against the manifest: ``changed`` (publish), ``deleted`` (remove), ``carried`` (another session's, kept),
+    ``conflicts`` (would overwrite or delete a published file another session changed)."""
+    published = manifest["files"]
+    out = {"changed": [], "deleted": [], "carried": [], "conflicts": []}
+    remake = bool(published) and manifest["inline"] != inline
+    for rel, h in mine.items():
+        p = published.get(rel)
+        if p is None or (p["hash"] == h and remake):
+            out["changed"].append(rel)
+        elif p["hash"] != h:
+            b = base_hash(rel, p["sha"], head["sha"])
+            if p["hash"] == b:
+                out["changed"].append(rel)  # only this build changed it
+            elif h == b:
+                out["carried"].append(rel)  # only the other session changed it; its copy stays
+            else:
+                out["conflicts"].append((rel, p))
+    for rel, p in published.items():
+        if rel in mine:
+            continue
+        b = base_hash(rel, p["sha"], head["sha"])
+        if b is None:
+            out["carried"].append(rel)  # added by another session; this head never had it
+        elif p["hash"] == b:
+            out["deleted"].append(rel)
+        else:
+            out["conflicts"].append((rel, p))
+    return out
 
 
 def label(pair: dict) -> str:
     return f"{pair.get('branch', '?')}@{str(pair.get('sha', ''))[:7]}"
 
 
+def fold(manifest: dict, built: dict) -> dict:
+    """The manifest after publishing a build: changed files take the build's pair, deleted ones go, carried ones stay."""
+    files = {r: p for r, p in manifest["files"].items() if r not in built["deleted"]}
+    for rel in built["changed"]:
+        files[rel] = {"hash": built["hashes"][rel], "branch": built["branch"], "sha": built["sha"]}
+    return {"files": dict(sorted(files.items())), "items": built["items"], "inline": built["inline"]}
+
+
 def main(argv: list[str]) -> int:
     if "--mark-published" in argv:
         stamp("mockups-hub.published")  # run after the Artifact publish succeeded
-        pair = read_pair("mockups-hub.built.json") or head_pair()
+        built = read_pair("mockups-hub.built.json") or head_pair()
+        if "changed" in built:
+            manifest_path().write_text(json.dumps(fold(read_manifest(), built), indent=1) + "\n", encoding="utf-8")
+        pair = {"branch": built["branch"], "sha": built["sha"]}
         (ROOT / "build" / "mockups-hub.published.json").write_text(json.dumps(pair) + "\n", encoding="utf-8")
         print(f"marked the hub as published ({label(pair)})")
         return 0
-    head, published = head_pair(), read_pair("mockups-hub.published.json")
-    if "--allow-older" not in argv and would_replace_newer(published, head):
-        print(f"would replace a hub built from {label(published)} with {label(head)}; "
-              "pass --allow-older to continue, or rebuild from a checkout that contains that commit", file=sys.stderr)
+    head, manifest, inline = head_pair(), read_manifest(), "--inline" in argv
+    mine = source_hashes(inline)
+    decided = plan(manifest, mine, head, inline)
+    if decided["conflicts"] and "--allow-older" not in argv:
+        for rel, p in decided["conflicts"]:
+            print(f"{rel}: {label(p)} changed it and this build would overwrite or delete it", file=sys.stderr)
+        print("pass --allow-older to continue, or merge that branch first", file=sys.stderr)
         return 1
-    files = build("--inline" in argv)
+    kept = set(decided["carried"]) - set(mine)
+    files, items = build(inline, [i for i in manifest["items"] if f"a/{i['mockup']}" in kept])
     stamp("mockups-hub.built")
-    (ROOT / "build" / "mockups-hub.built.json").write_text(json.dumps(head) + "\n", encoding="utf-8")
+    record = {**head, "inline": inline, "hashes": mine, "changed": decided["changed"], "deleted": decided["deleted"],
+              "carried": decided["carried"], "items": items}
+    (ROOT / "build" / "mockups-hub.built.json").write_text(json.dumps(record) + "\n", encoding="utf-8")
     pages = sum(1 for rel in files if rel.endswith(".html")) + 1
     print(f"built from {label(head)}, {pages} pages", file=sys.stderr if "--batches" in argv else sys.stdout)
     (ROOT / "build" / "mockups-hub.published").unlink(missing_ok=True)  # a new build is unpublished until the Artifact is updated
-    groups = batches(files)
+    own = {r: files[r] for r in decided["changed"] if r in files}
+    groups = batches(own)
     if "--batches" in argv:
-        print(json.dumps([[{"path": r} for r in g] for g in groups]))
+        out = [[{"path": r} for r in g] for g in groups] or [[]]
+        out[0].insert(0, {"path": "index.html"})
+        if decided["deleted"]:
+            out.append([{r: None} for r in decided["deleted"]])
+        print(json.dumps(out))
         return 0
-    total = sum(p.stat().st_size for p in files.values()) + (OUT / "index.html").stat().st_size
-    print(f"built {OUT.relative_to(ROOT)}: {len(files) + 1} files, {total / 1048576:.1f} MB (limit 16 MB per file, 256 MB per version)")
+    total = sum(p.stat().st_size for p in own.values()) + (OUT / "index.html").stat().st_size
+    print(f"built {OUT.relative_to(ROOT)}: {len(own) + 1} files to publish ({len(files) + 1} built), {total / 1048576:.1f} MB (limit 16 MB per file, 256 MB per version)")
+    print(f"changed {len(decided['changed'])}, removed {len(decided['deleted'])}, kept from other sessions {len(decided['carried'])}")
     print(f"publish {len(groups)} time(s) to the same url: file_path={OUT / 'index.html'}, root={OUT}, files = batch N of `python3 tools/mockups_hub.py --batches`")
     return 0
 
