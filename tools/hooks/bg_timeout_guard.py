@@ -4,8 +4,8 @@
 The harness stops a ``run_in_background`` Bash call after 30 minutes unless the call passes ``timeout`` (milliseconds,
 at most 7200000). A full UI run takes about 50 minutes, so launched without one the job is killed mid-way and its
 children are orphaned. This guard denies a background call whose command runs ``ios_uitest.sh --full`` (also through
-``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) with no ``timeout`` of at least ``MIN_TIMEOUT_MS`` and says
-how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
+``bash``, ``tools/bg_run.py LABEL --`` or ``devcap.py run --``) or any ``python3 tools/ci_wait.py`` run (a CI wait, which can outlast 30 minutes) with no ``timeout``
+of at least ``MIN_TIMEOUT_MS`` and says how to retry. ``apple_coverage.sh`` is not guarded: it is the host-only logic gate, not a long job.
 
 A sub-agent's background job dies when its turn ends, so a ``run_in_background`` Bash call from a payload with ``agent_id``
 (the main session never carries one) is denied whatever the command is.
@@ -22,7 +22,7 @@ import shlex
 import sys
 from typing import List, Optional
 
-#: 70 minutes: a 50-minute full UI run plus slack, under the harness maximum of 7200000.
+#: 70 minutes: a 50-minute full UI run (or a long CI wait) plus slack, under the harness maximum of 7200000.
 MIN_TIMEOUT_MS = 4_200_000
 MAX_TIMEOUT_MS = 7_200_000
 
@@ -47,8 +47,13 @@ ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 LAUNCHERS = {"--", "bash", "sh", "zsh", "time", "env", "nohup", "exec", "command", "then", "do", "-c", "-lc"}
 
 
-#: Interpreters that may stand before ``ci_wait.py``, a Python script.
-INTERPRETERS = {"python", "python3"}
+#: ``LAUNCHERS`` without ``--``: before ``ci_wait.py`` it is the end of another command's options (``git diff -- tools/ci_wait.py``).
+RUNNERS = LAUNCHERS - {"--"}
+
+
+def _interpreter(token: str) -> bool:
+    """Whether ``token`` is a Python interpreter (``python``, ``python3``, ``python3.12``)."""
+    return _script(token).startswith("python")
 
 
 def _script(token: str) -> str:
@@ -56,7 +61,7 @@ def _script(token: str) -> str:
 
 
 def long_job(command: str) -> Optional[str]:
-    """The long job ``command`` starts (``ios_uitest.sh --full``), or ``None``."""
+    """The long job ``command`` starts (``ios_uitest.sh --full`` or any ``ci_wait.py`` run), or ``None``."""
     body = HEREDOC.sub("", command)
     for segment in SEPARATORS.split(body):
         try:
@@ -68,13 +73,16 @@ def long_job(command: str) -> Optional[str]:
             if name not in ("ios_uitest.sh", "ci_wait.py"):
                 continue
             before = tokens[index - 1] if index else ""
-            launchers = LAUNCHERS | INTERPRETERS if name == "ci_wait.py" else LAUNCHERS
-            if index and not (before in launchers or ASSIGNMENT.match(before) or _script(before) in launchers):
+            launchers = RUNNERS if name == "ci_wait.py" else LAUNCHERS
+            interpreter = bool(name == "ci_wait.py" and index and _interpreter(before))
+            if index and not (before in launchers or ASSIGNMENT.match(before) or _script(before) in launchers or interpreter):
                 continue  # `grep ios_uitest.sh`, `git add tools/ios_uitest.sh`: a name, not a run
             rest = tokens[index + 1:]
             if name == "ios_uitest.sh" and "--full" not in rest:
                 continue  # only the full UI run is long; a `ci_wait.py` run always is
-            return " ".join([token] + rest[:6]).strip()
+            # ci_wait.py is not executable: keep the interpreter so the retry example runs.
+            start = [before, token] if interpreter else [token]
+            return " ".join(start + rest[:6]).strip()
     return None
 
 
