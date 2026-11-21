@@ -53,16 +53,6 @@ class RoomLiveJourneyTestCase: JourneyTestCase {
                       "Settings did not open", file: file, line: line)
     }
 
-    /// A signed-in launch that stops on Settings, the tab the journeys start from.
-    func launchOnSettings(arguments: [String] = []) throws -> XCUIApplication {
-        let app = try FentonHomeApp.launchSignedIn(arguments: arguments, readyIdentifier: "nav.profile")
-        dump(app, "launched")
-        openSettings(app)
-        settleScreen()
-        dump(app, "settings")
-        return app
-    }
-
     /// The system Back button; the folded Duo moves it to its rail, where only its identifier finds it.
     func backButton(_ app: XCUIApplication) -> XCUIElement {
         let named = app.buttons["BackButton"].firstMatch

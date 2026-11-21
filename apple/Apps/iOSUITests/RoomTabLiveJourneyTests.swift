@@ -10,6 +10,18 @@ import XCTest
 /// iPhone, iPhone Duo and iPad.
 @MainActor
 final class RoomTabLiveJourneyTests: RoomLiveJourneyTestCase {
+    // MARK: - Launch
+
+    /// A signed-in launch that stops on Settings, the tab the journeys start from.
+    func launchOnSettings(arguments: [String] = []) throws -> XCUIApplication {
+        let app = try FentonHomeApp.launchSignedIn(arguments: arguments, readyIdentifier: "nav.profile")
+        dump(app, "launched")
+        openSettings(app)
+        settleScreen()
+        dump(app, "settings")
+        return app
+    }
+
     // MARK: - Journey
 
     /// A room from Quick Links on Settings lands on Home; Back shows the page below on Home; Settings is as it was.

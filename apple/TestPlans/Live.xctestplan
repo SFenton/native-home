@@ -38,7 +38,7 @@
         "PushJourneyTests",
         "ResumeCyclesJourneyTests",
         "RoomChromeLiveJourneyTests",
-        "RoomTabLiveJourneyTests/testARoomLandedFromSettingsDrawsTheSameChromeAsTheSameRoomOpenedFromHome()",
+        "RoomTabLiveJourneyTests",
         "ServerUIProdSmokeJourneyTests",
         "SettingsJourneyTests/testHaSettingsDoneClosesModal()",
         "SettingsJourneyTests/testHaSettingsPassesAccessibilityAudit()",

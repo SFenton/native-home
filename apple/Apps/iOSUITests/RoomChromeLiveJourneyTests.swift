@@ -3,8 +3,10 @@ import XCTest
 /// A page carries the global chrome however it is reached; a sheet or a modal carries none (`.agents/patterns/page-base.md`).
 /// The live publication gives every `page-room-*` page the global toolbar, so these journeys check, on the live server:
 /// - a room opened from Quick Links on a third tab (Security) shows Back, Quick Links and Profile, and the tab bar stays;
-/// - the room with the longest title keeps it clear of the Quick Links and Profile circles, large and collapsed, at the default
-///   size and at AX5 (frames, not pixels);
+/// - the room with the longest title keeps its large title clear of the Quick Links and Profile circles, at the default size and at
+///   AX5 (frames, not pixels). The collapsed title is not covered: Downstairs Hallway's content fits the window, even at AX5, so the
+///   page cannot scroll and the title never collapses. The journey records that (`title-collapse-not-reachable`) and would check the
+///   collapsed title if a pose ever let it collapse;
 /// - a room card's sheet and a status chip's sheet show Close and neither Quick Links nor Profile.
 ///
 /// Live: needs `TEST_RUNNER_FENTON_HASS_*` (the `--env shell` runner passes them through; they are never printed) and skips without them.
@@ -70,7 +72,7 @@ final class RoomChromeLiveJourneyTests: RoomLiveJourneyTestCase {
         settleScreen()
     }
 
-    /// Checks the title against both circles, large and collapsed.
+    /// Checks the large title against both circles, then tries to collapse it; a page that fits cannot scroll, which is recorded, not failed.
     private func assertTitleClearOfCircles(_ app: XCUIApplication, _ what: String) {
         func circles() -> [CGRect] { [app.buttons["quickLinks.open"].frame, app.buttons["nav.profile"].frame] }
         func assertClear(_ state: String) {
@@ -78,6 +80,7 @@ final class RoomChromeLiveJourneyTests: RoomLiveJourneyTestCase {
             XCTAssertTrue(found.allSatisfy { !$0.isEmpty }, "\(what) \(state): the header circles are missing")
             let band = (found.map(\.maxY).max() ?? 0) + 4
             let titles = titleFrames(app, Self.longTitleRoom, above: band + 200)
+            XCTAssertFalse(titles.isEmpty, "\(what) \(state): no title frame found, nothing was checked")
             for title in titles {
                 for circle in found {
                     XCTAssertFalse(title.intersects(circle), "\(what) \(state): the title \(title) overlaps a header circle \(circle)")
@@ -129,6 +132,8 @@ final class RoomChromeLiveJourneyTests: RoomLiveJourneyTestCase {
         XCTAssertTrue(security.exists, "The tab bar lost Security")
         XCTAssertTrue(tabItem(app, "home", "Home").exists, "The tab bar lost Home")
         assertLandedUnderHome(app, "room from Security")
+        let home = tabItem(app, "home", "Home")
+        XCTAssertTrue(home.exists && home.isSelected, "room from Security: Home is not the selected tab")
 
         backButton(app).tap()
         settleScreen()
@@ -139,7 +144,7 @@ final class RoomChromeLiveJourneyTests: RoomLiveJourneyTestCase {
 
     // MARK: - Long title
 
-    /// Downstairs Hallway at the default size: the title and the two circles do not overlap, large or collapsed.
+    /// Downstairs Hallway at the default size: the large title and the two circles do not overlap. The collapsed title is not reachable (the content fits).
     func testTheLongestRoomTitleClearsTheCirclesAtTheDefaultSize() throws {
         let app = try FentonHomeApp.launchSignedIn(readyIdentifier: "nav.profile")
         XCTAssertTrue(app.navigationBars["Home"].appears(timeout: 10), "The app did not open on Home")
@@ -149,7 +154,7 @@ final class RoomChromeLiveJourneyTests: RoomLiveJourneyTestCase {
         assertTitleClearOfCircles(app, "default size")
     }
 
-    /// The same at AX5.
+    /// The same at AX5, where the content still fits, so only the large title is checked.
     func testTheLongestRoomTitleClearsTheCirclesAtAX5() throws {
         let app = try FentonHomeApp.launchSignedIn(arguments: FentonHomeApp.ax5, readyIdentifier: "nav.profile")
         XCTAssertTrue(app.navigationBars["Home"].appears(timeout: 10), "The app did not open on Home")
