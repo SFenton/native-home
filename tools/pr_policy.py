@@ -12,10 +12,12 @@ Tier 0 runs locally from trusted code.  A changed Jev question deliberately
 remains a ``hold`` until a trusted tier-1 result can be enforced without a
 pull-request credential. Head code runs as the same user as the driver.  The
 driver scrubs child environments, hides its output path, fingerprints trusted
-inputs and terminates evaluator process groups, but it is not a security wall:
-same-user code can still interfere in ways a before/after fingerprint cannot
-see. Activation must add separate-user or sandboxed execution before this
-driver is treated as a wall.
+inputs and terminates evaluator process groups. Bytecode writes stay disabled
+for the driver's trusted imports and every evaluator child; no cache or other
+new file is exempted from the before/after fingerprint. The driver is not a
+security wall: same-user code can still interfere in ways a before/after
+fingerprint cannot see. Activation must add separate-user or sandboxed
+execution before this driver is treated as a wall.
 """
 from __future__ import annotations
 
@@ -34,6 +36,8 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Sequence, Set, Tuple
+
+sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 SHA_RE = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
@@ -104,6 +108,7 @@ def _child_environment() -> Dict[str, str]:
         "GIT_ATTR_NOSYSTEM": "1",
         "GIT_NO_REPLACE_OBJECTS": "1",
         "GIT_TERMINAL_PROMPT": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
     })
     return env
 
@@ -349,6 +354,16 @@ def _case_run(original: Any, *popenargs: Any, **kwargs: Any) -> subprocess.Compl
     if not isinstance(command, (list, tuple)) or \
             not any(str(part).endswith("agent_eval_case.py") for part in command):
         return original(*popenargs, **kwargs)
+    command = list(command)
+    if "-B" not in command:
+        command.insert(1, "-B")
+    if popenargs:
+        popenargs = (command, *popenargs[1:])
+    else:
+        kwargs["args"] = command
+    child_env = dict(kwargs.get("env") or os.environ)
+    child_env["PYTHONDONTWRITEBYTECODE"] = "1"
+    kwargs["env"] = child_env
     input_value = kwargs.pop("input", None)
     timeout = kwargs.pop("timeout", None)
     check = kwargs.pop("check", False)

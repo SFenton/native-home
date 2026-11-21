@@ -47,6 +47,22 @@ def write(path, text):
     path.write_text(text, encoding="utf-8")
 
 
+def checkout_snapshot(repo):
+    rows = []
+    for path in sorted(repo.rglob("*")):
+        relative = path.relative_to(repo)
+        if ".git" in relative.parts:
+            continue
+        if path.is_symlink():
+            value = f"link:{os.readlink(path)}"
+        elif path.is_file():
+            value = f"{path.stat().st_mode}:{path.read_bytes().hex()}"
+        else:
+            continue
+        rows.append((str(relative), value))
+    return rows
+
+
 class PolicyRepos:
     """Two clean repositories with one deterministic trusted tier-0 case."""
 
@@ -287,6 +303,72 @@ class PrPolicyTests(unittest.TestCase):
         self.assertTrue(trusted.exists() is False)
         self.assert_policy(repos, "trusted_checkout_changed", "fail")
         self.assertTrue(trusted.exists())
+
+    def test_tier_zero_preserves_a_fresh_trusted_checkout(self):
+        tail = """
+_trusted_policy_observe = observe
+def observe(target, case, timeout=CASE_TIMEOUT):
+    original = subprocess.run
+    def isolated_run(*popenargs, **kwargs):
+        command = popenargs[0] if popenargs else kwargs.get("args")
+        if isinstance(command, (list, tuple)) and any(
+            str(part).endswith("agent_eval_case.py") for part in command
+        ):
+            script = next(
+                str(part) for part in command
+                if str(part).endswith("agent_eval_case.py")
+            )
+            index = command.index(script)
+            wrapper = (
+                "import os, runpy, sys; "
+                "script = sys.argv.pop(1); "
+                "sys.dont_write_bytecode = bool(os.environ.get("
+                "'PYTHONDONTWRITEBYTECODE')); "
+                "sys.argv[0] = script; "
+                "runpy.run_path(script, run_name='__main__')"
+            )
+            command = [command[0], "-I", "-c", wrapper, *command[index:]]
+            kwargs["env"] = dict(kwargs.get("env") or {})
+            kwargs["env"].pop("PYTHONDONTWRITEBYTECODE", None)
+            if popenargs:
+                popenargs = (command, *popenargs[1:])
+            else:
+                kwargs["args"] = command
+        return original(*popenargs, **kwargs)
+    subprocess.run = isolated_run
+    try:
+        return _trusted_policy_observe(target, case, timeout)
+    finally:
+        subprocess.run = original
+"""
+        repos = PolicyRepos(self, evaluator_tail=tail)
+        write(repos.head / "tools" / "changed.txt", "trigger tier zero\n")
+        repos.commit(repos.head)
+        self.assertFalse(any(
+            "__pycache__" in path.relative_to(repos.base).parts
+            for path in repos.base.rglob("*")
+        ))
+        before = checkout_snapshot(repos.base)
+        self.assert_policy(repos, "tier0_pass", "pass")
+        self.assertEqual(checkout_snapshot(repos.base), before)
+
+    def test_a_planted_cache_file_still_fails_the_fingerprint(self):
+        repos = PolicyRepos(self)
+        cache = repos.base / "tools" / "triage" / "__pycache__" / "planted.cpython.pyc"
+        write(
+            repos.head / "tools" / "triage" / "hass_triage.py",
+            "from pathlib import Path\n"
+            "def route_rule(issue, nightly=False):\n"
+            f"    Path({str(cache)!r}).parent.mkdir(parents=True, exist_ok=True)\n"
+            f"    Path({str(cache)!r}).write_bytes(b'planted')\n"
+            "    return 'researcher'\n\n"
+            "def ledger_level(issue, nightly=False):\n"
+            "    return 1\n",
+        )
+        repos.commit(repos.head)
+        self.assertFalse(cache.exists())
+        self.assert_policy(repos, "trusted_checkout_changed", "fail")
+        self.assertTrue(cache.exists())
 
     def test_child_cannot_forge_the_output_or_inherit_actions_state(self):
         repos = PolicyRepos(self)
