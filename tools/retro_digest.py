@@ -237,10 +237,14 @@ def find_sources(args: argparse.Namespace) -> Dict[str, Optional[Path]]:
     return src
 
 
-def gate_hint(gate: List[Dict[str, Any]]) -> Optional[str]:
+def gate_hint(gate: List[Dict[str, Any]], task: Optional[str] = None) -> Optional[str]:
     """The level the gate's latest answers route to (the ``jev_gate.py`` table), or None when they are not enough."""
     latest: Dict[str, Any] = {}
     for record in gate:
+        if task is not None:
+            subject = record.get("subject")
+            if not isinstance(subject, str) or not subject or subject != task:
+                continue
         name = str(record.get("question", "")).split("@")[0]
         latest[name] = record.get("value")
 
@@ -257,6 +261,74 @@ def gate_hint(gate: List[Dict[str, Any]]) -> Optional[str]:
         return None
     key = (False, None, bool(pick)) if visible is False else (True, False, None) if chosen is False else (True, chosen, bool(pick))
     return HINT_LEVELS.get(key)
+
+
+CHECK_ID = re.compile(r"^[a-z][a-z0-9_-]{0,15}$")
+STATUS_VALUES = ("pass", "fail", "not_run")
+
+
+def reconcile_status(task: str, ledger: Dict[str, Any], status: Dict[str, Any]) -> Dict[str, Any]:
+    """Compare a matching task's status snapshot with unambiguous Boolean ledger checks."""
+    acceptance = ledger.get("acceptance")
+    ledger_matches = ledger.get("id") == task
+    checks: Dict[str, bool] = {}
+    duplicates = set()
+    ledger_well_formed = ledger_matches and isinstance(acceptance, list) and bool(acceptance)
+    if isinstance(acceptance, list):
+        for check in acceptance:
+            check_id = check.get("id") if isinstance(check, dict) else None
+            passes = check.get("passes") if isinstance(check, dict) else None
+            if not isinstance(check_id, str) or not CHECK_ID.fullmatch(check_id) or type(passes) is not bool:  # noqa: E721
+                ledger_well_formed = False
+                continue
+            if check_id in checks:
+                duplicates.add(check_id)
+                ledger_well_formed = False
+                continue
+            checks[check_id] = passes
+    for check_id in duplicates:
+        checks.pop(check_id, None)
+
+    status_matches = ledger_matches and status.get("task") == task
+    raw_status_checks = status.get("acceptance")
+    status_well_formed = status_matches and isinstance(raw_status_checks, dict)
+    stale = set()
+    stale_failures = set()
+    if status_matches and isinstance(raw_status_checks, dict):
+        for check_id, observed in raw_status_checks.items():
+            if check_id not in checks or observed not in STATUS_VALUES:
+                status_well_formed = False
+                continue
+            passed = checks[check_id]
+            if observed == "fail" and passed:
+                stale.add(check_id)
+                stale_failures.add(check_id)
+            elif observed == "pass" and not passed:
+                stale.add(check_id)
+
+    reason = status.get("blocked_reason")
+    summary = status.get("summary")
+    separate_reason = False
+    if reason is None:
+        reason_text = ""
+    elif isinstance(reason, str):
+        reason_text = reason.strip()
+    else:
+        reason_text, separate_reason = "", True
+    if summary is not None and not isinstance(summary, str):
+        separate_reason = True
+    if reason_text:
+        match = re.fullmatch(r"checks:([a-z][a-z0-9_-]{0,15}(?:,[a-z][a-z0-9_-]{0,15})*)", reason_text)
+        listed = match.group(1).split(",") if match else []
+        if (not match or len(listed) != len(set(listed))
+                or set(listed) != stale_failures or not stale_failures):
+            separate_reason = True
+    elif summary:
+        separate_reason = True
+
+    all_checks_pass = ledger_well_formed and all(checks.values())
+    suppress = bool(status_well_formed and stale_failures and all_checks_pass and not separate_reason)
+    return {"stale": sorted(stale), "suppress": suppress}
 
 
 def wait_minutes(raw: str) -> Tuple[int, str]:
@@ -431,8 +503,12 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
 
     outcome = args.outcome or ""
     state = str(status.get("state") or status.get("status") or "")  # the runner writes state; agents write status
-    if state == "blocked" or outcome.startswith("blocked"):
-        fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
+    reconciliation = reconcile_status(args.task, ledger, status)
+    status_suppressed = state == "blocked" and reconciliation["suppress"]
+    if outcome.startswith("blocked"):
+        fire("blocked", outcome)
+    elif state == "blocked" and not status_suppressed:
+        fire("blocked", status.get("blocked_reason") or status.get("summary") or state)
     if outcome in ("timeout", "blocked:timeout"):
         fire("timeout", "the session ran past the timeout and was stopped")
     if outcome == "retry":
@@ -460,7 +536,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
 
     history = ledger.get("level_history") if isinstance(ledger.get("level_history"), list) else []
     final_level = ledger.get("level")
-    hint = gate_hint(gate)
+    hint = gate_hint(gate, args.task)
     override = []
     for h in history:
         if not isinstance(h, dict):
@@ -564,10 +640,19 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     intake = ledger.get("intake") or ""
     brief = ledger.get("brief") or ""
     summary = str(status.get("summary") or status.get("blocked_reason") or "").strip()
+    effective_outcome = outcome or ("" if status_suppressed else state) or None
+    if outcome:
+        happened = outcome if status_suppressed else f"{outcome}: {summary}".strip(": ")
+    elif status_suppressed:
+        passing = sum(1 for check in checks if isinstance(check, dict) and check.get("passes"))
+        happened = f"ledger: {passing}/{len(checks)} checks pass"
+    else:
+        happened = f"{state or 'no status'}: {summary}".strip(": ")
     return {
         "task": args.task,
         "sources": sources,
         "triggers": triggers,
+        "status_stale": reconciliation["stale"],
         "counts": {
             "triggers": len(triggers), "review_rounds": rounds, "review_verdicts": len(reviews),
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
@@ -579,11 +664,11 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
                       "slot_wait_minutes": waited},
         "cost": {"total_cost_usd": result.get("total_cost_usd"), "tokens": None if log["launcher"] == "t3code" else tokens, "usage": usage,
                  "modelUsage": result.get("modelUsage") if isinstance(result.get("modelUsage"), dict) else {}},
-        "outcome": outcome or state or None,
+        "outcome": effective_outcome,
         "level": {"initial": initial, "final": final_level, "gate_hint": hint},
         "aar": {
             "intended": clip(f"{intake} {brief}".strip() + (f" (level {initial})" if initial else ""), 400),
-            "happened": clip(f"{outcome or state or 'no status'}: {summary}".strip(": "), 400),
+            "happened": clip(happened, 400),
             "why_different": "",
         },
     }
