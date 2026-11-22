@@ -299,6 +299,7 @@ class State:
         self.data.setdefault("merging", {})
         self.data.setdefault("parked", {})
         self.data.setdefault("jobs", {})
+        self.data.setdefault("held_in_place", {})
         self.data.setdefault("history", [])
         self.data.setdefault("current", None)
 
@@ -1359,6 +1360,10 @@ class Runner:
         issue = self.gh.issue(self.repo, n)
         if not may_pick(issue, self.authors, self.agent):
             raise TriageError(f"#{n} was not filed by an allowed author")
+            held = self._held_in_place(self.paths.worktree(n), f"request-{n}")
+            if held:
+                return self.block(n, "The previous unarchived worktree is held in place; it cannot be reused safely.",
+                                  "held_in_place")
         self.snapshot_request(n, issue)
         attempt = self.state.attempts(n) + 1
         self.state.set_attempts(n, attempt)
@@ -1473,6 +1478,14 @@ class Runner:
         lanes_resolved = True
         if worktree.exists():
             previous = (self.state.data.get("jobs") or {}).get(name) or {}
+            held = self._held_in_place(worktree, key)
+            if held:
+                held_job = dict(previous)
+                held_job["held_in_place"] = held
+                held_job["outcome"] = "held_in_place"
+                self.state.data["jobs"][name] = held_job
+                self.state.save()
+                return "skipped"
             previous_name = str(previous.get("archive_name") or "")
             if not previous_name:
                 try:
@@ -1482,14 +1495,15 @@ class Runner:
                 previous_name = f"job-{name}-{previous_day}"
             previous_session = str(previous.get("archive_session") or self.archive_session(f"{key}-recovery"))
             if self.archive_gate_decisions(key, worktree, name=previous_name, session=previous_session) is False:
-                if not self._hold_worktree(worktree, str(self.paths.clone), key, previous_session):
+                if not self._hold_worktree(worktree, str(self.paths.clone), key, previous_session,
+                                           {"producer": "job", "name": name}):
+                    held = self._held_in_place(worktree, key) or {}
+                    held_job = dict(previous)
+                    held_job["held_in_place"] = held
+                    held_job["outcome"] = "held_in_place"
+                    self.state.data["jobs"][name] = held_job
+                    self.state.save()
                     return "skipped"
-                held = dict(previous)
-                held["last_run"] = iso()
-                self.state.data["jobs"][name] = held
-                self.state.record(key, "job:held", previous_name)
-                self.state.save()
-                return "skipped"
         archive_name = f"job-{name}-{now().strftime('%Y-%m-%d')}"
         archive_session = self.archive_session(key)
         try:
@@ -1529,7 +1543,13 @@ class Runner:
                                   archive_session=archive_session)  # no post-mortem of the Steward's own run
             if lanes_resolved:  # a lane the runner could not land or file keeps its worktree
                 if self.archive_gate_decisions(key, worktree, name=archive_name, session=archive_session) is False:
-                    self._hold_worktree(worktree, str(self.paths.clone), key, archive_session)
+                    if not self._hold_worktree(worktree, str(self.paths.clone), key, archive_session,
+                                               {"producer": "job", "name": name}):
+                        held = self._held_in_place(worktree, key)
+                        if held:
+                            job = self.state.data["jobs"].get(name) or {}
+                            job["held_in_place"] = held
+                            self.state.data["jobs"][name] = job
                 else:
                     self._drop_worktree(worktree, str(self.paths.clone))
             self.state.save()
@@ -2541,7 +2561,39 @@ class Runner:
         if not self.dry_run:
             t3launch.forget(path, self.paths.home)
 
-    def _hold_worktree(self, path: Path, clone: str, label: str, session: str = "") -> bool:
+    def _held_in_place(self, path: Path, label: str) -> Optional[Dict[str, Any]]:
+        """The persisted in-place hold for ``label`` when ``path`` is still its blocked source."""
+        record = (self.state.data.get("held_in_place") or {}).get(label)
+        if not isinstance(record, dict):
+            return None
+        try:
+            relative = str(path.relative_to(self.paths.root))
+        except ValueError:
+            relative = path.name
+        return record if record.get("path") == relative else None
+
+    def _record_held_in_place(self, path: Path, label: str, session: str,
+                              detail: Optional[Dict[str, Any]]) -> Tuple[Dict[str, Any], bool]:
+        """Persist a failed move once, with enough producer state for status and later recovery."""
+        try:
+            relative = str(path.relative_to(self.paths.root))
+        except ValueError:
+            relative = path.name
+        records = dict(self.state.data.get("held_in_place") or {})
+        existing = records.get(label)
+        if isinstance(existing, dict) and existing.get("path") == relative:
+            return existing, False
+        record: Dict[str, Any] = {"path": relative, "session": session, "at": iso()}
+        if detail:
+            record["detail"] = detail
+        records[label] = record
+        self.state.data["held_in_place"] = records
+        self.state.record(label, "held:in-place", relative)
+        self.state.save()
+        return record, True
+
+    def _hold_worktree(self, path: Path, clone: str, label: str, session: str = "",
+                       detail: Optional[Dict[str, Any]] = None) -> bool:
         """Move a tree with a real archive I/O failure to an area no later run can reuse."""
         session = re.sub(r"[^A-Za-z0-9_.-]", "-", session or self.archive_session(label)).strip("-")
         destination = self.paths.held / f"{re.sub(r'[^A-Za-z0-9_.-]', '-', label)}-{session}"
@@ -2555,9 +2607,20 @@ class Runner:
             if proc.returncode != 0 or path.exists() or not destination.exists():
                 raise TriageError(f"git exit {proc.returncode}")
         except (OSError, TriageError) as exc:
-            print_once(f"hold-failed:{path}", f"{label}: could not move the unarchived tree to held; left it in place: "
-                       f"{redact(str(exc))[:200]}")
+            _, new = self._record_held_in_place(path, label, session, detail)
+            if new:
+                print_once(f"hold-failed:{path}", f"{label}: could not move the unarchived tree to held; "
+                           f"left it in place: {redact(str(exc))[:200]}")
             return False
+        detached = self._run(["git", "-C", str(destination), "switch", "--detach"], check=False)
+        if detached.returncode != 0:
+            print_once(f"hold-detach-failed:{destination}",
+                       f"{label}: the held worktree could not detach HEAD (git exit {detached.returncode})")
+        locked = self._run(["git", "-C", clone, "worktree", "lock", "--reason",
+                            f"unarchived evidence hold: {label}", str(destination)], check=False)
+        if locked.returncode != 0:
+            print_once(f"hold-lock-failed:{destination}",
+                       f"{label}: the held worktree could not be locked (git exit {locked.returncode})")
         relative = destination.relative_to(self.paths.root)
         print_once(f"held:{destination}", f"{label}: unarchived worktree held at {relative}")
         return True
@@ -3161,6 +3224,12 @@ class Runner:
             status_file = self.paths.status_file(key)
             log = self.paths.log(key, 1)
             if worktree.exists():
+                held = self._held_in_place(worktree, key)
+                if held:
+                    queue.pop(0)
+                    retro.data["queue"] = queue
+                    retro.save()
+                    continue
                 previous = retro.data.get("current")
                 if not isinstance(previous, dict) or str(previous.get("task")) != task:
                     previous = next((record for record in reversed(retro.data.get("done") or [])
@@ -3170,8 +3239,9 @@ class Runner:
                                     (f"retro-{previous_archive.name}" if previous_archive.name else key))
                 previous_session = str(previous.get("archive_session") or self.archive_session(f"{key}-recovery"))
                 if self.archive_gate_decisions(key, worktree, name=previous_name, session=previous_session) is False:
-                    if not self._hold_worktree(worktree, clone, key, previous_session):
-                        return None
+                    if self._hold_worktree(worktree, clone, key, previous_session,
+                                           {"producer": "retro", "item": item}):
+                        break
                     queue.pop(0)
                     retro.data["queue"] = queue
                     retro.save()
@@ -3235,7 +3305,8 @@ class Runner:
                 print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
             else:
                 if self.archive_gate_decisions(key, worktree, name=archive_name, session=archive_session) is False:
-                    self._hold_worktree(worktree, clone, key, archive_session)
+                    self._hold_worktree(worktree, clone, key, archive_session,
+                                        {"producer": "retro", "item": item, "outcome": outcome})
                 else:
                     self._drop_worktree(worktree, clone)
             self.state.save()
@@ -3300,10 +3371,15 @@ class Runner:
 
     def cleanup(self, n: int) -> None:
         path = self.paths.worktree(n)
-        self.archive_evidence(n, digest=False)
+        held = self._held_in_place(path, f"request-{n}")
+        if not held:
+            self.archive_evidence(n, digest=False)
         if path.exists() and n not in self._keep:
-            if self.archive_gate_decisions(n, path) is False:
-                self._hold_worktree(path, str(self.paths.clone), f"request-{n}")
+            if held:
+                pass
+            elif self.archive_gate_decisions(n, path) is False:
+                self._hold_worktree(path, str(self.paths.clone), f"request-{n}",
+                                    detail={"producer": "request", "issue": n})
             else:
                 self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
@@ -3414,12 +3490,16 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
     for name, spec in (cfg.get("schedules") or {}).items():
         last = state.data["jobs"].get(name) or {}
         due = job_next_due(cfg, state.data, name)
-        jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+        jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due,
+                      "held_in_place": last.get("held_in_place")}
     held: List[str] = []
     try:
         held = [str(path.relative_to(paths.root)) for path in sorted(paths.held.iterdir()) if path.is_dir()]
     except OSError as exc:
         held = [f"held status unavailable: {type(exc).__name__}"]
+    for label, record in sorted((state.data.get("held_in_place") or {}).items()):
+        if isinstance(record, dict):
+            held.append(f"{record.get('path') or label} (held in place: {label})")
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
@@ -3566,7 +3646,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
                 if report["held_worktrees"]:
-                    print("held worktrees: " + ", ".join(report["held_worktrees"]))
+                    print(f"held worktrees ({len(report['held_worktrees'])}): " + ", ".join(report["held_worktrees"]))
                 print("queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}" for q in report["queue"])
                                    or "empty"))
                 if cfg.get("nightly"):

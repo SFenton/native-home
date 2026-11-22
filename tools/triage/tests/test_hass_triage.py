@@ -2342,6 +2342,15 @@ class ArchiveSidecarTests(Base):
             return plain(args, **kw)
         return run
 
+    def move_failing_commands_run(self, paths):
+        plain = self.mutating_commands_run(paths)
+
+        def run(args, **kw):
+            if args[:2] == ["git", "-C"] and args[3:5] == ["worktree", "move"]:
+                return subprocess.CompletedProcess(args, 1, "", "move failed")
+            return plain(args, **kw)
+        return run
+
     def site_launch(self, paths, seed=False):
         def launch(n, tree, prompt, log):
             if seed:
@@ -2401,6 +2410,35 @@ class ArchiveSidecarTests(Base):
         self.assertTrue((self.destination(name=crashed_name) /
                          f"gate-decisions-{crashed_session}.jsonl").is_file())
 
+    def test_b1_28_job_launch_saves_identity_before_launch_and_reuses_it(self):
+        witnessed = {}
+
+        class LaunchCrash(BaseException):
+            pass
+
+        def launch(n, tree, prompt, log):
+            if self.paths.state.exists():
+                witnessed.update(json.loads(self.paths.state.read_text())["jobs"].get("steward") or {})
+            raise LaunchCrash()
+
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=self.commands_run(self.paths), launch=launch)
+        runner.preflight = lambda: True
+        with self.assertRaises(LaunchCrash):
+            runner.run_job("steward")
+        archive_name = str(witnessed.get("archive_name") or "")
+        archive_session = str(witnessed.get("archive_session") or "")
+        self.assertTrue(archive_name.startswith("job-steward-"))
+        self.assertTrue(archive_session.startswith("job-steward-"))
+        self.seed_tree_sidecar(self.paths.worktrees / "job-steward")
+
+        recovered = ht.Runner(self.cfg, self.paths, FakeGitHub([]),
+                              run=self.mutating_commands_run(self.paths), launch=self.site_launch(self.paths))
+        recovered.preflight = lambda: True
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(recovered.run_job("steward"), "done")
+        self.assertTrue((self.destination(name=archive_name) /
+                         f"gate-decisions-{archive_session}.jsonl").is_file())
+
     def test_b1_28_retro_pre_uses_done_record_not_new_queue_item(self):
         runner = self.site_retro_runner(self.cfg, self.paths, FakeGitHub([]))
         runner.run = self.mutating_commands_run(self.paths)
@@ -2428,6 +2466,43 @@ class ArchiveSidecarTests(Base):
         self.assertTrue((previous_dest / f"gate-decisions-{previous_session}.jsonl").is_file())
         self.assertFalse((self.destination(name="retro-request-91") /
                           f"gate-decisions-{previous_session}.jsonl").exists())
+
+    def test_b1_28_retro_launch_saves_current_before_launch_and_reuses_it(self):
+        witnessed = {}
+
+        class LaunchCrash(BaseException):
+            pass
+
+        runner = self.site_retro_runner(self.cfg, self.paths, FakeGitHub([]))
+
+        def launch(n, tree, prompt, log):
+            if runner.retro_paths.state.exists():
+                state = json.loads(runner.retro_paths.state.read_text())
+                witnessed.update(state.get("current") or {})
+            raise LaunchCrash()
+
+        runner.launch = launch
+        with self.assertRaises(LaunchCrash):
+            runner.run_retro()
+        archive_name = str(witnessed.get("archive_name") or "")
+        archive_session = str(witnessed.get("archive_session") or "")
+        self.assertTrue(archive_name.startswith("retro-"))
+        self.assertTrue(archive_session.startswith("retro-"))
+        self.seed_tree_sidecar(self.paths.worktrees / "retro-R-90")
+        state = ht.State(runner.retro_paths.state)
+        state.data["queue"] = [{
+            "archive": str(self.paths.root / "archive" / "request-91"),
+            "task": "R-90", "triggers": ["blocked"], "touched": [], "queued": ht.iso(),
+        }]
+        state.save()
+
+        recovered = ht.Runner(self.cfg, self.paths, FakeGitHub([]),
+                              run=self.mutating_commands_run(self.paths), launch=self.site_launch(self.paths))
+        recovered.preflight = lambda: True
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(recovered.run_retro(), "done")
+        self.assertTrue((self.destination(name=archive_name) /
+                         f"gate-decisions-{archive_session}.jsonl").is_file())
 
     def test_b1_28_unsafe_decision_sources_are_dispositions_not_failures(self):
         cases = ("dangling", "loop", "directory", "fifo")
@@ -2477,11 +2552,13 @@ class ArchiveSidecarTests(Base):
 
         with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
                 mock.patch("sys.stdout", new=io.StringIO()):
-            self.assertEqual(runner.run_due_job(), "researcher")
-        self.assertEqual(launched, ["job-researcher"])
+            self.assertEqual(runner.run_due_job(), "steward")
+        self.assertEqual(launched, ["job-steward"])
         self.assertTrue(any(path.name.startswith("job-steward-") for path in self.paths.held.iterdir()))
-        self.assertFalse(any("worktree" in c and "remove" in c and c[-1].endswith("job-steward")
-                             for c in commands))
+        self.assertTrue(any("worktree" in c and "remove" in c and c[-1].endswith("job-steward")
+                            for c in commands))
+        self.assertEqual(runner.state.data["jobs"]["steward"]["outcome"], "done")
+        self.assertEqual(runner.state.data["jobs"]["researcher"]["last_run"], "2020-01-01T00:00:00Z")
 
     def test_b1_28_held_retro_does_not_freeze_the_queue(self):
         launched = []
@@ -2517,12 +2594,22 @@ class ArchiveSidecarTests(Base):
         with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
                 mock.patch("sys.stdout", new=io.StringIO()):
             self.assertEqual(runner.run_retro(), "done")
-        self.assertEqual(launched, ["retro-R-91"])
+        self.assertEqual(launched, ["retro-R-90"])
         self.assertTrue(any(path.name.startswith("retro-R-90-") for path in self.paths.held.iterdir()))
-        self.assertEqual((ht.State(runner.retro_paths.state).data.get("queue") or []), [])
+        state = ht.State(runner.retro_paths.state).data
+        self.assertEqual([item["task"] for item in state.get("queue") or []], ["R-91"])
+        self.assertEqual(state["done"][-1]["task"], "R-90")
+        self.assertEqual(state["done"][-1]["outcome"], "done")
 
     def test_b1_28_held_request_tree_is_visible_in_status(self):
-        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=self.mutating_commands_run(self.paths))
+        commands = []
+        run = self.mutating_commands_run(self.paths)
+
+        def recording_run(args, **kw):
+            commands.append(args)
+            return run(args, **kw)
+
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=recording_run)
         tree = self.paths.worktree(90)
         self.seed_tree_sidecar(tree)
         real_copy = ht.copy_redacted
@@ -2536,6 +2623,8 @@ class ArchiveSidecarTests(Base):
                 mock.patch("sys.stdout", new=io.StringIO()) as out:
             runner.cleanup(90)
         self.assertEqual(out.getvalue().count("could not archive Jev decisions"), 1)
+        self.assertTrue(any("switch" in command and "--detach" in command for command in commands))
+        self.assertTrue(any("lock" in command and "--reason" in command for command in commands))
         report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
         self.assertTrue(report["held_worktrees"])
         self.assertIn("request", report["held_worktrees"][0])
@@ -2544,8 +2633,116 @@ class ArchiveSidecarTests(Base):
                 mock.patch.object(ht, "load_config", return_value=self.cfg), \
                 mock.patch("sys.stdout", new=io.StringIO()) as out:
             self.assertEqual(ht.main(["status"], home=self.home), 0)
-        self.assertIn("held worktrees:", out.getvalue())
+        self.assertIn("held worktrees (1):", out.getvalue())
         self.assertIn("request", out.getvalue())
+
+    def test_b1_28_failed_job_hold_is_persisted_and_does_not_starve_schedule(self):
+        launched = []
+
+        def launch(n, tree, prompt, log):
+            launched.append(n)
+            return self.site_launch(self.paths)(n, tree, prompt, log)
+
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]),
+                           run=self.move_failing_commands_run(self.paths), launch=launch)
+        runner.preflight = lambda: True
+        self.age_jobs(runner, "steward", "researcher")
+        tree = self.paths.worktrees / "job-steward"
+        self.seed_tree_sidecar(tree)
+        real_copy = ht.copy_redacted
+
+        def copy(src, dest):
+            if src.name == "gate-decisions.jsonl":
+                raise OSError("disk full")
+            return real_copy(src, dest)
+
+        with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(runner.run_due_job(), "researcher")
+        self.assertEqual(out.getvalue().count("could not move the unarchived tree to held"), 1)
+        self.assertEqual(launched, ["job-researcher"])
+        self.assertTrue(tree.is_dir())
+        self.assertTrue((tree / "build" / "jev" / "gate-decisions.jsonl").is_file())
+        saved = ht.State(self.paths.state).data
+        self.assertIn("held_in_place", saved["jobs"]["steward"])
+        self.assertTrue(runner.job_due("steward"))
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        self.assertTrue(any("job-steward" in item and "held in place" in item
+                            for item in report["held_worktrees"]))
+
+    def test_b1_28_failed_retro_hold_is_persisted_and_does_not_freeze_queue(self):
+        launched = []
+
+        def launch(n, tree, prompt, log):
+            launched.append(n)
+            return self.site_launch(self.paths)(n, tree, prompt, log)
+
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]),
+                           run=self.move_failing_commands_run(self.paths), launch=launch)
+        runner.preflight = lambda: True
+        old = {
+            "archive": str(self.paths.root / "archive" / "request-90"),
+            "archive_name": "retro-request-90", "archive_session": "retro-old",
+            "task": "R-90", "triggers": ["blocked"], "touched": [], "queued": ht.iso(),
+        }
+        new = {
+            "archive": str(self.paths.root / "archive" / "request-91"),
+            "task": "R-91", "triggers": ["blocked"], "touched": [], "queued": ht.iso(),
+        }
+        state = ht.State(runner.retro_paths.state)
+        state.data["queue"] = [old, new]
+        state.data["done"] = [{**old, "outcome": "done", "finished": ht.iso()}]
+        state.save()
+        tree = self.paths.worktrees / "retro-R-90"
+        self.seed_tree_sidecar(tree)
+        real_copy = ht.copy_redacted
+
+        def copy(src, dest):
+            if src.name == "gate-decisions.jsonl":
+                raise OSError("disk full")
+            return real_copy(src, dest)
+
+        with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(runner.run_retro(), "done")
+        self.assertEqual(out.getvalue().count("could not move the unarchived tree to held"), 1)
+        self.assertEqual(launched, ["retro-R-91"])
+        self.assertTrue(tree.is_dir())
+        self.assertTrue((tree / "build" / "jev" / "gate-decisions.jsonl").is_file())
+        saved = ht.State(runner.retro_paths.state).data
+        self.assertEqual(saved.get("queue"), [])
+        self.assertEqual(saved["done"][-1]["task"], "R-91")
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        self.assertTrue(any("retro-R-90" in item and "held in place" in item
+                            for item in report["held_worktrees"]))
+
+    def test_b1_28_failed_request_hold_is_persisted_visible_and_not_retried(self):
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]),
+                           run=self.move_failing_commands_run(self.paths))
+        tree = self.paths.worktree(90)
+        self.seed_tree_sidecar(tree)
+        real_copy = ht.copy_redacted
+
+        def copy(src, dest):
+            if src.name == "gate-decisions.jsonl":
+                raise OSError("disk full")
+            return real_copy(src, dest)
+
+        with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
+                mock.patch("sys.stdout", new=io.StringIO()) as first:
+            runner.cleanup(90)
+        self.assertEqual(first.getvalue().count("could not move the unarchived tree to held"), 1)
+        self.assertTrue(tree.is_dir())
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        self.assertTrue(any("request-90" in item and "held in place" in item
+                            for item in report["held_worktrees"]))
+        self.assertIn("request-90", ht.State(self.paths.state).data["held_in_place"])
+
+        ht._PRINTED.clear()
+        with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
+                mock.patch("sys.stdout", new=io.StringIO()) as second:
+            runner.cleanup(90)
+        self.assertNotIn("could not move the unarchived tree to held", second.getvalue())
 
     def test_b1_28_c_copy_failure_at_every_other_cleanup_site(self):
         for site in ("request_cleanup", "job_pre", "retro_pre", "retro_final"):
@@ -2625,9 +2822,9 @@ class ArchiveSidecarTests(Base):
                         if site == "request_cleanup":
                             runner.cleanup(90)
                         elif site == "job_pre":
-                            self.assertEqual(runner.run_job("steward"), "skipped")
+                            self.assertEqual(runner.run_job("steward"), "done")
                         elif site == "retro_pre":
-                            self.assertIsNone(runner.run_retro())
+                            self.assertEqual(runner.run_retro(), "done")
                         else:
                             def final_launch(n, worktree, prompt, log):
                                 self.seed_tree_sidecar(worktree)
@@ -2638,8 +2835,9 @@ class ArchiveSidecarTests(Base):
                             runner.launch = final_launch
                             self.assertEqual(runner.run_retro(), "done")
                     self.assertEqual(saved.read_text(), '{"answer":"last-good"}\n')
-                    self.assertFalse(any("worktree" in c and "remove" in c and c[-1] == str(tree)
-                                         for c in commands))
+                    removed = any("worktree" in c and "remove" in c and c[-1] == str(tree)
+                                  for c in commands)
+                    self.assertEqual(removed, site in ("job_pre", "retro_pre"))
                     self.assertLessEqual(sum("worktree" in c and "add" in c and str(tree) in c for c in commands), 1)
                     self.assertTrue((dest / "review" / "copied.json").is_file())
                     self.assertTrue(any((held / "build" / "jev" / "gate-decisions.jsonl").is_file()
