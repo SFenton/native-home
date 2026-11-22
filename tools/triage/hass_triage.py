@@ -300,6 +300,8 @@ class State:
         self.data.setdefault("jobs", {})
         self.data.setdefault("history", [])
         self.data.setdefault("current", None)
+        self.data.setdefault("archive_sessions", {})
+        self.data.setdefault("archive_holds", {})
 
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -970,6 +972,8 @@ class Runner:
         self.lane_snapshots: Dict[str, Optional[Dict[str, str]]] = {}
         #: Issues whose worktree must stay because a lane they pushed is not landed or filed.
         self._keep: set = set()
+        #: Tree names held for this tick after a real sidecar archive I/O failure; other names continue.
+        self._held_names_tick: set = set()
 
     def _mine(self, issue: Dict[str, Any]) -> bool:
         """Does this open issue belong to this intake? (The nightly intake shares the product repo with other issues.)"""
@@ -992,6 +996,7 @@ class Runner:
             lock.truncate()
             lock.write(str(os.getpid()))
             lock.flush()
+            self._held_names_tick.clear()
             self._tick_auth = None  # nothing is remembered across ticks
             self.refresh_clone()
             self.check_base("tick")
@@ -1010,7 +1015,9 @@ class Runner:
             while max_items is None or done < max_items:
                 if self.clock() > deadline or self.paths.paused.exists():
                     break
-                queue = eligible(self.gh.open_issues(self.repo), self.authors, self.required_label, self.agent)
+                queue = [item for item in eligible(self.gh.open_issues(self.repo), self.authors,
+                                                   self.required_label, self.agent)
+                         if f"request-{item['number']}" not in self._held_names_tick]
                 if not queue:
                     drained = True
                     break
@@ -1215,8 +1222,8 @@ class Runner:
                 continue
             labels = label_names(pr)
             if pr.get("state") == "MERGED":
-                self.finish_done(n, entry["status"], pr.get("url", entry["pr"]))
-                self.state.data["merging"].pop(key)
+                if self.finish_done(n, entry["status"], pr.get("url", entry["pr"])) != "held":
+                    self.state.data["merging"].pop(key)
             elif pr.get("state") == "CLOSED":
                 self.block(n, "The pull request was closed without merging.", "pr_closed")
                 self.state.data["merging"].pop(key)
@@ -1240,8 +1247,8 @@ class Runner:
                 print(f"#{n}: could not read {entry['pr']}: {exc}")
                 continue
             if pr.get("state") == "MERGED":
-                self.finish_done(n, entry["status"], pr.get("url", entry["pr"]))
-                self.state.data["parked"].pop(key)
+                if self.finish_done(n, entry["status"], pr.get("url", entry["pr"])) != "held":
+                    self.state.data["parked"].pop(key)
             elif pr.get("state") == "CLOSED":
                 self.block(n, "The pull request was closed without merging.", "pr_closed")
                 self.state.data["parked"].pop(key)
@@ -1358,6 +1365,20 @@ class Runner:
         issue = self.gh.issue(self.repo, n)
         if not may_pick(issue, self.authors, self.agent):
             raise TriageError(f"#{n} was not filed by an allowed author")
+        label = f"request-{n}"
+        tree = self.paths.worktree(n)
+        archive_identity = dict(self.state.data["archive_sessions"].get(label) or {})
+        if not archive_identity:
+            archive_identity = {
+                "name": label,
+                "session": self.archive_session(label),
+                "path": str(tree),
+            }
+            self.state.data["archive_sessions"][label] = archive_identity
+            self.state.save()
+        if not self.archive_before_change(label, n, tree, archive_identity["name"], archive_identity["session"],
+                                         evidence=True, digest=False):
+            return "held"
         self.snapshot_request(n, issue)
         attempt = self.state.attempts(n) + 1
         self.state.set_attempts(n, attempt)
@@ -1389,6 +1410,14 @@ class Runner:
         log = self.paths.log(n, attempt)
         self._ending.update(log=log, attempt=attempt)
         self.state.data["current"] = {"issue": n, "attempt": attempt, "log": str(log), "started": iso()}
+        archive_identity = {
+            "name": label,
+            "session": self.archive_session(label),
+            "path": str(worktree),
+        }
+        self.state.data["archive_sessions"][label] = archive_identity
+        self.state.data["current"].update(archive_name=archive_identity["name"],
+                                          archive_session=archive_identity["session"])
         self.state.save()
         if "Workflow" in label_names(issue) and str(n) not in self.lane_snapshots:  # once: a retry keeps the first one
             self.snapshot_lanes(n)
@@ -1432,6 +1461,8 @@ class Runner:
     def job_due(self, name: str) -> bool:
         """Has ``every_days`` passed since the last run of job ``name`` (failures count: retried next period)?"""
         spec = (self.cfg.get("schedules") or {}).get(name) or {}
+        if f"job-{name}" in self.state.data.get("archive_holds", {}):
+            return True
         last = (self.state.data["jobs"].get(name) or {}).get("last_run")
         if not last:  # first sight: start the clock, run after every_days (never right after a merge)
             self.state.data["jobs"].setdefault(name, {})["last_run"] = iso()
@@ -1444,11 +1475,11 @@ class Runner:
         return job_next_due(self.cfg, self.state.data, name)
 
     def run_due_job(self) -> Optional[str]:
-        """Run at most one due job; returns its name. A failure is logged and retried next period, never blocks issues."""
+        """Run at most one due job; a held tree is skipped and the next due name may run."""
         for name in (self.cfg.get("schedules") or {}):
             if self.job_due(name):
-                self.run_job(name)
-                return name
+                if self.run_job(name) != "skipped":
+                    return name
         return None
 
     def run_job(self, name: str) -> str:
@@ -1470,6 +1501,34 @@ class Runner:
         log = self.paths.log(key, 1)
         outcome = "error"
         lanes_resolved = True
+        previous_job = dict(self.state.data["jobs"].get(name) or {})
+        if not worktree.exists():
+            self._clear_archive_hold(key)
+        if worktree.exists():
+            previous_identity = dict(self.state.data["archive_sessions"].get(key) or {})
+            if not previous_identity and previous_job.get("archive_name") and previous_job.get("archive_session"):
+                previous_identity = {
+                    "name": str(previous_job["archive_name"]),
+                    "session": str(previous_job["archive_session"]),
+                    "path": str(worktree),
+                }
+            if not previous_identity:
+                previous_session = self.archive_session(f"{key}-recovery")
+                previous_identity = {
+                    "name": f"{key}-recovery-{previous_session[-12:]}",
+                    "session": previous_session,
+                    "path": str(worktree),
+                }
+            self.state.data["archive_sessions"][key] = previous_identity
+            previous_job.update({"archive_name": previous_identity["name"],
+                                 "archive_session": previous_identity["session"]})
+            self.state.data["jobs"][name] = previous_job
+            self.state.save()
+            if not self.archive_before_change(key, key, worktree, previous_identity["name"],
+                                              previous_identity["session"], evidence=True, digest=False):
+                return "skipped"
+        archive_name = f"job-{name}-{now().strftime('%Y-%m-%d')}"
+        archive_session = self.archive_session(key)
         try:
             if worktree.exists():
                 self._drop_worktree(worktree, str(self.paths.clone))
@@ -1482,7 +1541,14 @@ class Runner:
             self.ensure_workflow_label()
             self.job_timeout = float(spec.get("timeout_minutes", 60))
             prompt = render_job_prompt(self.cfg, self.paths, name, spec, branch, status_file, HERE / "hass_triage.py")
-            self.state.data["current"] = {"issue": 0, "job": name, "attempt": 1, "log": str(log), "started": iso()}
+            self.state.data["current"] = {"issue": 0, "job": name, "attempt": 1, "log": str(log), "started": iso(),
+                                          "archive_name": archive_name, "archive_session": archive_session}
+            job = dict(self.state.data["jobs"].get(name) or {})
+            job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
+            self.state.data["jobs"][name] = job
+            self.state.data["archive_sessions"][key] = {
+                "name": archive_name, "session": archive_session, "path": str(worktree),
+            }
             self.state.save()
             self.snapshot_lanes(key)
             code = self.launch(key, worktree, prompt, log)
@@ -1494,13 +1560,24 @@ class Runner:
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            self.state.data["jobs"][name] = {"last_run": iso(), "outcome": outcome, "branch": branch}
             self.state.record(key, f"job:{outcome}", branch)
-            self.archive_evidence(key, log=log, name=f"job-{name}-{now().strftime('%Y-%m-%d')}", tree=worktree,
-                                  status_file=status_file, task=f"job-{name}-{now().strftime('%Y-%m-%d')}",
+            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                  status_file=status_file, task=archive_name,
                                   outcome=self.job_outcome_code(outcome),
-                                  enqueue=name != "steward")  # no post-mortem of the Steward's own run
-            if lanes_resolved:  # a lane the runner could not land or file keeps its worktree
+                                  enqueue=name != "steward",
+                                  archive_session=archive_session,
+                                  include_sidecar=False)  # no post-mortem of the Steward's own run
+            if ready:
+                self.state.data["jobs"][name] = {
+                    "last_run": iso(), "outcome": outcome, "branch": branch,
+                    "archive_name": archive_name, "archive_session": archive_session,
+                }
+            else:
+                held_job = dict(previous_job)
+                held_job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
+                self.state.data["jobs"][name] = held_job
+            if ready and lanes_resolved:  # a lane the runner could not land or file keeps its worktree
                 self._drop_worktree(worktree, str(self.paths.clone))
             self.state.save()
         return outcome
@@ -2511,6 +2588,52 @@ class Runner:
         if not self.dry_run:
             t3launch.forget(path, self.paths.home)
 
+    @staticmethod
+    def archive_session(label: str) -> str:
+        """A stable identity for one launched session, persisted before any worker enters its tree."""
+        raw = f"{label}:{iso()}:{time.time_ns()}:{os.getpid()}".encode()
+        return re.sub(r"[^A-Za-z0-9_.-]", "-", label).strip("-") + "-" + hashlib.sha256(raw).hexdigest()[:12]
+
+    def _record_archive_hold(self, label: str, path: Path) -> None:
+        """Remember one real sidecar I/O hold; repeat ticks keep the first report and timestamp."""
+        holds = dict(self.state.data.get("archive_holds") or {})
+        try:
+            display_path = str(path.relative_to(self.paths.root))
+        except ValueError:
+            display_path = str(path)
+        existing = holds.get(label)
+        if isinstance(existing, dict) and existing.get("path") == display_path \
+                and existing.get("reason") == "sidecar_archive_io":
+            self._held_names_tick.add(label)
+            return
+        record = {"name": label, "path": display_path, "reason": "sidecar_archive_io", "since": iso()}
+        holds[label] = record
+        self.state.data["archive_holds"] = holds
+        self._held_names_tick.add(label)
+        self.state.save()
+        print(f"{label}: held archive ({record['reason']} since {record['since']})")
+
+    def _clear_archive_hold(self, label: str) -> None:
+        holds = dict(self.state.data.get("archive_holds") or {})
+        if label in holds:
+            holds.pop(label, None)
+            self.state.data["archive_holds"] = holds
+            self.state.save()
+        self._held_names_tick.discard(label)
+
+    def archive_before_change(self, label: str, n: Any, tree: Path, name: str, session: str,
+                              evidence: bool = False, digest: bool = False) -> bool:
+        """Establish the sidecar disposition before a tree is dropped, reset or reused."""
+        disposition = self.archive_gate_decisions(n, tree, name=name, session=session)
+        if disposition is False or evidence:
+            self.archive_evidence(n, digest=digest, name=name, tree=tree, enqueue=False,
+                                  archive_session=session, include_sidecar=False)
+        if disposition is False:
+            self._record_archive_hold(label, tree)
+            return False
+        self._clear_archive_hold(label)
+        return True
+
     def _launch(self, n: int, worktree: Path, prompt: str, log: Path) -> int:
         """Run the Claude Code session; returns its exit code, or -9 when it was stopped at the timeout."""
         agent = self.cfg["agent"]
@@ -2639,6 +2762,8 @@ class Runner:
             self.state.record(n, "merging", pr)
             return "merging"
         if state in ("no_changes", "split"):
+            if not self.cleanup(n):
+                return "held"
             children = ", ".join(f"#{c}" for c in status.get("children") or [])
             text = summary + (f"\n\nSplit into {children}." if children else "")
             post_update(self.gh, self.repo, n, "result", text, status.get("screenshots") or [])
@@ -2648,7 +2773,6 @@ class Runner:
                 self.gh.edit_labels(self.repo, n, add=["No Changes" if state == "no_changes" else "Split"],
                                     remove=["In Progress"])
                 self.gh.close(self.repo, n, not_planned=state == "no_changes")
-            self.cleanup(n)
             self.state.set_attempts(n, 0)
             self.state.record(n, state, summary)
             return state
@@ -2781,6 +2905,8 @@ class Runner:
             print(f"{pr}: could not post the question on the pull request: {redact(str(exc))[:200]}")
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:
+        if not self.cleanup(n):
+            return "held"
         parts = [str(status.get("summary", "")).strip()]
         for title, key in (("Cause", "root_cause"), ("Fix", "resolution")):
             if status.get(key):
@@ -2801,7 +2927,6 @@ class Runner:
         else:
             self.gh.edit_labels(self.repo, n, add=["Done"], remove=["In Progress", "Merging", "Needs Decision"])
             self.gh.close(self.repo, n)
-        self.cleanup(n)
         self.state.set_attempts(n, 0)
         self.state.record(n, "done", pr)
         return "done"
@@ -2825,10 +2950,11 @@ class Runner:
                                  f"process or an error); the worktree is kept.\n\n{listing}", "lanes_unlanded")
         all_merged = bool(outcomes) and all(v == "merged" for v in outcomes.values())
         if state == "done" and all_merged:
+            if not self.cleanup(n):
+                return "held"
             post_update(self.gh, self.repo, n, "resolution", f"{summary}\n\n**Lanes:**\n{listing}")
             self.gh.edit_labels(self.repo, n, add=["Done"], remove=["In Progress", "Merging", "Needs Decision"])
             self.gh.close(self.repo, n)
-            self.cleanup(n)
             self.state.set_attempts(n, 0)
             self.state.record(n, "done", "workflow lanes")
             return "done"
@@ -2850,20 +2976,26 @@ class Runner:
 
     def archive_evidence(self, n: Any, log: Optional[Path] = None, attempt: int = 0, replies: Optional[List[Any]] = None,
                          digest: bool = True, name: str = "", tree: Optional[Path] = None, status_file: Optional[Path] = None,
-                         task: str = "", outcome: str = "", enqueue: bool = True) -> Optional[Path]:
+                         task: str = "", outcome: str = "", enqueue: bool = True, archive_session: str = "",
+                         include_sidecar: bool = True) -> Optional[Path]:
         """Copy the issue's evidence to ``<root>/archive/<intake>-<n>/`` and run ``retro_digest.py`` on it.
 
         Called on every ending (``work``) and again before ``cleanup`` deletes the worktree. Copies the review verdicts,
-        task ledger, Jev shadow and gate logs, ``build/retro`` and ``build/handoff`` and the ``bg_run`` digests from
+        task ledger, Jev shadow, answer and decision logs, ``build/retro`` and ``build/handoff`` and the ``bg_run`` digests from
         the worktree, plus the status file, the last ``ARCHIVE_LOG_LINES`` redacted lines of the worker log and the
         owner's reply and the owner's comments made during the run (``owner_replies.json``). A scheduled job or a retro
         passes ``name`` (``job-steward-2026-11-02``), ``tree``, ``status_file`` and ``task`` instead. After the digest,
         a flow with a digest trigger, a ``phase_cost`` from ``retro_phase.py`` (run for the flow's PR) or a touched workflow path is queued for a post-mortem (``enqueue_retro``).
         Best effort; never fails a run."""
+        label = f"request-{n}" if isinstance(n, int) else str(n)
+        saved_identity = dict(self.state.data["archive_sessions"].get(label) or {})
+        name = name or str(saved_identity.get("name") or "")
+        archive_session = archive_session or str(saved_identity.get("session") or self.archive_session(label))
         path = tree or self.paths.worktree(n)
         dest = self.paths.root / "archive" / (name or f"{'nightly' if self.intake else 'request'}-{n}")
         task = task or (self.task_id(n) if isinstance(n, int) else str(n))
         copied = False
+        sidecar_failed = False
 
         def put(src: Path, rel: str) -> None:
             nonlocal copied
@@ -2876,10 +3008,16 @@ class Runner:
                                     ("runs", "*.digest"), ("runs", "*.running")):
                 for src in sorted((path / "build" / folder).glob(pattern)):
                     put(src, f"{folder}/{src.name}")
-            for name in ("shadow.jsonl", "gate.jsonl"):  # Jev shadow log and the orchestrator's jev_gate.py answers
-                src = path / "build" / "jev" / name
+            for log_name in ("shadow.jsonl", "gate.jsonl"):  # Jev shadow log and the orchestrator's answers
+                src = path / "build" / "jev" / log_name
                 if src.is_file():
-                    put(src, name)
+                    put(src, log_name)
+            if include_sidecar:
+                sidecar_disposition = self.archive_gate_decisions(n, path, name=name, session=archive_session)
+                if sidecar_disposition is True:
+                    copied = True
+                elif sidecar_disposition is False:
+                    sidecar_failed = True
             status_file = status_file or self.paths.status_file(n)
             if status_file.is_file():
                 put(status_file, "status.json")
@@ -2907,7 +3045,89 @@ class Runner:
             if enqueue and not self.dry_run:
                 self.run_retro_phase(n, dest)
                 self.enqueue_retro(dest, task)
-        return dest if copied else None
+        return dest if copied and not sidecar_failed else None
+
+    def archive_gate_decisions(self, n: Any, tree: Path, name: str = "", session: str = "") -> Optional[bool]:
+        """Archive the decision sidecar atomically; ``None`` is a confirmed absent or unsafe source."""
+        source = tree / "build" / "jev" / "gate-decisions.jsonl"
+        if not os.path.lexists(str(source)):
+            return None
+        try:
+            root = tree.resolve(strict=True)
+            resolved = source.resolve(strict=True)
+        except (OSError, RuntimeError, ValueError):
+            print_once(f"unsafe-decisions:{source}:unresolvable",
+                       f"{n}: Jev decisions disposition: source is not a safe Jev decisions source")
+            return None
+        try:
+            resolved.relative_to(root)
+        except ValueError:
+            print_once(f"unsafe-decisions:{source}:outside",
+                       f"{n}: Jev decisions disposition: source is not a safe Jev decisions source")
+            return None
+        if not resolved.is_file():
+            print_once(f"unsafe-decisions:{source}:not-file",
+                       f"{n}: Jev decisions disposition: source is not a safe Jev decisions source")
+            return None
+        directory = self.paths.root / "archive" / (name or f"{'nightly' if self.intake else 'request'}-{n}")
+        safe_session = re.sub(r"[^A-Za-z0-9_.-]", "-", session).strip("-")
+        canonical = directory / "gate-decisions.jsonl"
+        destination = directory / f"gate-decisions-{safe_session}.jsonl" if safe_session else canonical
+        staged: Optional[Path] = None
+        temp: Optional[Path] = None
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+            if os.path.lexists(str(destination)):
+                if destination.is_symlink() or not destination.is_file():
+                    return False
+                if safe_session and not canonical.exists():
+                    try:
+                        os.link(str(destination), str(canonical))
+                    except FileExistsError:
+                        pass
+                    directory_fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                    try:
+                        os.fsync(directory_fd)
+                    finally:
+                        os.close(directory_fd)
+                return True
+            stage_fd, raw_stage = tempfile.mkstemp(prefix=".gate-decisions-copy.", suffix=".tmp", dir=str(directory))
+            os.close(stage_fd)
+            staged = Path(raw_stage)
+            copy_redacted(resolved, staged)
+            fd, raw_temp = tempfile.mkstemp(prefix=".gate-decisions.", suffix=".tmp", dir=str(directory))
+            temp = Path(raw_temp)
+            with os.fdopen(fd, "wb") as handle:
+                handle.write(staged.read_bytes())
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(str(temp), str(destination))
+            temp = None
+            directory_fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            if safe_session and not canonical.exists():
+                try:
+                    os.link(str(destination), str(canonical))
+                except FileExistsError:
+                    pass
+                directory_fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+                try:
+                    os.fsync(directory_fd)
+                finally:
+                    os.close(directory_fd)
+            return True
+        except (OSError, RuntimeError, ValueError):
+            return False
+        finally:
+            for pending in (temp, staged):
+                if pending is not None:
+                    try:
+                        pending.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
     def run_retro_phase(self, n: Any, dest: Path) -> None:
         """``tools/retro_phase.py --pr N`` for the flow's pull request, writing ``retro/phase-N.json`` into the archive.
@@ -3019,17 +3239,70 @@ class Runner:
             return None
         if not self.preflight():
             return None
-        item = queue.pop(0)
+        selected_index: Optional[int] = None
+        item: Optional[Dict[str, Any]] = None
+        task = ""
+        key = ""
+        archive = Path()
+        branch = ""
+        worktree = Path()
+        status_file = Path()
+        log = Path()
+        held_tasks: set = set()
+        current = retro.data.get("current")
+        for index, queued in enumerate(queue):
+            candidate = dict(queued)
+            candidate_task = str(candidate.get("task") or "unknown")
+            candidate_key = f"retro-{candidate_task}"
+            if candidate_key in held_tasks:
+                continue
+            candidate_worktree = self.paths.worktrees / candidate_key
+            if candidate_worktree.exists():
+                identity = dict(self.state.data["archive_sessions"].get(candidate_key) or {})
+                if not identity and isinstance(current, dict) and str(current.get("task")) == candidate_task:
+                    identity = {
+                        "name": str(current.get("archive_name") or ""),
+                        "session": str(current.get("archive_session") or ""),
+                        "path": str(candidate_worktree),
+                    }
+                if not identity.get("name") or not identity.get("session"):
+                    previous = next((record for record in reversed(retro.data.get("done") or [])
+                                     if isinstance(record, dict) and str(record.get("task")) == candidate_task), candidate)
+                    previous_archive = Path(str(previous.get("archive") or ""))
+                    previous_name = str(previous.get("archive_name")
+                                        or (f"retro-{previous_archive.name}" if previous_archive.name else candidate_key))
+                    previous_session = str(previous.get("archive_session")
+                                           or self.archive_session(f"{candidate_key}-recovery"))
+                    identity = {"name": previous_name, "session": previous_session, "path": str(candidate_worktree)}
+                self.state.data["archive_sessions"][candidate_key] = identity
+                self.state.save()
+                if not self.archive_before_change(candidate_key, candidate_key, candidate_worktree,
+                                                  str(identity["name"]), str(identity["session"]),
+                                                  evidence=True, digest=False):
+                    held_tasks.add(candidate_key)
+                    continue
+            else:
+                self._clear_archive_hold(candidate_key)
+            selected_index = index
+            item = candidate
+            task = candidate_task
+            key = candidate_key
+            archive = Path(str(item.get("archive") or ""))
+            branch = f"agents/retro-{task.lower()}-{now().strftime('%y%m%d')}"
+            worktree = candidate_worktree
+            status_file = self.paths.status_file(key)
+            log = self.paths.log(key, 1)
+            break
+        if selected_index is None or item is None:
+            return None
+        archive_name = str(item.get("archive_name") or
+                           (f"retro-{archive.name}" if archive.name else key))
+        archive_session = self.archive_session(key)
+        item.update({"archive_name": archive_name, "archive_session": archive_session})
+        queue.pop(selected_index)
         retro.data["queue"] = queue
         retro.data["current"] = item
         retro.save()
-        task = str(item.get("task") or "unknown")
-        key = f"retro-{task}"
-        archive = Path(str(item.get("archive") or ""))
-        branch = f"agents/retro-{task.lower()}-{now().strftime('%y%m%d')}"
-        worktree = self.paths.worktrees / key
-        status_file = self.paths.status_file(key)
-        log = self.paths.log(key, 1)
         outcome = "error"
         status: Optional[Dict[str, Any]] = None
         lanes_resolved = True
@@ -3045,7 +3318,11 @@ class Runner:
             self.ensure_workflow_label()
             self.job_timeout = float((self.cfg.get("retro") or {}).get("timeout_minutes", 90))
             prompt = self.render_retro_prompt(item, base, status_file)
-            self.state.data["current"] = {"issue": 0, "job": key, "attempt": 1, "log": str(log), "started": iso()}
+            self.state.data["current"] = {"issue": 0, "job": key, "attempt": 1, "log": str(log), "started": iso(),
+                                          "archive_name": archive_name, "archive_session": archive_session}
+            self.state.data["archive_sessions"][key] = {
+                "name": archive_name, "session": archive_session, "path": str(worktree),
+            }
             self.state.save()
             self.snapshot_lanes(key)
             code = self.launch(key, worktree, prompt, log)
@@ -3058,25 +3335,35 @@ class Runner:
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            self.state.record(key, f"retro:{outcome}", task)
-            done = retro.data.setdefault("done", [])
-            done.append({**item, "outcome": outcome, "finished": iso(),
-                         "summary": redact(str((status or {}).get("summary") or ""))[:300]})
-            retro.data["done"] = done[-RETRO_HISTORY:]
-            retro.data["current"] = None
-            retro.save()
             if status is not None and not status_file.exists():  # the digest and the archive read the same status file
                 status_file.parent.mkdir(parents=True, exist_ok=True)
                 status_file.write_text(json.dumps(status))
-            self.archive_evidence(key, log=log, name=f"retro-{archive.name}" if archive.name else key, tree=worktree,
+            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
                                   status_file=status_file, task=f"retro-{task}", enqueue=False,
-                                  outcome=self.job_outcome_code(outcome))  # no retro of a retro
-            if had_lanes and not lanes_resolved:
-                print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
-            elif not had_lanes and self.retro_unlanded(clone, worktree, base):
-                print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+                                  outcome=self.job_outcome_code(outcome),
+                                  archive_session=archive_session,
+                                  include_sidecar=False)  # no retro of a retro
+            if ready:
+                self.state.record(key, f"retro:{outcome}", task)
+                done = retro.data.setdefault("done", [])
+                done.append({**item, "outcome": outcome, "finished": iso(),
+                             "summary": redact(str((status or {}).get("summary") or ""))[:300]})
+                retro.data["done"] = done[-RETRO_HISTORY:]
+                retro.data["current"] = None
+                retro.save()
+                if had_lanes and not lanes_resolved:
+                    print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
+                elif not had_lanes and self.retro_unlanded(clone, worktree, base):
+                    print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+                else:
+                    self._drop_worktree(worktree, clone)
             else:
-                self._drop_worktree(worktree, clone)
+                held_queue = list(retro.data.get("queue") or [])
+                held_queue.insert(min(int(selected_index), len(held_queue)), item)
+                retro.data["queue"] = held_queue
+                retro.data["current"] = item
+                retro.save()
             self.state.save()
         return outcome
 
@@ -3137,13 +3424,22 @@ class Runner:
         return {"done": "done", "no_changes": "no_changes", "blocked": "blocked", "timeout": "blocked:timeout",
                 "no_status": "blocked:worker_failed", "error": "blocked:worker_failed"}.get(outcome, outcome)
 
-    def cleanup(self, n: int) -> None:
+    def cleanup(self, n: Any) -> bool:
         path = self.paths.worktree(n)
-        self.archive_evidence(n, digest=False)
+        label = f"request-{n}"
+        identity = dict(self.state.data["archive_sessions"].get(label) or {})
+        if not identity:
+            identity = {"name": label, "session": self.archive_session(label), "path": str(path)}
+            self.state.data["archive_sessions"][label] = identity
+            self.state.save()
+        if not self.archive_before_change(label, n, path, str(identity["name"]), str(identity["session"]),
+                                          evidence=True, digest=False):
+            return False
         if path.exists() and n not in self._keep:
             self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
         self.paths.request_snapshot(n).unlink(missing_ok=True)
+        return True
 
 
 # MARK: - launchd
@@ -3251,6 +3547,15 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         last = state.data["jobs"].get(name) or {}
         due = job_next_due(cfg, state.data, name)
         jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+    archive_holds = []
+    for name, record in sorted((state.data.get("archive_holds") or {}).items()):
+        if isinstance(record, dict):
+            archive_holds.append({
+                "name": str(record.get("name") or name),
+                "path": str(record.get("path") or ""),
+                "reason": str(record.get("reason") or "sidecar_archive_io"),
+                "since": str(record.get("since") or ""),
+            })
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
@@ -3268,6 +3573,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         "queue": queue,
         "ha_changes_unreachable_since": (state.data.get("ha_changes") or {}).get("unreachable_since"),
         "ha_changes_unfiled": len((state.data.get("ha_changes") or {}).get("unfiled") or {}),
+        "archive_holds": archive_holds,
         "recent": state.data["history"][-10:],
         "retro_queue": [q.get("task") for q in (State(Paths(cfg, paths.home, "retro-").state).data.get("queue") or [])],
     }
@@ -3393,6 +3699,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"parked for the owner's pick: #{n} {pr}")
                 for name, info in report["jobs"].items():
                     print(f"job {name}: last {info['last_run'] or 'never'} ({info['outcome'] or '-'}), next due {info['next_due']}")
+                for hold in report["archive_holds"]:
+                    print(f"archive hold: {hold['name']} ({hold['reason']}, since {hold['since']})")
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
                 print("queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}" for q in report["queue"])
