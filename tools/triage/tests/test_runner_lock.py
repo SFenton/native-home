@@ -446,40 +446,52 @@ class RunnerLockTests(t.Base):
             self.assertFalse(self.can_acquire(self.paths.lock))
 
     def test_retro_competes_with_archive_refusal_then_fresh_retry(self):
-        runner = self.runner(FakeGitHub([]))
         archive = self.paths.root / "archive" / "request-new"
         digest = archive / "retro" / "new.json"
         digest.parent.mkdir(parents=True, exist_ok=True)
         digest.write_text(json.dumps({"triggers": [{"id": "guard"}]}))
-        retro = ht.State(runner.retro_paths.state)
-        retro.data["queue"] = [{"task": "old", "archive": "/old"},
-                               {"task": "sibling", "archive": "/sibling"}]
-        retro.save()
+        for producer in (["run-issue", "31"], ["run-job", "steward"]):
+            for ending in ("done", "requeue"):
+                with self.subTest(producer=producer, ending=ending):
+                    runner = self.runner(FakeGitHub([]))
+                    retro = ht.State(runner.retro_paths.state)
+                    current = {"task": "old", "archive": "/old"}
+                    retro.data["queue"] = [current, {"task": "sibling", "archive": "/sibling"}]
+                    retro.data["current"] = None
+                    retro.data["done"] = []
+                    retro.save()
 
-        with ht.writer_lock(self.paths):
-            held = ht.State(runner.retro_paths.state)
-            current = held.data["queue"].pop(0)
-            held.data["current"] = current
-            held.save()
-            with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
-                    mock.patch("sys.stdout", new=io.StringIO()) as out:
-                self.assertEqual(ht.main(["run-issue", "31"], home=self.home), 1)
-            self.assertEqual(out.getvalue(), "another runner writer is active; run-issue refused\n")
-            held.data["current"] = None
-            held.data["done"] = [current]
-            held.save()
+                    with ht.writer_lock(self.paths):
+                        held = ht.State(runner.retro_paths.state)
+                        self.assertEqual(held.data["queue"].pop(0), current)
+                        held.data["current"] = current
+                        held.save()
+                        with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
+                                mock.patch("sys.stdout", new=io.StringIO()) as out:
+                            self.assertEqual(ht.main(producer, home=self.home), 1)
+                        self.assertEqual(out.getvalue(),
+                                         f"another runner writer is active; {producer[0]} refused\n")
+                        held.data["current"] = None
+                        if ending == "done":
+                            held.data["done"] = [current]
+                        else:
+                            held.data["queue"].insert(0, current)
+                        held.save()
 
-        def enqueue(owner, _number):
-            return "queued" if owner.enqueue_retro(archive, "new") else "not-queued"
+                    def enqueue(owner, _argument):
+                        return "queued" if owner.enqueue_retro(archive, "new") else "not-queued"
 
-        with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
-                mock.patch.object(ht.Runner, "work", enqueue), \
-                mock.patch("sys.stdout", new=io.StringIO()):
-            self.assertEqual(ht.main(["run-issue", "31"], home=self.home), 0)
-        saved = ht.State(runner.retro_paths.state).data
-        self.assertEqual([item["task"] for item in saved["queue"]], ["sibling", "new"])
-        self.assertEqual([item["task"] for item in saved["done"]], ["old"])
-        self.assertIsNone(saved["current"])
+                    with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
+                            mock.patch.object(ht.Runner, "work", enqueue), \
+                            mock.patch.object(ht.Runner, "run_job", enqueue), \
+                            mock.patch("sys.stdout", new=io.StringIO()):
+                        self.assertEqual(ht.main(producer, home=self.home), 0)
+                    saved = ht.State(runner.retro_paths.state).data
+                    expected = ["old", "sibling", "new"] if ending == "requeue" else ["sibling", "new"]
+                    self.assertEqual([item["task"] for item in saved["queue"]], expected)
+                    self.assertEqual([item["task"] for item in saved["done"]],
+                                     ["old"] if ending == "done" else [])
+                    self.assertIsNone(saved["current"])
 
     def test_manual_busy_job_pause_short_circuit_is_after_admission(self):
         self.paths.config_dir.mkdir(parents=True, exist_ok=True)
@@ -611,6 +623,91 @@ class RunnerLockTests(t.Base):
                         mock.patch("sys.stdin") as stdin, mock.patch("sys.stdout", new=io.StringIO()):
                     stdin.isatty.return_value = True
                     outcomes.append(ht.main(["ack-base", head], home=self.home))
+            except BaseException as exc:  # re-raised by the parent assertion
+                outcomes.append(exc)
+
+        thread = threading.Thread(target=acknowledge)
+        thread.start()
+        self.assertTrue(reached.wait(5))
+        with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(ht.main(["tick"], home=self.home), 0)
+        self.assertEqual(out.getvalue(), "another tick is running\n")
+        finish.set()
+        thread.join(5)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcomes, [0])
+        self.assertEqual(json.loads((self.paths.state_dir / "workflow-base.json").read_text()),
+                         {"main": head, "other": "keep"})
+
+    def test_check_vs_both_acks_check_first_refuses_ack_until_commit(self):
+        for argv in (["ack-base", "b" * 40], ["ack-verified"]):
+            with self.subTest(argv=argv):
+                accepted = "a" * 40
+                head = "b" * 40
+                self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+                record = self.paths.state_dir / "workflow-base.json"
+                record.write_text(json.dumps({"main": accepted, "other": "keep"}))
+                self.pause_files(accepted)
+                reached = threading.Event()
+                finish = threading.Event()
+                outcomes = []
+
+                def locked(runner, _max_items=None):
+                    if runner.intake:
+                        return 0
+                    reached.set()
+                    self.assertTrue(finish.wait(5))
+                    self.assertTrue(runner.check_base("test"))
+                    return 0
+
+                def tick():
+                    try:
+                        with mock.patch.object(ht.Runner, "_tick_locked", new=locked), \
+                                mock.patch.object(ht.Runner, "remote_base_sha", return_value=head), \
+                                mock.patch.object(ht.Runner, "pr_moves_ok", return_value=True), \
+                                mock.patch("sys.stdout", new=io.StringIO()):
+                            outcomes.append(ht.main(["tick"], home=self.home))
+                    except BaseException as exc:  # re-raised by the parent assertion
+                        outcomes.append(exc)
+
+                thread = threading.Thread(target=tick)
+                thread.start()
+                self.assertTrue(reached.wait(5))
+                with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
+                        mock.patch("sys.stdin") as stdin, mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                        mock.patch("sys.stderr", new=io.StringIO()):
+                    stdin.isatty.return_value = True
+                    self.assertEqual(ht.main(argv, home=self.home), 1)
+                self.assertEqual(out.getvalue(), f"another runner writer is active; {argv[0]} refused\n")
+                finish.set()
+                thread.join(5)
+                self.assertFalse(thread.is_alive())
+                self.assertEqual(outcomes, [0])
+                self.assertEqual(json.loads(record.read_text()), {"main": head, "other": "keep"})
+
+    def test_check_vs_verified_ack_ack_first_refuses_tick_until_commit(self):
+        accepted = "a" * 40
+        head = "c" * 40
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        (self.paths.state_dir / "workflow-base.json").write_text(json.dumps({"main": accepted, "other": "keep"}))
+        self.pause_files(accepted)
+        reached = threading.Event()
+        finish = threading.Event()
+        outcomes = []
+
+        def remote(_runner, _base):
+            reached.set()
+            self.assertTrue(finish.wait(5))
+            return head
+
+        def acknowledge():
+            try:
+                with mock.patch.object(ht.Runner, "remote_base_sha", new=remote), \
+                        mock.patch.object(ht.Runner, "verify_pr_range",
+                                          return_value=(True, [{"pr": 3, "contexts": ["pr-checks"]}], "")), \
+                        mock.patch("sys.stdout", new=io.StringIO()), mock.patch("sys.stderr", new=io.StringIO()):
+                    outcomes.append(ht.main(["ack-verified"], home=self.home))
             except BaseException as exc:  # re-raised by the parent assertion
                 outcomes.append(exc)
 
