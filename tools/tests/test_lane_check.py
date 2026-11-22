@@ -420,6 +420,71 @@ class HooksRepairTests(unittest.TestCase):
             self.assertEqual(self.flips(clone), [])
 
 
+class HooksNoRepairTests(unittest.TestCase):
+    """The --no-repair hooks diagnostic never runs setup or writes the shared Git directory."""
+
+    def run_stubbed(self, clone, *args, script="#!/bin/sh\nexit 0\n", marker=None):
+        folder = Path(clone).parent / "no-repair-tool"
+        folder.mkdir(exist_ok=True)
+        (folder / "lane_check.py").write_text(LANE_CHECK.read_text())
+        (folder / "setup.sh").write_text(script)
+        env = ENV if marker is None else {**ENV, "NO_REPAIR_MARKER": str(marker)}
+        return subprocess.run([sys.executable, str(folder / "lane_check.py"), *args], cwd=clone, env=env,
+                              capture_output=True, text=True)
+
+    def common_dir_snapshot(self, clone):
+        common = Path(git(clone, "rev-parse", "--path-format=absolute", "--git-common-dir"))
+        return sorted((str(path.relative_to(common)), path.is_file(), path.stat().st_size if path.is_file() else None)
+                      for path in common.rglob("*"))
+
+    def test_wrong_setup_fails_without_repair_or_common_dir_write(self):
+        """Fails if: no-repair invokes setup, rewrites config, logs a flip, or modifies the common Git directory."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            foreign = "/elsewhere/.githooks"
+            git(clone, "config", "core.hooksPath", foreign)
+            marker = Path(tmp) / "setup-ran"
+            before = self.common_dir_snapshot(clone)
+            done = self.run_stubbed(
+                clone, "check", "--only", "hooks", "--no-repair",
+                script="#!/bin/sh\nprintf ran > \"$NO_REPAIR_MARKER\"\nexit 0\n", marker=marker)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("Stop and report", done.stderr)
+            self.assertNotIn("Run tools/setup.sh", done.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), foreign)
+            self.assertFalse(marker.exists())
+            self.assertEqual(self.common_dir_snapshot(clone), before)
+            repaired = lane(clone, "check", "--only", "hooks")
+            self.assertEqual(repaired.returncode, 0, repaired.stdout + repaired.stderr)
+            self.assertEqual(git(clone, "config", "core.hooksPath"), ".githooks")
+
+    def test_correct_setup_succeeds_without_invoking_setup(self):
+        """Fails if: the non-repairing diagnostic refuses a correct setup or invokes setup on success."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            git(clone, "config", "core.hooksPath", ".githooks")
+            marker = Path(tmp) / "setup-ran"
+            done = self.run_stubbed(
+                clone, "check", "--only", "hooks", "--no-repair",
+                script="#!/bin/sh\nprintf ran > \"$NO_REPAIR_MARKER\"\nexit 0\n", marker=marker)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertFalse(marker.exists())
+
+    def test_unset_setup_fails_without_repair(self):
+        """Fails if: an unset hooks path is repaired or accepted by the diagnostic."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            marker = Path(tmp) / "setup-ran"
+            done = self.run_stubbed(
+                clone, "check", "--only", "hooks", "--no-repair",
+                script="#!/bin/sh\nprintf ran > \"$NO_REPAIR_MARKER\"\nexit 0\n", marker=marker)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertFalse(marker.exists())
+            shown = subprocess.run(["git", "config", "--get", "core.hooksPath"], cwd=clone, env=ENV,
+                                   capture_output=True, text=True, check=False)
+            self.assertNotEqual(shown.returncode, 0)
+
+
 class ScanTests(unittest.TestCase):
     def scan(self, tmp, clone, text):
         denylist = Path(tmp) / "deny.txt"

@@ -20,6 +20,10 @@ import review_verdict  # noqa: E402
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
        "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
 NATIVE = "git@github.com:SFenton/native-home.git"
+DIAGNOSTIC = "python3 tools/lane_check.py check --only hooks --no-repair"
+HOOKS_ADVICE = ("Do not query or change the hooks key directly. Run `"
+                + DIAGNOSTIC
+                + "`. If it fails, stop and report the command and refusal; the owner handles repair.")
 
 
 def git(cwd, *args):
@@ -171,6 +175,9 @@ class TokenScanTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("include.path", self.why(command))
 
+    def test_the_prescribed_hooks_diagnostic_is_allowed(self):
+        self.assertEqual(self.why(DIAGNOSTIC), "")
+
     def test_ordinary_commands_pass(self):
         for command in ("git push origin HEAD", "git push -u origin ci/x", "git status", "git commit -m 'Add x'", "ls -la", "python3 tools/run_tool_tests.sh",
                         "gh api repos/o/r/git/refs/heads/x", "gh api repos/o/r/contents/a.txt", "gh api repos/o/r/pulls/1", "gh api repos/o/r/issues -f title=x",
@@ -201,6 +208,21 @@ class HookProcessTests(unittest.TestCase):
         self.assertEqual(refused.returncode, 2)
         self.assertIn("pre-push hook", refused.stderr)
 
+    def test_hooks_key_refusals_give_only_the_non_repairing_advice(self):
+        for command in ("git config core.hooksPath", "git config --get core.hooksPath",
+                        "git config --local --get core.hooksPath", "git config core.hooksPath /x"):
+            with self.subTest(command=command):
+                refused = self.run_hook(self.payload(command))
+                self.assertEqual(refused.returncode, 2)
+                self.assertIn(HOOKS_ADVICE, refused.stderr)
+                self.assertNotIn("Run tools/setup.sh", refused.stderr)
+
+    def test_an_unrelated_refusal_keeps_its_existing_advice(self):
+        refused = self.run_hook(self.payload("git push --no-verify origin HEAD"))
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("Run tools/setup.sh once, then push normally", refused.stderr)
+        self.assertNotIn(HOOKS_ADVICE, refused.stderr)
+
     def test_malformed_input_is_refused_never_exit_one(self):
         for stdin in ("", "not json", "[]", "null", "5", json.dumps({"tool_name": "Bash"}), json.dumps({"tool_name": "Bash", "tool_input": []}),
                       json.dumps({"tool_name": "Bash", "tool_input": {"command": ["git", "push"]}}), json.dumps({"tool_name": "Bash", "tool_input": {"command": 5}})):
@@ -222,6 +244,10 @@ class HookProcessTests(unittest.TestCase):
                 contextlib.redirect_stderr(err):
             self.assertEqual(push_guard.main(), 2)
         self.assertIn("could not be checked", err.getvalue())
+
+    def test_main_accepts_an_unused_argv(self):
+        with mock.patch.object(sys, "stdin", io.StringIO(self.payload(DIAGNOSTIC))):
+            self.assertEqual(push_guard.main([]), 0)
 
 
 class SettingsWiringTests(unittest.TestCase):

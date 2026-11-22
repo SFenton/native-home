@@ -1,0 +1,30 @@
+# command<TAB>expect (block|allow)<TAB>why<TAB>mode (optional: main|agent; empty = both).
+# push_guard and commit_guard are TRIPWIRES, not walls. These expectations are the BASE hook verdicts for the shared corpus.
+python3 tools/lane_check.py check --only hooks --no-repair	allow	prescribed non-repairing diagnostic	main
+python3 tools/lane_check.py check --only hooks --no-repair	allow	agent may run the prescribed diagnostic	agent
+git status	allow	ordinary Git read
+git push origin HEAD	allow	ordinary push is not otherwise refused
+git config core.hooksPath	allow	bare hooks-path read
+git config --get core.hooksPath	allow	explicit hooks-path read
+git config --local --get core.hooksPath	allow	scoped hooks-path read
+git config core.hooksPath .githooks	block	direct hooks-path write
+git config --global core.hooksPath /x	block	global hooks-path write
+git config --unset core.hooksPath	block	hooks-path unset
+git config --add core.hooksPath /x	block	hooks-path add
+git config --replace-all core.hooksPath /x	block	hooks-path replace-all
+git -c core.hooksPath=/x push origin HEAD	block	command-line hooks override
+git -c core.hooksPath=/x commit -m no	block	commit with command-line hooks override
+git --config-env=core.hooksPath=HOOKS_PATH push origin HEAD	block	config-env hooks override
+GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.hooksPath git push origin HEAD	block	environment hooks override
+git config --get user.name	allow	unrelated config read
+git config user.name Coder	allow	unrelated config write
+git commit -m ok	allow	ordinary commit
+git commit --no-verify -m no	block	commit bypass
+git commit --no-verif -m no	block	abbreviated commit bypass
+git push --no-verify origin HEAD	block	push bypass
+gh repo sync o/r	allow	GitHub sync is not this guard's rule
+git grep include.path	allow	read-only include search
+git log -S SH_OWNER_PUSH	allow	read-only owner escape search
+gh api repos/o/r/git/refs/heads/x	allow	read-only GitHub ref request
+git -c alias.x='!echo hi' status	allow	unrelated command-line config
+echo hi	allow	ordinary non-Git command

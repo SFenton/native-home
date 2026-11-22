@@ -72,10 +72,17 @@ WRITE_METHOD = re.compile(r"(?:-X|--method)[ \t=]*['\"]?(?:POST|PUT|PATCH|DELETE
 FIELD_FLAG = re.compile(r"(?<![\w-])(?:-f|-F|--field|--raw-field|--input)(?![\w-])")
 GH_REPO_SYNC = re.compile(r"(?<![\w-])gh\b[^;|&\n]*?[ \t]repo[ \t]+(?:[^;|&\n]*?[ \t])?sync\b")
 MENTIONS = re.compile(r"(?<![\w-])(?:git|gh)(?![\w-])|send-pack|http-push|core\.hookspath", re.I)
+HOOKS_REASON = "core.hooksPath (the repo's hooks must run)"
+HOOKS_ADVICE = ("Do not query or change the hooks key directly. Run "
+                "`python3 tools/lane_check.py check --only hooks --no-repair`. If it fails, stop and report the command and refusal; "
+                "the owner handles repair.")
 
 
 def message(why: str) -> str:
     """The text sent back with a refusal."""
+    if why == HOOKS_REASON:
+        return (f"Blocked: {why}. Nothing an agent pushes to SFenton/native-home may skip git's pre-push hook (.githooks/pre-push), "
+                f"which runs the house denylist on every push. {HOOKS_ADVICE} (tools/hooks/push_guard.py).")
     return (f"Blocked: {why}. Nothing an agent pushes to SFenton/native-home may skip git's pre-push hook (.githooks/pre-push), which runs the "
             "house denylist on every push. Run tools/setup.sh once, then push normally (tools/hooks/push_guard.py).")
 
@@ -91,7 +98,7 @@ def command_reason(command: str) -> str:
     if NO_VERIFY.search(command):
         return "--no-verify (it skips the pre-push hook)"
     if HOOKS_PATH.search(command):
-        return "core.hooksPath (the repo's hooks must run)"
+        return HOOKS_REASON
     if INCLUDE_PATH.search(command) and INCLUDE_WRITE.search(command):
         return "a config write of include.path / includeIf.*.path (an included file can set core.hooksPath)"
     if CONFIG_INJECTION.search(command):
@@ -107,7 +114,7 @@ def command_reason(command: str) -> str:
     return ""
 
 
-def main() -> int:
+def main(_argv=None) -> int:
     """Read the hook payload from stdin; exit 2 with the message to block, 0 to allow. Never exits 1."""
     try:
         payload = json.load(sys.stdin)
