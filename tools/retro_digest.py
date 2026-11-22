@@ -521,7 +521,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     if outcome.startswith("blocked"):
         fire("blocked", outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
     elif state == "blocked" and not status_suppressed:
-        fire("blocked", status.get("blocked_reason") or status.get("summary") or state)
+        fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
     if outcome in ("timeout", "blocked:timeout"):
         fire("timeout", "the session ran past the timeout and was stopped")
     if outcome == "retry":

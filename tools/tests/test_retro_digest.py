@@ -302,7 +302,7 @@ class S3ProofTests(Base):
         self.assertEqual(doc["status_stale"], ["x"])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["blocked"])
+        self.assertEqual(fired["blocked"], [])
 
     def test_s3_2_d_agreeing_all_pass_still_blocks(self):
         """Fails if: an agreeing all-pass ledger alone clears a blocked snapshot."""
@@ -318,7 +318,7 @@ class S3ProofTests(Base):
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["blocked"])
+        self.assertEqual(fired["blocked"], [])
 
     def test_s3_3_b_empty_acceptance_preserves_status(self):
         """Fails if: an empty acceptance map is treated as resolved evidence."""
@@ -327,7 +327,7 @@ class S3ProofTests(Base):
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["blocked"])
+        self.assertEqual(fired["blocked"], [])
 
     def test_s3_4_a_unknown_status_id_does_not_resolve_block(self):
         """Fails if: an unknown status id is compared as a passing ledger check."""
@@ -479,7 +479,7 @@ class S3ProofTests(Base):
         self.assertEqual(doc["status_stale"], [])
         fired = self.fired(doc)
         self.assertIn("blocked", fired)
-        self.assertEqual(fired["blocked"], ["blocked"])
+        self.assertEqual(fired["blocked"], [])
 
     def test_s3_17_duplicate_ledger_id_is_not_compared(self):
         """Fails if: a duplicate ledger id becomes an ambiguous last-wins comparison."""
@@ -615,6 +615,63 @@ class S3ProofTests(Base):
         self.assertNotIn("blocked", self.fired(doc))
         self.assertEqual(doc["status_stale"], ["x"])
         self.assertEqual(doc["outcome"], "needs_decision")
+
+    def test_s3_30_needs_decision_status_preserves_blocked_snapshot(self):
+        """Fails if: a decision status lets an all-pass ledger suppress a blocked state."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["status"] = "needs_decision"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+        status["status"] = "blocked"
+        status_path.write_text(json.dumps(status))
+        green = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(green))
+        self.assertEqual(green["status_stale"], ["x"])
+        self.assertIsNone(green["outcome"])
+
+    def test_s3_31_needs_research_status_preserves_blocked_snapshot(self):
+        """Fails if: a research status lets an all-pass ledger suppress a blocked state."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["status"] = "needs_research"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+        status["status"] = "blocked"
+        status_path.write_text(json.dumps(status))
+        green = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(green))
+        self.assertEqual(green["status_stale"], ["x"])
+        self.assertIsNone(green["outcome"])
+
+    def test_s3_32_blocked_without_reason_matches_main_evidence(self):
+        """Fails if: absent reason and summary evidence differs from main."""
+        for state_key in ("state", "status"):
+            for outcome, expected in ((None, []), ("done", ["done"])):
+                with self.subTest(state_key=state_key, outcome=outcome):
+                    self.set_flow([self.check("x", True)], {"x": "pass"},
+                                  state_key=state_key)
+                    extra = ("--outcome", outcome) if outcome else ()
+                    doc = self.run_digest(*extra, task=self.TASK)
+                    fired = self.fired(doc)
+                    self.assertIn("blocked", fired)
+                    self.assertEqual(fired["blocked"], expected)
 
 
 class ArchiveTests(Base):
