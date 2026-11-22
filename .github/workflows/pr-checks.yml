@@ -298,35 +298,57 @@ jobs:
           pending="$RUNNER_TEMP/tier0-observations.pending"
           observations="$RUNNER_TEMP/tier0-observations.json"
           sandbox="/mnt/tier0-sandbox-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          raw="$sandbox/output/tier0-observations.json"
           rm -f "$pending" "$observations"
-          sudo install -d -m 755 "$sandbox" "$sandbox/base" "$sandbox/head"
+          sudo install -d -o 0 -g 0 -m 755 "$sandbox" "$sandbox/base" "$sandbox/head"
+          sudo install -d -o 65534 -g 65534 -m 700 "$sandbox/output"
           sudo cp -a "$GITHUB_WORKSPACE/policy-base/." "$sandbox/base/"
           sudo cp -a "$GITHUB_WORKSPACE/policy-head/." "$sandbox/head/"
-          sudo chown -R 65534:65534 "$sandbox"
+          sudo chown -R 0:0 "$sandbox/base" "$sandbox/head"
+          sudo chmod -R a+rX "$sandbox/base" "$sandbox/head"
           sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C \
             unshare --mount --pid --fork --net --mount-proc \
-            bash -s -- "$sandbox/base" "$sandbox/head" "$RUNNER_TEMP" > "$pending" <<'SANDBOX'
+            bash -s -- "$sandbox/base" "$sandbox/head" "$raw" "$RUNNER_TEMP" <<'SANDBOX'
           set -euo pipefail
           base="$1"
           head="$2"
-          runner_temp="$3"
+          raw="$3"
+          runner_temp="$4"
           mount --make-rslave /
           mount --bind / /
           mount -o remount,bind,ro /
+          mount --bind "$base" "$base"
+          mount -o remount,bind,ro "$base"
+          mount --bind "$head" "$head"
+          mount -o remount,bind,ro "$head"
           mount -o remount,bind,ro /proc
           mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=32m tmpfs /tmp
           mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs /run
           mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs "$runner_temp"
           cd /
           ulimit -f 16384
+          for input in "$base" "$head"; do
+            if setpriv --reuid=65534 --regid=65534 --clear-groups \
+              env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C \
+              sh -c ': > "$1/.tier0-write-probe"' sh "$input" 2>/dev/null; then
+              echo "collector: input checkout is writable" >&2
+              exit 1
+            fi
+          done
           if ! setpriv --reuid=65534 --regid=65534 --clear-groups \
             env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C \
+            GIT_CONFIG_COUNT=2 \
+            GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$base" \
+            GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$head" \
             git -C "$base" rev-parse --verify -q HEAD >/dev/null 2>&1; then
             echo "collector: sandbox user cannot read the verified base checkout" >&2
             exit 1
           fi
           if ! setpriv --reuid=65534 --regid=65534 --clear-groups \
             env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C \
+            GIT_CONFIG_COUNT=2 \
+            GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$base" \
+            GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$head" \
             git -C "$head" rev-parse --verify -q HEAD >/dev/null 2>&1; then
             echo "collector: sandbox user cannot read the verified head checkout" >&2
             exit 1
@@ -335,16 +357,57 @@ jobs:
           timeout --signal=TERM --kill-after=5s 300s \
             setpriv --reuid=65534 --regid=65534 --clear-groups \
             env -i PATH=/usr/bin:/bin HOME=/tmp TMPDIR=/tmp LANG=C \
+            GIT_CONFIG_COUNT=2 \
+            GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$base" \
+            GIT_CONFIG_KEY_1=safe.directory GIT_CONFIG_VALUE_1="$head" \
             python3 -B "$base/tools/agent_eval.py" --tier 0 --root "$base" \
-              --target "$head" --emit-observations /tmp/tier0-observations.json \
+              --target "$head" --emit-observations "$raw" \
               < /dev/null > /dev/null 2>&1 || rc=$?
           test "$rc" -eq 0
-          test -f /tmp/tier0-observations.json
-          test ! -L /tmp/tier0-observations.json
-          test "$(stat -c %s /tmp/tier0-observations.json)" -le 8388608
-          cat /tmp/tier0-observations.json
           SANDBOX
-          mv "$pending" "$observations"
+          echo "collector: sandbox PID namespace torn down"
+      - name: Copy observations only after sandbox teardown
+        run: |
+          set -euo pipefail
+          sandbox="/mnt/tier0-sandbox-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          raw="$sandbox/output/tier0-observations.json"
+          pending="$RUNNER_TEMP/tier0-observations.pending"
+          observations="$RUNNER_TEMP/tier0-observations.json"
+          rm -f "$pending" "$observations"
+          sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C EXPECTED_UID=65534 \
+            setpriv --reuid=65534 --regid=65534 --clear-groups \
+            python3 -B - "$raw" > "$pending" <<'PY'
+          import os
+          import stat
+          import sys
+
+          LIMIT = 8 * 1024 * 1024
+          path = sys.argv[1]
+          expected_uid = int(os.environ["EXPECTED_UID"])
+          flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK
+          flags |= getattr(os, "O_NOFOLLOW", 0)
+          try:
+              descriptor = os.open(path, flags)
+          except OSError as exc:
+              raise SystemExit("observations: cannot open regular output") from exc
+          try:
+              metadata = os.fstat(descriptor)
+              if not stat.S_ISREG(metadata.st_mode):
+                  raise SystemExit("observations: output is not regular")
+              if metadata.st_uid != expected_uid or metadata.st_nlink != 1:
+                  raise SystemExit("observations: unexpected owner or link count")
+              if metadata.st_size > LIMIT:
+                  raise SystemExit("observations: output exceeds the bound")
+              with os.fdopen(descriptor, "rb", closefd=False) as source:
+                  payload = source.read(LIMIT + 1)
+              if len(payload) > LIMIT:
+                  raise SystemExit("observations: output exceeds the bound")
+          finally:
+              os.close(descriptor)
+          sys.stdout.buffer.write(payload)
+          PY
+          sudo install -o 0 -g 0 -m 644 "$pending" "$observations"
+          rm -f "$pending"
       - name: Upload tier-0 observations
         if: ${{ always() }}
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -394,7 +457,6 @@ jobs:
         run: python3 --version
       - name: Fetch one bounded artifact without unpacking
         id: transport
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           API_URL: ${{ github.api_url }}
@@ -420,6 +482,7 @@ jobs:
           import urllib.error
           import urllib.parse
           import urllib.request
+          import zlib
           import zipfile
           from pathlib import Path
 
@@ -570,7 +633,8 @@ jobs:
                               payload.extend(chunk)
                               if len(payload) > MEMBER_LIMIT:
                                   raise Malformed("artifact member exceeds the bound")
-              except (zipfile.BadZipFile, zipfile.LargeZipFile, RuntimeError, OSError) as exc:
+              except (zipfile.BadZipFile, zipfile.LargeZipFile, RuntimeError,
+                      OSError, zlib.error, EOFError, ValueError) as exc:
                   raise Malformed("artifact archive is unreadable") from exc
               flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
               descriptor = os.open(str(output_path), flags, 0o600)
@@ -586,11 +650,9 @@ jobs:
               )
               os.close(descriptor)
               print("tier0 artifact transport: malformed")
-              sys.exit(1)
           except Unavailable as exc:
               clear_output()
               print("tier0 artifact transport: unavailable")
-              sys.exit(1)
           PY
       - name: Run the base policy driver
         id: verdict
@@ -1091,7 +1153,9 @@ jobs:
           NEEDS: ${{ toJSON(needs) }}
           HOSTED_MACOS: ${{ vars.HOSTED_MACOS }}
           EVENT: ${{ github.event_name }}
-        run: python3 -B tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"
+        run: |
+          set -euo pipefail
+          python3 -B tools/ci_aggregate.py | tee -a "$GITHUB_STEP_SUMMARY"
 
   report-red-main:
     # A red tool-test run on main files (or updates) one issue labelled Workflow, so it cannot go unseen. A push to main only. A manual
