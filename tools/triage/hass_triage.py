@@ -979,6 +979,16 @@ class Runner:
         """Does this open issue belong to this intake? (The nightly intake shares the product repo with other issues.)"""
         return self.required_label is None or self.required_label in label_names(issue)
 
+    def _archive_label(self, n: Any) -> str:
+        return f"{'nightly' if self.intake else 'request'}-{n}"
+
+    @staticmethod
+    def _request_is_active(issue: Dict[str, Any], authors: List[str], required_label: Optional[str],
+                           agent: str = "") -> bool:
+        labels = label_names(issue)
+        return may_pick(issue, authors, agent) and (required_label is None or required_label in labels) \
+            and (not SKIP_LABELS.intersection(labels) or bool({"In Progress", "Merging"}.intersection(labels)))
+
     # -- tick
 
     def tick(self, max_items: Optional[int] = None) -> int:
@@ -1017,7 +1027,7 @@ class Runner:
                     break
                 queue = [item for item in eligible(self.gh.open_issues(self.repo), self.authors,
                                                    self.required_label, self.agent)
-                         if f"request-{item['number']}" not in self._held_names_tick]
+                         if self._archive_label(item["number"]) not in self._held_names_tick]
                 if not queue:
                     drained = True
                     break
@@ -1282,10 +1292,20 @@ class Runner:
     def recover(self) -> None:
         """An ``In Progress`` issue with no running worker (crash, reboot): retry it, or stop it."""
         current = self.state.data.get("current")
-        for issue in self.gh.open_issues(self.repo):
+        issues = self.gh.open_issues(self.repo)
+        active_issues = {
+            int(issue["number"]): issue for issue in issues
+            if self._request_is_active(issue, self.authors, self.required_label, self.agent)
+        }
+        handled = self._retry_archive_finishes(active_issues)
+        active = {self._archive_label(n) for n in active_issues}
+        self._prune_archive_records(active)
+        for issue in issues:
             if "In Progress" not in label_names(issue) or not self._mine(issue):
                 continue
             n = int(issue["number"])
+            if n in handled or self._archive_label(n) in self.state.data.get("archive_holds", {}):
+                continue
             if current and int(current.get("issue", 0)) == n and self._alive(current.get("pid")):
                 continue
             if str(n) in self.state.data["merging"] or str(n) in self.state.data["parked"]:
@@ -1365,7 +1385,7 @@ class Runner:
         issue = self.gh.issue(self.repo, n)
         if not may_pick(issue, self.authors, self.agent):
             raise TriageError(f"#{n} was not filed by an allowed author")
-        label = f"request-{n}"
+        label = self._archive_label(n)
         tree = self.paths.worktree(n)
         archive_identity = dict(self.state.data["archive_sessions"].get(label) or {})
         if not archive_identity:
@@ -2594,6 +2614,21 @@ class Runner:
         raw = f"{label}:{iso()}:{time.time_ns()}:{os.getpid()}".encode()
         return re.sub(r"[^A-Za-z0-9_.-]", "-", label).strip("-") + "-" + hashlib.sha256(raw).hexdigest()[:12]
 
+    @staticmethod
+    def _mkdir_durable(directory: Path) -> None:
+        missing = []
+        cursor = directory
+        while not cursor.exists():
+            missing.append(cursor)
+            cursor = cursor.parent
+        directory.mkdir(parents=True, exist_ok=True)
+        for created in reversed(missing):
+            directory_fd = os.open(str(created.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+
     def _record_archive_hold(self, label: str, path: Path) -> None:
         """Remember one real sidecar I/O hold; repeat ticks keep the first report and timestamp."""
         holds = dict(self.state.data.get("archive_holds") or {})
@@ -2615,11 +2650,83 @@ class Runner:
 
     def _clear_archive_hold(self, label: str) -> None:
         holds = dict(self.state.data.get("archive_holds") or {})
+        sessions = dict(self.state.data.get("archive_sessions") or {})
+        changed = False
         if label in holds:
             holds.pop(label, None)
             self.state.data["archive_holds"] = holds
+            changed = True
+        if label.startswith(("request-", "nightly-")) and label in sessions:
+            sessions.pop(label, None)
+            self.state.data["archive_sessions"] = sessions
+            changed = True
+        if changed:
             self.state.save()
         self._held_names_tick.discard(label)
+
+    def _remember_archive_finish(self, label: str, kind: str, status: Dict[str, Any],
+                                 pr: str = "") -> None:
+        holds = dict(self.state.data.get("archive_holds") or {})
+        record = holds.get(label)
+        if not isinstance(record, dict):
+            return
+        record["finish"] = {"kind": kind, "status": dict(status), "pr": pr}
+        holds[label] = record
+        self.state.data["archive_holds"] = holds
+        self.state.save()
+
+    def _retry_archive_finishes(self, issues: Dict[int, Dict[str, Any]]) -> set:
+        handled = set()
+        prefix = "nightly-" if self.intake else "request-"
+        for label, record in list((self.state.data.get("archive_holds") or {}).items()):
+            if not label.startswith(prefix) or not isinstance(record, dict):
+                continue
+            finish = record.get("finish")
+            if not isinstance(finish, dict):
+                continue
+            try:
+                n = int(label[len(prefix):])
+            except ValueError:
+                continue
+            if n not in issues:
+                self._clear_archive_hold(label)
+                continue
+            status = finish.get("status")
+            if not isinstance(status, dict):
+                continue
+            kind = str(finish.get("kind") or "status")
+            if kind == "done":
+                outcome = self.finish_done(n, status, str(finish.get("pr") or ""))
+            elif kind == "workflow":
+                outcome = self.finish_workflow(n, status, self.paths.worktree(n))
+            else:
+                outcome = self.apply_status(n, status)
+            if outcome != "held":
+                handled.add(n)
+        return handled
+
+    def _prune_archive_records(self, active: set) -> None:
+        holds = dict(self.state.data.get("archive_holds") or {})
+        sessions = dict(self.state.data.get("archive_sessions") or {})
+        changed = False
+        prefix = "nightly-" if self.intake else "request-"
+        for label in sorted(set(holds) | set(sessions)):
+            if not label.startswith(prefix):
+                continue
+            record = holds.get(label) or sessions.get(label) or {}
+            raw_path = str(record.get("path") or "") if isinstance(record, dict) else ""
+            path = Path(raw_path)
+            if raw_path and not path.is_absolute():
+                path = self.paths.root / path
+            if label not in active or (raw_path and not path.exists()):
+                if holds.pop(label, None) is not None:
+                    self.state.data["archive_holds"] = holds
+                    changed = True
+                if sessions.pop(label, None) is not None:
+                    self.state.data["archive_sessions"] = sessions
+                    changed = True
+        if changed:
+            self.state.save()
 
     def archive_before_change(self, label: str, n: Any, tree: Path, name: str, session: str,
                               evidence: bool = False, digest: bool = False) -> bool:
@@ -2763,6 +2870,7 @@ class Runner:
             return "merging"
         if state in ("no_changes", "split"):
             if not self.cleanup(n):
+                self._remember_archive_finish(self._archive_label(n), "status", status)
                 return "held"
             children = ", ".join(f"#{c}" for c in status.get("children") or [])
             text = summary + (f"\n\nSplit into {children}." if children else "")
@@ -2906,6 +3014,7 @@ class Runner:
 
     def finish_done(self, n: int, status: Dict[str, Any], pr: str) -> str:
         if not self.cleanup(n):
+            self._remember_archive_finish(self._archive_label(n), "done", status, pr)
             return "held"
         parts = [str(status.get("summary", "")).strip()]
         for title, key in (("Cause", "root_cause"), ("Fix", "resolution")):
@@ -2951,6 +3060,7 @@ class Runner:
         all_merged = bool(outcomes) and all(v == "merged" for v in outcomes.values())
         if state == "done" and all_merged:
             if not self.cleanup(n):
+                self._remember_archive_finish(self._archive_label(n), "workflow", status)
                 return "held"
             post_update(self.gh, self.repo, n, "resolution", f"{summary}\n\n**Lanes:**\n{listing}")
             self.gh.edit_labels(self.repo, n, add=["Done"], remove=["In Progress", "Merging", "Needs Decision"])
@@ -2987,7 +3097,7 @@ class Runner:
         passes ``name`` (``job-steward-2026-11-02``), ``tree``, ``status_file`` and ``task`` instead. After the digest,
         a flow with a digest trigger, a ``phase_cost`` from ``retro_phase.py`` (run for the flow's PR) or a touched workflow path is queued for a post-mortem (``enqueue_retro``).
         Best effort; never fails a run."""
-        label = f"request-{n}" if isinstance(n, int) else str(n)
+        label = self._archive_label(n) if isinstance(n, int) else str(n)
         state_data = getattr(getattr(self, "state", None), "data", {})
         saved_identity = dict(state_data.get("archive_sessions", {}).get(label) or {})
         name = name or str(saved_identity.get("name") or "")
@@ -3077,14 +3187,14 @@ class Runner:
         staged: Optional[Path] = None
         temp: Optional[Path] = None
         try:
-            directory.mkdir(parents=True, exist_ok=True)
+            self._mkdir_durable(directory)
             if os.path.lexists(str(destination)):
                 if destination.is_symlink() or not destination.is_file():
                     return False
                 if safe_session and not canonical.exists():
                     try:
                         os.link(str(destination), str(canonical))
-                    except FileExistsError:
+                    except OSError:
                         pass
                     directory_fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
                     try:
@@ -3112,7 +3222,7 @@ class Runner:
             if safe_session and not canonical.exists():
                 try:
                     os.link(str(destination), str(canonical))
-                except FileExistsError:
+                except OSError:
                     pass
                 directory_fd = os.open(str(directory), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
                 try:
@@ -3427,7 +3537,7 @@ class Runner:
 
     def cleanup(self, n: Any) -> bool:
         path = self.paths.worktree(n)
-        label = f"request-{n}"
+        label = self._archive_label(n)
         identity = dict(self.state.data["archive_sessions"].get(label) or {})
         if not identity:
             identity = {"name": label, "session": self.archive_session(label), "path": str(path)}
@@ -3440,6 +3550,7 @@ class Runner:
             self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
         self.paths.request_snapshot(n).unlink(missing_ok=True)
+        self._clear_archive_hold(label)
         return True
 
 
@@ -3522,6 +3633,29 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
             "moves": listed if "SELF_CHANGE_PAUSED" in on else []}
 
 
+def _prune_missing_archive_records(state: State, paths: Paths, prefix: str) -> None:
+    holds = dict(state.data.get("archive_holds") or {})
+    sessions = dict(state.data.get("archive_sessions") or {})
+    changed = False
+    for label in sorted(set(holds) | set(sessions)):
+        if not label.startswith(prefix):
+            continue
+        record = holds.get(label) or sessions.get(label) or {}
+        raw_path = str(record.get("path") or "") if isinstance(record, dict) else ""
+        path = Path(raw_path)
+        if raw_path and not path.is_absolute():
+            path = paths.root / path
+        if raw_path and not path.exists():
+            if holds.pop(label, None) is not None:
+                state.data["archive_holds"] = holds
+                changed = True
+            if sessions.pop(label, None) is not None:
+                state.data["archive_sessions"] = sessions
+                changed = True
+    if changed:
+        state.save()
+
+
 def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
                   t3_ready: Optional[bool] = None) -> Dict[str, Any]:
     state = State(paths.state)
@@ -3548,15 +3682,21 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         last = state.data["jobs"].get(name) or {}
         due = job_next_due(cfg, state.data, name)
         jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+    archive_states = [(state, paths, "request-")]
+    if nightly:
+        nightly_paths = Paths(cfg, paths.home, "nightly-")
+        archive_states.append((State(nightly_paths.state), nightly_paths, "nightly-"))
     archive_holds = []
-    for name, record in sorted((state.data.get("archive_holds") or {}).items()):
-        if isinstance(record, dict):
-            archive_holds.append({
-                "name": str(record.get("name") or name),
-                "path": str(record.get("path") or ""),
-                "reason": str(record.get("reason") or "sidecar_archive_io"),
-                "since": str(record.get("since") or ""),
-            })
+    for archive_state, archive_paths, prefix in archive_states:
+        _prune_missing_archive_records(archive_state, archive_paths, prefix)
+        for name, record in sorted((archive_state.data.get("archive_holds") or {}).items()):
+            if isinstance(record, dict):
+                archive_holds.append({
+                    "name": str(record.get("name") or name),
+                    "path": str(record.get("path") or ""),
+                    "reason": str(record.get("reason") or "sidecar_archive_io"),
+                    "since": str(record.get("since") or ""),
+                })
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
