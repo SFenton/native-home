@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import timedelta
 from pathlib import Path
 
 TOOLS = Path(__file__).resolve().parents[1]
@@ -15,6 +16,7 @@ spec = importlib.util.spec_from_file_location("retro_digest", TOOLS / "retro_dig
 rd = importlib.util.module_from_spec(spec)
 sys.modules["retro_digest"] = rd
 spec.loader.exec_module(rd)
+import retro_weekly as rw  # noqa: E402
 
 
 def assistant(text):
@@ -103,15 +105,18 @@ class TriggerTests(Base):
 
     def test_routing_override_gate_hint_differs(self):
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L1"})
-        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": False}) + "\n"
-                   + "garbage\n" + json.dumps({"question": "decision.needs_owner@1", "value": False}) + "\n")
+        self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
+                                                        "value": False}) + "\n"
+                   + "garbage\n" + json.dumps({"subject": "R-1", "question": "decision.needs_owner@1",
+                                                "value": False}) + "\n")
         doc = self.run_digest()
         self.assertEqual(doc["level"]["gate_hint"], "L0")
         self.assertIn("gate routed to L0", self.fired(doc)["routing_override"][0])
 
     def test_gate_hint_matching_level_is_quiet(self):
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L0"})
-        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": "false"}) + "\n")
+        self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
+                                                        "value": "false"}) + "\n")
         self.assertNotIn("routing_override", self.fired(self.run_digest()))
 
     def test_waiting_ending(self):
@@ -187,8 +192,10 @@ class TriggerTests(Base):
         """Fails if: a raise to the gate's own hint with a reason fires routing_override."""
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L2",
                                             "level_history": [{"from": "L0", "to": "L2", "reason": "new visible line"}]})
-        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
-                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
+                                                        "value": True}) + "\n"
+                   + json.dumps({"subject": "R-1", "question": "design.target_decided@1",
+                                 "value": False}) + "\n")
         doc = self.run_digest()
         self.assertEqual(doc["level"]["gate_hint"], "L2")
         self.assertNotIn("routing_override", self.fired(doc))
@@ -196,15 +203,19 @@ class TriggerTests(Base):
     def test_a_raise_to_the_hint_with_no_reason_still_fires(self):
         """Fails if: a raise onto the hint with an empty reason is waved through."""
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L2", "level_history": [{"from": "L0", "to": "L2"}]})
-        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
-                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
+                                                        "value": True}) + "\n"
+                   + json.dumps({"subject": "R-1", "question": "design.target_decided@1",
+                                 "value": False}) + "\n")
         self.assertIn("routing_override", self.fired(self.run_digest()))
 
     def test_a_lowering_with_no_history_is_flagged(self):
         """Fails if: an L2 hint with a final L0 and no history does not fire, or its text lacks "no reason recorded"."""
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L0"})
-        self.write("build/jev/gate.jsonl", json.dumps({"question": "design.user_visible@1", "value": True}) + "\n"
-                   + json.dumps({"question": "design.target_decided@1", "value": False}) + "\n")
+        self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
+                                                        "value": True}) + "\n"
+                   + json.dumps({"subject": "R-1", "question": "design.target_decided@1",
+                                 "value": False}) + "\n")
         doc = self.run_digest()
         self.assertEqual(doc["level"]["gate_hint"], "L2")
         self.assertIn("no reason recorded", self.fired(doc)["routing_override"][0])
@@ -233,6 +244,436 @@ class TriggerTests(Base):
         self.assertEqual(self.run_digest("--status", str(status))["triggers"], [])
 
 
+class S3ProofTests(Base):
+    TASK = "request-s3"
+    MISSING = object()
+
+    def check(self, check_id, passes):
+        return {"id": check_id, "check": f"{check_id} is complete", "passes": passes}
+
+    def set_flow(self, checks, observed=MISSING, *, reason=None, summary=None, status_task=TASK,
+                 state_key="status", ledger_task=TASK, write_ledger=True):
+        if write_ledger:
+            self.write(f"build/tasks/{self.TASK}.json", {
+                "id": ledger_task, "level": "L0", "intake": "fix retro digest", "brief": "prove stale status handling",
+                "acceptance": checks,
+            })
+        status = {state_key: "blocked"}
+        if status_task is not self.MISSING:
+            status["task"] = status_task
+        if observed is not self.MISSING:
+            status["acceptance"] = observed
+        if reason is not None:
+            status["blocked_reason"] = reason
+        if summary is not None:
+            status["summary"] = summary
+        self.write(f"build/status/{self.TASK}.json", status)
+
+    def set_gate(self, records):
+        self.write("build/jev/gate.jsonl", "".join(json.dumps(record) + "\n" for record in records))
+
+    def test_s3_1_c_resolved_check_only_block_is_suppressed(self):
+        """Fails if: a newer check-only blocked snapshot retains the status trigger."""
+        self.set_flow([self.check("x", True)], {"x": "fail"})
+        os.utime(self.build / "tasks" / f"{self.TASK}.json", (100, 100))
+        os.utime(self.build / "status" / f"{self.TASK}.json", (200, 200))
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["status_stale"], ["x"])
+
+    def test_s3_2_a_c_open_check_agrees_and_blocks(self):
+        """Fails if: an open ledger check contradicts the compatible fail snapshot."""
+        self.set_flow([self.check("x", False)], {"x": "fail"}, reason="x")
+        doc = self.run_digest(task=self.TASK)
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["status_stale"], [])
+
+    def test_s3_2_b_c_not_run_has_no_comparable_result(self):
+        """Fails if: status not_run is treated as pass or fail."""
+        self.set_flow([self.check("x", False)], {"x": "not_run"}, reason="x")
+        doc = self.run_digest(task=self.TASK)
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["status_stale"], [])
+
+    def test_s3_2_c_reverse_contradiction_still_blocks(self):
+        """Fails if: pass against an open check clears the blocked snapshot."""
+        self.set_flow([self.check("x", False)], {"x": "pass"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], [])
+
+    def test_s3_2_d_agreeing_all_pass_still_blocks(self):
+        """Fails if: an agreeing all-pass ledger alone clears a blocked snapshot."""
+        self.set_flow([self.check("x", True)], {"x": "pass"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_3_a_missing_acceptance_preserves_status(self):
+        """Fails if: a missing acceptance map is treated as resolved evidence."""
+        self.set_flow([self.check("x", True)])
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], [])
+
+    def test_s3_3_b_empty_acceptance_preserves_status(self):
+        """Fails if: an empty acceptance map is treated as resolved evidence."""
+        self.set_flow([self.check("x", True)], {})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], [])
+
+    def test_s3_4_a_unknown_status_id_does_not_resolve_block(self):
+        """Fails if: an unknown status id is compared as a passing ledger check."""
+        self.set_flow([self.check("x", True)], {"unknown": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_4_b_known_stale_id_survives_unknown_peer(self):
+        """Fails if: an unknown peer is discarded and the remaining map clears the block."""
+        self.set_flow([self.check("x", True)], {"x": "fail", "y": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_5_a_matching_task_before_foreign_rows_keeps_its_hint(self):
+        """Fails if: a foreign task after this task supplies the routing hint."""
+        self.write(f"build/tasks/{self.TASK}.json", {"id": self.TASK, "level": "L0", "acceptance": []})
+        self.set_gate([
+            {"subject": self.TASK, "question": "design.user_visible", "value": False},
+            {"subject": "request-other", "question": "design.user_visible", "value": True},
+            {"subject": "request-other", "question": "design.target_decided", "value": False},
+        ])
+        self.assertEqual(self.run_digest(task=self.TASK)["level"]["gate_hint"], "L0")
+
+    def test_s3_5_b_matching_task_after_foreign_rows_keeps_its_hint(self):
+        """Fails if: the globally first foreign answer supplies the routing hint."""
+        self.write(f"build/tasks/{self.TASK}.json", {"id": self.TASK, "level": "L0", "acceptance": []})
+        self.set_gate([
+            {"subject": "request-other", "question": "design.user_visible", "value": True},
+            {"subject": "request-other", "question": "design.target_decided", "value": False},
+            {"subject": self.TASK, "question": "design.user_visible", "value": False},
+        ])
+        self.assertEqual(self.run_digest(task=self.TASK)["level"]["gate_hint"], "L0")
+
+    def test_s3_5_c_last_matching_answer_wins(self):
+        """Fails if: the first matching answer is frozen after a later answer changes the hint."""
+        self.write(f"build/tasks/{self.TASK}.json", {"id": self.TASK, "level": "L0", "acceptance": []})
+        self.set_gate([
+            {"subject": self.TASK, "question": "design.user_visible", "value": True},
+            {"subject": self.TASK, "question": "design.target_decided", "value": False},
+            {"subject": self.TASK, "question": "design.user_visible", "value": False},
+        ])
+        self.assertEqual(self.run_digest(task=self.TASK)["level"]["gate_hint"], "L0")
+
+    def test_s3_6_a_unscoped_rows_leave_hint_null(self):
+        """Fails if: legacy rows without subject are attributed to this task."""
+        self.set_gate([{"question": "design.user_visible", "value": False}])
+        doc = self.run_digest(task=self.TASK)
+        self.assertIsNone(doc["level"]["gate_hint"])
+        self.assertNotIn("routing_override", self.fired(doc))
+
+    def test_s3_6_b_non_string_subject_returns_digest_without_hint(self):
+        """Fails if: a list-valued subject crashes the digest instead of being ignored."""
+        self.set_gate([{"subject": ["request-s3"], "question": "design.user_visible", "value": False}])
+        output = self.build / "retro" / f"{self.TASK}.json"
+        self.assertEqual(rd.main(["--task", self.TASK, "--worktree", str(self.dir)]), 0)
+        self.assertTrue(output.is_file(), "digest JSON was not written")
+        self.assertIsNone(json.loads(output.read_text())["level"]["gate_hint"])
+
+    def test_s3_6_c_empty_subject_leaves_hint_null(self):
+        """Fails if: an empty subject is assigned to this worktree."""
+        self.set_gate([{"subject": "", "question": "design.user_visible", "value": False}])
+        self.assertIsNone(self.run_digest(task=self.TASK)["level"]["gate_hint"])
+
+    def test_s3_7_weekly_collector_keeps_digest_and_trigger_metrics(self):
+        """Fails if: the weekly collector silently drops a digest with status_stale."""
+        self.set_flow([self.check("x", True)], {"x": "fail"})
+        self.write(f"build/tasks/{self.TASK}.json", {
+            "id": self.TASK, "level": "L2", "acceptance": [self.check("x", True)],
+            "level_history": [{"from": "L0", "to": "L2", "reason": "visible"}],
+        })
+        digest = self.run_digest(task=self.TASK)
+        self.assertEqual(digest["status_stale"], ["x"])
+        records = rw.collect(None, self.dir, None)
+        self.assertEqual(len(records["digests"]), 1)
+        at = records["digests"][0]["at"]
+        metrics = rw.metrics(records, at, at + timedelta(seconds=1))
+        self.assertEqual(metrics["tasks"][0]["task"], self.TASK)
+        self.assertEqual(metrics["triggers"]["routing_override"], 1)
+
+    def test_s3_8_one_stale_failure_does_not_hide_open_peer(self):
+        """Fails if: any stale failure clears a block with another open check."""
+        self.set_flow([self.check("x", True), self.check("y", False)], {"x": "fail", "y": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_9_absent_open_ledger_check_still_blocks(self):
+        """Fails if: suppression inspects only ledger ids present in the status map."""
+        self.set_flow([self.check("x", True), self.check("y", False)], {"x": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_10_runner_blocked_outcome_survives_stale_status(self):
+        """Fails if: stale status freshness suppresses the runner's blocked timeout evidence."""
+        self.set_flow([self.check("x", True)], {"x": "fail"})
+        doc = self.run_digest("--outcome", "blocked:timeout", task=self.TASK)
+        self.assertEqual(doc["outcome"], "blocked:timeout")
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["blocked:timeout"])
+        self.assertIn("timeout", fired)
+
+    def test_s3_11_owner_wait_remains_an_independent_block(self):
+        """Fails if: an all-pass ledger erases a separate owner-wait reason."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="owner: awaiting approval")
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertIn("owner", fired["blocked"][0])
+
+    def test_s3_12_suppressed_status_uses_ledger_aar_and_null_outcome(self):
+        """Fails if: suppressed status leaves its old AAR or inferred blocked outcome."""
+        self.set_flow([self.check("x", True)], {"x": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["aar"]["happened"], "ledger: 1/1 checks pass")
+        self.assertIsNone(doc["outcome"])
+
+    def test_s3_13_runner_done_leads_without_stale_status_summary(self):
+        """Fails if: a runner done outcome repeats the superseded status summary."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x", summary="old blocked summary")
+        doc = self.run_digest("--outcome", "done", task=self.TASK)
+        self.assertEqual(doc["outcome"], "done")
+        self.assertNotIn("old blocked", doc["aar"]["happened"])
+        self.assertEqual(doc["aar"]["happened"], "done")
+
+    def test_s3_14_not_run_does_not_supply_stale_failure(self):
+        """Fails if: not_run is rewritten to a stale fail for a passing check."""
+        self.set_flow([self.check("x", True)], {"x": "not_run"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_15_non_boolean_ledger_value_prevents_suppression(self):
+        """Fails if: a string ledger value is accepted by truthiness."""
+        self.set_flow([self.check("x", True), self.check("y", "false")], {"x": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_16_absent_ledger_preserves_blocked_snapshot(self):
+        """Fails if: no ledger is treated as an all-pass ledger."""
+        self.set_flow([], {"x": "fail"}, write_ledger=False)
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], [])
+
+    def test_s3_17_duplicate_ledger_id_is_not_compared(self):
+        """Fails if: a duplicate ledger id becomes an ambiguous last-wins comparison."""
+        self.set_flow([self.check("x", False), self.check("x", True)], {"x": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_18_foreign_status_task_has_no_stale_comparison(self):
+        """Fails if: matching-looking check ids join a foreign status task."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, status_task="request-foreign")
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_19_headless_blocked_without_acceptance_is_unchanged(self):
+        """Fails if: only the interactive status key is read for a headless block."""
+        self.set_flow([], reason="worker wait", state_key="state", status_task=self.MISSING,
+                      write_ledger=False)
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], [])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["worker wait"])
+
+    def test_s3_20_foreign_gate_rows_keep_raw_sources_and_counts(self):
+        """Fails if: subject filtering removes foreign rows from raw telemetry."""
+        self.set_gate([
+            {"subject": "request-other", "question": "design.user_visible", "value": False},
+            {"subject": "request-another", "question": "decision.needs_owner", "value": False},
+        ])
+        doc = self.run_digest(task=self.TASK)
+        self.assertIsNone(doc["level"]["gate_hint"])
+        self.assertIn("gate", doc["sources"])
+        self.assertEqual(doc["counts"]["gate_answers"], 2)
+
+    def test_s3_21_level_history_override_survives_null_hint(self):
+        """Fails if: a null hint disables a recorded level-history override."""
+        self.write(f"build/tasks/{self.TASK}.json", {
+            "id": self.TASK, "level": "L2", "acceptance": [],
+            "level_history": [{"from": "L0", "to": "L2", "reason": "visible user surface"}],
+        })
+        self.set_gate([{"subject": "request-other", "question": "design.user_visible", "value": False}])
+        doc = self.run_digest(task=self.TASK)
+        self.assertIsNone(doc["level"]["gate_hint"])
+        fired = self.fired(doc)
+        self.assertIn("routing_override", fired)
+        self.assertIn("L0 -> L2", fired["routing_override"][0])
+
+    def test_s3_22_stale_ids_are_sorted_deterministically(self):
+        """Fails if: stale ids preserve status-map insertion order."""
+        self.set_flow([self.check("x", True), self.check("z", True)],
+                      {"z": "fail", "x": "fail"}, reason="owner wait")
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x", "z"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_23_open_retro_check_is_not_exempt(self):
+        """Fails if: an open check named retro is ignored during suppression."""
+        self.set_flow([self.check("x", True), self.check("retro", False)], {"x": "fail"})
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertIn("blocked", self.fired(doc))
+
+    def test_s3_24_checks_only_reason_and_old_summary_are_superseded(self):
+        """Fails if: a canonical checks-only reason is treated as an independent blocker."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x", summary="old blocked summary")
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["aar"]["happened"], "ledger: 1/1 checks pass")
+        self.assertIsNone(doc["outcome"])
+
+    def test_s3_25_owner_only_wait_survives_checks_reason(self):
+        """Fails if: owner-only decision metadata is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["decision"] = {"owner_only": "fixed_set"}
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_26_decision_question_survives_checks_reason(self):
+        """Fails if: a decision question is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["decision"] = {"question": "Which option?"}
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_27_top_level_question_survives_checks_reason(self):
+        """Fails if: an interactive status question is discharged by passing checks."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["question"] = "Which option?"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+    def test_s3_28_checks_reason_without_independent_wait_is_suppressed(self):
+        """Green twin: checks-only evidence is still superseded when the ledger passes."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      summary="old blocked summary")
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["aar"]["happened"], "ledger: 1/1 checks pass")
+        self.assertIsNone(doc["outcome"])
+
+    def test_s3_29_needs_decision_state_remains_an_independent_wait(self):
+        """Fails if: a reported decision state is rewritten as a stale blocked status."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["state"] = "needs_decision"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["status_stale"], ["x"])
+        self.assertEqual(doc["outcome"], "needs_decision")
+
+    def test_s3_30_needs_decision_status_preserves_blocked_snapshot(self):
+        """Fails if: a decision status lets an all-pass ledger suppress a blocked state."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["status"] = "needs_decision"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+        status["status"] = "blocked"
+        status_path.write_text(json.dumps(status))
+        green = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(green))
+        self.assertEqual(green["status_stale"], ["x"])
+        self.assertIsNone(green["outcome"])
+
+    def test_s3_31_needs_research_status_preserves_blocked_snapshot(self):
+        """Fails if: a research status lets an all-pass ledger suppress a blocked state."""
+        self.set_flow([self.check("x", True)], {"x": "fail"}, reason="checks:x",
+                      state_key="state")
+        status_path = self.build / "status" / f"{self.TASK}.json"
+        status = json.loads(status_path.read_text())
+        status["status"] = "needs_research"
+        status_path.write_text(json.dumps(status))
+        doc = self.run_digest(task=self.TASK)
+        self.assertEqual(doc["status_stale"], ["x"])
+        fired = self.fired(doc)
+        self.assertIn("blocked", fired)
+        self.assertEqual(fired["blocked"], ["checks:x"])
+        self.assertEqual(doc["outcome"], "blocked")
+
+        status["status"] = "blocked"
+        status_path.write_text(json.dumps(status))
+        green = self.run_digest(task=self.TASK)
+        self.assertNotIn("blocked", self.fired(green))
+        self.assertEqual(green["status_stale"], ["x"])
+        self.assertIsNone(green["outcome"])
+
+    def test_s3_32_blocked_without_reason_matches_main_evidence(self):
+        """Fails if: absent reason and summary evidence differs from main."""
+        for state_key in ("state", "status"):
+            for outcome, expected in ((None, []), ("done", ["done"])):
+                with self.subTest(state_key=state_key, outcome=outcome):
+                    self.set_flow([self.check("x", True)], {"x": "pass"},
+                                  state_key=state_key)
+                    extra = ("--outcome", outcome) if outcome else ()
+                    doc = self.run_digest(*extra, task=self.TASK)
+                    fired = self.fired(doc)
+                    self.assertIn("blocked", fired)
+                    self.assertEqual(fired["blocked"], expected)
+
+
 class ArchiveTests(Base):
     def test_archive_layout_writes_into_the_archive(self):
         self.write("tasks/R-1.json", {"id": "R-1", "level": "L1", "intake": "u", "brief": "b"})
@@ -241,6 +682,17 @@ class ArchiveTests(Base):
         self.assertEqual(rd.main(["--task", "R-1", "--archive", str(self.dir)]), 0)
         doc = json.loads((self.dir / "retro" / "R-1.json").read_text())
         self.assertEqual(set(self.fired(doc)), {"blocked", "waiting_ending"})
+
+    def test_archive_runner_blocked_preserves_status_reason(self):
+        """Fails if: a runner blocked outcome replaces the worker's archived reason."""
+        self.write("tasks/R-1.json", {"id": "R-1"})
+        self.write("status.json", {"state": "blocked", "blocked_reason": "needs a key"})
+        self.assertEqual(rd.main(["--task", "R-1", "--archive", str(self.dir),
+                                  "--outcome", "blocked"]), 0)
+        doc = json.loads((self.dir / "retro" / "R-1.json").read_text())
+        self.assertEqual(self.fired(doc)["blocked"], ["needs a key"])
+        self.assertEqual(doc["outcome"], "blocked")
+        self.assertEqual(doc["aar"]["happened"], "blocked: needs a key")
 
     def test_json_flag_and_cli(self):
         out = self.dir / "o" / "x.json"
