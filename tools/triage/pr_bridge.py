@@ -6,6 +6,7 @@ the injected reader and then decide whether a result is usable.
 from __future__ import annotations
 
 import re
+from types import MappingProxyType
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 LANE_LIMIT = 5
@@ -29,7 +30,7 @@ _PENDING_CHECKS = frozenset(
 
 
 class _DecodedPullFacts(dict):
-    """Envelope constructed only after this module has validated a pull answer."""
+    """Validated envelope; callers must not construct or mutate it outside this module."""
 
 
 def canonical_lane(value: object) -> bool:
@@ -263,7 +264,8 @@ def _decode_check_runs(value: object) -> Tuple[List[Dict[str, Any]], bool]:
     if not isinstance(rows, list):
         return [], False
     decoded: List[Dict[str, Any]] = []
-    complete = True
+    total_count = value.get("total_count")
+    complete = type(total_count) is int and total_count == len(rows)
     for index, row in enumerate(rows):
         candidate = dict(row) if isinstance(row, dict) else None
         if candidate is None:
@@ -355,11 +357,8 @@ def _decode_associated_pulls(rows: object) -> Tuple[List[Dict[str, Any]], bool]:
             continue
         number = row.get("number")
         base_value = row.get("base")
-        base = base_value.get("ref") if isinstance(base_value, dict) else row.get("baseRefName")
+        base = base_value.get("ref") if isinstance(base_value, dict) else None
         merge_sha = row.get("merge_commit_sha")
-        if merge_sha is None:
-            merge_commit = row.get("mergeCommit")
-            merge_sha = merge_commit.get("oid") if isinstance(merge_commit, dict) else None
         if type(number) is not int or number <= 0 or not isinstance(base, str):
             complete = False
             continue
@@ -459,7 +458,7 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
         associated, associated_complete = _decode_associated_pulls(associated_pulls)
     return _DecodedPullFacts({
         "ok": True,
-        "facts": {
+        "facts": MappingProxyType({
             "repository": repository,
             "number": number,
             "state": state,
@@ -484,7 +483,7 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
             "commit_complete": commit_complete,
             "associated_pulls": associated,
             "associated_pulls_complete": associated_complete,
-        },
+        }),
         "dispositions": [],
     })
 
@@ -542,11 +541,11 @@ def read_pull_facts(reader: Any, repo: str, number: int) -> Dict[str, Any]:
     )
 
 
-def _as_facts(value: object) -> Optional[Dict[str, Any]]:
+def _as_facts(value: object) -> Optional[Mapping[str, Any]]:
     if type(value) is not _DecodedPullFacts or value.get("ok") is not True:
         return None
     facts = value.get("facts")
-    return facts if type(facts) is dict else None
+    return facts if type(facts) is MappingProxyType else None
 
 
 def _check_result(facts: Mapping[str, Any], name: str, app_id: int) -> str:
@@ -794,7 +793,11 @@ def accounting_key(value: object, *, repo: str, expected_pr: int, expected_base:
 
 
 def revert_choice(parent_count: object, kind: Optional[str] = None) -> Dict[str, Any]:
-    """Choose revert syntax from a verified parent count, never authorizing a revert."""
+    """Choose revert syntax from a decoded envelope's complete commit parent count.
+
+    Callers must source ``parent_count`` from ``commit.parent_count`` only when ``commit_complete`` is true. This result never
+    authorizes a revert.
+    """
     if kind == "revert":
         return {
             "disposition": "held",
@@ -839,6 +842,6 @@ def revert_choice(parent_count: object, kind: Optional[str] = None) -> Dict[str,
 
 
 def revert_arguments(parent_count: object, kind: Optional[str] = None) -> Optional[Tuple[str, ...]]:
-    """Return ready revert arguments, or ``None`` for a held parent shape."""
+    """Return arguments from a decoded envelope's complete commit parent count, or ``None`` when held."""
     choice = revert_choice(parent_count, kind)
     return choice["arguments"] if choice["disposition"] == "ready" else None

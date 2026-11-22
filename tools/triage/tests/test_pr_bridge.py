@@ -139,7 +139,7 @@ def check_runs(pull=None):
             "app": {"id": app_ids.get(name)},
         })
     return {
-        "check_runs": rows,
+        "check_runs": rows, "total_count": len(rows),
     }
 
 
@@ -182,7 +182,7 @@ class FakeReader:
         self.request_number = request_number or self.pull["number"]
         self.fail = set(fail or ())
         self.missing = set(missing or ())
-        self.calls = []
+        self.calls, self.unexpected_calls = [], []
 
     def __call__(self, argv):
         args = list(argv)
@@ -229,7 +229,7 @@ class FakeReader:
             kind = "associated"
             response = self.associated_pulls
         else:
-            raise AssertionError("unexpected reader call: {!r}".format(args))
+            raise AssertionError(self.unexpected_calls.append(args) or "unexpected reader call: {!r}".format(args))
         if kind in self.fail:
             raise RuntimeError("injected {} failure".format(kind))
         if kind in self.missing:
@@ -409,7 +409,7 @@ class PullPhaseTests(unittest.TestCase):
             FakeReader(
                 pull=merged_pull(),
                 commit=web_flow_commit(),
-                associated_pulls=[merged_pull()],
+                associated_pulls=[associated_pull(merged_pull())],
             ),
             REPO,
             199,
@@ -546,7 +546,7 @@ class PullPhaseTests(unittest.TestCase):
         for run in runs["check_runs"]:
             if run["name"] == "pr-checks":
                 run["completed_at"] = "2026-11-21T20:10:00Z"
-        runs["check_runs"].append({
+        runs["check_runs"][1] = {
             "id": 3,
             "name": "pr-checks",
             "status": "IN_PROGRESS",
@@ -554,7 +554,7 @@ class PullPhaseTests(unittest.TestCase):
             "started_at": "2026-11-21T20:04:00Z",
             "head_sha": HEAD,
             "app": {"id": ACTIONS_APP_ID},
-        })
+        }
         phase = self.phase(self.decoded_open(checks=runs))
         self.assertEqual(phase["phase"], "awaiting_checks")
         self.assertEqual(phase["reason"], "pr_checks_pending")
@@ -656,7 +656,7 @@ class AccountingTests(unittest.TestCase):
     def decoded_merged(self, pull=None, commit=None, associated_pulls=None):
         value = pull or merged_pull()
         commit_value = commit or web_flow_commit()
-        associated = associated_pulls if associated_pulls is not None else [value]
+        associated = associated_pulls if associated_pulls is not None else [associated_pull(value)]
         return bridge.read_pull_facts(
             FakeReader(
                 pull=value,
@@ -716,7 +716,7 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(wrong_association["disposition"], "held")
         self.assertEqual(wrong_association["reason"], "pull_association_mismatch")
 
-    def test_b1_14_b_accepts_exact_pr_base_and_association(self):
+    def test_b1_14_b_accepts_exact_rest_pr_base_and_merge_sha(self):
         self.assertEqual(
             self.record(self.decoded_merged())["disposition"],
             "accounted",
@@ -854,6 +854,118 @@ class CompatibilityTests(unittest.TestCase):
             spec.loader.exec_module(module)
         self.assertTrue(callable(module.normalize_status))
         self.assertTrue(callable(module.read_pull_facts))
+
+
+class ReviewRoundTwoTests(unittest.TestCase):
+    def phase(self, value, **changes):
+        arguments = {"owner_required": False, "owner_login": "SFenton"}
+        arguments.update(changes)
+        return bridge.classify_phase(value, **arguments)
+
+    def record(self, value):
+        return bridge.build_accounting_record(
+            value,
+            repo=REPO,
+            expected_pr=199,
+            expected_base="main",
+            expected_author="sfenton-agent",
+            expected_branch="agents/factory-squash",
+            expected_head=HEAD,
+            reviewed_head=REVIEWED_HEAD,
+        )
+
+    def test_decoded_fact_mapping_is_read_only(self):
+        decoded = bridge.decode_pull_facts(
+            open_pull(), check_runs=check_runs(), repository=REPO
+        )
+        with self.assertRaises(TypeError):
+            decoded["facts"]["state"] = "MERGED"
+
+    def test_success_shaped_dict_is_not_a_valid_phase_envelope(self):
+        decoded = bridge.decode_pull_facts(
+            open_pull(), check_runs=check_runs(), repository=REPO
+        )
+        forged = {
+            "ok": True,
+            "facts": type(decoded["facts"])(dict(decoded["facts"])),
+            "dispositions": [],
+        }
+        self.assertEqual(
+            self.phase(forged),
+            {"phase": "held", "reason": "invalid_facts"},
+        )
+        self.assertEqual(self.phase(decoded)["phase"], "awaiting_merge")
+
+    def test_success_shaped_dict_is_not_valid_accounting_envelope(self):
+        decoded = bridge.read_pull_facts(
+            FakeReader(pull=merged_pull()),
+            REPO,
+            199,
+        )
+        forged = {
+            "ok": True,
+            "facts": type(decoded["facts"])(dict(decoded["facts"])),
+            "dispositions": [],
+        }
+        self.assertEqual(self.record(forged)["reason"], "invalid_facts")
+        self.assertEqual(self.record(decoded)["disposition"], "accounted")
+
+    def test_check_run_total_count_must_match_rows(self):
+        for total_count in (None, "2", True, 1, 3):
+            with self.subTest(total_count=total_count):
+                runs = check_runs()
+                if total_count is None:
+                    del runs["total_count"]
+                else:
+                    runs["total_count"] = total_count
+                decoded = bridge.decode_pull_facts(
+                    open_pull(), check_runs=runs, repository=REPO
+                )
+                self.assertFalse(decoded["facts"]["checks_complete"])
+                self.assertEqual(
+                    self.phase(decoded)["reason"],
+                    "checks_unverified",
+                )
+
+    def test_missing_open_supplemental_answers_are_incomplete(self):
+        cases = (
+            ("reviews", "owner_review_unreadable"),
+            ("check_runs", "checks_unverified"),
+        )
+        for missing, reason in cases:
+            with self.subTest(missing=missing):
+                reader = FakeReader(pull=open_pull(), missing=[missing])
+                decoded = bridge.read_pull_facts(reader, REPO, 203)
+                self.assertEqual(reader.unexpected_calls, [])
+                self.assertEqual(
+                    self.phase(decoded, owner_required=True)["reason"],
+                    reason,
+                )
+
+    def test_missing_merged_supplemental_answers_are_unreadable(self):
+        cases = (
+            ("commit", "commit_unreadable"),
+            ("associated", "pull_association_unreadable"),
+        )
+        for missing, reason in cases:
+            with self.subTest(missing=missing):
+                reader = FakeReader(pull=merged_pull(), missing=[missing])
+                decoded = bridge.read_pull_facts(reader, REPO, 199)
+                self.assertEqual(reader.unexpected_calls, [])
+                self.assertEqual(self.record(decoded)["reason"], reason)
+
+    def test_swallowed_unexpected_reader_call_is_recorded(self):
+        reader = FakeReader(repo=REPO)
+        decoded = bridge.read_pull_facts(reader, "SFenton/other", 203)
+        self.assertFalse(decoded["ok"])
+        self.assertEqual(
+            decoded["dispositions"],
+            [{"disposition": "held", "reason": "pull_read_failed"}],
+        )
+        self.assertEqual(reader.unexpected_calls, [[
+            "pr", "view", "203", "-R", "SFenton/other",
+            "--json", EXPECTED_PULL_FIELDS,
+        ]])
 
 
 if __name__ == "__main__":
