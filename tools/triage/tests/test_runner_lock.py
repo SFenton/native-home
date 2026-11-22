@@ -23,15 +23,24 @@ ht = t.ht
 FakeGitHub = t.FakeGitHub
 
 
-def lock_child(lock_name: str, state_name: str, connection) -> None:
-    with open(lock_name, "a+") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        Path(state_name).write_text("completed-save\n")
+def lock_child(home: str, connection) -> None:
+    cfg = ht.load_config(Path(home))
+    paths = ht.Paths(cfg, Path(home))
+    with ht.writer_lock(paths) as admitted:
+        if not admitted:
+            connection.send("busy")
+            return
+        runner = ht.Runner(cfg, paths, FakeGitHub([]))
+        runner.state.data["completed-save"] = "yes"
+        runner.state.save()
         connection.send("ready")
         connection.recv()
 
 
 class RunnerLockTests(t.Base):
+    def wait_for(self, event: threading.Event, message: str) -> None:
+        self.assertTrue(event.wait(5), message)
+
     def lock_path(self) -> Path:
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         return self.paths.lock
@@ -50,6 +59,7 @@ class RunnerLockTests(t.Base):
 
     @staticmethod
     def can_acquire(path: Path) -> bool:
+        path.parent.mkdir(parents=True, exist_ok=True)
         lock = open(path, "a+")
         try:
             try:
@@ -66,6 +76,13 @@ class RunnerLockTests(t.Base):
     def snapshot(self) -> dict:
         return {str(path.relative_to(self.home)): path.read_bytes()
                 for path in self.home.rglob("*") if path.is_file()}
+
+    def product_snapshot(self) -> dict:
+        files = [self.paths.state, self.paths.state_dir / "workflow-base.json"]
+        for root in (self.paths.root / "archive", self.paths.work):
+            if root.exists():
+                files.extend(path for path in root.rglob("*") if path.is_file())
+        return {str(path.relative_to(self.home)): path.read_bytes() for path in files if path.is_file()}
 
     def pause_files(self, sha: str) -> tuple:
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
@@ -287,53 +304,69 @@ class RunnerLockTests(t.Base):
         self.assertEqual([name for name, _held in visits], ["state.json", "state-nightly.json"])
         self.assertTrue(all(not free for _name, free in visits))
 
-    def test_tick_manual_both_orders_reload_a_forced_stale_view(self):
+    def test_main_tick_reloads_a_forced_stale_view_at_the_real_entry(self):
         initial = ht.State(self.paths.state)
         initial.data["winner"] = {"value": 1}
         initial.save()
-        first = ht.Runner(self.cfg, self.paths, FakeGitHub([]))
-        second = ht.Runner(self.cfg, self.paths, FakeGitHub([]))
         attempted = threading.Event()
         continue_lock = threading.Event()
         errors = []
+        seen = []
         real_lock = ht.writer_lock
 
         @contextlib.contextmanager
         def barrier_lock(paths):
-            if threading.current_thread().name == "stale-contender":
+            if threading.current_thread().name == "stale-main-tick" and not paths.prefix:
                 attempted.set()
-                self.assertTrue(continue_lock.wait(5))
+                self.wait_for(continue_lock, "stale main tick did not resume before the deadline")
             with real_lock(paths) as admitted:
                 yield admitted
 
-        def commit(runner, key):
-            def locked(_max_items=None):
-                self.assertFalse(self.can_acquire(self.paths.lock))
-                runner.state.data.setdefault("winner", {})[key] = key
-                runner.state.save()
+        def refresh(runner):
+            seen.append(("refresh", dict(runner.state.data["winner"])))
+
+        def tick_locked(runner, _max_items=None):
+            if runner.intake:
                 return 0
-            return locked
+            runner.refresh_clone()
+            runner.state.data.setdefault("winner", {})["tick"] = "tick"
+            runner.state.save()
+            seen.append(("last-save", dict(json.loads(self.paths.state.read_text())["winner"])))
+            return 0
 
-        first._tick_locked = commit(first, "first")
-        second._tick_locked = commit(second, "second")
+        def commit_job(runner, _name):
+            runner.state.data.setdefault("winner", {})["job"] = "job"
+            runner.state.save()
+            return "done"
 
-        def run_stale():
+        def invoke_tick():
             try:
-                second.tick()
+                with mock.patch.object(ht, "writer_lock", barrier_lock), \
+                        mock.patch.object(ht.Runner, "_tick_locked", tick_locked), \
+                        mock.patch.object(ht.Runner, "refresh_clone", refresh), \
+                        mock.patch.object(ht.Runner, "run_job", commit_job), \
+                        mock.patch("sys.stdout", new=io.StringIO()):
+                    errors.append(ht.main(["tick"], home=self.home))
             except BaseException as exc:  # re-raised by the parent assertion
                 errors.append(exc)
 
-        with mock.patch.object(ht, "writer_lock", barrier_lock):
-            thread = threading.Thread(target=run_stale, name="stale-contender")
-            thread.start()
-            self.assertTrue(attempted.wait(5))
-            self.assertEqual(first.tick(), 0)
-            continue_lock.set()
-            thread.join(5)
-        self.assertFalse(thread.is_alive())
-        self.assertEqual(errors, [])
+        thread = threading.Thread(target=invoke_tick, name="stale-main-tick")
+        thread.start()
+        self.wait_for(attempted, "main tick did not pause before admission")
+        with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
+                mock.patch.object(ht.Runner, "run_job", commit_job), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(ht.main(["run-job", "steward"], home=self.home), 0)
+        continue_lock.set()
+        thread.join(5)
+        self.assertFalse(thread.is_alive(), "main tick remained alive after the resume deadline")
+        self.assertEqual(errors, [0])
         saved = json.loads(self.paths.state.read_text())
-        self.assertEqual(saved["winner"], {"value": 1, "first": "first", "second": "second"})
+        self.assertEqual(saved["winner"], {"value": 1, "job": "job", "tick": "tick"})
+        self.assertEqual(seen, [
+            ("refresh", {"value": 1, "job": "job"}),
+            ("last-save", {"value": 1, "job": "job", "tick": "tick"}),
+        ])
 
     def test_manual_issue_and_job_reload_after_a_forced_pre_attempt_barrier(self):
         real_lock = ht.writer_lock
@@ -351,7 +384,7 @@ class RunnerLockTests(t.Base):
                 def barrier_lock(paths):
                     if threading.current_thread().name == "manual-stale":
                         attempted.set()
-                        self.assertTrue(continue_lock.wait(5))
+                        self.wait_for(continue_lock, "manual stale contender did not resume before the deadline")
                     with real_lock(paths) as admitted:
                         yield admitted
 
@@ -374,14 +407,14 @@ class RunnerLockTests(t.Base):
 
                 thread = threading.Thread(target=invoke, name="manual-stale")
                 thread.start()
-                self.assertTrue(attempted.wait(5))
+                self.wait_for(attempted, "manual contender did not pause before admission")
                 with ht.writer_lock(self.paths):
                     disk = ht.State(self.paths.state)
                     disk.data["winner"] = "committed"
                     disk.save()
                 continue_lock.set()
                 thread.join(5)
-                self.assertFalse(thread.is_alive())
+                self.assertFalse(thread.is_alive(), "manual contender remained alive after the resume deadline")
                 self.assertEqual(errors, [0])
                 saved = json.loads(self.paths.state.read_text())
                 self.assertEqual((saved["winner"], saved["manual"]), ("committed", "committed"))
@@ -412,11 +445,21 @@ class RunnerLockTests(t.Base):
             self.assertEqual(self.snapshot(), before)
 
         gh = FakeGitHub([t.issue(13)])
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        self.paths.state.write_text(json.dumps({"history": []}))
+        (self.paths.state_dir / "workflow-base.json").write_text(json.dumps({"main": "a" * 40}))
+        for root, text in ((self.paths.root / "archive", "archive"), (self.paths.work, "work")):
+            root.mkdir(parents=True, exist_ok=True)
+            (root / "sentinel").write_text(text)
+        before = self.product_snapshot()
+        remote_calls = list(gh.calls)
         with mock.patch.object(ht, "GitHub", return_value=gh), \
                 mock.patch.object(ht, "render_prompt", return_value="rendered") as render, \
                 mock.patch("sys.stdout", new=io.StringIO()):
             self.assertEqual(ht.main(["run-issue", "13", "--dry-run"], home=self.home), 0)
         render.assert_called_once()
+        self.assertEqual(self.product_snapshot(), before)
+        self.assertEqual(gh.calls, remote_calls)
 
     def test_status_while_held_is_unlocked_and_byte_read_only(self):
         state = ht.State(self.paths.state)
@@ -445,6 +488,81 @@ class RunnerLockTests(t.Base):
                 self.assertFalse(self.paths.paused.exists())
             self.assertFalse(self.can_acquire(self.paths.lock))
 
+    def test_producer_lock_sites_have_scheduled_manual_and_unlocked_twins(self):
+        sequence = iter(range(60, 80))
+
+        def run_case(kind, mode, admitted):
+            n = next(sequence)
+            name = "steward" if mode == "manual" else "researcher"
+            gh = FakeGitHub([t.issue(n)] if kind == "request" else [])
+            runner = self.runner(gh, {"state": "done", "summary": "probe"})
+            runner.refresh_clone = lambda: None
+            runner.preflight = lambda: True
+            visits = []
+
+            def probe(site, path, args):
+                visits.append((site, str(path), tuple(args), self.can_acquire(self.paths.lock)))
+
+            launch = runner.launch
+            runner.launch = lambda *args: probe("launch", Path(args[1]), args) or launch(*args)
+            archive = runner.archive_evidence
+            runner.archive_evidence = lambda *args, **kwargs: (
+                probe("archive", Path(kwargs.get("tree") or runner.paths.worktree(args[0])),
+                      tuple(args) + tuple(sorted(kwargs.items()))), archive(*args, **kwargs))[1]
+            save = runner.state.save
+
+            def save_spy():
+                probe("save", runner.paths.state, ("state",))
+                return save()
+
+            runner.state.save = save_spy
+            real_post = ht.post_update
+
+            def post_spy(gh_arg, repo, issue_number, kind_name, body, media=None):
+                if kind_name == "pickup":
+                    probe("pickup", runner.paths.worktree(issue_number), (repo, issue_number, kind_name))
+                return real_post(gh_arg, repo, issue_number, kind_name, body, media)
+
+            if kind == "request":
+                action = lambda: runner.work(n)
+            else:
+                action = lambda: runner.run_job(name)
+
+            with mock.patch.object(ht, "post_update", side_effect=post_spy), \
+                    mock.patch("sys.stdout", new=io.StringIO()):
+                if not admitted:
+                    action()
+                elif kind == "request" and mode == "scheduled":
+                    runner.check_base = lambda *_a, **_k: True
+                    runner.schedules_idle = lambda: False
+                    self.assertEqual(runner.tick(max_items=1), 0)
+                elif kind == "job" and mode == "scheduled":
+                    runner.check_base = lambda *_a, **_k: True
+                    runner.schedules_idle = lambda: True
+                    runner.run_retro = lambda: False
+                    runner.check_regressions = lambda: False
+                    runner.job_due = lambda job: job == name
+                    self.assertEqual(runner.tick(max_items=1), 0)
+                else:
+                    command = ["run-issue", str(n)] if kind == "request" else ["run-job", name]
+                    with mock.patch.object(ht, "Runner", return_value=runner), \
+                            mock.patch.object(ht, "GitHub", return_value=gh):
+                        self.assertEqual(ht.main(command, home=self.home), 0)
+
+            self.assertTrue(visits, (kind, mode, admitted))
+            self.assertEqual({free for *_site, free in visits}, {not admitted}, (kind, mode))
+            self.assertTrue(any(site == "launch" for site, *_rest in visits), (kind, mode))
+            self.assertTrue(any(site == "archive" for site, *_rest in visits), (kind, mode))
+            self.assertTrue(any(site == "save" for site, *_rest in visits), (kind, mode))
+            if kind == "request":
+                self.assertTrue(any(site == "pickup" for site, *_rest in visits), (kind, mode))
+
+        for kind in ("request", "job"):
+            for mode in ("scheduled", "manual"):
+                for admitted in (False, True):
+                    with self.subTest(kind=kind, mode=mode, admitted=admitted):
+                        run_case(kind, mode, admitted)
+
     def test_retro_competes_with_archive_refusal_then_fresh_retry(self):
         archive = self.paths.root / "archive" / "request-new"
         digest = archive / "retro" / "new.json"
@@ -461,25 +579,34 @@ class RunnerLockTests(t.Base):
                     retro.data["done"] = []
                     retro.save()
 
+                    def enqueue(owner, _argument):
+                        return "queued" if owner.enqueue_retro(archive, "new") else "not-queued"
+
                     with ht.writer_lock(self.paths):
                         held = ht.State(runner.retro_paths.state)
                         self.assertEqual(held.data["queue"].pop(0), current)
                         held.data["current"] = current
                         held.save()
-                        with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
+                        with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
+                                mock.patch.object(ht.Runner, "work", enqueue), \
+                                mock.patch.object(ht.Runner, "run_job", enqueue), \
                                 mock.patch("sys.stdout", new=io.StringIO()) as out:
-                            self.assertEqual(ht.main(producer, home=self.home), 1)
-                        self.assertEqual(out.getvalue(),
-                                         f"another runner writer is active; {producer[0]} refused\n")
+                            outcome = ht.main(producer, home=self.home)
+                            busy_output = out.getvalue()
                         held.data["current"] = None
                         if ending == "done":
                             held.data["done"] = [current]
                         else:
                             held.data["queue"].insert(0, current)
                         held.save()
-
-                    def enqueue(owner, _argument):
-                        return "queued" if owner.enqueue_retro(archive, "new") else "not-queued"
+                    saved_after_contender = ht.State(runner.retro_paths.state).data
+                    self.assertEqual([item["task"] for item in saved_after_contender["queue"]],
+                                     ["sibling"] if ending == "done" else ["old", "sibling"])
+                    self.assertEqual([item["task"] for item in saved_after_contender["done"]],
+                                     ["old"] if ending == "done" else [])
+                    self.assertEqual(outcome, 1)
+                    self.assertEqual(busy_output,
+                                     f"another runner writer is active; {producer[0]} refused\n")
 
                     with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
                             mock.patch.object(ht.Runner, "work", enqueue), \
@@ -529,6 +656,390 @@ class RunnerLockTests(t.Base):
                 inner.append(self.can_acquire(self.paths.lock))
                 inner.append(self.can_acquire(self.paths.state_dir / "landings.lock"))
         self.assertEqual(inner, [False, False])
+
+    def test_verified_nested_lock_has_unlocked_and_admitted_twins(self):
+        for admitted in (False, True):
+            with self.subTest(admitted=admitted):
+                runner = self.runner(FakeGitHub([]))
+                accepted = "a" * 40
+                head = "b" * 40
+                runner.base_record().parent.mkdir(parents=True, exist_ok=True)
+                runner.base_record().write_text(json.dumps({"main": accepted}))
+                self.pause_files(accepted)
+                visits = []
+
+                def verify(_base, _expected, _head):
+                    visits.append((self.can_acquire(self.paths.lock),
+                                   self.can_acquire(self.paths.state_dir / "ack.lock")))
+                    return True, [{"pr": 4, "contexts": ["pr-checks"]}], ""
+
+                with mock.patch.object(runner, "remote_base_sha", return_value=head), \
+                        mock.patch.object(runner, "verify_pr_range", side_effect=verify):
+                    if admitted:
+                        with ht.writer_lock(self.paths) as outer:
+                            self.assertTrue(outer)
+                            self.assertTrue(runner.ack_verified()["ok"])
+                    else:
+                        self.assertTrue(runner.ack_verified()["ok"])
+                self.assertEqual(visits, [(not admitted, False)])
+
+    def test_outer_lock_reaches_merging_parked_requeue_and_recover_twins(self):
+        for admitted in (False, True):
+            with self.subTest(admitted=admitted):
+                n = 80 if admitted else 81
+                merged = f"https://github.com/SFenton/native-home/pull/{n + 100}"
+                parked = f"https://github.com/SFenton/native-home/pull/{n + 200}"
+                reply_n, lost_n = n + 2, n + 4
+                gh = FakeGitHub([
+                    t.issue(n, labels=["Merging"]),
+                    t.issue(n + 1, labels=["Needs Decision"]),
+                    t.issue(reply_n, labels=["Blocked"]),
+                    t.issue(lost_n, labels=["In Progress"]),
+                ])
+                gh.pulls[merged] = {"state": "MERGED", "labels": [], "url": merged}
+                gh.pulls[parked] = {"state": "MERGED", "labels": [], "url": parked}
+                gh.comment_store[reply_n] = [
+                    {"body": ht.marker(reply_n, "blocked"), "created_at": "2026-10-13T10:00:00Z",
+                     "user": {"login": "SFenton"}},
+                    {"id": n + 500, "body": "/retry", "created_at": "2026-10-13T11:00:00Z",
+                     "user": {"login": "SFenton"}},
+                ]
+                runner = self.runner(gh)
+                runner.state.data["merging"] = {}
+                runner.state.data["parked"] = {}
+                status = {"state": "done", "summary": "locked transition"}
+                runner.state.data["merging"][str(n)] = {"pr": merged, "status": status, "since": 0}
+                runner.state.data["parked"][str(n + 1)] = {"pr": parked, "status": status, "since": 0}
+                visits = []
+                real_pull = gh.pull
+                real_labels = gh.edit_labels
+
+                def pull(url):
+                    visits.append(("pull", url, self.can_acquire(self.paths.lock)))
+                    return real_pull(url)
+
+                def labels(repo, issue_number, add=(), remove=()):
+                    visits.append(("labels", issue_number, tuple(add), tuple(remove),
+                                   self.can_acquire(self.paths.lock)))
+                    return real_labels(repo, issue_number, add, remove)
+
+                gh.pull = pull
+                gh.edit_labels = labels
+
+                def run():
+                    runner.check_merging()
+                    runner.check_parked()
+                    runner.requeue()
+                    runner.recover()
+
+                with mock.patch("sys.stdout", new=io.StringIO()):
+                    if admitted:
+                        with ht.writer_lock(self.paths) as outer:
+                            self.assertTrue(outer)
+                            run()
+                    else:
+                        run()
+                self.assertTrue(visits)
+                self.assertEqual({visit[-1] for visit in visits}, {not admitted})
+                pulled = [visit[1] for visit in visits if visit[0] == "pull"]
+                self.assertEqual(pulled, [merged, parked])
+                labelled = [visit[1] for visit in visits if visit[0] == "labels"]
+                self.assertIn(reply_n, labelled)
+                self.assertIn(lost_n, labelled)
+
+    def test_workflow_finish_initial_and_stored_retry_observe_the_lock_without_relanding(self):
+        for admitted in (False, True):
+            for stored in (False, True):
+                with self.subTest(admitted=admitted, stored=stored):
+                    n = 90 + admitted * 2 + stored
+                    lane = f"agents/workflow-{n}"
+                    gh = FakeGitHub([t.issue(n, labels=["Workflow", "In Progress"])])
+                    runner = self.runner(gh)
+                    status = {"state": "done", "summary": "workflow complete", "lanes": [lane]}
+                    visits = []
+                    real_post = ht.post_update
+
+                    def post(gh_arg, repo, issue_number, kind, body, media=None):
+                        visits.append(("post", issue_number, kind, self.can_acquire(self.paths.lock)))
+                        return real_post(gh_arg, repo, issue_number, kind, body, media)
+
+                    if stored:
+                        tree = self.paths.worktree(n)
+                        tree.mkdir(parents=True, exist_ok=True)
+                        label = runner._archive_label(n)
+                        runner.state.data.setdefault("lanes", {})[str(n)] = {lane: "merged"}
+                        runner.state.data["archive_sessions"][label] = {
+                            "name": label, "session": f"stored-{n}", "path": str(tree),
+                        }
+                        runner.state.data["archive_holds"][label] = {
+                            "name": label, "path": str(tree.relative_to(self.paths.root)),
+                            "reason": "sidecar_archive_io", "since": ht.iso(),
+                            "finish": {"kind": "workflow", "status": status},
+                        }
+                        runner.state.save()
+                    else:
+                        def landing(_lane, _base, clone, **kwargs):
+                            visits.append(("landing", _lane, tuple(sorted(kwargs)), self.can_acquire(self.paths.lock)))
+                            return {"merge": "d" * 40, "parent": "a" * 40, "lane": _lane}
+
+                        runner.check_base = lambda *_a, **_k: True
+                        runner.session_lanes = lambda *_a, **_k: [lane]
+                        runner.lane_refs = lambda: {lane: "c" * 40}
+                        runner.landings_file().parent.mkdir(parents=True, exist_ok=True)
+                        runner.landings_file().write_text("[]")
+                        save_landings = runner.save_landings
+
+                        def save_spy(data):
+                            visits.append(("landings-write", runner.landings_file(), tuple(data),
+                                           self.can_acquire(self.paths.lock),
+                                           self.can_acquire(self.paths.state_dir / "landings.lock")))
+                            return save_landings(data)
+
+                    def run():
+                        if stored:
+                            runner.recover()
+                        else:
+                            runner.finish_workflow(n, status, self.paths.worktree(n))
+
+                    patches = [
+                        mock.patch.object(ht, "post_update", side_effect=post),
+                        mock.patch("sys.stdout", new=io.StringIO()),
+                    ]
+                    if stored:
+                        patches.append(mock.patch.object(runner, "land_lanes",
+                                                         side_effect=AssertionError("stored retry re-landed")))
+                    else:
+                        patches.extend([mock.patch.object(ht.lane_land, "land", side_effect=landing),
+                                        mock.patch.object(runner, "save_landings", side_effect=save_spy)])
+                    with contextlib.ExitStack() as stack:
+                        for patcher in patches:
+                            stack.enter_context(patcher)
+                        if admitted:
+                            with ht.writer_lock(self.paths) as outer:
+                                self.assertTrue(outer)
+                                run()
+                        else:
+                            run()
+                    self.assertTrue(visits)
+                    self.assertEqual({visit[-1] for visit in visits if visit[0] != "landings-write"},
+                                     {not admitted})
+                    self.assertEqual(bool([visit for visit in visits if visit[0] == "landing"]), not stored)
+                    self.assertTrue(any(visit[0] == "post" and visit[2] == "resolution" for visit in visits))
+                    writes = [visit for visit in visits if visit[0] == "landings-write"]
+                    self.assertEqual(bool(writes), not stored)
+                    if writes:
+                        self.assertEqual({visit[-2] for visit in writes}, {not admitted})
+                        self.assertEqual({visit[-1] for visit in writes}, {False})
+
+    def test_five_drop_callers_probe_real_removal_and_request_staging(self):
+        sidecar = t.ArchiveSidecarTests
+        self.seed_sidecar = sidecar.seed_sidecar.__get__(self)
+        self.command_run = sidecar.command_run.__get__(self)
+        self.launch = sidecar.launch.__get__(self)
+        self.retro_item = sidecar.retro_item.__get__(self)
+        self.seed_job_identity = sidecar.seed_job_identity.__get__(self)
+        self.retro_runner = sidecar.retro_runner.__get__(self)
+
+        def exercise(site, admitted):
+            visits = []
+            runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=self.command_run(),
+                               launch=self.launch(seed=site in ("job_final", "retro_final")))
+            runner.preflight = lambda: True
+            real_drop = runner._drop_worktree
+
+            def drop(path, clone):
+                visits.append(("drop", str(path), clone, self.can_acquire(self.paths.lock)))
+                return real_drop(path, clone)
+
+            runner._drop_worktree = drop
+            if site == "request":
+                self.seed_sidecar(self.paths.worktree(90))
+                snapshot = self.paths.request_snapshot(90)
+                snapshot.parent.mkdir(parents=True, exist_ok=True)
+                snapshot.write_text(json.dumps({"number": 90}))
+                staged = self.paths.work / "90"
+                staged.mkdir(parents=True, exist_ok=True)
+                (staged / "queued").write_text("work")
+            elif site == "job_pre":
+                self.seed_job_identity(runner, archive_name="job-steward-old")
+                self.seed_sidecar(self.paths.worktrees / "job-steward")
+            elif site == "retro_pre":
+                item = self.retro_item("R-90")
+                runner = self.retro_runner([item], [{**item, "archive_name": "retro-request-90",
+                                                     "archive_session": "retro-old"}])
+                runner._drop_worktree = drop
+                runner.launch = self.launch(seed=True)
+                self.seed_sidecar(self.paths.worktrees / "retro-R-90")
+            elif site == "retro_final":
+                item = self.retro_item("R-90")
+                runner = self.retro_runner([item])
+                runner._drop_worktree = drop
+                runner.launch = self.launch(seed=True)
+
+            real_rmtree = shutil.rmtree
+            real_unlink = Path.unlink
+
+            def rmtree(path, *args, **kwargs):
+                target = Path(path)
+                if target == self.paths.work / "90":
+                    visits.append(("staging-delete", str(target), tuple(args),
+                                   self.can_acquire(self.paths.lock)))
+                return real_rmtree(path, *args, **kwargs)
+
+            def unlink(path, *args, **kwargs):
+                if site == "request" and path == self.paths.request_snapshot(90):
+                    visits.append(("snapshot-delete", str(path), tuple(args),
+                                   self.can_acquire(self.paths.lock)))
+                return real_unlink(path, *args, **kwargs)
+
+            def run():
+                if site == "request":
+                    self.assertTrue(runner.cleanup(90))
+                elif site.startswith("job_"):
+                    runner.run_job("steward")
+                else:
+                    runner.run_retro()
+
+            with mock.patch.object(shutil, "rmtree", side_effect=rmtree), \
+                    mock.patch.object(Path, "unlink", autospec=True, side_effect=unlink), \
+                    mock.patch("sys.stdout", new=io.StringIO()):
+                if admitted:
+                    with ht.writer_lock(self.paths) as outer:
+                        self.assertTrue(outer)
+                        run()
+                else:
+                    run()
+            drops = [visit for visit in visits if visit[0] == "drop"]
+            self.assertTrue(drops, site)
+            self.assertEqual({visit[-1] for visit in drops}, {not admitted})
+            if site == "request":
+                self.assertTrue(any(visit[0] == "staging-delete" for visit in visits))
+                self.assertTrue(any(visit[0] == "snapshot-delete" for visit in visits))
+                self.assertFalse(snapshot.exists())
+                self.assertFalse(staged.exists())
+
+        for site in ("request", "job_pre", "job_final", "retro_pre", "retro_final"):
+            for admitted in (False, True):
+                with self.subTest(site=site, admitted=admitted):
+                    exercise(site, admitted)
+
+    def test_request_undo_probes_tampered_and_stray_effects_with_lock_twins(self):
+        for admitted in (False, True):
+            for kind in ("tampered", "stray"):
+                with self.subTest(admitted=admitted, kind=kind):
+                    n = 100 + admitted * 2 + (kind == "stray")
+                    pr = f"https://github.com/SFenton/native-home/pull/{n + 500}"
+                    gh = FakeGitHub([t.issue(n)])
+                    gh.branch_pull_list = [{"url": pr, "state": "OPEN", "labels": []}]
+                    runner = self.runner(gh, {"state": "done", "summary": "unsafe", "pr": pr})
+                    visits = []
+                    launch = runner.launch
+                    real_branch_pulls = gh.branch_pulls
+                    real_disarm = gh.disarm_pull
+                    real_label = gh.label_pull
+
+                    def launch_spy(*args):
+                        result = launch(*args)
+                        if kind == "tampered":
+                            runner.guard_tampered = True
+                        else:
+                            runner.t3_stray = True
+                        return result
+
+                    def branch_pulls(repo, branch):
+                        visits.append(("branch-pulls", branch, self.can_acquire(self.paths.lock)))
+                        return real_branch_pulls(repo, branch)
+
+                    def disarm(url):
+                        visits.append(("disarm", url, self.can_acquire(self.paths.lock)))
+                        return real_disarm(url)
+
+                    def label(url, add="", remove=""):
+                        visits.append(("label", url, add, remove, self.can_acquire(self.paths.lock)))
+                        return real_label(url, add, remove)
+
+                    runner.launch = launch_spy
+                    gh.branch_pulls = branch_pulls
+                    gh.disarm_pull = disarm
+                    gh.label_pull = label
+                    with mock.patch("sys.stdout", new=io.StringIO()):
+                        if admitted:
+                            with ht.writer_lock(self.paths) as outer:
+                                self.assertTrue(outer)
+                                self.assertEqual(runner.work(n), "blocked")
+                        else:
+                            self.assertEqual(runner.work(n), "blocked")
+                    self.assertTrue([visit for visit in visits if visit[0] == "branch-pulls"])
+                    self.assertTrue([visit for visit in visits if visit[0] == "disarm"])
+                    self.assertTrue([visit for visit in visits if visit[0] == "label"])
+                    self.assertEqual({visit[-1] for visit in visits}, {not admitted})
+
+    def test_real_due_revert_and_landing_keep_outer_then_inner_lock_order(self):
+        for admitted in (False, True):
+            with self.subTest(admitted=admitted):
+                runner = self.runner(FakeGitHub([]))
+                accepted = "a" * 40
+                merge = "b" * 40
+                revert = "c" * 40
+                branch = f"agents/revert-{merge[:12]}"
+                landing = {
+                    "lane": "agents/example", "merge_sha": merge, "base": "main",
+                    "landed_at": "2020-01-01T00:00:00Z", "evaluated": None,
+                    "metrics_before": {"flows": 1, "metrics": {"tests": 1}},
+                }
+                runner.save_landings([landing])
+                runner.base_record().parent.mkdir(parents=True, exist_ok=True)
+                runner.base_record().write_text(json.dumps({"main": accepted}))
+                runner.cfg["revert_flows"] = 1
+                runner.cfg["revert_days"] = 1
+                runner.cfg["revert_min_flows"] = 1
+                visits = []
+                save_landings = runner.save_landings
+
+                def git(_repo, *args, **kwargs):
+                    visits.append(("git", tuple(args), self.can_acquire(self.paths.lock)))
+                    stdout = ""
+                    if "rev-parse" in args and "HEAD" in args:
+                        stdout = revert
+                    return ht.subprocess.CompletedProcess(list(args), 0, stdout, "")
+
+                def land(lane_name, base, clone, **kwargs):
+                    visits.append(("landing", lane_name, base, self.can_acquire(self.paths.lock)))
+                    return {"merge": "d" * 40, "parent": accepted, "lane": lane_name}
+
+                def save_spy(data):
+                    visits.append(("inner-write", runner.landings_file(), self.can_acquire(self.paths.lock),
+                                   self.can_acquire(self.paths.state_dir / "landings.lock")))
+                    return save_landings(data)
+
+                runner.check_base = lambda *_a, **_k: True
+                runner.flow_records = lambda: {}
+                after = {"flows": 1, "metrics": {"tests": 0, "duration": 2}}
+                with mock.patch.object(ht.lane_land, "git", side_effect=git), \
+                        mock.patch.object(ht.lane_land, "land", side_effect=land), \
+                        mock.patch.object(runner, "save_landings", side_effect=save_spy), \
+                        mock.patch.object(ht.retro_weekly, "flow_window", return_value=after), \
+                        mock.patch.object(ht.retro_weekly, "revert_view", return_value=after["metrics"]), \
+                        mock.patch.object(ht.retro_weekly, "regressions",
+                                          return_value=[
+                                              {"metric": "tests", "before": 1, "after": 0},
+                                              {"metric": "duration", "before": 1, "after": 2},
+                                          ]), \
+                        mock.patch("sys.stdout", new=io.StringIO()):
+                    if admitted:
+                        with ht.writer_lock(self.paths) as outer:
+                            self.assertTrue(outer)
+                            self.assertTrue(runner.check_regressions())
+                    else:
+                        self.assertTrue(runner.check_regressions())
+                self.assertTrue([visit for visit in visits if visit[0] == "git"])
+                self.assertTrue([visit for visit in visits if visit[0] == "landing" and visit[1] == branch])
+                inner = [visit for visit in visits if visit[0] == "inner-write"]
+                self.assertTrue(inner)
+                self.assertEqual({visit[-2] for visit in inner}, {not admitted})
+                self.assertEqual({visit[-1] for visit in inner}, {False})
+                effects = [visit for visit in visits if visit[0] in ("git", "landing")]
+                self.assertEqual({visit[-1] for visit in effects}, {not admitted})
 
     def test_lock_releases_on_body_exception_and_io_error_is_not_busy(self):
         with mock.patch.object(ht.Runner, "_tick_locked", side_effect=RuntimeError("body")):
@@ -614,7 +1125,7 @@ class RunnerLockTests(t.Base):
 
         def remote(_runner, _base):
             reached.set()
-            self.assertTrue(finish.wait(5))
+            self.wait_for(finish, "owner acknowledgement did not resume before the deadline")
             return head
 
         def acknowledge():
@@ -628,14 +1139,14 @@ class RunnerLockTests(t.Base):
 
         thread = threading.Thread(target=acknowledge)
         thread.start()
-        self.assertTrue(reached.wait(5))
+        self.wait_for(reached, "owner acknowledgement did not reach its base read")
         with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
                 mock.patch("sys.stdout", new=io.StringIO()) as out:
             self.assertEqual(ht.main(["tick"], home=self.home), 0)
         self.assertEqual(out.getvalue(), "another tick is running\n")
         finish.set()
         thread.join(5)
-        self.assertFalse(thread.is_alive())
+        self.assertFalse(thread.is_alive(), "owner acknowledgement remained alive after the resume deadline")
         self.assertEqual(outcomes, [0])
         self.assertEqual(json.loads((self.paths.state_dir / "workflow-base.json").read_text()),
                          {"main": head, "other": "keep"})
@@ -657,7 +1168,7 @@ class RunnerLockTests(t.Base):
                     if runner.intake:
                         return 0
                     reached.set()
-                    self.assertTrue(finish.wait(5))
+                    self.wait_for(finish, "tick did not resume before the base-commit deadline")
                     self.assertTrue(runner.check_base("test"))
                     return 0
 
@@ -673,7 +1184,7 @@ class RunnerLockTests(t.Base):
 
                 thread = threading.Thread(target=tick)
                 thread.start()
-                self.assertTrue(reached.wait(5))
+                self.wait_for(reached, "tick did not reach its held base check")
                 with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
                         mock.patch("sys.stdin") as stdin, mock.patch("sys.stdout", new=io.StringIO()) as out, \
                         mock.patch("sys.stderr", new=io.StringIO()):
@@ -682,7 +1193,7 @@ class RunnerLockTests(t.Base):
                 self.assertEqual(out.getvalue(), f"another runner writer is active; {argv[0]} refused\n")
                 finish.set()
                 thread.join(5)
-                self.assertFalse(thread.is_alive())
+                self.assertFalse(thread.is_alive(), "tick remained alive after the resume deadline")
                 self.assertEqual(outcomes, [0])
                 self.assertEqual(json.loads(record.read_text()), {"main": head, "other": "keep"})
 
@@ -698,7 +1209,7 @@ class RunnerLockTests(t.Base):
 
         def remote(_runner, _base):
             reached.set()
-            self.assertTrue(finish.wait(5))
+            self.wait_for(finish, "verified acknowledgement did not resume before the deadline")
             return head
 
         def acknowledge():
@@ -713,14 +1224,14 @@ class RunnerLockTests(t.Base):
 
         thread = threading.Thread(target=acknowledge)
         thread.start()
-        self.assertTrue(reached.wait(5))
+        self.wait_for(reached, "verified acknowledgement did not reach its base read")
         with mock.patch.object(ht, "Runner", side_effect=AssertionError("constructed")), \
                 mock.patch("sys.stdout", new=io.StringIO()) as out:
             self.assertEqual(ht.main(["tick"], home=self.home), 0)
         self.assertEqual(out.getvalue(), "another tick is running\n")
         finish.set()
         thread.join(5)
-        self.assertFalse(thread.is_alive())
+        self.assertFalse(thread.is_alive(), "verified acknowledgement remained alive after the resume deadline")
         self.assertEqual(outcomes, [0])
         self.assertEqual(json.loads((self.paths.state_dir / "workflow-base.json").read_text()),
                          {"main": head, "other": "keep"})
@@ -764,36 +1275,117 @@ class RunnerLockTests(t.Base):
         after = (runner.base_record().read_bytes(), pause.read_bytes(), details.read_bytes(), log.read_bytes())
         self.assertEqual(after, before)
 
+    def test_main_tick_malformed_base_halts_without_writes_and_next_tick_proceeds(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        state = ht.State(self.paths.state)
+        state.data["sentinel"] = "keep"
+        state.save()
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        record = self.paths.state_dir / "workflow-base.json"
+        record.write_text("{")
+        before = self.snapshot()
+        before.pop(str(self.paths.lock.relative_to(self.home)), None)
+        with mock.patch.object(ht, "load_config", return_value=cfg), \
+                mock.patch.object(ht, "GitHub", return_value=FakeGitHub([])), \
+                mock.patch.object(ht.Runner, "refresh_clone", side_effect=AssertionError("refreshed")) as refresh, \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(ht.main(["tick"], home=self.home), 0)
+        after = self.snapshot()
+        after.pop(str(self.paths.lock.relative_to(self.home)), None)
+        self.assertEqual(after, before)
+        refresh.assert_not_called()
+        self.assertEqual(out.getvalue(),
+                         "base record cannot be read; nothing was changed: cannot read workflow-base.json: malformed JSON\n")
+
+        current = "b" * 40
+        record.write_text(json.dumps({"main": current}))
+        with mock.patch.object(ht, "load_config", return_value=cfg), \
+                mock.patch.object(ht, "GitHub", return_value=FakeGitHub([])), \
+                mock.patch.object(ht.Runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(ht.Runner, "refresh_clone") as refresh, \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(ht.main(["tick", "--max-items", "0"], home=self.home), 0)
+        refresh.assert_called_once_with()
+
+    def test_post_session_and_landing_paths_share_the_malformed_base_refusal(self):
+        runner = self.runner(FakeGitHub([]))
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        runner.base_record().write_text("[]")
+        before = runner.base_record().read_bytes()
+        with mock.patch.object(runner, "remote_base_sha", side_effect=AssertionError("remote read")), \
+                mock.patch.object(runner, "session_lanes", side_effect=AssertionError("session lanes")), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertFalse(runner.land_lanes({"lanes": ["agents/example"]}, "12"))
+        self.assertEqual(out.getvalue(),
+                         "base record cannot be read; nothing was changed: cannot read workflow-base.json: expected a map\n")
+
+        with mock.patch.object(runner, "remote_base_sha", side_effect=AssertionError("remote read")), \
+                mock.patch.object(ht.lane_land, "land", side_effect=AssertionError("landing")), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertEqual(runner.land_lane("agents/example", "main", "12"), "paused")
+        self.assertEqual(out.getvalue(),
+                         "base record cannot be read; nothing was changed: cannot read workflow-base.json: expected a map\n")
+        self.assertEqual(runner.base_record().read_bytes(), before)
+
+    def test_ack_commands_refuse_malformed_base_without_mutation_or_busy_output(self):
+        current = "b" * 40
+        for argv, exit_code in ((["ack-base", current], 4), (["ack-verified"], 1)):
+            with self.subTest(argv=argv):
+                self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+                record = self.paths.state_dir / "workflow-base.json"
+                record.write_text("{")
+                pause, details = self.pause_files(current)
+                before = self.snapshot()
+                before.pop(str(self.paths.lock.relative_to(self.home)), None)
+                with mock.patch.object(ht, "load_config", return_value=self.cfg), \
+                        mock.patch.object(ht, "GitHub", return_value=FakeGitHub([])), \
+                        mock.patch.object(ht.Runner, "remote_base_sha", return_value=current), \
+                        mock.patch("sys.stdin") as stdin, \
+                        mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                        mock.patch("sys.stderr", new=io.StringIO()) as err:
+                    stdin.isatty.return_value = True
+                    self.assertEqual(ht.main(argv, home=self.home), exit_code)
+                after = self.snapshot()
+                after.pop(str(self.paths.lock.relative_to(self.home)), None)
+                self.assertEqual(after, before)
+                self.assertNotIn("another runner writer is active", out.getvalue() + err.getvalue())
+                self.assertNotIn("Traceback", out.getvalue() + err.getvalue())
+                self.assertTrue(err.getvalue())
+                self.assertTrue(pause.exists())
+                self.assertTrue(details.exists())
+
     def test_check_base_refuses_failed_merge_read_without_rebaseline(self):
         runner = self.runner(FakeGitHub([]))
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         runner.base_record().write_text("{")
         pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
-        with mock.patch.object(runner, "remote_base_sha", return_value="b" * 40):
-            with self.assertRaises(ht.TriageError):
-                runner.check_base("test")
+        with mock.patch.object(runner, "remote_base_sha", return_value="b" * 40), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            self.assertFalse(runner.check_base("test"))
         self.assertEqual(runner.base_record().read_text(), "{")
         self.assertFalse(pause.exists())
+        self.assertEqual(out.getvalue(),
+                         "base record cannot be read; nothing was changed: cannot read workflow-base.json: malformed JSON\n")
 
     def test_process_death_releases_outer_lock_and_fresh_client_sees_save(self):
-        state = self.paths.state_dir / "death.json"
-        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         context = multiprocessing.get_context("fork")
         parent, child = context.Pipe()
-        process = context.Process(target=lock_child, args=(str(self.paths.lock), str(state), child))
+        process = context.Process(target=lock_child, args=(str(self.home), child))
         process.start()
         child.close()
         try:
-            self.assertTrue(parent.poll(5))
+            self.assertTrue(parent.poll(5), "child did not enter the shared admission before the deadline")
             self.assertEqual(parent.recv(), "ready")
             self.assertFalse(self.can_acquire(self.paths.lock))
+            self.assertEqual(json.loads(self.paths.state.read_text())["completed-save"], "yes")
             process.terminate()
             process.join(5)
-            self.assertFalse(process.is_alive())
+            self.assertFalse(process.is_alive(), "process-death fixture did not exit before the deadline")
             self.assertTrue(process.exitcode is not None)
             with ht.writer_lock(self.paths) as admitted:
                 self.assertTrue(admitted)
-                self.assertEqual(state.read_text(), "completed-save\n")
+                self.assertEqual(json.loads(self.paths.state.read_text())["completed-save"], "yes")
         finally:
             parent.close()
             if process.is_alive():

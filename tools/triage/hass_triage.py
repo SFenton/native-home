@@ -311,6 +311,19 @@ def writer_lock(paths: Paths):
             lock.close()
 
 
+def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
+                  max_items: Optional[int] = None) -> Tuple[int, bool]:
+    """Load and run one scheduled intake inside the shared writer admission."""
+    if paths.paused.exists():
+        print("paused")
+        return 0, False
+    with writer_lock(paths) as admitted:
+        if not admitted:
+            print("another tick is running")
+            return 0, False
+        return load_runner()._tick_locked(max_items), True
+
+
 # MARK: - State
 
 class State:
@@ -1023,21 +1036,19 @@ class Runner:
     # -- tick
 
     def tick(self, max_items: Optional[int] = None) -> int:
-        if self.paths.paused.exists():
-            print("paused")
-            return 0
-        with writer_lock(self.paths) as admitted:
-            if not admitted:
-                print("another tick is running")
-                return 0
+        def reload():
             self.state = self._state_loader(self.paths.state)
-            return self._tick_locked(max_items)
+            return self
+
+        code, _entered = admitted_tick(self.paths, reload, max_items)
+        return code
 
     def _tick_locked(self, max_items: Optional[int] = None) -> int:
         self._held_names_tick.clear()
         self._tick_auth = None  # nothing is remembered across ticks
+        if not self.check_base("tick"):
+            return 0
         self.refresh_clone()
-        self.check_base("tick")
         try:  # an alert that cannot be filed never stops the rest of the tick
             self.check_ha_changes()
         except Exception as exc:  # noqa: BLE001
@@ -1749,6 +1760,14 @@ class Runner:
         self.base_record().parent.mkdir(parents=True, exist_ok=True)
         self.base_record().write_text(json.dumps(record, indent=2, sort_keys=True))
 
+    def readable_base_map(self) -> Optional[Dict[str, Any]]:
+        """Return the complete record, or refuse all base-dependent work without changing it."""
+        try:
+            return self.load_base_map()
+        except TriageError as exc:
+            print(redact(f"base record cannot be read; nothing was changed: {exc}")[:300])
+            return None
+
     def remote_base_sha(self, base: str) -> Optional[str]:
         land = self.paths.root / "land" / self.cfg["product_repo"].split("/")[1]
         repo = land if (land / ".git").exists() else self.paths.clone
@@ -1772,6 +1791,9 @@ class Runner:
         ``landed`` is the merge the runner just pushed. Returns False when the base is not what the runner expects."""
         if self.dry_run:
             return True
+        record = self.readable_base_map()
+        if record is None:
+            return False
         base = str(self.cfg.get("workflow_base") or DEFAULT_WORKFLOW_BASE)
         try:
             current = self.remote_base_sha(base)
@@ -1780,7 +1802,6 @@ class Runner:
             return True
         if not current:
             return True
-        record = self.load_base_map()
         expected = landed or record.get(base)
         if not expected or current == expected:
             if record.get(base) != current:
@@ -2102,7 +2123,8 @@ class Runner:
     def land_lanes(self, status: Optional[Dict[str, Any]], label: str, tree: Optional[Path] = None) -> bool:
         """Land each ``agents/*`` lane the session listed in ``status["lanes"]``. Returns True when every lane was landed or
         filed as an issue (False: a kill switch, a surviving process or an unexpected error left one, so the worktree stays)."""
-        self.check_base("after the session")  # a push to the base during a session is noticed now, not at the next landing
+        if not self.check_base("after the session"):  # a push to the base during a session is noticed now, not at the next landing
+            return False
         raw = [x for x in ((status or {}).get("lanes") or []) if isinstance(x, str)]
         if not raw or self.dry_run:
             return True
@@ -2149,10 +2171,10 @@ class Runner:
         """Review, check, test and merge one lane (exactly ``expected_sha`` when given). Returns ``merged``, ``filed`` (an issue explains the refusal) or ``paused``."""
         if not self.check_base("before landing"):
             return "paused"
-        try:
-            expected = json.loads(self.base_record().read_text()).get(base)
-        except (OSError, ValueError):
-            expected = None
+        record = self.readable_base_map()
+        if record is None:
+            return "paused"
+        expected = record.get(base)
         try:
             result = lane_land.land(
                 lane, base, clone=self.land_clone(), home=self.paths.home, reviews_dir=self.paths.root / "reviews",
@@ -3810,29 +3832,26 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
     gh = GitHub(dry_run=dry, labels=label_table(cfg))
     try:
         if args.cmd == "tick":
-            if paths.paused.exists():
-                print("paused")
-                return 0
-            with writer_lock(paths) as admitted:
-                if not admitted:
-                    print("another tick is running")
-                    return 0
+            def primary():
                 runner = Runner(cfg, paths, gh, dry_run=dry)
                 nightly = cfg.get("nightly")
                 if nightly:  # scheduled jobs wait for the nightly queue too
                     runner.idle_check = lambda: not eligible(gh.open_issues(nightly["repo"]), nightly["authors"],
                                                               nightly["label"])
-                code = runner._tick_locked(args.max_items)
+                return runner
+
+            code, entered = admitted_tick(paths, primary, args.max_items)
+            if not entered:
+                return code
             if cfg.get("nightly") and not paths.paused.exists():
                 # `Nightly Fix` issues on the product repository: after the owner's requests, same worker, reviewer and
                 # pr_land.sh, separate worktrees (nightly-N), branches (nightly/N) and state (state-nightly.json).
                 nightly_paths = Paths(cfg, home, "nightly-")
-                with writer_lock(nightly_paths) as admitted:
-                    if not admitted:
-                        print("another tick is running")
-                        return 0
-                    code = Runner(cfg, nightly_paths, gh, dry_run=dry,
-                                  intake=cfg["nightly"])._tick_locked(args.max_items) or code
+                nightly_code, _entered = admitted_tick(
+                    nightly_paths,
+                    lambda: Runner(cfg, nightly_paths, gh, dry_run=dry, intake=cfg["nightly"]),
+                    args.max_items)
+                code = nightly_code or code
             return code
         if args.cmd == "run-issue":
             with writer_lock(paths) as admitted:

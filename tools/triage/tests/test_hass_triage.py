@@ -3358,7 +3358,7 @@ class HaRollbackAlertTests(Base):
         runner = self.runner(gh)
         order = []
         runner.refresh_clone = lambda: None
-        runner.check_base = lambda *a, **k: None
+        runner.check_base = lambda *a, **k: True
         runner.check_merging = lambda: order.append("merging")
         with mock.patch("sys.stdout", new=io.StringIO()) as out:
             runner.tick()
@@ -3371,7 +3371,7 @@ class HaRollbackAlertTests(Base):
         runner = self.runner(FakeGitHub([]))
         runner.cfg.pop("request_repo")
         runner.refresh_clone = lambda: None
-        runner.check_base = lambda *a, **k: None
+        runner.check_base = lambda *a, **k: True
         runner.check_merging = lambda: (_ for _ in ()).throw(RuntimeError("reached"))
         with mock.patch("sys.stdout", new=io.StringIO()) as out:
             with self.assertRaises(RuntimeError):
