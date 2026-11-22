@@ -24,7 +24,6 @@ BLOCKED names its reason (draft, code-owner review).
 from __future__ import annotations
 
 import argparse
-import inspect
 import json
 import math
 import subprocess
@@ -165,30 +164,20 @@ class WaitBudget:
     def gh(self, gh: Callable) -> Callable:
         if self.deadline is None:
             return gh
-        try:
-            signature = inspect.signature(gh)
-            parameters = signature.parameters.values()
-            accepts_timeout = "timeout" in signature.parameters or any(
-                parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters
-            )
-        except (TypeError, ValueError):
-            accepts_timeout = True
 
         def bounded(args: Sequence[str]):
             remaining = self.remaining()
             if remaining is None or remaining <= 0:
                 raise WaitBudgetExpired
-            if accepts_timeout:
-                return gh(args, timeout=remaining)
-            return gh(args)
+            return gh(args, timeout=remaining)
 
         return bounded
 
     def sleep(self, seconds: float) -> float:
         remaining = self.remaining()
-        duration = seconds if remaining is None else min(seconds, remaining)
-        if self.deadline is not None and duration <= 0:
+        if self.deadline is not None and remaining <= 0:
             raise WaitBudgetExpired
+        duration = seconds if remaining is None else min(seconds, remaining)
         self.sleep_fn(duration)
         return duration
 
@@ -202,7 +191,7 @@ def pending_lines(number: str, lines: List[str], jobs: List[dict], rendered: boo
     """Add the current or explicitly empty job table and final pending result."""
     result = list(lines)
     if not rendered:
-        result += [f"job {job.get('name')}: {job.get('conclusion')}" for job in jobs] if jobs else ["jobs: none observed"]
+        result += job_lines({"jobs": jobs}) if jobs else ["jobs: none observed"]
     return result + [f"RESULT: ci pending #{number}"]
 
 
@@ -225,36 +214,6 @@ def first_red_job(run: dict) -> Optional[dict]:
         if status in ("", "completed") and conclusion in ("failure", "timed_out"):
             return job
     return None
-
-
-def merge_outcome_bounded(number: str, repo: str, head: str, gh: Callable, budget: WaitBudget,
-                          merge_wait: float, poll: float) -> "tuple[int, str]":
-    """The merge protocol with every read and sleep inside the shared budget."""
-    waited = 0.0
-    while True:
-        state = pr_state(number, repo, gh)
-        if state.get("state") == "MERGED":
-            return 0, "merged"
-        if state.get("state") != "OPEN":
-            return 1, f"PR {str(state.get('state', 'unknown')).lower()} without merging"
-        now = state.get("headRefOid", "")
-        if now != head:
-            return 3, f"blocked: head moved from {short(head)} to {short(now)}; the green run is for the old head"
-        review = required_check(state, "ai-review")
-        if review.startswith("failure"):
-            return 3, f"blocked: ai-review {review.split(':')[1]} on {short(head)}; re-run python3 tools/review/record.py --post-check {head} --repo {REPO}"
-        merge_state = state.get("mergeStateStatus", "unknown")
-        armed = bool(state.get("autoMergeRequest"))
-        if review == "success" and merge_state == "CLEAN" and not armed:
-            return 0, "CI green and CLEAN, not armed"
-        if waited >= merge_wait:
-            why = "".join(f"; also {reason}" for reason in pr_blockers.blockers(state))
-            if review == "missing":
-                return 3, f"blocked: ai-review missing on {short(head)}; run python3 tools/review/record.py --post-check {head} --repo {REPO}{why}"
-            if review == "pending":
-                return 3, f"blocked: ai-review still pending on {short(head)} ({merge_state}){why}"
-            return 3, f"blocked: {'armed' if armed else 'not armed'} but {merge_state} on {short(head)}{why}"
-        waited += budget.sleep(poll)
 
 
 def wait_opt_in(number: str, repo: str, gh: Callable, sleep: Callable, appear_timeout: float, poll: float,
@@ -322,10 +281,7 @@ def wait_opt_in(number: str, repo: str, gh: Callable, sleep: Callable, appear_ti
                         failed = [str(job.get("name")) for job in run.get("jobs", [])
                                   if job.get("conclusion") not in ("success", "skipped", "neutral")]
                         return 1, lines + [f"RESULT: ci failed #{number}: {', '.join(failed) or tail}; {tail}"]
-                    if max_wait is None:
-                        code, text = merge_outcome(number, repo, head, gh, sleep, merge_wait, poll)
-                    else:
-                        code, text = merge_outcome_bounded(number, repo, head, bounded_gh, budget, merge_wait, poll)
+                    code, text = merge_outcome(number, repo, head, bounded_gh, budget.sleep, merge_wait, poll)
                     return code, lines + [f"RESULT: {tail}; {text}"]
 
                 red_job = first_red_job(run) if first_red else None

@@ -1,5 +1,6 @@
 """tools/ci_wait.py against a scripted fake ``gh``, plus the greps that keep the rule and the retired preflight honest."""
 
+import inspect
 import subprocess
 import sys
 import unittest
@@ -19,21 +20,29 @@ SHA = "a" * 40
 class FakeGh:
     """Answers ``pr view``, ``run list`` and ``run view`` from queues (the last item repeats); records every call."""
 
-    def __init__(self, prs=None, runs=None, views=None, error=None):
+    def __init__(self, prs=None, runs=None, views=None, error=None, strict=False, clock=None, opaque_signature=False):
         self.prs = list(prs or [])
         self.runs = list(runs if runs is not None else [[{"databaseId": 9, "headSha": SHA}]])
         self.views = list(views or [])
         self.error = error
+        self.strict = strict
+        self.clock = clock
         self.calls = []
+        self.call_times = []
         self.sleeps = []
+        self.timeouts = []
+        if opaque_signature:
+            self.__signature__ = inspect.Signature([inspect.Parameter("args", inspect.Parameter.POSITIONAL_ONLY)])
 
-    @staticmethod
-    def pop(queue):
-        return queue.pop(0) if len(queue) > 1 else queue[0]
+    def pop(self, queue):
+        if not queue:
+            raise AssertionError("fake gh script exhausted")
+        return queue.pop(0) if len(queue) > 1 or self.strict else queue[0]
 
     def __call__(self, args, timeout=None):
         self.calls.append(list(args))
-        self.timeouts = getattr(self, "timeouts", []) + [timeout]
+        self.call_times.append(self.clock.monotonic() if self.clock is not None else None)
+        self.timeouts.append(timeout)
         if self.error:
             raise ci_wait.GhError(self.error)
         if args[:2] == ["pr", "view"]:
@@ -70,11 +79,13 @@ class FakeClock:
     def __init__(self):
         self.now = 0.0
         self.sleeps = []
+        self.sleep_starts = []
 
     def monotonic(self):
         return self.now
 
     def sleep(self, seconds):
+        self.sleep_starts.append(self.now)
         self.sleeps.append(seconds)
         self.now += seconds
 
@@ -262,8 +273,19 @@ class OptInControlTests(unittest.TestCase):
             jobs=[{"name": "repo-checks", "status": status, "conclusion": conclusion}],
         )
 
+    def assert_budgeted(self, fake, clock, max_wait, sleeps):
+        self.assertEqual(len(fake.call_times), len(fake.timeouts))
+        for started, timeout in zip(fake.call_times, fake.timeouts):
+            self.assertIsNotNone(timeout)
+            self.assertAlmostEqual(timeout, max_wait - started)
+        self.assertEqual(clock.sleeps, sleeps)
+        for started, duration in zip(clock.sleep_starts, clock.sleeps):
+            self.assertLessEqual(duration, max_wait - started)
+
     def test_a2_1_first_red_returns_on_the_first_failed_job_without_sleep(self):
-        fake = FakeGh(prs=[pr(), pr()], views=[self.live_run("failure")])
+        red = self.live_run("failure")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(prs=[pr(), pr()], runs=[found, found], views=[red, red], strict=True)
         code, lines = go(fake, first_red=True)
         self.assertEqual(code, 1, lines)
         self.assertEqual(fake.sleeps, [])
@@ -271,7 +293,9 @@ class OptInControlTests(unittest.TestCase):
         self.assertIn("job repo-checks: failure", lines)
 
     def test_a2_2_first_red_accepts_timed_out_jobs(self):
-        fake = FakeGh(prs=[pr(), pr()], views=[self.live_run("timed_out")])
+        timed_out = self.live_run("timed_out")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(prs=[pr(), pr()], runs=[found, found], views=[timed_out, timed_out], strict=True)
         code, lines = go(fake, first_red=True)
         self.assertEqual(code, 1, lines)
         self.assertIn("ci red early #7: repo-checks", lines[-1])
@@ -280,10 +304,17 @@ class OptInControlTests(unittest.TestCase):
     def test_a2_3_non_red_job_conclusions_do_not_return_early(self):
         for conclusion in ("skipped", "cancelled", "neutral", "success", None):
             with self.subTest(conclusion=conclusion):
-                unfinished = "IN_PROGRESS" if conclusion is None else "COMPLETED"
-                live = self.live_run(conclusion, unfinished)
+                live = self.live_run(conclusion)
                 green = run(status="completed", conclusion="success", jobs=[{"name": "repo-checks", "conclusion": "success"}])
-                fake = FakeGh(prs=[pr(armed=False, merge_state="CLEAN")], views=[live, green, green])
+                state = pr(armed=False, merge_state="CLEAN")
+                if conclusion is None:
+                    views = [self.live_run("failure"), self.live_run("failure", "IN_PROGRESS"), green, green]
+                    prs = [state, state, state]
+                else:
+                    views = [live, green, green]
+                    prs = [state, state]
+                found = [{"databaseId": 9, "headSha": SHA}]
+                fake = FakeGh(prs=prs, runs=[found, found], views=views, strict=True)
                 code, lines = go(fake, first_red=True)
                 self.assertEqual(code, 0, lines)
                 self.assertFalse(any("ci red early" in line for line in lines))
@@ -387,6 +418,81 @@ class OptInControlTests(unittest.TestCase):
         self.assertTrue(fake.timeouts)
         self.assertTrue(all(timeout is not None and timeout <= 7 for timeout in fake.timeouts), fake.timeouts)
 
+    def test_a2_10_appearance_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(prs=[pr()], runs=[[]], clock=clock, opaque_signature=True)
+        code, lines = go(fake, max_wait=23, clock=clock.monotonic, sleep=clock.sleep, poll=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [7, 7, 7, 2])
+
+    def test_a2_10_run_poll_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(
+            prs=[pr()],
+            views=[self.live_run(None, "IN_PROGRESS")],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(fake, max_wait=23, clock=clock.monotonic, sleep=clock.sleep, poll=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [7, 7, 7, 2])
+
+    def test_a2_10_settle_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(prs=[pr()], views=[run()], clock=clock, opaque_signature=True)
+        code, lines = go(fake, max_wait=5, clock=clock.monotonic, sleep=clock.sleep, settle=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 5)
+        self.assert_budgeted(fake, clock, 5, [5])
+
+    def test_a2_10_supersession_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        new = "b" * 40
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        fake = FakeGh(
+            prs=[pr(), pr(sha=new)],
+            runs=[[{"databaseId": 9, "headSha": SHA}], []],
+            views=[cancelled, cancelled],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+            settle=5,
+        )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assertIn("superseded: aaaaaaaa -> bbbbbbbb", lines)
+        self.assert_budgeted(fake, clock, 23, [5, 7, 7, 4])
+
+    def test_a2_10_merge_wait_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        pending_review = pr(rollup=[check("pr-checks"), check("ai-review", None, "IN_PROGRESS")])
+        fake = FakeGh(
+            prs=[pr(), pending_review],
+            views=[run(), run()],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+            settle=5,
+            merge_wait=300,
+        )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [5, 7, 7, 4])
+
     def test_a2_11_terminal_and_shorter_existing_timeouts_keep_their_codes(self):
         cases = [
             ("completed_failure", FakeGh(prs=[pr()], views=[run(conclusion="failure")]), {}, 1),
@@ -407,6 +513,28 @@ class OptInControlTests(unittest.TestCase):
                     **options,
                 )
                 self.assertEqual(code, expected, lines)
+
+    def test_a2_11_zero_intervals_keep_definite_results_before_budget_expiry(self):
+        for interval in ("settle", "poll"):
+            with self.subTest(interval=interval):
+                clock = FakeClock()
+                clean = pr(armed=False, merge_state="CLEAN")
+                fake = FakeGh(
+                    prs=[clean] if interval == "settle" else [pr(), clean],
+                    runs=None if interval == "settle" else [[], [{"databaseId": 9, "headSha": SHA}]],
+                    views=[run(), run()],
+                )
+                options = {"settle": 0} if interval == "settle" else {"poll": 0, "settle": 0}
+                code, lines = go(
+                    fake,
+                    max_wait=10,
+                    clock=clock.monotonic,
+                    sleep=clock.sleep,
+                    **options,
+                )
+                self.assertEqual(code, 0, lines)
+                self.assertEqual(clock.now, 0)
+                self.assertLess(clock.now, 10)
 
     def test_a2_12_no_flags_preserve_legacy_stdout_and_exit_codes_byte_for_byte(self):
         scenarios = {}
