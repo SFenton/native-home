@@ -298,7 +298,8 @@ jobs:
           pending="$RUNNER_TEMP/tier0-observations.pending"
           observations="$RUNNER_TEMP/tier0-observations.json"
           sandbox="/mnt/tier0-sandbox-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          raw="$sandbox/output/tier0-observations.json"
+          output="$sandbox/output"
+          raw="$output/tier0-observations.json"
           rm -f "$pending" "$observations"
           sudo install -d -o 0 -g 0 -m 755 "$sandbox" "$sandbox/base" "$sandbox/head"
           sudo install -d -o 65534 -g 65534 -m 700 "$sandbox/output"
@@ -314,9 +315,12 @@ jobs:
           head="$2"
           raw="$3"
           runner_temp="$4"
+          output="${raw%/*}"
           mount --make-rslave /
           mount --bind / /
+          mount --bind "$output" "$output"
           mount -o remount,bind,ro /
+          mount -o remount,bind,rw "$output"
           mount --bind "$base" "$base"
           mount -o remount,bind,ro "$base"
           mount --bind "$head" "$head"

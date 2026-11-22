@@ -565,6 +565,8 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
             ('mount -o remount,bind,ro "$head"', "isolation:head-read-only"),
             ("sudo install -d -o 65534 -g 65534 -m 700 \"$sandbox/output\"",
              "isolation:single-output"),
+            ('mount --bind "$output" "$output"', "isolation:output-writable"),
+            ('mount -o remount,bind,rw "$output"', "isolation:output-writable"),
             ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=32m tmpfs /tmp", "isolation:scratch"),
             ("mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs /run", "isolation:control-sockets"),
             ('mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=1m tmpfs "$runner_temp"',
@@ -586,6 +588,9 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
                 found.append(boundary)
         if isolate:
             required_order = [
+                'mount --bind "$output" "$output"',
+                'mount -o remount,bind,ro /',
+                'mount -o remount,bind,rw "$output"',
                 'mount -o remount,bind,ro "$base"',
                 'mount -o remount,bind,ro "$head"',
                 'mount -t tmpfs -o mode=700,uid=65534,gid=65534,size=32m tmpfs /tmp',
@@ -820,6 +825,14 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
             lambda graph: graph.__setitem__(
                 "tier0-emit", graph["tier0-emit"].replace(
                     "sudo env -i PATH=/usr/bin:/bin HOME=/tmp LANG=C", "sudo", 1
+                )
+            ),
+        )
+        changed(
+            "observations remain on the read-only root mount", "isolation:output-writable",
+            lambda graph: graph.__setitem__(
+                "tier0-emit", graph["tier0-emit"].replace(
+                    'mount -o remount,bind,rw "$output"', "", 1
                 )
             ),
         )
