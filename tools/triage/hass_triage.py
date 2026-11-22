@@ -2988,7 +2988,8 @@ class Runner:
         a flow with a digest trigger, a ``phase_cost`` from ``retro_phase.py`` (run for the flow's PR) or a touched workflow path is queued for a post-mortem (``enqueue_retro``).
         Best effort; never fails a run."""
         label = f"request-{n}" if isinstance(n, int) else str(n)
-        saved_identity = dict(self.state.data["archive_sessions"].get(label) or {})
+        state_data = getattr(getattr(self, "state", None), "data", {})
+        saved_identity = dict(state_data.get("archive_sessions", {}).get(label) or {})
         name = name or str(saved_identity.get("name") or "")
         archive_session = archive_session or str(saved_identity.get("session") or self.archive_session(label))
         path = tree or self.paths.worktree(n)
