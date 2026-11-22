@@ -312,7 +312,7 @@ class OptInControlTests(unittest.TestCase):
     def test_a2_6_new_attempt_invalidates_an_observed_red_job(self):
         views = [
             self.live_run("failure", attempt=1),
-            self.live_run("success", attempt=2),
+            self.live_run("failure", attempt=2),
             run(conclusion="success", attempt=2, updated="t2"),
             run(conclusion="success", attempt=2, updated="t2"),
         ]
