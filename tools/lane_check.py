@@ -36,7 +36,8 @@ Hooks-path environment: ``core.hooksPath`` lives in the repository's shared conf
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
 whose ``pre-push`` runs that checkout's ``tools/`` scripts (a stale primary checkout skips the review step). ``check`` refuses any other value
 after one repair: it runs ``tools/setup.sh`` once, re-checks, prints one line naming the old value, and appends the time, old value and
-checkout to ``<git common dir>/hooks-path-flips`` so the writing checkout can be found. Moving the setting to per-worktree config is owner-only.
+checkout to ``<git common dir>/hooks-path-flips`` so the writing checkout can be found. With ``--no-repair``, it reports the refusal
+without repairing. Moving the setting to per-worktree config is owner-only.
 
 Standard library only. Exit codes: 0 ok, 1 a check failed or overlap found, 2 usage or git/gh error.
 """

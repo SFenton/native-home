@@ -7,6 +7,8 @@ git push origin HEAD	allow	ordinary push is decided by the pre-push hook
 git config core.hooksPath	block	bare hooks-path read is refused	agent
 git config --get core.hooksPath	block	explicit hooks-path read is refused	main
 git config --local --get core.hooksPath	block	scoped hooks-path read is refused	agent
+git commit -m 'core.hooksPath'	block	quoted token in a commit message is still refused by the token scan
+grep core.hooksPath tools/hooks/commit_guard.py	block	plain search for the key is still refused by the token scan
 git config core.hooksPath .githooks	block	direct hooks-path write
 git config --global core.hooksPath /x	block	global hooks-path write
 git config --unset core.hooksPath	block	hooks-path unset

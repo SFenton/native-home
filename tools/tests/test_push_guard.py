@@ -223,6 +223,12 @@ class HookProcessTests(unittest.TestCase):
         self.assertIn("Run tools/setup.sh once, then push normally", refused.stderr)
         self.assertNotIn(HOOKS_ADVICE, refused.stderr)
 
+    def test_an_include_path_refusal_keeps_its_existing_advice(self):
+        refused = self.run_hook(self.payload("git config include.path /tmp/c"))
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn("Run tools/setup.sh once, then push normally", refused.stderr)
+        self.assertNotIn(HOOKS_ADVICE, refused.stderr)
+
     def test_malformed_input_is_refused_never_exit_one(self):
         for stdin in ("", "not json", "[]", "null", "5", json.dumps({"tool_name": "Bash"}), json.dumps({"tool_name": "Bash", "tool_input": []}),
                       json.dumps({"tool_name": "Bash", "tool_input": {"command": ["git", "push"]}}), json.dumps({"tool_name": "Bash", "tool_input": {"command": 5}})):

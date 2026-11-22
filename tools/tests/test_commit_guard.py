@@ -156,6 +156,12 @@ class BuildGuardTests(unittest.TestCase):
         self.assertIn("code-owner approval", err)
         self.assertNotIn("owner-only", err)
 
+    def test_dash_c_override_push_gets_the_non_repairing_advice(self):
+        code, err = self.check_main("git -c core.hooksPath=/x push origin HEAD")
+        self.assertEqual(code, 2)
+        self.assertIn(HOOKS_ADVICE, err)
+        self.assertNotIn("Run tools/setup.sh", err)
+
 
 if __name__ == "__main__":
     unittest.main()
