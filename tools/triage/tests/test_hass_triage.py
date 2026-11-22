@@ -2594,7 +2594,94 @@ class ArchiveSidecarTests(Base):
         self.assertEqual(runner.state.attempts(90), 0)
         self.assertEqual(len([post for post in gh.posts if "original result" in post[2]]), 1)
 
+    def test_r211_2_1_workflow_finish_retries_only_the_stored_done_tail(self):
+        status = {
+            "state": "done",
+            "summary": "workflow result",
+            "lanes": ["agents/factory-lane"],
+        }
+        gh = FakeGitHub([issue(90, labels=["Workflow"])])
+        runner = self.runner(gh)
+        runner.refresh_clone = lambda: None
+        runner.check_base = lambda *_args, **_kwargs: True
+        runner.preflight = lambda: True
+        runner.schedules_idle = lambda: False
+        runner.lane_refs = lambda: {}
+        landings = []
+
+        def land_lanes(seen_status, label, tree):
+            landings.append((label, str(tree)))
+            runner.state.data.setdefault("lanes", {})[str(label)] = {
+                "agents/factory-lane": "merged",
+            }
+            return True
+
+        def launch(n, tree, prompt, log):
+            self.seed_sidecar(tree)
+            self.paths.status_file(n).parent.mkdir(parents=True, exist_ok=True)
+            self.paths.status_file(n).write_text(json.dumps(status))
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text("line\n")
+            return 0
+
+        runner.land_lanes = land_lanes
+        runner.launch = launch
+        real_copy = ht.copy_redacted
+        failed = False
+
+        def fail_once(source, destination):
+            nonlocal failed
+            if source.name == "gate-decisions.jsonl" and not failed:
+                failed = True
+                raise OSError("disk full")
+            return real_copy(source, destination)
+
+        with mock.patch.object(ht, "copy_redacted", side_effect=fail_once), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            runner.tick(max_items=1)
+            self.assertNotEqual(gh.issues[90].get("state"), "CLOSED")
+            runner.tick(max_items=1)
+        self.assertEqual(len(landings), 1)
+        self.assertFalse([call for call in gh.calls if call[0] == "issue"])
+        self.assertEqual(gh.issues[90]["state"], "CLOSED")
+        self.assertEqual(len([post for post in gh.posts
+                              if ht.marker(90, "resolution") in post[2]]), 1)
+        self.assertNotIn("request-90", runner.state.data["archive_holds"])
+
+    def test_r211_2_2_parked_merge_hold_survives_inactive_listing(self):
+        pr = "https://github.com/SFenton/native-home/pull/80"
+        gh = FakeGitHub([issue(90, labels=["Needs Decision"])])
+        gh.pulls[pr] = {"state": "MERGED", "labels": [], "url": pr}
+        runner = self.runner(gh)
+        runner.refresh_clone = lambda: None
+        runner.check_base = lambda *_args, **_kwargs: True
+        runner.schedules_idle = lambda: False
+        runner.state.data["parked"]["90"] = {
+            "pr": pr,
+            "status": {"state": "done", "summary": "picked finish"},
+            "since": 0,
+        }
+        self.seed_sidecar(self.paths.worktree(90))
+        reports = []
+        identities = []
+        since = []
+        with mock.patch.object(ht, "copy_redacted", side_effect=self.failing_copy(ht.copy_redacted)), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out:
+            for _ in range(3):
+                runner.tick(max_items=1)
+                hold = runner.state.data["archive_holds"]["request-90"]
+                since.append(hold["since"])
+                identities.append(dict(runner.state.data["archive_sessions"]["request-90"]))
+                reports.append(ht.status_report(self.cfg, self.paths, gh, True))
+        self.assertEqual(out.getvalue().count("held archive"), 1)
+        self.assertEqual(since, [since[0]] * 3)
+        self.assertEqual(identities, [identities[0]] * 3)
+        for report in reports:
+            self.assertIn("request-90", [item["name"] for item in report["archive_holds"]])
+        self.assertFalse([call for call in gh.calls if call[0] == "issue"])
+
     def test_r211_3_tick_skips_held_request_and_runs_the_next_issue_once(self):
+        self.cfg["budget_hours"] = 0.5
         gh = FakeGitHub([issue(90), issue(91)])
         runner = self.runner(gh, {"state": "no_changes", "summary": "done"})
         runner.preflight = lambda: True
@@ -2614,6 +2701,43 @@ class ArchiveSidecarTests(Base):
         self.assertEqual(runner.state.attempts(90), 0)
         self.assertNotIn("In Progress", ht.label_names(gh.issues[90]))
         self.assertEqual(gh.issues[91]["state"], "CLOSED")
+
+    def test_r211_2_4_merging_finish_has_one_effect_across_ticks(self):
+        pr = "https://github.com/SFenton/native-home/pull/90"
+        gh = FakeGitHub([issue(90, labels=["Merging"])])
+        gh.pulls[pr] = {"state": "MERGED", "labels": [], "url": pr}
+        runner = self.runner(gh)
+        runner.refresh_clone = lambda: None
+        runner.check_base = lambda *_args, **_kwargs: True
+        runner.schedules_idle = lambda: False
+        runner.state.data["merging"]["90"] = {
+            "pr": pr,
+            "status": {"state": "done", "summary": "merged finish"},
+            "since": 0,
+        }
+        self.seed_sidecar(self.paths.worktree(90))
+        real_copy = ht.copy_redacted
+        failed = False
+
+        def fail_once(source, destination):
+            nonlocal failed
+            if source.name == "gate-decisions.jsonl" and not failed:
+                failed = True
+                raise OSError("disk full")
+            return real_copy(source, destination)
+
+        with mock.patch.object(ht, "copy_redacted", side_effect=fail_once), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            runner.tick(max_items=1)
+            runner.tick(max_items=1)
+        self.assertNotIn("90", runner.state.data["merging"])
+        self.assertEqual([call for call in gh.calls if call[0] == "close"], [
+            ("close", 90, False),
+        ])
+        self.assertEqual(len([post for post in gh.posts
+                              if ht.marker(90, "resolution") in post[2]]), 1)
+        self.assertEqual([record["outcome"] for record in runner.state.data["history"]
+                          if record.get("issue") == 90 and record.get("outcome") == "done"], ["done"])
 
     def test_r211_4_request_identity_is_saved_before_the_real_launch(self):
         class LaunchCrash(BaseException):
@@ -2741,22 +2865,27 @@ class ArchiveSidecarTests(Base):
                 self.assertNotIn("request-90", runner.state.data["archive_holds"])
                 shutil.rmtree(tree, ignore_errors=True)
 
-    def test_r211_9_status_prunes_a_request_hold_whose_tree_is_gone(self):
-        state = ht.State(self.paths.state)
-        state.data["archive_sessions"]["request-90"] = {
-            "name": "request-90", "session": "request-90-old",
-            "path": str(self.paths.worktree(90)),
-        }
-        state.data["archive_holds"]["request-90"] = {
-            "name": "request-90", "path": "worktrees/90",
-            "reason": "sidecar_archive_io", "since": ht.iso(),
-        }
-        state.save()
+    def test_r211_9_status_filters_a_stale_hold_without_writing_state(self):
+        nightly_paths = ht.Paths(self.cfg, self.paths.home, "nightly-")
+        state_files = (self.paths.state, nightly_paths.state)
+        for state_path, label in zip(state_files, ("request-90", "nightly-90")):
+            state = ht.State(state_path)
+            state.data["archive_sessions"][label] = {
+                "name": label, "session": f"{label}-old",
+                "path": str(self.paths.worktree(90)),
+            }
+            state.data["archive_holds"][label] = {
+                "name": label, "path": "worktrees/90",
+                "reason": "sidecar_archive_io", "since": ht.iso(),
+            }
+            state.save()
+        before = {path: path.read_bytes() for path in state_files}
         report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
         self.assertNotIn("request-90", [hold["name"] for hold in report["archive_holds"]])
-        persisted = ht.State(self.paths.state)
-        self.assertNotIn("request-90", persisted.data["archive_holds"])
-        self.assertNotIn("request-90", persisted.data["archive_sessions"])
+        self.assertNotIn("nightly-90", [hold["name"] for hold in report["archive_holds"]])
+        self.assertEqual(before, {path: path.read_bytes() for path in state_files})
+        self.assertIn("request-90", ht.State(self.paths.state).data["archive_holds"])
+        self.assertIn("nightly-90", ht.State(nightly_paths.state).data["archive_holds"])
 
     def test_r211_9_recovery_finishes_when_the_held_request_tree_was_removed(self):
         gh = FakeGitHub([issue(90, labels=["In Progress"])])
@@ -2776,7 +2905,7 @@ class ArchiveSidecarTests(Base):
         self.assertNotIn("request-90", runner.state.data["archive_holds"])
         self.assertNotIn("request-90", runner.state.data["archive_sessions"])
 
-    def test_r211_9_recovery_prunes_finished_or_relabelled_request_archive_state(self):
+    def test_r211_9_recovery_prunes_closed_but_keeps_relabelled_request_archive_state(self):
         for finished, labels in ((True, []), (False, ["On Hold"])):
             with self.subTest(finished=finished):
                 gh = FakeGitHub([issue(90, labels=labels, state="CLOSED" if finished else "OPEN")])
@@ -2792,8 +2921,12 @@ class ArchiveSidecarTests(Base):
                 }
                 runner.state.save()
                 runner.recover()
-                self.assertNotIn("request-90", runner.state.data["archive_holds"])
-                self.assertNotIn("request-90", runner.state.data["archive_sessions"])
+                if finished:
+                    self.assertNotIn("request-90", runner.state.data["archive_holds"])
+                    self.assertNotIn("request-90", runner.state.data["archive_sessions"])
+                else:
+                    self.assertIn("request-90", runner.state.data["archive_holds"])
+                    self.assertIn("request-90", runner.state.data["archive_sessions"])
                 shutil.rmtree(tree, ignore_errors=True)
 
     def test_h1_held_job_does_not_starve_the_next_due_job(self):

@@ -1293,13 +1293,13 @@ class Runner:
         """An ``In Progress`` issue with no running worker (crash, reboot): retry it, or stop it."""
         current = self.state.data.get("current")
         issues = self.gh.open_issues(self.repo)
+        open_issues = {int(issue["number"]): issue for issue in issues}
         active_issues = {
-            int(issue["number"]): issue for issue in issues
+            n: issue for n, issue in open_issues.items()
             if self._request_is_active(issue, self.authors, self.required_label, self.agent)
         }
         handled = self._retry_archive_finishes(active_issues)
-        active = {self._archive_label(n) for n in active_issues}
-        self._prune_archive_records(active)
+        self._prune_archive_records({self._archive_label(n) for n in open_issues})
         for issue in issues:
             if "In Progress" not in label_names(issue) or not self._mine(issue):
                 continue
@@ -2688,8 +2688,9 @@ class Runner:
                 n = int(label[len(prefix):])
             except ValueError:
                 continue
+            if str(n) in self.state.data["merging"] or str(n) in self.state.data["parked"]:
+                continue
             if n not in issues:
-                self._clear_archive_hold(label)
                 continue
             status = finish.get("status")
             if not isinstance(status, dict):
@@ -2698,14 +2699,14 @@ class Runner:
             if kind == "done":
                 outcome = self.finish_done(n, status, str(finish.get("pr") or ""))
             elif kind == "workflow":
-                outcome = self.finish_workflow(n, status, self.paths.worktree(n))
+                outcome = self._finish_workflow_done(n, status)
             else:
                 outcome = self.apply_status(n, status)
             if outcome != "held":
                 handled.add(n)
         return handled
 
-    def _prune_archive_records(self, active: set) -> None:
+    def _prune_archive_records(self, open_issues: set) -> None:
         holds = dict(self.state.data.get("archive_holds") or {})
         sessions = dict(self.state.data.get("archive_sessions") or {})
         changed = False
@@ -2718,7 +2719,7 @@ class Runner:
             path = Path(raw_path)
             if raw_path and not path.is_absolute():
                 path = self.paths.root / path
-            if label not in active or (raw_path and not path.exists()):
+            if label not in open_issues or (raw_path and not path.exists()):
                 if holds.pop(label, None) is not None:
                     self.state.data["archive_holds"] = holds
                     changed = True
@@ -3059,20 +3060,29 @@ class Runner:
                                  f"process or an error); the worktree is kept.\n\n{listing}", "lanes_unlanded")
         all_merged = bool(outcomes) and all(v == "merged" for v in outcomes.values())
         if state == "done" and all_merged:
-            if not self.cleanup(n):
-                self._remember_archive_finish(self._archive_label(n), "workflow", status)
-                return "held"
-            post_update(self.gh, self.repo, n, "resolution", f"{summary}\n\n**Lanes:**\n{listing}")
-            self.gh.edit_labels(self.repo, n, add=["Done"], remove=["In Progress", "Merging", "Needs Decision"])
-            self.gh.close(self.repo, n)
-            self.state.set_attempts(n, 0)
-            self.state.record(n, "done", "workflow lanes")
-            return "done"
+            return self._finish_workflow_done(n, status)
         post_update(self.gh, self.repo, n, "progress", f"The runner handled the lanes this session pushed:\n\n{listing}")
         if state == "done":  # done, but a lane was filed or left: the issue stays open for the owner
             return self.block(n, f"{summary}\n\nNot every lane was merged, so this stays open.\n\n{listing}", "lanes_not_merged")
         rest = {k: v for k, v in status.items() if k not in ("lanes", "pr")}
         return self.apply_status(n, rest)  # blocked / needs_decision / others: the usual question or block, labelled
+
+    def _finish_workflow_done(self, n: int, status: Dict[str, Any]) -> str:
+        """Repeat only the stored Workflow Done tail after its lanes were landed."""
+        results = (self.state.data.get("lanes") or {}).get(str(n)) or {}
+        listed = [x for x in status.get("lanes") or [] if isinstance(x, str)]
+        outcomes = {lane: results.get(lane, "not landed") for lane in listed}
+        listing = "\n".join(f"- `{lane}`: {outcome}" for lane, outcome in outcomes.items())
+        if not self.cleanup(n):
+            self._remember_archive_finish(self._archive_label(n), "workflow", status)
+            return "held"
+        summary = str(status.get("summary", "")).strip()
+        post_update(self.gh, self.repo, n, "resolution", f"{summary}\n\n**Lanes:**\n{listing}")
+        self.gh.edit_labels(self.repo, n, add=["Done"], remove=["In Progress", "Merging", "Needs Decision"])
+        self.gh.close(self.repo, n)
+        self.state.set_attempts(n, 0)
+        self.state.record(n, "done", "workflow lanes")
+        return "done"
 
     def block(self, n: int, reason: str, code: str, tail: str = "") -> str:
         text = reason + "\n\nReply here (or comment `/retry`) and the agent picks it up again on its next run."
@@ -3633,27 +3643,24 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
             "moves": listed if "SELF_CHANGE_PAUSED" in on else []}
 
 
-def _prune_missing_archive_records(state: State, paths: Paths, prefix: str) -> None:
-    holds = dict(state.data.get("archive_holds") or {})
-    sessions = dict(state.data.get("archive_sessions") or {})
-    changed = False
-    for label in sorted(set(holds) | set(sessions)):
+def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict[str, str]]:
+    visible = []
+    for label, record in sorted((state.data.get("archive_holds") or {}).items()):
         if not label.startswith(prefix):
             continue
-        record = holds.get(label) or sessions.get(label) or {}
         raw_path = str(record.get("path") or "") if isinstance(record, dict) else ""
         path = Path(raw_path)
         if raw_path and not path.is_absolute():
             path = paths.root / path
-        if raw_path and not path.exists():
-            if holds.pop(label, None) is not None:
-                state.data["archive_holds"] = holds
-                changed = True
-            if sessions.pop(label, None) is not None:
-                state.data["archive_sessions"] = sessions
-                changed = True
-    if changed:
-        state.save()
+        if not isinstance(record, dict) or (raw_path and not path.exists()):
+            continue
+        visible.append({
+            "name": str(record.get("name") or label),
+            "path": raw_path,
+            "reason": str(record.get("reason") or "sidecar_archive_io"),
+            "since": str(record.get("since") or ""),
+        })
+    return visible
 
 
 def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
@@ -3688,15 +3695,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         archive_states.append((State(nightly_paths.state), nightly_paths, "nightly-"))
     archive_holds = []
     for archive_state, archive_paths, prefix in archive_states:
-        _prune_missing_archive_records(archive_state, archive_paths, prefix)
-        for name, record in sorted((archive_state.data.get("archive_holds") or {}).items()):
-            if isinstance(record, dict):
-                archive_holds.append({
-                    "name": str(record.get("name") or name),
-                    "path": str(record.get("path") or ""),
-                    "reason": str(record.get("reason") or "sidecar_archive_io"),
-                    "since": str(record.get("since") or ""),
-                })
+        archive_holds.extend(_visible_archive_holds(archive_state, archive_paths, prefix))
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
