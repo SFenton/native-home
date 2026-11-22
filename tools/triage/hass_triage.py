@@ -1046,9 +1046,10 @@ class Runner:
     def _tick_locked(self, max_items: Optional[int] = None) -> int:
         self._held_names_tick.clear()
         self._tick_auth = None  # nothing is remembered across ticks
-        if not self.check_base("tick"):
+        if self.readable_base_map() is None:
             return 0
         self.refresh_clone()
+        self.check_base("tick")
         try:  # an alert that cannot be filed never stops the rest of the tick
             self.check_ha_changes()
         except Exception as exc:  # noqa: BLE001
@@ -2123,8 +2124,9 @@ class Runner:
     def land_lanes(self, status: Optional[Dict[str, Any]], label: str, tree: Optional[Path] = None) -> bool:
         """Land each ``agents/*`` lane the session listed in ``status["lanes"]``. Returns True when every lane was landed or
         filed as an issue (False: a kill switch, a surviving process or an unexpected error left one, so the worktree stays)."""
-        if not self.check_base("after the session"):  # a push to the base during a session is noticed now, not at the next landing
+        if self.readable_base_map() is None:
             return False
+        self.check_base("after the session")  # a push to the base during a session is noticed now, not at the next landing
         raw = [x for x in ((status or {}).get("lanes") or []) if isinstance(x, str)]
         if not raw or self.dry_run:
             return True

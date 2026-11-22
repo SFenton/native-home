@@ -92,6 +92,20 @@ class RunnerLockTests(t.Base):
         details.write_text(json.dumps({"base": "main", "sha": sha, "latest": sha, "moves": []}))
         return pause, details
 
+    def seed_unaccepted_base_move(self, runner):
+        accepted = "a" * 40
+        current = "b" * 40
+        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        runner.base_record().write_text(json.dumps({"main": accepted}))
+        runner.refresh_clone = lambda: None
+        return accepted, current
+
+    def assert_tick_base_move_recorded(self, accepted: str, current: str) -> None:
+        details = json.loads((self.paths.state_dir / "SELF_CHANGE_PAUSED.json").read_text())
+        self.assertEqual((details["base"], details["sha"], details["expected"], details["when"]),
+                         ("main", current, accepted, "tick"))
+        self.assertTrue((self.paths.state_dir / "SELF_CHANGE_PAUSED").is_file())
+
     def test_shared_writer_admission_reaches_all_six_dispatches(self):
         probes = []
         calls = []
@@ -304,6 +318,88 @@ class RunnerLockTests(t.Base):
         self.assertEqual([name for name, _held in visits], ["state.json", "state-nightly.json"])
         self.assertTrue(all(not free for _name, free in visits))
 
+    def test_unaccepted_base_move_still_processes_a_queued_request(self):
+        gh = FakeGitHub([t.issue(12)])
+        runner = self.runner(gh)
+        accepted, current = self.seed_unaccepted_base_move(runner)
+        runner.preflight = lambda: True
+        runner.schedules_idle = lambda: False
+        worked = []
+        runner.work = lambda number: worked.append(number) or "done"
+        with mock.patch.object(runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(runner, "pr_moves_ok", return_value=False), \
+                mock.patch.object(ht.lane_land, "git",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.tick(max_items=1), 0)
+        self.assert_tick_base_move_recorded(accepted, current)
+        self.assertEqual(worked, [12])
+
+    def test_unaccepted_base_move_still_finishes_a_merging_item(self):
+        pr = "https://github.com/SFenton/native-home/pull/77"
+        gh = FakeGitHub([t.issue(13, labels=["Merging"])])
+        gh.pulls[pr] = {"state": "MERGED", "labels": [], "url": pr}
+        runner = self.runner(gh)
+        accepted, current = self.seed_unaccepted_base_move(runner)
+        runner.schedules_idle = lambda: False
+        runner.state.data["merging"]["13"] = {
+            "pr": pr, "since": 0, "status": {"summary": "merged", "tests": []},
+        }
+        with mock.patch.object(runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(runner, "pr_moves_ok", return_value=False), \
+                mock.patch.object(ht.lane_land, "git",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.tick(max_items=0), 0)
+        self.assert_tick_base_move_recorded(accepted, current)
+        self.assertEqual(gh.issues[13]["state"], "CLOSED")
+        self.assertNotIn("13", runner.state.data["merging"])
+
+    def test_unaccepted_base_move_still_runs_a_due_job(self):
+        runner = self.runner(FakeGitHub([]))
+        accepted, current = self.seed_unaccepted_base_move(runner)
+        runner.schedules_idle = lambda: True
+        runner.run_retro = lambda: False
+        runner.check_regressions = lambda: False
+        runner.job_due = lambda name: name == "steward"
+        jobs = []
+        runner.run_job = lambda name: jobs.append(name) or "done"
+        with mock.patch.object(runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(runner, "pr_moves_ok", return_value=False), \
+                mock.patch.object(ht.lane_land, "git",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.tick(), 0)
+        self.assert_tick_base_move_recorded(accepted, current)
+        self.assertEqual(jobs, ["steward"])
+
+    def test_unaccepted_base_move_still_reaches_a_queued_retro(self):
+        runner = self.runner(FakeGitHub([]))
+        accepted, current = self.seed_unaccepted_base_move(runner)
+        retro = ht.State(runner.retro_paths.state)
+        retro.data["queue"] = [{"task": "R-90", "archive": "/archive/R-90"}]
+        retro.data["current"] = None
+        retro.save()
+        runner.schedules_idle = lambda: True
+        consumed = []
+
+        def run_retro():
+            queued = ht.State(runner.retro_paths.state)
+            consumed.append(queued.data["queue"].pop(0)["task"])
+            queued.save()
+            return "done"
+
+        runner.run_retro = run_retro
+        with mock.patch.object(runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(runner, "pr_moves_ok", return_value=False), \
+                mock.patch.object(ht.lane_land, "git",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.tick(), 0)
+        self.assert_tick_base_move_recorded(accepted, current)
+        self.assertEqual(consumed, ["R-90"])
+        self.assertEqual(ht.State(runner.retro_paths.state).data["queue"], [])
+
     def test_main_tick_reloads_a_forced_stale_view_at_the_real_entry(self):
         initial = ht.State(self.paths.state)
         initial.data["winner"] = {"value": 1}
@@ -419,7 +515,7 @@ class RunnerLockTests(t.Base):
                 saved = json.loads(self.paths.state.read_text())
                 self.assertEqual((saved["winner"], saved["manual"]), ("committed", "committed"))
 
-    def test_tick_manual_preserve_disjoint_updates_after_refusal_retry(self):
+    def test_manual_job_preserves_disjoint_updates_after_refusal_retry(self):
         value = {"current": "first"}
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         self.paths.state.write_text(json.dumps(value))
@@ -599,14 +695,14 @@ class RunnerLockTests(t.Base):
                         else:
                             held.data["queue"].insert(0, current)
                         held.save()
+                    self.assertEqual(outcome, 1)
+                    self.assertEqual(busy_output,
+                                     f"another runner writer is active; {producer[0]} refused\n")
                     saved_after_contender = ht.State(runner.retro_paths.state).data
                     self.assertEqual([item["task"] for item in saved_after_contender["queue"]],
                                      ["sibling"] if ending == "done" else ["old", "sibling"])
                     self.assertEqual([item["task"] for item in saved_after_contender["done"]],
                                      ["old"] if ending == "done" else [])
-                    self.assertEqual(outcome, 1)
-                    self.assertEqual(busy_output,
-                                     f"another runner writer is active; {producer[0]} refused\n")
 
                     with mock.patch.object(ht.Runner, "refresh_clone", return_value=None), \
                             mock.patch.object(ht.Runner, "work", enqueue), \
@@ -1047,6 +1143,22 @@ class RunnerLockTests(t.Base):
                 ht.main(["tick"], home=self.home)
         self.assertTrue(self.can_acquire(self.paths.lock))
 
+    def test_job_with_no_lanes_drops_worktree_after_unaccepted_base_move(self):
+        runner = self.runner(FakeGitHub([]), {"state": "done", "summary": "ok"})
+        accepted, current = self.seed_unaccepted_base_move(runner)
+        runner.preflight = lambda: True
+        dropped = []
+        runner._drop_worktree = lambda path, clone: dropped.append((path, clone))
+        with mock.patch.object(runner, "remote_base_sha", return_value=current), \
+                mock.patch.object(runner, "pr_moves_ok", return_value=False), \
+                mock.patch.object(ht.lane_land, "git",
+                                  return_value=mock.Mock(returncode=0, stdout="", stderr="")), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertFalse(runner.check_base("tick"))
+            self.assertEqual(runner.run_job("steward"), "done")
+        self.assert_tick_base_move_recorded(accepted, current)
+        self.assertEqual(dropped, [(self.paths.worktrees / "job-steward", str(self.paths.clone))])
+
         out = io.StringIO()
         with mock.patch.object(ht, "State", side_effect=OSError("load failed")), \
                 mock.patch("sys.stdout", new=out):
@@ -1289,12 +1401,14 @@ class RunnerLockTests(t.Base):
         with mock.patch.object(ht, "load_config", return_value=cfg), \
                 mock.patch.object(ht, "GitHub", return_value=FakeGitHub([])), \
                 mock.patch.object(ht.Runner, "refresh_clone", side_effect=AssertionError("refreshed")) as refresh, \
+                mock.patch.object(ht.Runner, "check_base", side_effect=AssertionError("base move path reached")) as check, \
                 mock.patch("sys.stdout", new=io.StringIO()) as out:
             self.assertEqual(ht.main(["tick"], home=self.home), 0)
         after = self.snapshot()
         after.pop(str(self.paths.lock.relative_to(self.home)), None)
         self.assertEqual(after, before)
         refresh.assert_not_called()
+        check.assert_not_called()
         self.assertEqual(out.getvalue(),
                          "base record cannot be read; nothing was changed: cannot read workflow-base.json: malformed JSON\n")
 
