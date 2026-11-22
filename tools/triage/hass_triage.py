@@ -3646,13 +3646,13 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
 def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict[str, str]]:
     visible = []
     for label, record in sorted((state.data.get("archive_holds") or {}).items()):
-        if not label.startswith(prefix):
+        if not isinstance(record, dict):
             continue
-        raw_path = str(record.get("path") or "") if isinstance(record, dict) else ""
+        raw_path = str(record.get("path") or "")
         path = Path(raw_path)
         if raw_path and not path.is_absolute():
             path = paths.root / path
-        if not isinstance(record, dict) or (raw_path and not path.exists()):
+        if label.startswith(prefix) and raw_path and not path.exists():
             continue
         visible.append({
             "name": str(record.get("name") or label),

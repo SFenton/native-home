@@ -2561,6 +2561,21 @@ class ArchiveSidecarTests(Base):
         report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
         self.assertIn("nightly-90", [hold["name"] for hold in report["archive_holds"]])
 
+    def test_r211_3_1_status_lists_job_and_retro_holds_without_writing_state(self):
+        state = ht.State(self.paths.state)
+        for label in ("job-steward", "retro-R-90"):
+            state.data["archive_holds"][label] = {
+                "name": label, "path": f"worktrees/{label}",
+                "reason": "sidecar_archive_io", "since": "2026-01-01T00:00:00Z",
+            }
+        state.save()
+        before = self.paths.state.read_bytes()
+        report = ht.status_report(self.cfg, self.paths, FakeGitHub([]), True)
+        names = [hold["name"] for hold in report["archive_holds"]]
+        self.assertIn("job-steward", names)
+        self.assertIn("retro-R-90", names)
+        self.assertEqual(before, self.paths.state.read_bytes())
+
     def test_r211_2_held_request_retries_original_finish_without_becoming_a_lost_worker(self):
         gh = FakeGitHub([issue(90, labels=["In Progress"])])
         gh.issues[90]["labels"] = []
@@ -2679,6 +2694,38 @@ class ArchiveSidecarTests(Base):
         for report in reports:
             self.assertIn("request-90", [item["name"] for item in report["archive_holds"]])
         self.assertFalse([call for call in gh.calls if call[0] == "issue"])
+
+    def test_r211_3_2_unowned_on_hold_finish_persists_until_issue_or_tree_ends(self):
+        for ending in ("closed", "tree_gone"):
+            with self.subTest(ending=ending):
+                gh = FakeGitHub([issue(90, labels=["On Hold"])])
+                runner = self.runner(gh)
+                tree = self.paths.worktree(90)
+                tree.mkdir(parents=True, exist_ok=True)
+                identity = {
+                    "name": "request-90", "session": "request-90-old", "path": str(tree),
+                }
+                hold = {
+                    "name": "request-90", "path": str(tree.relative_to(self.paths.root)),
+                    "reason": "sidecar_archive_io", "since": ht.iso(),
+                    "finish": {"kind": "status",
+                               "status": {"state": "no_changes", "summary": "stored finish"}},
+                }
+                runner.state.data["archive_sessions"]["request-90"] = identity
+                runner.state.data["archive_holds"]["request-90"] = hold
+                runner.state.save()
+                for _ in range(2):
+                    runner.recover()
+                    self.assertEqual(identity, runner.state.data["archive_sessions"]["request-90"])
+                    self.assertEqual(hold, runner.state.data["archive_holds"]["request-90"])
+                if ending == "closed":
+                    gh.issues[90]["state"] = "CLOSED"
+                else:
+                    shutil.rmtree(tree)
+                runner.recover()
+                self.assertNotIn("request-90", runner.state.data["archive_sessions"])
+                self.assertNotIn("request-90", runner.state.data["archive_holds"])
+                shutil.rmtree(tree, ignore_errors=True)
 
     def test_r211_3_tick_skips_held_request_and_runs_the_next_issue_once(self):
         self.cfg["budget_hours"] = 0.5
