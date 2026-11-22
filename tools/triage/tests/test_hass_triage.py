@@ -210,7 +210,9 @@ class Base(unittest.TestCase):
         self.prompts: List[str] = []
         self.commands: List[List[str]] = []
         self.cwds: List[Any] = []
-        return ht.Runner(self.cfg, self.paths, gh, run=run, launch=launch, **kw)
+        seed = ht.State(self.paths.state)
+        return ht.Runner(self.cfg, self.paths, gh, run=run, launch=launch,
+                         state_loader=kw.pop("state_loader", lambda _path: seed), **kw)
 
 
 class SelectionTests(Base):
@@ -777,7 +779,7 @@ class NightlyIntakeTests(Base):
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **kw):
                 spy.intake = intake
 
-            def tick(spy, max_items=None):
+            def _tick_locked(spy, max_items=None):
                 calls.append("nightly" if spy.intake else "report")
                 return 0
 
@@ -788,7 +790,7 @@ class NightlyIntakeTests(Base):
             self.paths.config_dir.mkdir(parents=True, exist_ok=True)
             self.paths.paused.write_text("x")
             ht.main(["tick"], home=self.home)
-            self.assertEqual(calls, ["report"])  # the report runner itself prints "paused"; nightly never starts
+            self.assertEqual(calls, [])  # paused tick returns before admission; nightly never starts
 
     def test_init_labels_creates_the_nightly_labels_in_the_product_repo(self):
         made = []

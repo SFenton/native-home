@@ -29,7 +29,8 @@ GENV = {"GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME":
 
 
 def g(cwd, *args):
-    return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=True,
+    return subprocess.run(["git", "-c", "safe.bareRepository=all", "-C", str(cwd), *args],
+                          capture_output=True, text=True, check=True,
                           env={**os.environ, **GENV}).stdout.strip()
 
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import fcntl
 import hashlib
 import importlib.util
@@ -280,6 +281,34 @@ class Paths:
     def log(self, n: int, attempt: int) -> Path:
         """The attempt's session log (``<n>-<attempt>.log``)."""
         return self.logs / f"{self.prefix}{n}-{attempt}.log"
+
+
+@contextlib.contextmanager
+def writer_lock(paths: Paths):
+    """Acquire the shared writer inode without disturbing a losing invocation."""
+    paths.state_dir.mkdir(parents=True, exist_ok=True)
+    lock = open(paths.lock, "a+")
+    acquired = False
+    try:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN):
+                raise
+            yield False
+            return
+        acquired = True
+        lock.seek(0)
+        lock.truncate()
+        lock.write(str(os.getpid()))
+        lock.flush()
+        yield True
+    finally:
+        try:
+            if acquired:
+                fcntl.flock(lock, fcntl.LOCK_UN)
+        finally:
+            lock.close()
 
 
 # MARK: - State
@@ -924,7 +953,8 @@ class Runner:
 
     def __init__(self, cfg: Dict[str, Any], paths: Paths, gh: GitHub, dry_run: bool = False,
                  run: Callable[..., Any] = subprocess.run, launch: Optional[Callable[..., int]] = None,
-                 clock: Callable[[], float] = time.monotonic, intake: Optional[Dict[str, Any]] = None):
+                 clock: Callable[[], float] = time.monotonic, intake: Optional[Dict[str, Any]] = None,
+                 state_loader: Optional[Callable[[Path], State]] = None):
         self.cfg = cfg
         #: Nightly intake settings (``cfg["nightly"]``), or None for the request repository.
         self.intake = intake
@@ -936,7 +966,8 @@ class Runner:
         self.clock = clock
         #: Wall-clock seconds for times saved in ``state.json`` (``clock`` is monotonic and restarts at boot).
         self.wall_clock: Callable[[], float] = time.time
-        self.state = State(paths.state)
+        self._state_loader = state_loader or State
+        self.state = self._state_loader(paths.state)
         self.repo = intake["repo"] if intake else cfg["request_repo"]
         self.authors: List[str] = intake["authors"] if intake else cfg["authors"]  # owner authors: vouch, replies, commands
         #: The agent account's login: its ``Workflow`` issues are picked up (:func:`may_pick`); the nightly intake has none.
@@ -995,58 +1026,55 @@ class Runner:
         if self.paths.paused.exists():
             print("paused")
             return 0
-        self.paths.state_dir.mkdir(parents=True, exist_ok=True)
-        with open(self.paths.lock, "a+") as lock:
-            try:
-                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError:
+        with writer_lock(self.paths) as admitted:
+            if not admitted:
                 print("another tick is running")
                 return 0
-            lock.seek(0)
-            lock.truncate()
-            lock.write(str(os.getpid()))
-            lock.flush()
-            self._held_names_tick.clear()
-            self._tick_auth = None  # nothing is remembered across ticks
-            self.refresh_clone()
-            self.check_base("tick")
-            try:  # an alert that cannot be filed never stops the rest of the tick
-                self.check_ha_changes()
-            except Exception as exc:  # noqa: BLE001
-                print(f"ha-changes check failed: {redact(str(exc))[:200]}")
-            self.check_merging()
-            self.check_parked()
-            self.requeue()
-            self.recover()
-            deadline = self.clock() + float(self.cfg["budget_hours"]) * 3600
-            done = 0
-            authed: Optional[bool] = None
-            drained = False
-            while max_items is None or done < max_items:
-                if self.clock() > deadline or self.paths.paused.exists():
-                    break
-                queue = [item for item in eligible(self.gh.open_issues(self.repo), self.authors,
-                                                   self.required_label, self.agent)
-                         if self._archive_label(item["number"]) not in self._held_names_tick]
-                if not queue:
-                    drained = True
-                    break
-                n = int(queue[0]["number"])
-                if authed is None:  # once per tick, before anything is launched; nothing is remembered across ticks
-                    authed = self.preflight()
-                if self.dry_run:
-                    print(f"[dry-run] would work #{n}: {queue[0].get('title', '')}")
-                    for item in queue[1:]:
-                        print(f"[dry-run] queued #{item['number']}: {item.get('title', '')}")
-                    break
-                if not authed:
-                    break
-                self.work(n)
-                done += 1
-            if drained and not self.intake and not self.dry_run and self.schedules_idle():
-                if not self.run_retro() and not self.check_regressions():
-                    self.run_due_job()
-            self.state.save()
+            self.state = self._state_loader(self.paths.state)
+            return self._tick_locked(max_items)
+
+    def _tick_locked(self, max_items: Optional[int] = None) -> int:
+        self._held_names_tick.clear()
+        self._tick_auth = None  # nothing is remembered across ticks
+        self.refresh_clone()
+        self.check_base("tick")
+        try:  # an alert that cannot be filed never stops the rest of the tick
+            self.check_ha_changes()
+        except Exception as exc:  # noqa: BLE001
+            print(f"ha-changes check failed: {redact(str(exc))[:200]}")
+        self.check_merging()
+        self.check_parked()
+        self.requeue()
+        self.recover()
+        deadline = self.clock() + float(self.cfg["budget_hours"]) * 3600
+        done = 0
+        authed: Optional[bool] = None
+        drained = False
+        while max_items is None or done < max_items:
+            if self.clock() > deadline or self.paths.paused.exists():
+                break
+            queue = [item for item in eligible(self.gh.open_issues(self.repo), self.authors,
+                                               self.required_label, self.agent)
+                     if self._archive_label(item["number"]) not in self._held_names_tick]
+            if not queue:
+                drained = True
+                break
+            n = int(queue[0]["number"])
+            if authed is None:  # once per tick, before anything is launched; nothing is remembered across ticks
+                authed = self.preflight()
+            if self.dry_run:
+                print(f"[dry-run] would work #{n}: {queue[0].get('title', '')}")
+                for item in queue[1:]:
+                    print(f"[dry-run] queued #{item['number']}: {item.get('title', '')}")
+                break
+            if not authed:
+                break
+            self.work(n)
+            done += 1
+        if drained and not self.intake and not self.dry_run and self.schedules_idle():
+            if not self.run_retro() and not self.check_regressions():
+                self.run_due_job()
+        self.state.save()
         return 0
 
     # -- live Home Assistant changes that could not be rolled back
@@ -1701,6 +1729,26 @@ class Runner:
     def base_record(self) -> Path:
         return self.paths.state_dir / "workflow-base.json"
 
+    def load_base_map(self) -> Dict[str, Any]:
+        """Load the complete base map, permitting only genuine absence as an empty installation."""
+        try:
+            raw = self.base_record().read_text()
+        except FileNotFoundError:
+            return {}
+        except OSError as exc:
+            raise TriageError(f"cannot read {self.base_record().name}: {exc}") from exc
+        try:
+            record = json.loads(raw)
+        except ValueError as exc:
+            raise TriageError(f"cannot read {self.base_record().name}: malformed JSON") from exc
+        if not isinstance(record, dict):
+            raise TriageError(f"cannot read {self.base_record().name}: expected a map")
+        return record
+
+    def save_base_map(self, record: Dict[str, Any]) -> None:
+        self.base_record().parent.mkdir(parents=True, exist_ok=True)
+        self.base_record().write_text(json.dumps(record, indent=2, sort_keys=True))
+
     def remote_base_sha(self, base: str) -> Optional[str]:
         land = self.paths.root / "land" / self.cfg["product_repo"].split("/")[1]
         repo = land if (land / ".git").exists() else self.paths.clone
@@ -1732,21 +1780,16 @@ class Runner:
             return True
         if not current:
             return True
-        try:
-            record = json.loads(self.base_record().read_text())
-        except (OSError, ValueError):
-            record = {}
+        record = self.load_base_map()
         expected = landed or record.get(base)
         if not expected or current == expected:
             if record.get(base) != current:
                 record[base] = current
-                self.base_record().parent.mkdir(parents=True, exist_ok=True)
-                self.base_record().write_text(json.dumps(record, indent=2, sort_keys=True))
+                self.save_base_map(record)
             return True
         if self.pr_moves_ok(base, expected, current):
             record[base] = current
-            self.base_record().parent.mkdir(parents=True, exist_ok=True)
-            self.base_record().write_text(json.dumps(record, indent=2, sort_keys=True))
+            self.save_base_map(record)
             return True
         self.base_moved(base, expected, current, when)
         return False
@@ -1950,13 +1993,11 @@ class Runner:
             raise TriageError(f"{base} is not on origin")
         if sha != current:
             raise TriageError(f"ack-base needs the exact current SHA of origin/{base} ({current}); got {sha or 'none'}")
+        record = self.load_base_map()
         info = pause_info(self.paths)
         listed = pause_moves(info)
         if listed and current not in listed:
-            try:
-                expected = json.loads(self.base_record().read_text()).get(base) or listed[-1]
-            except (OSError, ValueError):
-                expected = listed[-1]
+            expected = record.get(base) or listed[-1]
             self.base_moved(base, expected, current, "ack-base")
             raise TriageError(f"origin/{base} moved again since the pause last looked (moves so far: {', '.join(listed)}); it is "
                               f"now {current}. Nothing was accepted: review every move listed, then run ack-base {current}")
@@ -1964,8 +2005,8 @@ class Runner:
             print(f"Accepting {len(listed)} moves of origin/{base}, oldest first:")
             for n, move in enumerate(listed, 1):
                 print(f"  {n}. {move}")
-        self.base_record().parent.mkdir(parents=True, exist_ok=True)
-        self.base_record().write_text(json.dumps({base: current}, indent=2, sort_keys=True))
+        record[base] = current
+        self.save_base_map(record)
         pause.unlink(missing_ok=True)
         (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
         return current
@@ -1987,10 +2028,8 @@ class Runner:
 
         if base != str(self.cfg.get("product_base") or ""):
             return refused(f"{base} is not the product base, so pull requests do not move it")
-        try:
-            expected = json.loads(self.base_record().read_text()).get(base)
-        except (OSError, ValueError):
-            expected = None
+        record = self.load_base_map()
+        expected = record.get(base)
         if not expected:
             return refused(f"no accepted SHA is recorded for {base}")
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
@@ -2013,8 +2052,8 @@ class Runner:
                     head = again
                 prs = [int(e["pr"]) for e in evidence]
                 contexts = sorted({c for e in evidence for c in e["contexts"]})
-                self.base_record().parent.mkdir(parents=True, exist_ok=True)
-                self.base_record().write_text(json.dumps({base: verified}, indent=2, sort_keys=True))
+                record[base] = verified
+                self.save_base_map(record)
                 pause.unlink(missing_ok=True)
                 (self.paths.state_dir / "SELF_CHANGE_PAUSED.json").unlink(missing_ok=True)
                 with open(self.paths.state_dir / "ack-log.jsonl", "a") as log:
@@ -2185,7 +2224,7 @@ class Runner:
     @contextlib.contextmanager
     def landings_guard(self):
         """An exclusive lock on the landings record (``landings.lock`` in the state dir), held across a read-modify-write: the
-        tick and the unlocked ``run-job`` CLI both land lanes. Re-entrant within this runner."""
+        tick and the outer-locked ``run-job`` CLI both land lanes. Re-entrant within this runner."""
         depth = getattr(self, "_landings_depth", 0)
         if depth:
             self._landings_depth = depth + 1
@@ -3771,35 +3810,55 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
     gh = GitHub(dry_run=dry, labels=label_table(cfg))
     try:
         if args.cmd == "tick":
-            runner = Runner(cfg, paths, gh, dry_run=dry)
-            nightly = cfg.get("nightly")
-            if nightly:  # scheduled jobs wait for the nightly queue too
-                runner.idle_check = lambda: not eligible(gh.open_issues(nightly["repo"]), nightly["authors"],
-                                                          nightly["label"])
-            code = runner.tick(args.max_items)
-            if cfg.get("nightly") and not paths.paused.exists():
-                # `Nightly Fix` issues on the product repository: after the owner's requests, same worker, reviewer and
-                # pr_land.sh, separate worktrees (nightly-N), branches (nightly/N) and state (state-nightly.json).
-                code = Runner(cfg, Paths(cfg, home, "nightly-"), gh, dry_run=dry,
-                              intake=cfg["nightly"]).tick(args.max_items) or code
-            return code
-        if args.cmd == "run-issue":
-            runner = Runner(cfg, paths, gh, dry_run=dry)
-            if dry:
-                issue = gh.issue(cfg["request_repo"], args.issue)
-                print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
-                return 0
-            runner.refresh_clone()
-            print(runner.work(args.issue))
-            runner.state.save()
-            return 0
-        if args.cmd == "run-job":
             if paths.paused.exists():
                 print("paused")
                 return 0
-            runner = Runner(cfg, paths, gh)
-            runner.refresh_clone()
-            print(runner.run_job(args.name))
+            with writer_lock(paths) as admitted:
+                if not admitted:
+                    print("another tick is running")
+                    return 0
+                runner = Runner(cfg, paths, gh, dry_run=dry)
+                nightly = cfg.get("nightly")
+                if nightly:  # scheduled jobs wait for the nightly queue too
+                    runner.idle_check = lambda: not eligible(gh.open_issues(nightly["repo"]), nightly["authors"],
+                                                              nightly["label"])
+                code = runner._tick_locked(args.max_items)
+            if cfg.get("nightly") and not paths.paused.exists():
+                # `Nightly Fix` issues on the product repository: after the owner's requests, same worker, reviewer and
+                # pr_land.sh, separate worktrees (nightly-N), branches (nightly/N) and state (state-nightly.json).
+                nightly_paths = Paths(cfg, home, "nightly-")
+                with writer_lock(nightly_paths) as admitted:
+                    if not admitted:
+                        print("another tick is running")
+                        return 0
+                    code = Runner(cfg, nightly_paths, gh, dry_run=dry,
+                                  intake=cfg["nightly"])._tick_locked(args.max_items) or code
+            return code
+        if args.cmd == "run-issue":
+            with writer_lock(paths) as admitted:
+                if not admitted:
+                    print("another runner writer is active; run-issue refused")
+                    return 1
+                runner = Runner(cfg, paths, gh, dry_run=dry)
+                if dry:
+                    issue = gh.issue(cfg["request_repo"], args.issue)
+                    print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
+                    return 0
+                runner.refresh_clone()
+                print(runner.work(args.issue))
+                runner.state.save()
+            return 0
+        if args.cmd == "run-job":
+            with writer_lock(paths) as admitted:
+                if not admitted:
+                    print("another runner writer is active; run-job refused")
+                    return 1
+                if paths.paused.exists():
+                    print("paused")
+                    return 0
+                runner = Runner(cfg, paths, gh)
+                runner.refresh_clone()
+                print(runner.run_job(args.name))
             return 0
         if args.cmd == "status":
             t3 = None
@@ -3853,26 +3912,35 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"  {item['at']}  {tag}  {item['outcome']}  {item.get('detail', '')[:80]}")
             return 0
         if args.cmd == "ack-base":
-            if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE") or not sys.stdin.isatty():
-                print("ack-base is owner-only: run it from an interactive shell, never from an agent session.", file=sys.stderr)
-                return 2
-            print(f"Accepted {Runner(cfg, paths, gh).ack_base(args.sha)[:10]} as the workflow base; SELF_CHANGE_PAUSED cleared.")
+            with writer_lock(paths) as admitted:
+                if not admitted:
+                    print("another runner writer is active; ack-base refused")
+                    return 1
+                if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE") or not sys.stdin.isatty():
+                    print("ack-base is owner-only: run it from an interactive shell, never from an agent session.", file=sys.stderr)
+                    return 2
+                accepted = Runner(cfg, paths, gh).ack_base(args.sha)
+                print(f"Accepted {accepted[:10]} as the workflow base; SELF_CHANGE_PAUSED cleared.")
             return 0
         if args.cmd == "ack-verified":
-            if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE"):
-                print("ack-verified is not for the runner's own sessions: they cannot clear their own pause.", file=sys.stderr)
-                return 2
-            owner = sys.stdin.isatty()
-            try:
-                result = Runner(cfg, paths, gh).ack_verified("owner" if owner else "agent")
-            except TriageError as exc:
-                print(str(exc), file=sys.stderr)
-                return 1
-            if not result["ok"]:
-                print(f"ack-verified: {result['reason']}", file=sys.stderr)
-                return 1
-            print(f"Accepted {len(result['prs'])} PR merges: {' '.join('#%d' % n for n in result['prs'])}; head {result['head'][:10]}; "
-                  "SELF_CHANGE_PAUSED cleared.")
+            with writer_lock(paths) as admitted:
+                if not admitted:
+                    print("another runner writer is active; ack-verified refused")
+                    return 1
+                if os.environ.get("FENTON_HEADLESS") == "1" or os.environ.get("HASS_TRIAGE_ISSUE"):
+                    print("ack-verified is not for the runner's own sessions: they cannot clear their own pause.", file=sys.stderr)
+                    return 2
+                owner = sys.stdin.isatty()
+                try:
+                    result = Runner(cfg, paths, gh).ack_verified("owner" if owner else "agent")
+                except TriageError as exc:
+                    print(str(exc), file=sys.stderr)
+                    return 1
+                if not result["ok"]:
+                    print(f"ack-verified: {result['reason']}", file=sys.stderr)
+                    return 1
+                print(f"Accepted {len(result['prs'])} PR merges: {' '.join('#%d' % n for n in result['prs'])}; "
+                      f"head {result['head'][:10]}; SELF_CHANGE_PAUSED cleared.")
             return 0
         if args.cmd == "install-t3code":
             return t3launch.install(paths.root, {"PATH": agent_path(home), "HOME": str(home)})
