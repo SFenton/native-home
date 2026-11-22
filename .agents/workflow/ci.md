@@ -43,7 +43,7 @@ Job names, runner labels, repository variables and schedules live in the workflo
 
 ## Waiting on CI
 
-- Never poll `gh pr checks`. Start `tools/ci_wait.py N` through `tools/bg_run.py` in the background and end the turn ([waiting](token-economy.md#waiting)); its last line and exit status say what happened.
+- Never poll `gh pr checks`. Start `tools/ci_wait.py N` through `tools/bg_run.py` in the background and end the turn ([waiting](token-economy.md#waiting)); add `--first-red` to stop at the first failed job.
 - A failing check means fix, push to the same branch, and review the new head.
 - A conflicting pull request runs no checks: merge the base into the branch, test the touched area, push.
 - A pull request blocked only on the owner's approval is reported, not retried.

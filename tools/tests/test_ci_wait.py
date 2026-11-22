@@ -1,9 +1,13 @@
 """tools/ci_wait.py against a scripted fake ``gh``, plus the greps that keep the rule and the retired preflight honest."""
 
+import inspect
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stderr
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1]
 ROOT = TOOLS.parent
@@ -17,20 +21,29 @@ SHA = "a" * 40
 class FakeGh:
     """Answers ``pr view``, ``run list`` and ``run view`` from queues (the last item repeats); records every call."""
 
-    def __init__(self, prs=None, runs=None, views=None, error=None):
+    def __init__(self, prs=None, runs=None, views=None, error=None, strict=False, clock=None, opaque_signature=False):
         self.prs = list(prs or [])
         self.runs = list(runs if runs is not None else [[{"databaseId": 9, "headSha": SHA}]])
         self.views = list(views or [])
         self.error = error
+        self.strict = strict
+        self.clock = clock
         self.calls = []
+        self.call_times = []
         self.sleeps = []
+        self.timeouts = []
+        if opaque_signature:
+            self.__signature__ = inspect.Signature([inspect.Parameter("args", inspect.Parameter.POSITIONAL_ONLY)])
 
-    @staticmethod
-    def pop(queue):
-        return queue.pop(0) if len(queue) > 1 else queue[0]
+    def pop(self, queue):
+        if not queue:
+            raise AssertionError("fake gh script exhausted")
+        return queue.pop(0) if len(queue) > 1 or self.strict else queue[0]
 
-    def __call__(self, args):
+    def __call__(self, args, timeout=None):
         self.calls.append(list(args))
+        self.call_times.append(self.clock.monotonic() if self.clock is not None else None)
+        self.timeouts.append(timeout)
         if self.error:
             raise ci_wait.GhError(self.error)
         if args[:2] == ["pr", "view"]:
@@ -59,6 +72,23 @@ def run(status="completed", conclusion="success", attempt=1, updated="t1", jobs=
 def go(fake, **kw):
     kw.setdefault("sleep", fake.sleeps.append)
     return ci_wait.wait("7", gh=fake, **kw)
+
+
+class FakeClock:
+    """A monotonic clock and matching sleep for bounded-wait tests."""
+
+    def __init__(self):
+        self.now = 0.0
+        self.sleeps = []
+        self.sleep_starts = []
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.sleep_starts.append(self.now)
+        self.sleeps.append(seconds)
+        self.now += seconds
 
 
 class WaitTests(unittest.TestCase):
@@ -232,6 +262,380 @@ class WaitTests(unittest.TestCase):
         proc = subprocess.run([sys.executable, str(TOOLS / "ci_wait.py"), "--help"], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0)
         self.assertIn("--appear-timeout", proc.stdout)
+
+
+class OptInControlTests(unittest.TestCase):
+    @staticmethod
+    def live_run(conclusion, status="COMPLETED", attempt=1):
+        return run(
+            status="in_progress",
+            conclusion=None,
+            attempt=attempt,
+            jobs=[{"name": "repo-checks", "status": status, "conclusion": conclusion}],
+        )
+
+    def assert_budgeted(self, fake, clock, max_wait, sleeps):
+        self.assertEqual(len(fake.call_times), len(fake.timeouts))
+        for started, timeout in zip(fake.call_times, fake.timeouts):
+            self.assertIsNotNone(timeout)
+            self.assertAlmostEqual(timeout, max_wait - started)
+        self.assertEqual(clock.sleeps, sleeps)
+        for started, duration in zip(clock.sleep_starts, clock.sleeps):
+            self.assertLessEqual(duration, max_wait - started)
+
+    def test_a2_1_first_red_returns_on_the_first_failed_job_without_sleep(self):
+        red = self.live_run("failure")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(prs=[pr(), pr()], runs=[found, found], views=[red, red], strict=True)
+        code, lines = go(fake, first_red=True)
+        self.assertEqual(code, 1, lines)
+        self.assertEqual(fake.sleeps, [])
+        self.assertEqual(lines[-1], "RESULT: ci red early #7: repo-checks; run 9 still in_progress")
+        self.assertIn("job repo-checks: failure", lines)
+
+    def test_a2_2_first_red_accepts_timed_out_jobs(self):
+        timed_out = self.live_run("timed_out")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(prs=[pr(), pr()], runs=[found, found], views=[timed_out, timed_out], strict=True)
+        code, lines = go(fake, first_red=True)
+        self.assertEqual(code, 1, lines)
+        self.assertIn("ci red early #7: repo-checks", lines[-1])
+        self.assertIn("job repo-checks: timed_out", lines)
+
+    def test_a2_3_non_red_job_conclusions_do_not_return_early(self):
+        for conclusion in ("skipped", "cancelled", "neutral", "success", None):
+            with self.subTest(conclusion=conclusion):
+                live = self.live_run(conclusion)
+                green = run(status="completed", conclusion="success", jobs=[{"name": "repo-checks", "conclusion": "success"}])
+                state = pr(armed=False, merge_state="CLEAN")
+                if conclusion is None:
+                    views = [self.live_run("failure"), self.live_run("failure", "IN_PROGRESS"), green, green]
+                    prs = [state, state, state]
+                else:
+                    views = [live, green, green]
+                    prs = [state, state]
+                found = [{"databaseId": 9, "headSha": SHA}]
+                fake = FakeGh(prs=prs, runs=[found, found], views=views, strict=True)
+                code, lines = go(fake, first_red=True)
+                self.assertEqual(code, 0, lines)
+                self.assertFalse(any("ci red early" in line for line in lines))
+
+    def test_a2_4_first_red_result_is_last_after_the_job_table(self):
+        fake = FakeGh(prs=[pr(), pr()], views=[self.live_run("failure")])
+        code, lines = go(fake, first_red=True)
+        self.assertEqual(code, 1)
+        self.assertEqual(lines[-2:], [
+            "job repo-checks: failure",
+            "RESULT: ci red early #7: repo-checks; run 9 still in_progress",
+        ])
+
+    def test_a2_5_head_change_invalidates_an_observed_red_job(self):
+        new = "b" * 40
+        fake = FakeGh(
+            prs=[pr(), pr(sha=new), pr(sha=new), pr("MERGED", sha=new)],
+            runs=[[{"databaseId": 9, "headSha": SHA}], [{"databaseId": 10, "headSha": new}]],
+            views=[self.live_run("failure"), run(conclusion="success"), run(conclusion="success")],
+        )
+        code, lines = go(fake, first_red=True, merge_wait=60, poll=30)
+        self.assertEqual(code, 0, lines)
+        self.assertFalse(any("ci red early" in line for line in lines), lines)
+        self.assertIn("superseded: aaaaaaaa -> bbbbbbbb", lines)
+
+    def test_a2_6_new_attempt_invalidates_an_observed_red_job(self):
+        views = [
+            self.live_run("failure", attempt=1),
+            self.live_run("failure", attempt=2),
+            run(conclusion="success", attempt=2, updated="t2"),
+            run(conclusion="success", attempt=2, updated="t2"),
+        ]
+        fake = FakeGh(prs=[pr(armed=False, merge_state="CLEAN"), pr(armed=False, merge_state="CLEAN")], views=views)
+        code, lines = go(fake, first_red=True)
+        self.assertEqual(code, 0, lines)
+        self.assertFalse(any("ci red early" in line for line in lines), lines)
+        self.assertIn("attempt 2", lines[-1])
+
+    def test_a2_7_pending_expiry_prints_the_latest_job_table_and_exit_five(self):
+        for has_run in (False, True):
+            with self.subTest(has_run=has_run):
+                clock = FakeClock()
+                fake = FakeGh(prs=[pr()], runs=[[]] if has_run is False else None,
+                              views=[self.live_run(None, "IN_PROGRESS")])
+                code, lines = go(fake, max_wait=7, clock=clock.monotonic, sleep=clock.sleep)
+                self.assertEqual(code, 5, lines)
+                if has_run:
+                    self.assertIn("job repo-checks: None", lines)
+                    self.assertNotIn("jobs: none observed", lines)
+                else:
+                    self.assertIn("jobs: none observed", lines)
+                self.assertEqual(lines[-1], "RESULT: ci pending #7")
+                self.assertLessEqual(sum(clock.sleeps), 7)
+
+    def test_a2_8_one_deadline_covers_appearance_poll_settle_and_merge_wait(self):
+        clock = FakeClock()
+        pending_review = pr(rollup=[check("pr-checks"), check("ai-review", None, "IN_PROGRESS")])
+        views = [
+            run(status="in_progress", conclusion=None, attempt=1, updated="live"),
+            run(status="completed", conclusion="success", attempt=1, updated="done"),
+            run(status="completed", conclusion="success", attempt=1, updated="done"),
+        ]
+        fake = FakeGh(
+            prs=[pr(), pr(), pending_review, pending_review, pending_review, pending_review],
+            runs=[[], [{"databaseId": 9, "headSha": SHA}]],
+            views=views,
+        )
+        code, lines = go(
+            fake,
+            max_wait=25,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=5,
+            settle=5,
+            merge_wait=300,
+        )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(lines[-1], "RESULT: ci pending #7")
+        self.assertEqual(clock.now, 25)
+
+    def test_a2_9_superseding_head_does_not_reset_the_deadline(self):
+        clock = FakeClock()
+        new = "b" * 40
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        fake = FakeGh(
+            prs=[pr(), pr(sha=new), pr(sha=new)],
+            runs=[[{"databaseId": 9, "headSha": SHA}], []],
+            views=[cancelled, cancelled],
+        )
+        code, lines = go(fake, max_wait=15, clock=clock.monotonic, sleep=clock.sleep, poll=5, settle=5)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 15)
+        self.assertIn("superseded: aaaaaaaa -> bbbbbbbb", lines)
+
+    def test_a2_10_sleeps_and_gh_calls_are_clipped_to_the_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(prs=[pr()], runs=[[]])
+        code, lines = go(fake, max_wait=7, clock=clock.monotonic, sleep=clock.sleep, poll=30)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.sleeps, [7])
+        self.assertTrue(fake.timeouts)
+        self.assertTrue(all(timeout is not None and timeout <= 7 for timeout in fake.timeouts), fake.timeouts)
+
+    def test_a2_10_appearance_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(prs=[pr()], runs=[[]], clock=clock, opaque_signature=True)
+        code, lines = go(fake, max_wait=23, clock=clock.monotonic, sleep=clock.sleep, poll=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [7, 7, 7, 2])
+
+    def test_a2_10_run_poll_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(
+            prs=[pr()],
+            views=[self.live_run(None, "IN_PROGRESS")],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(fake, max_wait=23, clock=clock.monotonic, sleep=clock.sleep, poll=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [7, 7, 7, 2])
+
+    def test_a2_10_settle_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        fake = FakeGh(prs=[pr()], views=[run()], clock=clock, opaque_signature=True)
+        code, lines = go(fake, max_wait=5, clock=clock.monotonic, sleep=clock.sleep, settle=7)
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 5)
+        self.assert_budgeted(fake, clock, 5, [5])
+
+    def test_a2_10_supersession_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        new = "b" * 40
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        fake = FakeGh(
+            prs=[pr(), pr(sha=new)],
+            runs=[[{"databaseId": 9, "headSha": SHA}], []],
+            views=[cancelled, cancelled],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+            settle=5,
+        )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assertIn("superseded: aaaaaaaa -> bbbbbbbb", lines)
+        self.assert_budgeted(fake, clock, 23, [5, 7, 7, 4])
+
+    def test_a2_10_merge_wait_calls_and_sleeps_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        pending_review = pr(rollup=[check("pr-checks"), check("ai-review", None, "IN_PROGRESS")])
+        fake = FakeGh(
+            prs=[pr(), pending_review],
+            views=[run(), run()],
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+            settle=5,
+            merge_wait=300,
+        )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(clock.now, 23)
+        self.assert_budgeted(fake, clock, 23, [5, 7, 7, 4])
+
+    def test_a2_10_first_red_revalidation_calls_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        red = self.live_run("failure")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(
+            prs=[pr(), pr()],
+            runs=[found, found],
+            views=[red, red],
+            strict=True,
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            first_red=True,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+        )
+        self.assertEqual(code, 1, lines)
+        self.assertIn("ci red early #7: repo-checks", lines[-1])
+        self.assert_budgeted(fake, clock, 23, [])
+
+    def test_a2_10_real_gh_timeout_uses_the_remaining_budget_and_exits_five(self):
+        clock = FakeClock()
+        timed_out = subprocess.TimeoutExpired(["gh"], 23)
+        with patch("ci_wait.subprocess.run", side_effect=timed_out) as run_mock:
+            code, lines = ci_wait.wait(
+                "7",
+                gh=ci_wait.gh_json,
+                max_wait=23,
+                clock=clock.monotonic,
+                sleep=clock.sleep,
+            )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(lines[-1], "RESULT: ci pending #7")
+        self.assertEqual(run_mock.call_count, 1)
+        self.assertEqual(run_mock.call_args.kwargs["timeout"], 23)
+
+    def test_a2_11_terminal_and_shorter_existing_timeouts_keep_their_codes(self):
+        cases = [
+            ("completed_failure", FakeGh(prs=[pr()], views=[run(conclusion="failure")]), {}, 1),
+            ("service_error", FakeGh(error="HTTP 502"), {}, 2),
+            ("appear_timeout", FakeGh(prs=[pr()], runs=[[]]), {"appear_timeout": 2, "poll": 1}, 2),
+            ("closed", FakeGh(prs=[pr("CLOSED")]), {}, 1),
+            ("conflict", FakeGh(prs=[{**pr(), "mergeable": "CONFLICTING"}]), {}, 3),
+            ("cancelled", FakeGh(prs=[pr(), pr()], views=[run(conclusion="cancelled"), run(conclusion="cancelled")]), {}, 4),
+        ]
+        for name, fake, options, expected in cases:
+            with self.subTest(name=name):
+                clock = FakeClock()
+                code, lines = go(
+                    fake,
+                    max_wait=100,
+                    clock=clock.monotonic,
+                    sleep=clock.sleep,
+                    **options,
+                )
+                self.assertEqual(code, expected, lines)
+
+    def test_a2_11_zero_intervals_keep_definite_results_before_budget_expiry(self):
+        for interval in ("settle", "poll"):
+            with self.subTest(interval=interval):
+                clock = FakeClock()
+                clean = pr(armed=False, merge_state="CLEAN")
+                fake = FakeGh(
+                    prs=[clean] if interval == "settle" else [pr(), clean],
+                    runs=None if interval == "settle" else [[], [{"databaseId": 9, "headSha": SHA}]],
+                    views=[run(), run()],
+                )
+                options = {"settle": 0} if interval == "settle" else {"poll": 0, "settle": 0}
+                code, lines = go(
+                    fake,
+                    max_wait=10,
+                    clock=clock.monotonic,
+                    sleep=clock.sleep,
+                    **options,
+                )
+                self.assertEqual(code, 0, lines)
+                self.assertEqual(clock.now, 0)
+                self.assertLess(clock.now, 10)
+
+    def test_a2_12_no_flags_preserve_legacy_stdout_and_exit_codes_byte_for_byte(self):
+        scenarios = {}
+        views = [
+            run(conclusion="failure", attempt=1, updated="t1"),
+            run(status="in_progress", conclusion=None, attempt=2, updated="t2"),
+            run(status="in_progress", conclusion=None, attempt=2, updated="t2"),
+            run(conclusion="success", attempt=2, updated="t3"),
+            run(conclusion="success", attempt=2, updated="t3"),
+        ]
+        scenarios["settled_rerun"] = go(FakeGh(prs=[pr(armed=False, merge_state="CLEAN")], views=views))
+
+        cancelled = run(conclusion="cancelled", jobs=[{"name": "pr-checks", "conclusion": "cancelled"}])
+        scenarios["cancelled"] = go(FakeGh(prs=[pr(), pr()], views=[cancelled]))
+
+        new = "b" * 40
+        scenarios["superseded"] = go(
+            FakeGh(
+                prs=[pr(), pr(sha=new), pr(sha=new), pr("MERGED", sha=new)],
+                runs=[[{"databaseId": 9, "headSha": SHA}], [{"databaseId": 10, "headSha": new}]],
+                views=[cancelled, cancelled, run(), run()],
+            ),
+            merge_wait=60,
+            poll=30,
+        )
+
+        rendered = {name: (code, "\n".join(lines) + "\n") for name, (code, lines) in scenarios.items()}
+        self.assertEqual(rendered["settled_rerun"], (0,
+            "PR 7 head aaaaaaaa branch agents/x\n"
+            "run 9\n"
+            "job pr-checks: success\n"
+            "RESULT: pr-checks success on aaaaaaaa (run 9, attempt 2); CI green and CLEAN, not armed\n"))
+        self.assertEqual(rendered["cancelled"], (4,
+            "PR 7 head aaaaaaaa branch agents/x\n"
+            "run 9\n"
+            "job pr-checks: cancelled\n"
+            "RESULT: cancelled #7: pr-checks cancelled on aaaaaaaa (run 9, attempt 1); "
+            "the head is unchanged, re-run the workflow or push\n"))
+        self.assertEqual(rendered["superseded"], (0,
+            "PR 7 head aaaaaaaa branch agents/x\n"
+            "run 9\n"
+            "job pr-checks: cancelled\n"
+            "superseded: aaaaaaaa -> bbbbbbbb\n"
+            "run 10\n"
+            "job pr-checks: success\n"
+            "RESULT: pr-checks success on bbbbbbbb (run 10, attempt 1); merged\n"))
+
+    def test_a2_13_nonpositive_or_nonfinite_max_wait_is_rejected_by_option_parsing(self):
+        for value in ("0", "-1", "nan", "inf", "-inf"):
+            with self.subTest(value=value):
+                stderr = StringIO()
+                with redirect_stderr(stderr), self.assertRaises(SystemExit):
+                    ci_wait.main(["7", f"--max-wait={value}"])
+                self.assertIn("positive finite", stderr.getvalue())
+
+    def test_a2_14_rule_sentence_names_first_red_and_preserves_background_bounded_waiting(self):
+        line = next(line for line in (ROOT / ".agents" / "workflow" / "ci.md").read_text().splitlines()
+                    if "Start `tools/ci_wait.py N`" in line)
+        self.assertIn("through `tools/bg_run.py` in the background and end the turn", line)
+        self.assertIn("add `--first-red` to stop at the first failed job", line)
 
 
 class BlockerTests(unittest.TestCase):
