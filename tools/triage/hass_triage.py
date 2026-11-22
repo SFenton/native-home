@@ -1470,6 +1470,16 @@ class Runner:
         log = self.paths.log(key, 1)
         outcome = "error"
         lanes_resolved = True
+        if worktree.exists():
+            previous = (self.state.data.get("jobs") or {}).get(name) or {}
+            try:
+                previous_day = parse_time(str(previous.get("last_run") or "")).strftime("%Y-%m-%d")
+            except ValueError:
+                previous_day = "previous"
+            previous_name = f"job-{name}-{previous_day}"
+            if self.archive_gate_decisions(key, worktree, name=previous_name) is False:
+                print(f"job {name}: previous worktree kept because its Jev decisions could not be archived")
+                return "skipped"
         try:
             if worktree.exists():
                 self._drop_worktree(worktree, str(self.paths.clone))
@@ -1496,12 +1506,16 @@ class Runner:
             self.state.data["current"] = None
             self.state.data["jobs"][name] = {"last_run": iso(), "outcome": outcome, "branch": branch}
             self.state.record(key, f"job:{outcome}", branch)
-            self.archive_evidence(key, log=log, name=f"job-{name}-{now().strftime('%Y-%m-%d')}", tree=worktree,
-                                  status_file=status_file, task=f"job-{name}-{now().strftime('%Y-%m-%d')}",
+            archive_name = f"job-{name}-{now().strftime('%Y-%m-%d')}"
+            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                  status_file=status_file, task=archive_name,
                                   outcome=self.job_outcome_code(outcome),
                                   enqueue=name != "steward")  # no post-mortem of the Steward's own run
             if lanes_resolved:  # a lane the runner could not land or file keeps its worktree
-                self._drop_worktree(worktree, str(self.paths.clone))
+                if self.archive_gate_decisions(key, worktree, name=archive_name) is False:
+                    print(f"job {name}: worktree kept because its Jev decisions could not be archived")
+                else:
+                    self._drop_worktree(worktree, str(self.paths.clone))
             self.state.save()
         return outcome
 
@@ -2854,8 +2868,8 @@ class Runner:
         """Copy the issue's evidence to ``<root>/archive/<intake>-<n>/`` and run ``retro_digest.py`` on it.
 
         Called on every ending (``work``) and again before ``cleanup`` deletes the worktree. Copies the review verdicts,
-        task ledger, Jev shadow and gate logs, ``build/retro`` and ``build/handoff`` and the ``bg_run`` digests from
-        the worktree, plus the status file, the last ``ARCHIVE_LOG_LINES`` redacted lines of the worker log and the
+        task ledger, Jev shadow, answer and decision logs, ``build/retro`` and ``build/handoff`` and the ``bg_run`` digests
+        from the worktree, plus the status file, the last ``ARCHIVE_LOG_LINES`` redacted lines of the worker log and the
         owner's reply and the owner's comments made during the run (``owner_replies.json``). A scheduled job or a retro
         passes ``name`` (``job-steward-2026-11-02``), ``tree``, ``status_file`` and ``task`` instead. After the digest,
         a flow with a digest trigger, a ``phase_cost`` from ``retro_phase.py`` (run for the flow's PR) or a touched workflow path is queued for a post-mortem (``enqueue_retro``).
@@ -2876,10 +2890,12 @@ class Runner:
                                     ("runs", "*.digest"), ("runs", "*.running")):
                 for src in sorted((path / "build" / folder).glob(pattern)):
                     put(src, f"{folder}/{src.name}")
-            for name in ("shadow.jsonl", "gate.jsonl"):  # Jev shadow log and the orchestrator's jev_gate.py answers
-                src = path / "build" / "jev" / name
+            for log_name in ("shadow.jsonl", "gate.jsonl"):  # Jev shadow log and the orchestrator's answers
+                src = path / "build" / "jev" / log_name
                 if src.is_file():
-                    put(src, name)
+                    put(src, log_name)
+            if self.archive_gate_decisions(n, path, name=name) is True:
+                copied = True
             status_file = status_file or self.paths.status_file(n)
             if status_file.is_file():
                 put(status_file, "status.json")
@@ -2908,6 +2924,42 @@ class Runner:
                 self.run_retro_phase(n, dest)
                 self.enqueue_retro(dest, task)
         return dest if copied else None
+
+    def archive_gate_decisions(self, n: Any, tree: Path, name: str = "") -> Optional[bool]:
+        """Archive the decision-model sidecar atomically; ``None`` means there is no safe source to copy."""
+        src = tree / "build" / "jev" / "gate-decisions.jsonl"
+        if not os.path.lexists(str(src)):
+            return None
+        dest = self.paths.root / "archive" / (name or f"{'nightly' if self.intake else 'request'}-{n}") / \
+            "gate-decisions.jsonl"
+        temp: Optional[Path] = None
+        try:
+            root = tree.resolve(strict=True)
+            resolved = src.resolve(strict=True)
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                return None
+            if not resolved.is_file():
+                print(f"{n}: could not archive Jev decisions: source is not a file")
+                return False
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            fd, raw_temp = tempfile.mkstemp(prefix=".gate-decisions.", suffix=".tmp", dir=str(dest.parent))
+            temp = Path(raw_temp)
+            os.close(fd)
+            copy_redacted(resolved, temp)
+            os.replace(str(temp), str(dest))
+            temp = None
+            return True
+        except (OSError, RuntimeError, ValueError) as exc:
+            print(f"{n}: could not archive Jev decisions: {redact(str(exc))[:300]}")
+            return False
+        finally:
+            if temp is not None:
+                try:
+                    temp.unlink(missing_ok=True)
+                except OSError as exc:
+                    print(f"{n}: could not remove Jev decision archive temp: {redact(str(exc))[:300]}")
 
     def run_retro_phase(self, n: Any, dest: Path) -> None:
         """``tools/retro_phase.py --pr N`` for the flow's pull request, writing ``retro/phase-N.json`` into the archive.
@@ -2997,7 +3049,8 @@ class Runner:
 
         A headless ``claude -p --agent orchestrator`` session renders ``prompts/retro.md`` in its own worktree, branched
         from ``workflow_base`` on origin. Returns the outcome (``done``, ``no_changes``, ``blocked``, ``timeout``,
-        ``no_status``, ``error``) or None when nothing ran (empty queue, paused, base missing, signed out)."""
+        ``no_status``, ``error``) or None when nothing ran (empty queue, paused, base missing, signed out or a previous
+        worktree could not be archived safely)."""
         if self.dry_run or self.intake:
             return None
         retro = State(self.retro_paths.state)
@@ -3019,10 +3072,7 @@ class Runner:
             return None
         if not self.preflight():
             return None
-        item = queue.pop(0)
-        retro.data["queue"] = queue
-        retro.data["current"] = item
-        retro.save()
+        item = queue[0]
         task = str(item.get("task") or "unknown")
         key = f"retro-{task}"
         archive = Path(str(item.get("archive") or ""))
@@ -3030,6 +3080,20 @@ class Runner:
         worktree = self.paths.worktrees / key
         status_file = self.paths.status_file(key)
         log = self.paths.log(key, 1)
+        if worktree.exists():
+            previous = retro.data.get("current")
+            if not isinstance(previous, dict) or str(previous.get("task")) != task:
+                previous = next((record for record in reversed(retro.data.get("done") or [])
+                                 if isinstance(record, dict) and str(record.get("task")) == task), item)
+            previous_archive = Path(str(previous.get("archive") or ""))
+            previous_name = f"retro-{previous_archive.name}" if previous_archive.name else key
+            if self.archive_gate_decisions(key, worktree, name=previous_name) is False:
+                print(f"retro {task}: previous worktree kept because its Jev decisions could not be archived")
+                return None
+        queue.pop(0)
+        retro.data["queue"] = queue
+        retro.data["current"] = item
+        retro.save()
         outcome = "error"
         status: Optional[Dict[str, Any]] = None
         lanes_resolved = True
@@ -3076,7 +3140,11 @@ class Runner:
             elif not had_lanes and self.retro_unlanded(clone, worktree, base):
                 print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
             else:
-                self._drop_worktree(worktree, clone)
+                archive_name = f"retro-{archive.name}" if archive.name else key
+                if self.archive_gate_decisions(key, worktree, name=archive_name) is False:
+                    print(f"retro {task}: worktree kept because its Jev decisions could not be archived")
+                else:
+                    self._drop_worktree(worktree, clone)
             self.state.save()
         return outcome
 
@@ -3141,7 +3209,10 @@ class Runner:
         path = self.paths.worktree(n)
         self.archive_evidence(n, digest=False)
         if path.exists() and n not in self._keep:
-            self._drop_worktree(path, str(self.paths.clone))
+            if self.archive_gate_decisions(n, path) is False:
+                print(f"#{n}: worktree kept because its Jev decisions could not be archived")
+            else:
+                self._drop_worktree(path, str(self.paths.clone))
         shutil.rmtree(self.paths.work / str(n), ignore_errors=True)
         self.paths.request_snapshot(n).unlink(missing_ok=True)
 

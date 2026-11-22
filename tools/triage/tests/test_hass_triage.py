@@ -2193,6 +2193,217 @@ class ArchiveEveryEndingTests(Base):
         self.assertIsNone(runner.archive_evidence(29))
 
 
+class ArchiveSidecarTests(Base):
+    DECISION = '{"question":"route","answer":"proceed","token":"ghp_' + "x" * 30 + '"}\n'
+
+    def seed_sidecar(self, tree, text=DECISION):
+        path = tree / "build" / "jev" / "gate-decisions.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def destination(self, n=90, name=""):
+        return self.paths.root / "archive" / (name or f"request-{n}")
+
+    def test_b1_27_a_present_sidecar_has_its_own_redacted_archive(self):
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        source = self.seed_sidecar(tree)
+        runner.archive_evidence(90, digest=False)
+        saved = self.destination() / "gate-decisions.jsonl"
+        self.assertTrue(saved.is_file())
+        self.assertNotEqual(saved.read_bytes(), source.read_bytes())
+        self.assertNotIn("ghp_" + "x" * 30, saved.read_text())
+        self.assertEqual(json.loads(saved.read_text())["answer"], "proceed")
+
+    def test_b1_27_b_answer_archive_bytes_are_unchanged_by_decisions(self):
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        gate = tree / "build" / "jev" / "gate.jsonl"
+        gate.parent.mkdir(parents=True, exist_ok=True)
+        gate.write_text('{"question":"level","answer":"L1","token":"ghp_' + "x" * 30 + '"}\n')
+        runner.archive_evidence(90, digest=False)
+        before = (self.destination() / "gate.jsonl").read_bytes()
+        self.seed_sidecar(tree)
+        runner.archive_evidence(90, digest=False)
+        self.assertEqual((self.destination() / "gate.jsonl").read_bytes(), before)
+        self.assertNotIn("proceed", (self.destination() / "gate.jsonl").read_text())
+
+    def test_b1_27_c_digest_answer_count_ignores_decisions(self):
+        import retro_digest
+
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        gate = tree / "build" / "jev" / "gate.jsonl"
+        gate.parent.mkdir(parents=True, exist_ok=True)
+        gate.write_text('{"question":"level","answer":"L1"}\n')
+        dest = self.destination()
+        runner.archive_evidence(90, digest=False)
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(retro_digest.main(["--task", "R-90", "--archive", str(dest)]), 0)
+        before = json.loads((dest / "retro" / "R-90.json").read_text())["counts"]["gate_answers"]
+        self.seed_sidecar(tree)
+        runner.archive_evidence(90, digest=False)
+        with mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(retro_digest.main(["--task", "R-90", "--archive", str(dest)]), 0)
+        after = json.loads((dest / "retro" / "R-90.json").read_text())["counts"]["gate_answers"]
+        self.assertEqual((before, after), (1, 1))
+
+    def test_b1_27_d_missing_sidecar_creates_no_placeholder(self):
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        (tree / "build" / "tasks").mkdir(parents=True)
+        (tree / "build" / "tasks" / "R-90.json").write_text("{}")
+        runner.archive_evidence(90, digest=False)
+        self.assertFalse((self.destination() / "gate-decisions.jsonl").exists())
+
+    def test_b1_28_a_sidecar_precedes_every_drop_and_preclean(self):
+        cases = ("request_cleanup", "job_pre", "job_final", "retro_pre", "retro_final")
+        for case in cases:
+            with self.subTest(site=case):
+                with tempfile.TemporaryDirectory(prefix="archive-sidecar-site-") as raw:
+                    home = Path(raw)
+                    cfg = ht.load_config(home)
+                    paths = ht.Paths(cfg, home)
+                    root_dest = paths.root / "archive"
+                    gh = FakeGitHub([])
+                    runner = ht.Runner(cfg, paths, gh, run=self.commands_run(paths), launch=self.site_launch(paths))
+                    expected = []
+                    dropped = []
+
+                    def drop(path, clone):
+                        archived = [p / "gate-decisions.jsonl" for p in expected
+                                    if (p / "gate-decisions.jsonl").is_file()]
+                        dropped.append(len(archived))
+
+                    runner._drop_worktree = drop
+                    if case == "request_cleanup":
+                        tree = paths.worktree(90)
+                        self.seed_tree_sidecar(tree)
+                        expected.append(root_dest / "request-90")
+                        runner.cleanup(90)
+                    elif case == "job_pre":
+                        tree = paths.worktrees / "job-steward"
+                        self.seed_tree_sidecar(tree)
+                        runner.state.data["jobs"]["steward"] = {
+                            "last_run": "2020-01-02T03:04:05Z", "outcome": "done", "branch": "agents/steward-200102"}
+                        expected.append(root_dest / "job-steward-2020-01-02")
+                        runner.run_job("steward")
+                    elif case == "job_final":
+                        expected.append(root_dest / f"job-steward-{ht.now().strftime('%Y-%m-%d')}")
+                        runner.launch = self.site_launch(paths, seed=True)
+                        runner.run_job("steward")
+                    elif case == "retro_pre":
+                        runner = self.site_retro_runner(cfg, paths, gh)
+                        tree = paths.worktrees / "retro-R-90"
+                        self.seed_tree_sidecar(tree)
+                        state = ht.State(runner.retro_paths.state)
+                        state.data["done"] = [{
+                            "archive": str(root_dest / "request-90"), "task": "R-90",
+                            "triggers": ["blocked"], "touched": [], "queued": ht.iso()}]
+                        state.save()
+                        expected.append(root_dest / "retro-request-90")
+                        runner._drop_worktree = drop
+                        runner.run_retro()
+                    else:
+                        runner = self.site_retro_runner(cfg, paths, gh)
+                        expected.append(root_dest / "retro-request-90")
+                        runner._drop_worktree = drop
+                        runner.launch = self.site_launch(paths, seed=True)
+                        runner.run_retro()
+                    self.assertTrue(dropped, case)
+                    self.assertTrue(all(count > 0 for count in dropped), case)
+
+    def commands_run(self, paths):
+        def run(args, **kw):
+            if "ls-remote" in args and "--exit-code" in args:
+                return subprocess.CompletedProcess(args, 0, "", "")
+            if args[:2] == ["git", "-C"] and "worktree" in args and "add" in args:
+                tree = Path(args[args.index("-B") + 2] if "-B" in args else args[-2])
+                tree.mkdir(parents=True, exist_ok=True)
+            return subprocess.CompletedProcess(args, 0, "", "")
+        return run
+
+    def site_launch(self, paths, seed=False):
+        def launch(n, tree, prompt, log):
+            if seed:
+                self.seed_tree_sidecar(Path(tree))
+            log.parent.mkdir(parents=True, exist_ok=True)
+            log.write_text("line\n")
+            paths.status_file(n).parent.mkdir(parents=True, exist_ok=True)
+            paths.status_file(n).write_text(json.dumps({"state": "done", "summary": "ok"}))
+            return 0
+        return launch
+
+    def seed_tree_sidecar(self, tree, text=DECISION):
+        return self.seed_sidecar(Path(tree), text)
+
+    def site_retro_runner(self, cfg, paths, gh):
+        runner = ht.Runner(cfg, paths, gh, run=self.commands_run(paths), launch=self.site_launch(paths))
+        runner.run = self.commands_run(paths)
+        runner.preflight = lambda: True
+        runner.launch = self.site_launch(paths)
+        item = {"archive": str(paths.root / "archive" / "request-90"),
+                "task": "R-90", "triggers": ["blocked"], "touched": [], "queued": ht.iso()}
+        state = ht.State(runner.retro_paths.state)
+        state.data["queue"] = [item]
+        state.save()
+        return runner
+
+    def test_b1_28_b_repeat_after_source_disappearance_keeps_last_good_copy(self):
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        source = self.seed_sidecar(tree)
+        runner.archive_evidence(90, digest=False)
+        saved = self.destination() / "gate-decisions.jsonl"
+        before = saved.read_bytes()
+        source.unlink()
+        runner.archive_evidence(90, digest=False)
+        self.assertEqual(saved.read_bytes(), before)
+
+    def test_b1_28_c_copy_failure_keeps_source_without_changing_session_outcome(self):
+        runner = self.runner(FakeGitHub([]), {"state": "done", "summary": "ok"})
+        original_launch = runner.launch
+        real_copy = ht.copy_redacted
+
+        def launch(key, tree, prompt, log):
+            self.seed_sidecar(tree)
+            (tree / "build" / "review").mkdir(parents=True, exist_ok=True)
+            (tree / "build" / "review" / "copied.json").write_text('{"verdict":"pass"}')
+            return original_launch(key, tree, prompt, log)
+
+        def copy(src, dest):
+            if src.name == "gate-decisions.jsonl":
+                raise OSError("disk full")
+            return real_copy(src, dest)
+
+        runner.launch = launch
+        dest = self.destination(name=f"job-steward-{ht.now().strftime('%Y-%m-%d')}")
+        dest.mkdir(parents=True)
+        saved = dest / "gate-decisions.jsonl"
+        saved.write_text('{"answer":"last-good"}\n')
+        with mock.patch.object(ht, "copy_redacted", side_effect=copy), \
+                mock.patch("sys.stdout", new=io.StringIO()):
+            self.assertEqual(runner.run_job("steward"), "done")
+        tree = self.paths.worktrees / "job-steward"
+        self.assertTrue((tree / "build" / "jev" / "gate-decisions.jsonl").is_file())
+        self.assertEqual(saved.read_text(), '{"answer":"last-good"}\n')
+        self.assertTrue((dest / "review" / "copied.json").is_file())
+        self.assertFalse(any("worktree" in c and "remove" in c and c[-1].endswith("job-steward")
+                             for c in self.commands))
+
+    def test_b1_28_d_link_outside_session_tree_is_not_archived(self):
+        runner = self.runner(FakeGitHub([]))
+        tree = self.paths.worktree(90)
+        outside = self.home / "outside-gate-decisions.jsonl"
+        outside.write_text(self.DECISION)
+        (tree / "build" / "jev").mkdir(parents=True)
+        (tree / "build" / "jev" / "gate-decisions.jsonl").symlink_to(outside)
+        runner.archive_evidence(90, digest=False)
+        self.assertFalse((self.destination() / "gate-decisions.jsonl").exists())
+        self.assertTrue(outside.is_file())
+
+
 class NoHandoffPromptTests(Base):
     def test_prompts_do_not_tell_the_worker_to_hand_off_over_a_budget(self):
         for name in ("worker.md", "nightly.md"):
