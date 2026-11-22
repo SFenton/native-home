@@ -6,7 +6,7 @@
 
 - A change to agents, skills, hooks, tools or decision-model questions passes the eval gate (`tools/agent_eval.py`) and an independent review before it merges. Run the gate yourself before pushing.
 - A self-change lane is a branch `agents/<topic>-<date>` cut from the workflow base.
-- Pull-request tier 0 is isolated; only base policy validates untrusted observations.
+- Isolated head tier 0 is base-policy-validated; red blocks; fabrication remains; review controls.
 - The session that wrote a self-change never reviews it and never records its verdict.
 - A headless session pushes only its lanes and lists them in its status file as `lanes`; it never lands one.
 - A lane with a pull request lands as any pull request does ([landing](pr-lifecycle.md#landing)). A lane without one lands through `tools/lane_land.py`, which runs the gate and the tool tests on the passed head, merges that head into the workflow base and pushes the base.

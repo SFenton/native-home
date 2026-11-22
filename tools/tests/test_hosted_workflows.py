@@ -973,6 +973,24 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
             "aggregate:exit-propagation",
         )
 
+    def test_pull_request_aggregate_run_body_is_exact(self):
+        step = named_step(
+            jobs("pr-checks.yml")["pr-checks"], "Aggregate pull request"
+        )
+        marker = "        run: |\n"
+        self.assertIn(marker, step)
+        actual = textwrap.dedent(step.split(marker, 1)[1]).rstrip("\n")
+        expected = (
+            'set -euo pipefail\n'
+            'umask 077\n'
+            'verdict="$(mktemp "$RUNNER_TEMP/policy-verdict.XXXXXX")"\n'
+            'printf \'%s\' "$POLICY_VERDICT" > "$verdict"\n'
+            'python3 -B tools/ci_aggregate.py --policy-aware --policy-result "$verdict" \\\n'
+            '  --expect-base-sha "$BASE_SHA" --expect-head-sha "$HEAD_SHA" \\\n'
+            '  | tee -a "$GITHUB_STEP_SUMMARY"'
+        )
+        self.assertEqual(actual, expected)
+
     def test_mutation_pull_request_aggregate_cannot_continue_on_error(self):
         self.assert_wiring_mutation(
             "pr-checks",
@@ -1021,6 +1039,16 @@ class PullRequestPolicyWiringTests(unittest.TestCase):
             1,
         )
         self.assertIn("isolation:order", self.problems(graph))
+
+    def test_tier0_write_probe_exits_when_an_input_is_writable(self):
+        isolate = named_step(
+            jobs("pr-checks.yml")["tier0-emit"],
+            "Collect tier-0 observations in isolation",
+        )
+        marker = 'for input in "$base" "$head"; do\n'
+        self.assertIn(marker, isolate)
+        probe = isolate.split(marker, 1)[1].split("\n          done", 1)[0]
+        self.assertIn("\n              exit 1\n", probe)
 
     def test_macos_test_consumes_only_the_build_upload_artifact_id(self):
         build = jobs("pr-checks.yml")["macos-build"]
@@ -1076,6 +1104,8 @@ class EmitterInlinePythonTests(unittest.TestCase):
             symlink.symlink_to(symlink_target)
             hardlink = root / "hardlink.json"
             os.link(regular, hardlink)
+            wrong_owner = root / "wrong-owner.json"
+            wrong_owner.write_bytes(b"wrong owner")
             folder = root / "directory"
             folder.mkdir()
             fifo = root / "fifo"
@@ -1098,7 +1128,7 @@ class EmitterInlinePythonTests(unittest.TestCase):
                     self.assertEqual(result.stdout, "")
                     self.assertIn(reason, result.stderr)
 
-            regular_result = self.run_extractor(regular, os.geteuid() + 1)
+            regular_result = self.run_extractor(wrong_owner, os.geteuid() + 1)
             self.assertNotEqual(regular_result.returncode, 0)
             self.assertIn("unexpected owner or link count", regular_result.stderr)
 
@@ -1331,6 +1361,26 @@ class PolicyInlinePythonTests(unittest.TestCase):
             else:
                 self.assertIsNone(extracted, label)
 
+    def test_transport_rejects_two_artifacts_when_total_count_is_one(self):
+        regular = stat.S_IFREG | 0o644
+        payload = b'{"schema":1}'
+        valid = self.archive([("tier0-observations.json", payload, regular)])
+        artifact = {
+            "id": 7,
+            "name": "tier0-observations-11-2",
+            "expired": False,
+            "workflow_run": {"id": 11},
+            "digest": "sha256:" + hashlib.sha256(valid).hexdigest(),
+        }
+        document = {
+            "total_count": 1,
+            "artifacts": [artifact, dict(artifact, id=8)],
+        }
+        result, extracted = self.run_transport(valid, metadata=document)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIsNone(extracted)
+        self.assertIn("unavailable", result.stdout)
+
     def test_corrupt_deflate_is_reported_as_malformed(self):
         regular = stat.S_IFREG | 0o644
         valid = self.archive(
@@ -1359,14 +1409,11 @@ class PolicyInlinePythonTests(unittest.TestCase):
             self.assertIn("unavailable", result.stdout)
 
             source = WORKFLOWS.parents[1]
-            base_sha = subprocess.run(
-                ["git", "-C", str(source), "rev-parse", "origin/main"],
-                text=True, capture_output=True, check=True,
-            ).stdout.strip()
             head_sha = subprocess.run(
                 ["git", "-C", str(source), "rev-parse", "HEAD"],
                 text=True, capture_output=True, check=True,
             ).stdout.strip()
+            base_sha = head_sha
             base = root / "base"
             head = root / "head"
             subprocess.run(
