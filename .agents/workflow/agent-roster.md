@@ -54,7 +54,7 @@ A guard is a tripwire for accident and habit. Answer a refusal by changing the w
 | `rules_guard.py` | [What a rule is](docs-conventions.md#what-a-rule-is), at write time |
 | `triage_session.py`, `triage_deny.py` | A headless session's deny list ([triage-agent](triage-agent.md)) |
 
-`delegate_task` carries only Coder lanes; its prompt names `.claude/agents/coder.md` and the status-block contract (`tools/hooks/delegate_guard.py`).
+`delegate_task` admits Coder lanes with the coder path and status contract, or advisory plan reviews that end with the guard's five-field declaration; the guard reads prompt text only and advisory output is never a review verdict (`tools/hooks/delegate_guard.py`).
 
 A change to a guard hook ships with block and allow rows in `tools/tests/guard_tables/`, and its brief says whether the guard is a tripwire or a wall.
 
