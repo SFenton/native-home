@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import os
+import socket
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -18,6 +21,13 @@ REVIEWED_HEAD = "2" * 40
 MERGE_SHA = "3" * 40
 BASE_SHA = "4" * 40
 OTHER_SHA = "5" * 40
+REVIEW_APP_ID = 5618837
+ACTIONS_APP_ID = 15368
+EXPECTED_PULL_FIELDS = (
+    "number,state,mergedAt,mergeCommit,headRefOid,headRefName,baseRefName,"
+    "isDraft,isCrossRepository,author,reviewDecision,mergeStateStatus,mergeable,"
+    "files,statusCheckRollup,createdAt"
+)
 
 
 def open_pull(**changes):
@@ -107,29 +117,124 @@ def approval(head=HEAD, login="SFenton", state="APPROVED", index=1):
     }
 
 
+def check_runs(pull=None):
+    value = pull or open_pull()
+    app_ids = {
+        "pr-checks": ACTIONS_APP_ID,
+        "ai-review": REVIEW_APP_ID,
+    }
+    rows = []
+    for index, item in enumerate(value["statusCheckRollup"]):
+        name = item.get("name") or item.get("context")
+        rows.append({
+            "id": index + 1,
+            "name": name,
+            "status": str(item.get("status") or "").lower(),
+            "conclusion": str(
+                item.get("conclusion") or item.get("state") or ""
+            ).lower(),
+            "started_at": item.get("startedAt") or item.get("started_at") or "",
+            "completed_at": item.get("completedAt") or item.get("completed_at") or "",
+            "head_sha": value["headRefOid"],
+            "app": {"id": app_ids.get(name)},
+        })
+    return {
+        "check_runs": rows,
+    }
+
+
+def associated_pull(pull=None):
+    value = pull or merged_pull()
+    return {
+        "number": value["number"],
+        "base": {"ref": value["baseRefName"]},
+        "merge_commit_sha": value["mergeCommit"]["oid"] if value["mergeCommit"] else None,
+    }
+
+
+class ForbiddenEnvironment:
+    def __getitem__(self, key):
+        raise AssertionError("environment read at import: {!r}".format(key))
+
+    def __contains__(self, key):
+        raise AssertionError("environment read at import: {!r}".format(key))
+
+    def get(self, key, default=None):
+        raise AssertionError("environment read at import: {!r}".format(key))
+
+    def items(self):
+        raise AssertionError("environment read at import")
+
+
 class FakeReader:
-    def __init__(self, pull=None, reviews=None, commit=None, associated_pulls=None):
+    def __init__(self, pull=None, reviews=None, commit=None, associated_pulls=None,
+                 checks=None, repo=REPO, request_number=None, fail=None, missing=None):
         self.pull = copy.deepcopy(pull or open_pull())
         self.reviews = copy.deepcopy(reviews or [])
         self.commit = copy.deepcopy(commit or web_flow_commit())
-        self.associated_pulls = copy.deepcopy(
-            associated_pulls if associated_pulls is not None else [self.pull]
+        self.checks = copy.deepcopy(
+            checks if checks is not None else check_runs(self.pull)
         )
+        self.associated_pulls = copy.deepcopy(
+            associated_pulls if associated_pulls is not None else [associated_pull(self.pull)]
+        )
+        self.repo = repo
+        self.request_number = request_number or self.pull["number"]
+        self.fail = set(fail or ())
+        self.missing = set(missing or ())
         self.calls = []
 
     def __call__(self, argv):
         args = list(argv)
         self.calls.append(args)
-        if args[:2] == ["pr", "view"]:
-            return copy.deepcopy(self.pull)
-        endpoint = args[1] if len(args) >= 2 else ""
-        if args[-1:] == ["--paginate"] and "/reviews" in endpoint:
-            return copy.deepcopy(self.reviews)
-        if endpoint.endswith("/pulls"):
-            return copy.deepcopy(self.associated_pulls)
-        if "/commits/" in endpoint:
-            return copy.deepcopy(self.commit)
-        raise AssertionError("unexpected reader call: {!r}".format(args))
+        expected = [
+            "pr", "view", str(self.request_number), "-R", self.repo,
+            "--json", EXPECTED_PULL_FIELDS,
+        ]
+        if args == expected:
+            kind = "pull"
+            response = self.pull
+        elif args == [
+            "api",
+            "repos/{}/pulls/{}/reviews".format(self.repo, self.request_number),
+            "--paginate",
+        ]:
+            kind = "reviews"
+            response = self.reviews
+        elif args == [
+            "api",
+            "repos/{}/commits/{}/check-runs".format(
+                self.repo, self.pull["headRefOid"]
+            ),
+            "--paginate",
+        ]:
+            kind = "check_runs"
+            response = self.checks
+        elif args == [
+            "api",
+            "repos/{}/commits/{}".format(
+                self.repo, self.pull["mergeCommit"]["oid"]
+                if self.pull["mergeCommit"] else ""
+            ),
+        ]:
+            kind = "commit"
+            response = self.commit
+        elif args == [
+            "api",
+            "repos/{}/commits/{}/pulls".format(
+                self.repo, self.pull["mergeCommit"]["oid"]
+                if self.pull["mergeCommit"] else ""
+            ),
+        ]:
+            kind = "associated"
+            response = self.associated_pulls
+        else:
+            raise AssertionError("unexpected reader call: {!r}".format(args))
+        if kind in self.fail:
+            raise RuntimeError("injected {} failure".format(kind))
+        if kind in self.missing:
+            return None
+        return copy.deepcopy(response)
 
 
 class PullShapeTests(unittest.TestCase):
@@ -145,10 +250,11 @@ class PullShapeTests(unittest.TestCase):
         branch = "agents/factory-unknown-key"
         invalid = {"branch": branch, "pr": 7, "head": HEAD, "url": "https://example.test"}
         result = bridge.normalize_status({"pulls": [invalid, {"branch": branch}]})
-        self.assertEqual(result["records"], [{"branch": branch}])
+        self.assertEqual(result["records"], [])
         self.assertEqual(result["dispositions"][0]["disposition"], "invalid")
         self.assertEqual(result["dispositions"][0]["reason"], "unknown_object_key")
-        self.assertEqual(result["dispositions"][1]["disposition"], "accepted")
+        self.assertEqual(result["dispositions"][1]["disposition"], "conflict")
+        self.assertEqual(result["dispositions"][1]["reason"], "invalid_conflict")
 
     def test_b1_02_c_rejects_noncanonical_branches(self):
         invalid = [
@@ -157,6 +263,10 @@ class PullShapeTests(unittest.TestCase):
             "agents/x.lock",
             "agents/x/",
             "agents//x",
+            "agents/a//b",
+            "agents/a.",
+            "agents/a/.b",
+            "agents/a.lock/b",
         ]
         result = bridge.normalize_status({"lanes": invalid, "pulls": []})
         self.assertEqual(result["records"], [])
@@ -219,6 +329,21 @@ class PullShapeTests(unittest.TestCase):
             4,
         )
 
+    def test_b1_02_g_duplicates_across_sources_share_one_cap_slot(self):
+        lanes = ["agents/factory-cap-{}".format(index) for index in range(5)]
+        result = bridge.normalize_status({
+            "lanes": lanes,
+            "pulls": [{"branch": lanes[0], "pr": 9}],
+        })
+        self.assertEqual(
+            [record["branch"] for record in result["records"]],
+            lanes,
+        )
+        self.assertFalse(any(
+            item["disposition"] == "surplus"
+            for item in result["dispositions"]
+        ))
+
     def test_b1_02_h_holds_contradictory_hints(self):
         result = bridge.normalize_status({
             "pulls": [
@@ -233,6 +358,20 @@ class PullShapeTests(unittest.TestCase):
         self.assertEqual(len(conflicts), 2)
         self.assertTrue(all(item["reason"] == "conflicting_hints" for item in conflicts))
 
+    def test_b1_02_h_holds_head_only_conflicts(self):
+        branch = "agents/factory-head-conflict"
+        result = bridge.normalize_status({
+            "pulls": [
+                {"branch": branch, "head": HEAD},
+                {"branch": branch, "head": OTHER_SHA},
+            ]
+        })
+        self.assertEqual(result["records"], [])
+        self.assertEqual(
+            [item["disposition"] for item in result["dispositions"]],
+            ["conflict", "conflict"],
+        )
+
     def test_b1_02_i_applies_one_stable_five_lane_cap(self):
         lanes = ["agents/factory-{}".format(index) for index in range(4)]
         pulls = [{"branch": "agents/factory-4"}, {"branch": "agents/factory-5"}]
@@ -246,13 +385,24 @@ class PullShapeTests(unittest.TestCase):
 
 
 class PullPhaseTests(unittest.TestCase):
-    def decoded_open(self, pull=None, reviews=None):
-        return bridge.decode_pull_facts(pull or open_pull(), reviews or [])
+    def decoded_open(self, pull=None, reviews=None, checks=None):
+        value = pull or open_pull()
+        return bridge.decode_pull_facts(
+            value,
+            reviews=reviews or [],
+            check_runs=checks if checks is not None else check_runs(value),
+            repository=REPO,
+        )
+
+    def phase(self, value, **changes):
+        arguments = {"owner_required": False, "owner_login": "SFenton"}
+        arguments.update(changes)
+        return bridge.classify_phase(value, **arguments)
 
     def test_b1_09_closed_unmerged_is_not_merged(self):
         reader = FakeReader(pull=closed_unmerged_pull())
         facts = bridge.read_pull_facts(reader, REPO, 202)
-        phase = bridge.classify_phase(facts, owner_required=False)
+        phase = self.phase(facts)
         self.assertEqual(phase["phase"], "closed_unmerged")
         self.assertEqual(phase["reason"], "closed_without_merge")
         merged = bridge.read_pull_facts(
@@ -265,18 +415,17 @@ class PullPhaseTests(unittest.TestCase):
             199,
         )
         self.assertEqual(
-            bridge.classify_phase(merged, owner_required=False)["phase"],
+            self.phase(merged)["phase"],
             "merged",
         )
 
     def test_b1_13_a_draft_has_its_own_reason(self):
         facts = self.decoded_open(open_pull(isDraft=True, reviewDecision=""))
-        phase = bridge.classify_phase(facts, owner_required=False)
+        phase = self.phase(facts)
         self.assertEqual(phase["phase"], "owner_wait")
         self.assertEqual(phase["reason"], "draft")
-        ready = bridge.classify_phase(
+        ready = self.phase(
             self.decoded_open(open_pull(isDraft=False, reviewDecision="")),
-            owner_required=False,
         )
         self.assertEqual(ready["phase"], "awaiting_merge")
 
@@ -285,13 +434,12 @@ class PullPhaseTests(unittest.TestCase):
             isDraft=True,
             mergeable="CONFLICTING",
         ))
-        phase = bridge.classify_phase(facts, owner_required=True)
+        phase = self.phase(facts, owner_required=True)
         self.assertEqual(phase["phase"], "actionable")
         self.assertEqual(phase["reason"], "merge_conflict")
         self.assertNotEqual(phase["reason"], "draft")
-        draft = bridge.classify_phase(
+        draft = self.phase(
             self.decoded_open(open_pull(isDraft=True, reviewDecision="")),
-            owner_required=False,
         )
         self.assertEqual(draft["reason"], "draft")
 
@@ -311,10 +459,10 @@ class PullPhaseTests(unittest.TestCase):
             },
         ]
         facts = self.decoded_open(open_pull(statusCheckRollup=failed))
-        phase = bridge.classify_phase(facts, owner_required=True)
+        phase = self.phase(facts, owner_required=True)
         self.assertEqual(phase["phase"], "actionable")
         self.assertEqual(phase["reason"], "pr_checks_failed")
-        green = bridge.classify_phase(
+        green = self.phase(
             self.decoded_open(),
             owner_required=True,
             reviews=[approval()],
@@ -329,26 +477,35 @@ class PullPhaseTests(unittest.TestCase):
             ),
             [approval()],
         )
-        phase = bridge.classify_phase(facts, owner_required=True)
+        phase = self.phase(facts, owner_required=True)
         self.assertEqual(phase["phase"], "needs_review")
         self.assertEqual(phase["reason"], "ai_review_missing")
-        green = bridge.classify_phase(
+        green = self.phase(
             self.decoded_open(open_pull(reviewDecision="APPROVED"), [approval()]),
             owner_required=True,
         )
         self.assertEqual(green["phase"], "awaiting_merge")
 
-    def test_b1_13_e_only_latest_exact_owner_approval_counts(self):
-        wrong = [
-            approval(OTHER_SHA, index=1),
-            approval(HEAD, login="someone-else", index=2),
-            approval(HEAD, state="CHANGES_REQUESTED", index=3),
-        ]
-        facts = self.decoded_open(open_pull(reviewDecision="APPROVED"), wrong)
-        phase = bridge.classify_phase(facts, owner_required=True)
+    def assert_owner_wait(self, reviews):
+        facts = self.decoded_open(open_pull(reviewDecision="APPROVED"), reviews)
+        phase = self.phase(facts, owner_required=True)
         self.assertEqual(phase["phase"], "owner_wait")
         self.assertEqual(phase["reason"], "owner_review_required")
-        approved = bridge.classify_phase(
+
+    def test_b1_13_e_rejects_owner_approval_for_another_head(self):
+        self.assert_owner_wait([approval(OTHER_SHA)])
+
+    def test_b1_13_e_rejects_non_owner_approval_for_head(self):
+        self.assert_owner_wait([approval(HEAD, login="someone-else")])
+
+    def test_b1_13_e_rejects_later_owner_changes_request(self):
+        self.assert_owner_wait([
+            approval(HEAD, index=1),
+            approval(HEAD, state="CHANGES_REQUESTED", index=2),
+        ])
+
+    def test_b1_13_e_accepts_latest_owner_approval_for_exact_head(self):
+        approved = self.phase(
             self.decoded_open(open_pull(reviewDecision="APPROVED"), [approval()]),
             owner_required=True,
         )
@@ -358,19 +515,141 @@ class PullPhaseTests(unittest.TestCase):
         incomplete = self.decoded_open(open_pull(
             files=[{"path": "path-{}".format(index)} for index in range(100)]
         ))
-        held = bridge.classify_phase(incomplete, owner_required=False)
+        held = self.phase(incomplete)
         self.assertEqual(held["phase"], "held")
         self.assertEqual(held["reason"], "ownership_unknown")
-        unreadable = bridge.classify_phase(
+        unreadable = self.phase(
             self.decoded_open(),
             owner_required=None,
         )
         self.assertEqual(unreadable["reason"], "ownership_unknown")
-        green = bridge.classify_phase(
+        green = self.phase(
             self.decoded_open(open_pull(files=[{"path": "tools/triage/pr_bridge.py"}])),
-            owner_required=False,
         )
         self.assertEqual(green["phase"], "awaiting_merge")
+
+    def test_check_identity_requires_expected_app_and_exact_head(self):
+        cases = []
+        wrong_app = check_runs()
+        wrong_app["check_runs"][1]["app"]["id"] = ACTIONS_APP_ID
+        cases.append(wrong_app)
+        wrong_head = check_runs()
+        wrong_head["check_runs"][1]["head_sha"] = OTHER_SHA
+        cases.append(wrong_head)
+        for runs in cases:
+            with self.subTest(runs=runs):
+                phase = self.phase(self.decoded_open(checks=runs))
+                self.assertEqual(phase["reason"], "ai_review_missing")
+
+    def test_check_identity_accepts_only_newest_expected_sources(self):
+        runs = check_runs()
+        for run in runs["check_runs"]:
+            if run["name"] == "pr-checks":
+                run["completed_at"] = "2026-11-21T20:10:00Z"
+        runs["check_runs"].append({
+            "id": 3,
+            "name": "pr-checks",
+            "status": "IN_PROGRESS",
+            "conclusion": "",
+            "started_at": "2026-11-21T20:04:00Z",
+            "head_sha": HEAD,
+            "app": {"id": ACTIONS_APP_ID},
+        })
+        phase = self.phase(self.decoded_open(checks=runs))
+        self.assertEqual(phase["phase"], "awaiting_checks")
+        self.assertEqual(phase["reason"], "pr_checks_pending")
+
+    def test_terminal_states_reject_identity_mismatches(self):
+        closed = bridge.decode_pull_facts(
+            closed_unmerged_pull(), repository=REPO
+        )
+        merged = bridge.decode_pull_facts(
+            merged_pull(), repository=REPO
+        )
+        expectations = {
+            "expected_repository": "SFenton/other",
+            "expected_author": "other-agent",
+            "expected_branch": "agents/other-branch",
+            "expected_base": "release",
+            "expected_head": OTHER_SHA,
+        }
+        for value in (closed, merged):
+            for expectation, supplied in expectations.items():
+                with self.subTest(state=value["facts"]["state"], field=expectation):
+                    phase = self.phase(value, **{expectation: supplied})
+                    self.assertEqual(phase["phase"], "held")
+                    self.assertTrue(phase["reason"].endswith("_mismatch"))
+
+    def test_terminal_states_reject_reviewed_head_mismatch(self):
+        for value in (
+            bridge.decode_pull_facts(
+                closed_unmerged_pull(), repository=REPO
+            ),
+            bridge.decode_pull_facts(
+                merged_pull(), repository=REPO
+            ),
+        ):
+            with self.subTest(state=value["facts"]["state"]):
+                phase = self.phase(value, reviewed_head=OTHER_SHA)
+                self.assertEqual(
+                    phase,
+                    {"phase": "held", "reason": "head_mismatch"},
+                )
+
+    def test_validated_fact_envelope_is_required(self):
+        bare = bridge.decode_pull_facts(
+            open_pull(), repository=REPO, check_runs=check_runs()
+        )["facts"]
+        malformed = {
+            "state": "OPEN",
+            "checks": [1],
+        }
+        self.assertEqual(
+            self.phase(bare),
+            {"phase": "held", "reason": "invalid_facts"},
+        )
+        self.assertEqual(
+            self.phase(malformed),
+            {"phase": "held", "reason": "invalid_facts"},
+        )
+
+    def test_reviews_not_supplied_are_incomplete(self):
+        facts = bridge.decode_pull_facts(
+            open_pull(), check_runs=check_runs(), repository=REPO
+        )
+        self.assertFalse(facts["facts"]["reviews_complete"])
+        phase = self.phase(facts, owner_required=True)
+        self.assertEqual(phase["reason"], "owner_review_unreadable")
+
+    def test_reader_failures_are_never_negative_evidence(self):
+        cases = [
+            ("pull", {"pull": open_pull()}, 203),
+            ("reviews", {"pull": open_pull()}, 203),
+            ("check_runs", {"pull": open_pull()}, 203),
+            ("commit", {"pull": merged_pull()}, 199),
+            ("associated", {"pull": merged_pull()}, 199),
+        ]
+        for kind, values, number in cases:
+            with self.subTest(kind=kind):
+                facts = bridge.read_pull_facts(
+                    FakeReader(fail=[kind], **values),
+                    REPO,
+                    number,
+                )
+                phase = self.phase(facts, owner_required=True)
+                self.assertEqual(phase["phase"], "held")
+                self.assertFalse(facts["ok"])
+
+    def test_wrong_pull_number_answer_is_held(self):
+        reader = FakeReader(pull=merged_pull(number=199), request_number=200)
+        facts = bridge.read_pull_facts(reader, REPO, 200)
+        self.assertEqual(
+            facts["dispositions"],
+            [{"disposition": "held", "reason": "wrong_pull_request"}],
+        )
+        self.assertEqual(reader.calls, [[
+            "pr", "view", "200", "-R", REPO, "--json", EXPECTED_PULL_FIELDS,
+        ]])
 
 
 class AccountingTests(unittest.TestCase):
@@ -393,6 +672,9 @@ class AccountingTests(unittest.TestCase):
             "repo": REPO,
             "expected_pr": 199,
             "expected_base": "main",
+            "expected_author": "sfenton-agent",
+            "expected_branch": "agents/factory-squash",
+            "expected_head": HEAD,
             "reviewed_head": REVIEWED_HEAD,
         }
         arguments.update(changes)
@@ -400,7 +682,8 @@ class AccountingTests(unittest.TestCase):
 
     def test_b1_14_a_accounts_only_an_actual_server_merge(self):
         open_record = self.record(
-            bridge.read_pull_facts(FakeReader(pull=open_pull(number=199)), REPO, 199)
+            bridge.read_pull_facts(FakeReader(pull=open_pull(number=199)), REPO, 199),
+            expected_branch="agents/factory-owner-held",
         )
         self.assertEqual(open_record["disposition"], "held")
         self.assertEqual(open_record["reason"], "not_merged")
@@ -408,20 +691,36 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(merged_record["disposition"], "accounted")
         self.assertEqual(merged_record["key"], (REPO, 199, MERGE_SHA))
 
-    def test_b1_14_b_matches_exact_pr_and_base(self):
-        facts = self.decoded_merged()
+    def test_b1_14_b_rejects_wrong_expected_pull_number(self):
+        facts = self.decoded_merged(associated_pulls=[
+            associated_pull(merged_pull(number=200)),
+        ])
         wrong_pr = self.record(facts, expected_pr=200)
         self.assertEqual(wrong_pr["disposition"], "held")
         self.assertEqual(wrong_pr["reason"], "wrong_pull_request")
-        wrong_base = self.record(facts, expected_base="release")
+
+    def test_b1_14_b_rejects_wrong_base(self):
+        wrong_base = self.record(
+            self.decoded_merged(),
+            expected_base="release",
+        )
         self.assertEqual(wrong_base["disposition"], "held")
         self.assertEqual(wrong_base["reason"], "wrong_base")
+
+    def test_b1_14_b_rejects_wrong_pull_association(self):
         wrong_association = self.record(
-            self.decoded_merged(associated_pulls=[merged_pull(number=200)])
+            self.decoded_merged(
+                associated_pulls=[associated_pull(merged_pull(number=200))],
+            )
         )
         self.assertEqual(wrong_association["disposition"], "held")
-        self.assertEqual(wrong_association["reason"], "wrong_pull_request")
-        self.assertEqual(self.record(facts)["disposition"], "accounted")
+        self.assertEqual(wrong_association["reason"], "pull_association_mismatch")
+
+    def test_b1_14_b_accepts_exact_pr_base_and_association(self):
+        self.assertEqual(
+            self.record(self.decoded_merged())["disposition"],
+            "accounted",
+        )
 
     def test_b1_14_c_keeps_reviewed_and_merge_heads_independent(self):
         record = self.record(self.decoded_merged())
@@ -448,9 +747,18 @@ class AccountingTests(unittest.TestCase):
         self.assertEqual(held["reason"], "committer_not_github")
         self.assertEqual(self.record(self.decoded_merged())["disposition"], "accounted")
 
-    def test_b1_14_g_requires_valid_signature_verification(self):
+    def test_b1_14_g_rejects_verified_false(self):
+        unverified = web_flow_commit(commit={
+            "verification": {"verified": False, "reason": "valid"},
+            "message": "Ship the bridge (#199)",
+        })
+        held = self.record(self.decoded_merged(commit=unverified))
+        self.assertEqual(held["disposition"], "held")
+        self.assertEqual(held["reason"], "signature_unverified")
+
+    def test_b1_14_g_rejects_unsigned_reason(self):
         unsigned = web_flow_commit(commit={
-            "verification": {"verified": False, "reason": "unsigned"},
+            "verification": {"verified": True, "reason": "unsigned"},
             "message": "Ship the bridge (#199)",
         })
         held = self.record(self.decoded_merged(commit=unsigned))
@@ -461,6 +769,40 @@ class AccountingTests(unittest.TestCase):
             self.record(self.decoded_merged(commit=valid))["disposition"],
             "accounted",
         )
+
+    def test_identity_is_bound_in_accounting(self):
+        cases = [
+            ("repo", "SFenton/other", "wrong_repository"),
+            ("expected_author", "other-agent", "wrong_author"),
+            (
+                "expected_branch",
+                "agents/other-branch",
+                "wrong_branch",
+            ),
+            ("expected_head", OTHER_SHA, "wrong_head"),
+        ]
+        facts = self.decoded_merged()
+        for field, supplied, reason in cases:
+            with self.subTest(field=field):
+                held = self.record(facts, **{field: supplied})
+                self.assertEqual(held["disposition"], "held")
+                self.assertEqual(held["reason"], reason)
+
+    def test_cross_repository_is_never_accounted(self):
+        held = self.record(self.decoded_merged(
+            pull=merged_pull(isCrossRepository=True),
+        ))
+        self.assertEqual(held["disposition"], "held")
+        self.assertEqual(held["reason"], "cross_repository")
+
+    def test_accounting_requires_validated_fact_envelope(self):
+        bare = self.decoded_merged()["facts"]
+        malformed = {"state": "MERGED"}
+        for value in (bare, malformed):
+            with self.subTest(value=value):
+                held = self.record(value)
+                self.assertEqual(held["disposition"], "held")
+                self.assertEqual(held["reason"], "invalid_facts")
 
 
 class RevertChoiceTests(unittest.TestCase):
@@ -488,6 +830,11 @@ class RevertChoiceTests(unittest.TestCase):
                 self.assertEqual(choice["reason"], "unexpected_parent_count")
         self.assertEqual(bridge.revert_choice(2, kind="merge")["disposition"], "ready")
 
+    def test_b1_18_revert_of_revert_is_manual(self):
+        choice = bridge.revert_choice(1, kind="revert")
+        self.assertEqual(choice["disposition"], "held")
+        self.assertEqual(choice["reason"], "manual_revert_of_revert")
+
 
 class CompatibilityTests(unittest.TestCase):
     def test_b1_32_import_is_inert_and_compatible(self):
@@ -495,7 +842,14 @@ class CompatibilityTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("pr_bridge_inert", module_path)
         module = importlib.util.module_from_spec(spec)
         assert spec.loader is not None
+        forbidden_environment = ForbiddenEnvironment()
         with mock.patch("subprocess.run", side_effect=AssertionError("subprocess at import")), \
+                mock.patch.object(subprocess, "Popen", side_effect=AssertionError("process at import")), \
+                mock.patch("os.system", side_effect=AssertionError("system at import")), \
+                mock.patch("builtins.open", side_effect=AssertionError("file open at import")), \
+                mock.patch.object(socket, "socket", side_effect=AssertionError("socket at import")), \
+                mock.patch.object(os, "getenv", side_effect=AssertionError("environment at import")), \
+                mock.patch.object(os, "environ", forbidden_environment), \
                 mock.patch("urllib.request.urlopen", side_effect=AssertionError("network at import")):
             spec.loader.exec_module(module)
         self.assertTrue(callable(module.normalize_status))

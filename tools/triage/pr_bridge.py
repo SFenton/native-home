@@ -6,12 +6,12 @@ the injected reader and then decide whether a result is usable.
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 LANE_LIMIT = 5
 PULL_FILES_CAP = 100
-OWNER_LOGIN = "SFenton"
-PR_REPOSITORY = "SFenton/native-home"
+REVIEW_APP_ID = 5618837
+ACTIONS_APP_ID = 15368
 PULL_FIELDS = (
     "number,state,mergedAt,mergeCommit,headRefOid,headRefName,baseRefName,"
     "isDraft,isCrossRepository,author,reviewDecision,mergeStateStatus,mergeable,"
@@ -28,13 +28,20 @@ _PENDING_CHECKS = frozenset(
 )
 
 
+class _DecodedPullFacts(dict):
+    """Envelope constructed only after this module has validated a pull answer."""
+
+
 def canonical_lane(value: object) -> bool:
     """Whether ``value`` is accepted by the lander's lane checks and is canonical."""
     if not isinstance(value, str) or _LANE_RE.fullmatch(value) is None:
         return False
     if ".." in value or "//" in value or value.endswith(("/", ".lock", ".")):
         return False
-    if any(component.startswith(".") for component in value.split("/")[1:]):
+    if any(
+        component.startswith(".") or component.endswith(".lock")
+        for component in value.split("/")[1:]
+    ):
         return False
     return True
 
@@ -82,11 +89,14 @@ def normalize_status(status: object) -> Dict[str, Any]:
 
     valid_items: List[Dict[str, Any]] = []
     decisions: Dict[int, Optional[Dict[str, Any]]] = {}
+    invalid_branches = set()
     sequence = 0
 
     def invalid(source: str, index: int, reason: str, branch: Optional[str] = None) -> None:
         nonlocal sequence
         decisions[sequence] = _item_disposition(source, index, "invalid", reason, branch)
+        if branch is not None:
+            invalid_branches.add(branch)
         sequence += 1
 
     for source in ("lanes", "pulls"):
@@ -157,11 +167,16 @@ def normalize_status(status: object) -> Dict[str, Any]:
         entries = groups[branch]
         prs = {entry["record"]["pr"] for entry in entries if "pr" in entry["record"]}
         heads = {entry["record"]["head"] for entry in entries if "head" in entry["record"]}
-        conflict = len(prs) > 1 or len(heads) > 1
+        has_invalid_item = branch in invalid_branches
+        conflict = has_invalid_item or len(prs) > 1 or len(heads) > 1
         if conflict:
             for entry in entries:
                 disposition = _item_disposition(
-                    entry["source"], entry["index"], "conflict", "conflicting_hints", branch
+                    entry["source"],
+                    entry["index"],
+                    "conflict",
+                    "invalid_conflict" if has_invalid_item else "conflicting_hints",
+                    branch,
                 )
                 _set_decision(decisions, entry["sequence"], disposition)
             continue
@@ -203,23 +218,6 @@ def _set_decision(decisions: Dict[int, Optional[Dict[str, Any]]],
         decisions[sequence] = disposition
 
 
-def normalise_status(status: object) -> Dict[str, Any]:
-    """British spelling for :func:`normalize_status`."""
-    return normalize_status(status)
-
-
-def normalize_lane_records(status: object) -> Dict[str, Any]:
-    """Compatibility name for normalizing a status inventory."""
-    return normalize_status(status)
-
-
-def normalize_lanes(lanes: object, pulls: object = None) -> Dict[str, Any]:
-    """Normalize an explicit ``lanes``/``pulls`` pair, or one complete status mapping."""
-    if pulls is None and isinstance(lanes, dict):
-        return normalize_status(lanes)
-    return normalize_status({"lanes": lanes, "pulls": [] if pulls is None else pulls})
-
-
 def _held_facts(reason: str) -> Dict[str, Any]:
     return {
         "ok": False,
@@ -245,15 +243,39 @@ def _decode_check(entry: object) -> Optional[Dict[str, Any]]:
         return None
     return {
         "name": name,
-        "state": str(state or ""),
-        "status": str(status or ""),
-        "conclusion": str(conclusion or ""),
+        "state": str(state or "").upper(),
+        "status": str(status or "").upper(),
+        "conclusion": str(conclusion or "").upper(),
         "started_at": entry.get("startedAt") or entry.get("started_at") or "",
         "completed_at": entry.get("completedAt") or entry.get("completed_at") or "",
         "head_sha": entry.get("head_sha") or entry.get("headSha") or "",
+        "id": entry.get("id"),
+        "index": entry.get("index"),
         "app_id": ((entry.get("app") or {}).get("id")
                    if isinstance(entry.get("app"), dict) else entry.get("app_id")),
     }
+
+
+def _decode_check_runs(value: object) -> Tuple[List[Dict[str, Any]], bool]:
+    if not isinstance(value, dict):
+        return [], False
+    rows = value.get("check_runs")
+    if not isinstance(rows, list):
+        return [], False
+    decoded: List[Dict[str, Any]] = []
+    complete = True
+    for index, row in enumerate(rows):
+        candidate = dict(row) if isinstance(row, dict) else None
+        if candidate is None:
+            complete = False
+            continue
+        candidate["index"] = index
+        check = _decode_check(candidate)
+        if check is None:
+            complete = False
+            continue
+        decoded.append(check)
+    return decoded, complete
 
 
 def _decode_reviews(reviews: object) -> Tuple[List[Dict[str, Any]], bool]:
@@ -350,10 +372,19 @@ def _decode_associated_pulls(rows: object) -> Tuple[List[Dict[str, Any]], bool]:
 
 
 def decode_pull_facts(pull: object, reviews: object = None, commit: object = None,
-                      associated_pulls: object = None) -> Dict[str, Any]:
-    """Validate a pull-request answer and return its normalized facts or a held disposition."""
+                      associated_pulls: object = None, check_runs: object = None,
+                      repository: Optional[str] = None) -> Dict[str, Any]:
+    """Validate a pull answer into a private envelope used by the pure classifiers.
+
+    A decoded envelope validates the supplied bytes only. It does not prove session ownership, review authority or that the
+    caller may act on the pull request.
+    """
     if not isinstance(pull, dict):
         return _held_facts("malformed_pull")
+    if repository is not None and (
+        not isinstance(repository, str) or _REPO_RE.fullmatch(repository) is None
+    ):
+        return _held_facts("invalid_repository")
     number = pull.get("number")
     if type(number) is not int or number <= 0:
         return _held_facts("invalid_pull_number")
@@ -390,12 +421,16 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
     checks_raw = pull.get("statusCheckRollup")
     if not isinstance(checks_raw, list):
         return _held_facts("invalid_check_rollup")
-    checks = []
-    for item in checks_raw:
-        decoded = _decode_check(item)
-        if decoded is None:
-            return _held_facts("invalid_check_rollup")
-        checks.append(decoded)
+    checks_complete = False
+    if check_runs is None:
+        checks = []
+        for item in checks_raw:
+            decoded = _decode_check(item)
+            if decoded is None:
+                return _held_facts("invalid_check_rollup")
+            checks.append(decoded)
+    else:
+        checks, checks_complete = _decode_check_runs(check_runs)
     merged_at = pull.get("mergedAt")
     if merged_at is not None and not isinstance(merged_at, str):
         return _held_facts("invalid_merged_at")
@@ -410,17 +445,22 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
     if state == "CLOSED" and (merged_at is not None or merge_sha is not None):
         return _held_facts("inconsistent_closed_pull")
 
-    decoded_reviews, reviews_complete = _decode_reviews([] if reviews is None else reviews)
+    if reviews is None:
+        decoded_reviews, reviews_complete = [], False
+    else:
+        decoded_reviews, reviews_complete = _decode_reviews(reviews)
     decoded_commit: Optional[Dict[str, Any]] = None
-    commit_complete = True
+    commit_complete = False
     if commit is not None:
         decoded_commit, commit_complete = _decode_commit(commit)
-    associated, associated_complete = _decode_associated_pulls(
-        [] if associated_pulls is None else associated_pulls
-    )
-    return {
+    if associated_pulls is None:
+        associated, associated_complete = [], False
+    else:
+        associated, associated_complete = _decode_associated_pulls(associated_pulls)
+    return _DecodedPullFacts({
         "ok": True,
         "facts": {
+            "repository": repository,
             "number": number,
             "state": state,
             "merged_at": merged_at,
@@ -437,6 +477,7 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
             "files": paths,
             "files_complete": len(paths) < PULL_FILES_CAP,
             "checks": checks,
+            "checks_complete": checks_complete,
             "reviews": decoded_reviews,
             "reviews_complete": reviews_complete,
             "commit": decoded_commit,
@@ -445,7 +486,7 @@ def decode_pull_facts(pull: object, reviews: object = None, commit: object = Non
             "associated_pulls_complete": associated_complete,
         },
         "dispositions": [],
-    }
+    })
 
 
 def read_pull_facts(reader: Any, repo: str, number: int) -> Dict[str, Any]:
@@ -464,15 +505,16 @@ def read_pull_facts(reader: Any, repo: str, number: int) -> Dict[str, Any]:
         ])
     except Exception:  # noqa: BLE001 - the injected host seam is an explicit fail-closed boundary
         return _held_facts("pull_read_failed")
-    preliminary = decode_pull_facts(pull)
+    preliminary = decode_pull_facts(pull, repository=repo)
     if not preliminary["ok"]:
         return preliminary
     facts = preliminary["facts"]
     if facts["number"] != number:
         return _held_facts("wrong_pull_request")
-    reviews = []
+    reviews = None
     commit = None
-    associated = []
+    associated = None
+    check_runs = None
     try:
         if facts["state"] == "OPEN":
             reviews = reader([
@@ -480,42 +522,57 @@ def read_pull_facts(reader: Any, repo: str, number: int) -> Dict[str, Any]:
                 f"repos/{repo}/pulls/{number}/reviews",
                 "--paginate",
             ])
+            check_runs = reader([
+                "api",
+                f"repos/{repo}/commits/{facts['head']}/check-runs",
+                "--paginate",
+            ])
         elif facts["state"] == "MERGED":
             commit = reader(["api", f"repos/{repo}/commits/{facts['merge_sha']}"])
             associated = reader(["api", f"repos/{repo}/commits/{facts['merge_sha']}/pulls"])
     except Exception:  # noqa: BLE001 - a missing supplemental fact cannot establish a result
         return _held_facts("supplemental_read_failed")
-    return decode_pull_facts(pull, reviews, commit, associated)
+    return decode_pull_facts(
+        pull,
+        reviews,
+        commit,
+        associated,
+        check_runs,
+        repository=repo,
+    )
 
 
 def _as_facts(value: object) -> Optional[Dict[str, Any]]:
-    if not isinstance(value, dict):
+    if type(value) is not _DecodedPullFacts or value.get("ok") is not True:
         return None
-    if "ok" in value:
-        return value.get("facts") if value.get("ok") is True else None
-    if "headRefOid" in value:
-        decoded = decode_pull_facts(value)
-        return decoded.get("facts") if decoded.get("ok") else None
-    return value
+    facts = value.get("facts")
+    return facts if type(facts) is dict else None
 
 
-def _check_result(facts: Mapping[str, Any], name: str) -> str:
+def _check_result(facts: Mapping[str, Any], name: str, app_id: int) -> str:
+    if facts.get("checks_complete") is not True:
+        return "unverified"
     found = [
         (index, check) for index, check in enumerate(facts.get("checks") or [])
         if check.get("name") == name
+        and check.get("app_id") == app_id
+        and check.get("head_sha") == facts.get("head")
     ]
     if not found:
         return "missing"
+    for _index, check in found:
+        result = str(check.get("conclusion") or check.get("state") or "").upper()
+        if check.get("status") not in ("", "COMPLETED") or result in _PENDING_CHECKS:
+            return "pending"
     _index, newest = max(
         found,
         key=lambda pair: (
-            str(pair[1].get("completed_at") or pair[1].get("started_at") or ""),
+            str(pair[1].get("started_at") or ""),
+            str(pair[1].get("id") or ""),
             pair[0],
         ),
     )
     result = str(newest.get("conclusion") or newest.get("state") or "").upper()
-    if newest.get("status") not in ("", "COMPLETED") or result in _PENDING_CHECKS:
-        return "pending"
     return "success" if result in _GOOD_CHECKS else "failure"
 
 
@@ -546,10 +603,19 @@ def _owner_approved(facts: Mapping[str, Any], owner_login: str) -> bool:
 
 
 def classify_phase(value: object, *, owner_required: Optional[bool] = None,
-                   owner_login: str = OWNER_LOGIN, reviewed_head: Optional[str] = None,
-                   expected_branch: Optional[str] = None, expected_base: Optional[str] = None,
+                   owner_login: Optional[str] = None,
+                   reviewed_head: Optional[str] = None,
+                   expected_repository: Optional[str] = None,
+                   expected_author: Optional[str] = None,
+                   expected_branch: Optional[str] = None,
+                   expected_base: Optional[str] = None,
+                   expected_head: Optional[str] = None,
                    reviews: object = None) -> Dict[str, str]:
-    """Classify a validated pull request without acting on it."""
+    """Classify a decoded envelope; the result grants no authority to mutate a pull.
+
+    Identity expectations are checked in every state before any terminal classification. Review records must be supplied by
+    the caller from a trusted read; a same-named GitHub check from an unrelated integration is not evidence.
+    """
     facts = _as_facts(value)
     if facts is None:
         return {"phase": "held", "reason": "invalid_facts"}
@@ -558,29 +624,47 @@ def classify_phase(value: object, *, owner_required: Optional[bool] = None,
         facts = dict(facts)
         facts["reviews"] = decoded_reviews
         facts["reviews_complete"] = complete
+    if facts.get("cross_repository") is True:
+        return {"phase": "held", "reason": "cross_repository"}
+    if expected_repository is not None and (
+        not isinstance(expected_repository, str)
+        or str(facts.get("repository") or "").lower() != expected_repository.lower()
+    ):
+        return {"phase": "held", "reason": "repository_mismatch"}
+    if expected_author is not None and (
+        not isinstance(expected_author, str)
+        or str(facts.get("author") or "").lower() != expected_author.lower()
+    ):
+        return {"phase": "held", "reason": "author_mismatch"}
+    if expected_branch is not None and facts.get("branch") != expected_branch:
+        return {"phase": "held", "reason": "branch_mismatch"}
+    if expected_base is not None and facts.get("base") != expected_base:
+        return {"phase": "held", "reason": "base_mismatch"}
+    if expected_head is not None and facts.get("head") != expected_head:
+        return {"phase": "held", "reason": "head_mismatch"}
     state = facts.get("state")
     if state == "MERGED":
+        if reviewed_head is not None and facts.get("head") != reviewed_head:
+            return {"phase": "held", "reason": "head_mismatch"}
         return {"phase": "merged", "reason": "server_merge"}
     if state == "CLOSED":
+        if reviewed_head is not None and facts.get("head") != reviewed_head:
+            return {"phase": "held", "reason": "head_mismatch"}
         if facts.get("merged_at") is None and facts.get("merge_sha") is None:
             return {"phase": "closed_unmerged", "reason": "closed_without_merge"}
         return {"phase": "held", "reason": "inconsistent_closed_pull"}
     if state != "OPEN":
         return {"phase": "held", "reason": "invalid_pull_state"}
-    if facts.get("cross_repository") is True:
-        return {"phase": "held", "reason": "cross_repository"}
-    if expected_branch is not None and facts.get("branch") != expected_branch:
-        return {"phase": "held", "reason": "branch_mismatch"}
-    if expected_base is not None and facts.get("base") != expected_base:
-        return {"phase": "held", "reason": "base_mismatch"}
     if reviewed_head is not None and (
         not _valid_sha(reviewed_head) or facts.get("head") != reviewed_head
     ):
         return {"phase": "needs_review", "reason": "head_moved"}
     if facts.get("mergeable") == "CONFLICTING":
         return {"phase": "actionable", "reason": "merge_conflict"}
-    pr_checks = _check_result(facts, "pr-checks")
-    ai_review = _check_result(facts, "ai-review")
+    pr_checks = _check_result(facts, "pr-checks", ACTIONS_APP_ID)
+    ai_review = _check_result(facts, "ai-review", REVIEW_APP_ID)
+    if pr_checks == "unverified" or ai_review == "unverified":
+        return {"phase": "held", "reason": "checks_unverified"}
     if pr_checks == "failure":
         return {"phase": "actionable", "reason": "pr_checks_failed"}
     if ai_review == "failure":
@@ -600,6 +684,8 @@ def classify_phase(value: object, *, owner_required: Optional[bool] = None,
     if owner_required:
         if facts.get("reviews_complete") is not True:
             return {"phase": "owner_wait", "reason": "owner_review_unreadable"}
+        if not isinstance(owner_login, str) or not owner_login:
+            return {"phase": "held", "reason": "ownership_unknown"}
         if not _owner_approved(facts, owner_login):
             return {"phase": "owner_wait", "reason": "owner_review_required"}
     if facts.get("draft") is True:
@@ -608,8 +694,10 @@ def classify_phase(value: object, *, owner_required: Optional[bool] = None,
 
 
 def build_accounting_record(value: object, *, repo: str, expected_pr: int,
-                            expected_base: str, reviewed_head: Optional[str] = None) -> Dict[str, Any]:
-    """Build an explicit accounting disposition for a verified GitHub squash."""
+                            expected_base: str, expected_author: str,
+                            expected_branch: str, expected_head: str,
+                            reviewed_head: Optional[str] = None) -> Dict[str, Any]:
+    """Verify a GitHub squash for accounting; this does not establish session ownership or review completeness."""
     facts = _as_facts(value)
 
     def held(reason: str) -> Dict[str, Any]:
@@ -617,14 +705,26 @@ def build_accounting_record(value: object, *, repo: str, expected_pr: int,
 
     if facts is None:
         return held("invalid_facts")
+    if not isinstance(repo, str) or _REPO_RE.fullmatch(repo) is None:
+        return held("invalid_repository")
+    if str(facts.get("repository") or "").lower() != repo.lower():
+        return held("wrong_repository")
+    if facts.get("cross_repository") is True:
+        return held("cross_repository")
+    if not isinstance(expected_author, str) or not expected_author:
+        return held("invalid_author")
+    if str(facts.get("author") or "").lower() != expected_author.lower():
+        return held("wrong_author")
+    if not canonical_lane(expected_branch) or facts.get("branch") != expected_branch:
+        return held("wrong_branch")
+    if not _valid_sha(expected_head) or facts.get("head") != expected_head:
+        return held("wrong_head")
     if facts.get("state") != "MERGED" or facts.get("merged_at") is None:
         return held("not_merged")
     if type(expected_pr) is not int or expected_pr <= 0 or facts.get("number") != expected_pr:
         return held("wrong_pull_request")
     if not _canonical_base(expected_base) or facts.get("base") != expected_base:
         return held("wrong_base")
-    if not isinstance(repo, str) or _REPO_RE.fullmatch(repo) is None:
-        return held("invalid_repository")
     merge_sha = facts.get("merge_sha")
     if not _valid_sha(merge_sha):
         return held("merge_sha_missing")
@@ -645,14 +745,18 @@ def build_accounting_record(value: object, *, repo: str, expected_pr: int,
     verification = commit.get("verification") or {}
     if verification.get("verified") is not True or verification.get("reason") != "valid":
         return held("signature_unverified")
+    if facts.get("associated_pulls_complete") is not True:
+        return held("pull_association_unreadable")
     associated = facts.get("associated_pulls") or []
-    if associated and not any(
+    if not associated:
+        return held("pull_association_missing")
+    if not any(
         item.get("number") == expected_pr
         and item.get("base") == expected_base
         and item.get("merge_sha") == merge_sha
         for item in associated
     ):
-        return held("wrong_pull_request")
+        return held("pull_association_mismatch")
     key = (repo, expected_pr, merge_sha)
     record = {
         "repo": repo,
@@ -673,6 +777,7 @@ def build_accounting_record(value: object, *, repo: str, expected_pr: int,
 
 
 def accounting_key(value: object, *, repo: str, expected_pr: int, expected_base: str,
+                   expected_author: str, expected_branch: str, expected_head: str,
                    reviewed_head: Optional[str] = None) -> Optional[Tuple[str, int, str]]:
     """Return the verified accounting key, or ``None`` while its disposition is held."""
     result = build_accounting_record(
@@ -680,13 +785,23 @@ def accounting_key(value: object, *, repo: str, expected_pr: int, expected_base:
         repo=repo,
         expected_pr=expected_pr,
         expected_base=expected_base,
+        expected_author=expected_author,
+        expected_branch=expected_branch,
+        expected_head=expected_head,
         reviewed_head=reviewed_head,
     )
     return result["key"]
 
 
 def revert_choice(parent_count: object, kind: Optional[str] = None) -> Dict[str, Any]:
-    """Choose plain or mainline revert syntax from a verified commit's parent count."""
+    """Choose revert syntax from a verified parent count, never authorizing a revert."""
+    if kind == "revert":
+        return {
+            "disposition": "held",
+            "reason": "manual_revert_of_revert",
+            "arguments": None,
+            "mainline": None,
+        }
     if type(parent_count) is not int or parent_count not in (1, 2):
         return {
             "disposition": "held",
