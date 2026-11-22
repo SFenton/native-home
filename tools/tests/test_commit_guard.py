@@ -1,11 +1,15 @@
 """``tools/hooks/commit_guard.py``: a commit with staged ``build/`` paths and ``git add -f`` of a ``build/`` path are refused."""
 
+import contextlib
+import io
+import json
 import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest import mock
 
 TOOLS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(TOOLS / "hooks"))
@@ -13,6 +17,10 @@ import commit_guard  # noqa: E402
 
 ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t",
        "GIT_COMMITTER_EMAIL": "t@t", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null"}
+DIAGNOSTIC = "python3 tools/lane_check.py check --only hooks --no-repair"
+HOOKS_ADVICE = ("Do not query or change the hooks key directly. Run `"
+                + DIAGNOSTIC
+                + "`. If it fails, stop and report the command and refusal; the owner handles repair.")
 
 
 def git(cwd, *args):
@@ -35,6 +43,12 @@ class BuildGuardTests(unittest.TestCase):
 
     def reason(self, command, cwd=None):
         return commit_guard.command_reason(command, cwd or self.repo)
+
+    def check_main(self, command):
+        payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": self.repo})
+        err = io.StringIO()
+        with mock.patch.object(sys, "stdin", io.StringIO(payload)), contextlib.redirect_stderr(err):
+            return commit_guard.main([]), err.getvalue()
 
     def test_force_add_of_a_build_path_is_refused(self):
         for command in ("git add -f build/x.md", "git add --force build/evidence/x.md", "git add -fA build/", "git add --forc build/evidence",
@@ -120,6 +134,33 @@ class BuildGuardTests(unittest.TestCase):
 
     def test_the_reason_is_sent_back_through_block(self):
         self.assertIn("build/ evidence stays local", commit_guard.block(commit_guard.BUILD_WHY))
+
+    def test_hooks_key_reads_pass_and_writes_get_the_non_repairing_advice(self):
+        for command in ("git config core.hooksPath", "git config --get core.hooksPath",
+                        "git config --local --get core.hooksPath"):
+            with self.subTest(command=command):
+                code, err = self.check_main(command)
+                self.assertEqual(code, 0, err)
+        code, err = self.check_main("git config core.hooksPath /x")
+        self.assertEqual(code, 2)
+        self.assertIn(HOOKS_ADVICE, err)
+        self.assertNotIn("Run tools/setup.sh", err)
+
+    def test_the_prescribed_hooks_diagnostic_is_allowed(self):
+        code, err = self.check_main(DIAGNOSTIC)
+        self.assertEqual(code, 0, err)
+
+    def test_refusals_require_code_owner_approval_not_owner_only_wording(self):
+        code, err = self.check_main("git commit --no-verify -m no")
+        self.assertEqual(code, 2)
+        self.assertIn("code-owner approval", err)
+        self.assertNotIn("owner-only", err)
+
+    def test_dash_c_override_push_gets_the_non_repairing_advice(self):
+        code, err = self.check_main("git -c core.hooksPath=/x push origin HEAD")
+        self.assertEqual(code, 2)
+        self.assertIn(HOOKS_ADVICE, err)
+        self.assertNotIn("Run tools/setup.sh", err)
 
 
 if __name__ == "__main__":

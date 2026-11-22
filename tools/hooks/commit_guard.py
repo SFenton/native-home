@@ -50,12 +50,18 @@ SHELL_C = re.compile(r"^-[A-Za-z]*c[A-Za-z]*$")
 #: The gitignored local workspace: nothing under it is committed or force-added.
 BUILD_DIR = "build"
 BUILD_WHY = "build/ evidence stays local (.agents/workflow/security.md#house-data: build/ is the gitignored workspace, never committed or force-added)"
+HOOKS_ADVICE = ("Do not query or change the hooks key directly. Run "
+                "`python3 tools/lane_check.py check --only hooks --no-repair`. If it fails, stop and report the command and refusal; "
+                "the owner handles repair.")
 
 
 def block(why: str) -> str:
     """The message sent back for a refusal."""
+    if "core.hooksPath" in why:
+        return (f"Blocked: {why}. {HOOKS_ADVICE} Changes to these checks require code-owner approval "
+                "(tools/hooks/commit_guard.py).")
     return (f"Blocked: {why}. Commit and push on a lane branch (tools/lane_new.sh), keep env files, keys and provisioning "
-            "profiles out of the index, and let the hooks run. These checks are owner-only (tools/ship_guard.sh, "
+            "profiles out of the index, and let the hooks run. Changes to these checks require code-owner approval (tools/ship_guard.sh, "
             "tools/hooks/commit_guard.py); tools/ship.sh applies the same ones.")
 
 
@@ -295,7 +301,7 @@ def command_reason(command: str, cwd: str, depth: int = 0) -> Optional[str]:
     return None
 
 
-def main() -> int:
+def main(_argv=None) -> int:
     """Read the hook payload from stdin; exit 2 with the message to block."""
     try:
         payload = json.load(sys.stdin)

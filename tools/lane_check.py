@@ -6,7 +6,7 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope|ci]... [--ack-scope REASON]   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope|ci]... [--no-repair] [--ack-scope REASON]   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
 ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
@@ -36,7 +36,8 @@ Hooks-path environment: ``core.hooksPath`` lives in the repository's shared conf
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
 whose ``pre-push`` runs that checkout's ``tools/`` scripts (a stale primary checkout skips the review step). ``check`` refuses any other value
 after one repair: it runs ``tools/setup.sh`` once, re-checks, prints one line naming the old value, and appends the time, old value and
-checkout to ``<git common dir>/hooks-path-flips`` so the writing checkout can be found. Moving the setting to per-worktree config is owner-only.
+checkout to ``<git common dir>/hooks-path-flips`` so the writing checkout can be found. With ``--no-repair``, it reports the refusal
+without repairing. Moving the setting to per-worktree config is owner-only.
 
 Standard library only. Exit codes: 0 ok, 1 a check failed or overlap found, 2 usage or git/gh error.
 """
@@ -192,7 +193,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     return 1
 
 
-def check_hooks() -> Optional[str]:
+def check_hooks(no_repair: bool = False) -> Optional[str]:
     """None only when ``core.hooksPath`` resolves to this worktree's own ``<toplevel>/.githooks``, else the reason.
 
     The relative ``.githooks`` that ``tools/setup.sh`` writes does this per worktree. Another checkout's hooks folder is refused
@@ -201,13 +202,15 @@ def check_hooks() -> Optional[str]:
     """
     top = toplevel()
     raw = git("config", "core.hooksPath", check=False)
+    refusal = (" Stop and report this command and refusal; the owner handles repair."
+               if no_repair else f" Run tools/setup.sh from this worktree ({top}).")
     if not raw:
-        return f"core.hooksPath is not set, so git's pre-push hook would not run. Run tools/setup.sh from this worktree ({top})."
+        return f"core.hooksPath is not set, so git's pre-push hook would not run.{refusal}"
     resolved = (Path(raw) if os.path.isabs(raw) else top / raw).resolve()
     if resolved == (top / ".githooks").resolve():
         return None
     return (f"core.hooksPath ({raw}) is not this worktree's {top}/.githooks, so git's pre-push hook would run another checkout's "
-            f"scripts, or none. Run tools/setup.sh from this worktree ({top}).")
+            f"scripts, or none.{refusal}")
 
 
 def repair_hooks(why: Optional[str]) -> Optional[str]:
@@ -515,8 +518,12 @@ def cmd_check(args: argparse.Namespace) -> int:
     """Run the selected checks (all by default); print every finding; exit 1 on any failure."""
     wanted = args.only or list(CHECKS)
     failures = []
-    if "hooks" in wanted and (why := repair_hooks(check_hooks())):
-        failures.append(why)
+    if "hooks" in wanted:
+        why = check_hooks(no_repair=args.no_repair)
+        if why and not args.no_repair:
+            why = repair_hooks(why)
+        if why:
+            failures.append(why)
     if "scan" in wanted and (why := check_scan(args.base)):
         failures.append(why)
     if "revert" in wanted and (why := check_revert(args.base)):
@@ -577,6 +584,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     c.add_argument("--only", action="append", choices=CHECKS,
                    help="run only this check (repeatable); `ci` runs CI's repo checks (mockups_check, mockups_index, house_scan, pattern_guard, components_index, "
                         "rules_lint, test_plans, test_suites, lint_motion, jev), each its own subprocess, printing `name exit=N`")
+    c.add_argument("--no-repair", action="store_true",
+                   help="report the hooks check without running tools/setup.sh or writing in the common Git directory")
     c.add_argument("--ack-scope", metavar="REASON", help="accept files outside the declared paths; the reason is printed and recorded")
     q = sub.add_parser("squash", help="soft-reset onto the recorded lane base")
     q.add_argument("--dry-run", action="store_true")
