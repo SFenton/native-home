@@ -7,6 +7,7 @@ import unittest
 from contextlib import redirect_stderr
 from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1]
 ROOT = TOOLS.parent
@@ -492,6 +493,46 @@ class OptInControlTests(unittest.TestCase):
         self.assertEqual(code, 5, lines)
         self.assertEqual(clock.now, 23)
         self.assert_budgeted(fake, clock, 23, [5, 7, 7, 4])
+
+    def test_a2_10_first_red_revalidation_calls_stay_inside_the_remaining_budget(self):
+        clock = FakeClock()
+        red = self.live_run("failure")
+        found = [{"databaseId": 9, "headSha": SHA}]
+        fake = FakeGh(
+            prs=[pr(), pr()],
+            runs=[found, found],
+            views=[red, red],
+            strict=True,
+            clock=clock,
+            opaque_signature=True,
+        )
+        code, lines = go(
+            fake,
+            first_red=True,
+            max_wait=23,
+            clock=clock.monotonic,
+            sleep=clock.sleep,
+            poll=7,
+        )
+        self.assertEqual(code, 1, lines)
+        self.assertIn("ci red early #7: repo-checks", lines[-1])
+        self.assert_budgeted(fake, clock, 23, [])
+
+    def test_a2_10_real_gh_timeout_uses_the_remaining_budget_and_exits_five(self):
+        clock = FakeClock()
+        timed_out = subprocess.TimeoutExpired(["gh"], 23)
+        with patch("ci_wait.subprocess.run", side_effect=timed_out) as run_mock:
+            code, lines = ci_wait.wait(
+                "7",
+                gh=ci_wait.gh_json,
+                max_wait=23,
+                clock=clock.monotonic,
+                sleep=clock.sleep,
+            )
+        self.assertEqual(code, 5, lines)
+        self.assertEqual(lines[-1], "RESULT: ci pending #7")
+        self.assertEqual(run_mock.call_count, 1)
+        self.assertEqual(run_mock.call_args.kwargs["timeout"], 23)
 
     def test_a2_11_terminal_and_shorter_existing_timeouts_keep_their_codes(self):
         cases = [
