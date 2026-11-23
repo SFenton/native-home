@@ -19,7 +19,7 @@ The prompt names PR, branch, round. Read the PR, `git diff origin/main...HEAD`, 
 1. `/swiftui-pro` on SwiftUI in the diff.
 2. `apple-hig` on UI: findings cite section and pose.
 3. Patterns: `tools/pattern_guard.py` and its `changed --base origin/main` form report 0 errors; no parallel of a `contracts/components.json` component. Owned files changed without their rule doc pass if the PR says why the rule still holds.
-4. Missing [rung-0](../../.agents/workflow/change-loop.md#rung-0) note: major; custom code over a fitting system API: blocker.
+4. Missing [rung-0](../../.agents/workflow/change-loop.md#rung-0) note: major; custom code where a System API fits: blocker.
 5. Tests: unit for logic; UX and accessibility per affected family; missing is major.
 6. Mockup: atlas entry updated; hub republish stated.
 7. Design decision: a visible change names options and pick in its PR description; its `Gate:` line matches request and diff. Otherwise: blocker.
