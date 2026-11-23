@@ -356,6 +356,15 @@ class DurableSaveTests(CustodyTestBase):
                         runner.work(1)
                     collect.assert_not_called()
                     archive.assert_not_called()
+                    runner.refresh_clone = mock.Mock()
+                    runner.work = mock.Mock(return_value="done")
+                    with mock.patch.object(ht, "load_config", return_value=self.cfg), \
+                            mock.patch.object(ht, "GitHub", return_value=FakeGitHub([])), \
+                            mock.patch.object(ht, "Runner", return_value=runner), \
+                            mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                            mock.patch("sys.stderr", new=io.StringIO()):
+                        self.assertEqual(ht.main(["run-issue", "1"], home=self.home), 4)
+                    self.assertEqual(out.getvalue(), "")
                 elif kind == "job":
                     runner.preflight = lambda: True
                     runner.state.save = mock.Mock(side_effect=ht.StateSaveError("state", "file_sync"))

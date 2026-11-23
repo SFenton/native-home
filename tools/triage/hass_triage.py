@@ -4533,8 +4533,9 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
                     return 0
                 runner.refresh_clone()
-                print(runner.work(args.issue))
+                outcome = runner.work(args.issue)
                 runner.state.save()
+                print(outcome)
             return 0
         if args.cmd == "run-job":
             with writer_lock(paths) as admitted:
