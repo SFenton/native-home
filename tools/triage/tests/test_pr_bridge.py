@@ -542,6 +542,7 @@ class PullPhaseTests(unittest.TestCase):
                 self.assertEqual(phase["reason"], "ai_review_missing")
 
     def test_check_identity_accepts_only_newest_expected_sources(self):
+        completed = self.phase(self.decoded_open(checks=check_runs()))
         runs = check_runs()
         for run in runs["check_runs"]:
             if run["name"] == "pr-checks":
@@ -557,6 +558,7 @@ class PullPhaseTests(unittest.TestCase):
         })
         runs["total_count"] = len(runs["check_runs"])
         phase = self.phase(self.decoded_open(checks=runs))
+        self.assertEqual(completed["phase"], "awaiting_merge")
         self.assertEqual(phase["phase"], "awaiting_checks")
         self.assertEqual(phase["reason"], "pr_checks_pending")
 
@@ -642,14 +644,31 @@ class PullPhaseTests(unittest.TestCase):
                 self.assertEqual(phase["phase"], "held")
                 self.assertFalse(facts["ok"])
                 self.assertEqual(reader.unexpected_calls, [])
-                endpoint = {
-                    "pull": "view",
-                    "reviews": "reviews",
-                    "check_runs": "check-runs",
-                    "commit": "commits",
-                    "associated": "pulls",
+                expected_call = {
+                    "pull": [
+                        "pr", "view", str(number), "-R", REPO,
+                        "--json", EXPECTED_PULL_FIELDS,
+                    ],
+                    "reviews": [
+                        "api",
+                        f"repos/{REPO}/pulls/{number}/reviews",
+                        "--paginate",
+                    ],
+                    "check_runs": [
+                        "api",
+                        f"repos/{REPO}/commits/{HEAD}/check-runs",
+                        "--paginate",
+                    ],
+                    "commit": [
+                        "api",
+                        f"repos/{REPO}/commits/{MERGE_SHA}",
+                    ],
+                    "associated": [
+                        "api",
+                        f"repos/{REPO}/commits/{MERGE_SHA}/pulls",
+                    ],
                 }[kind]
-                self.assertIn(endpoint, " ".join(reader.calls[-1]))
+                self.assertEqual(reader.calls[-1], expected_call)
 
     def test_wrong_pull_number_answer_is_held(self):
         reader = FakeReader(pull=merged_pull(number=199), request_number=200)

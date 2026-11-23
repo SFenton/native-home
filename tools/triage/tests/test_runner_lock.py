@@ -114,13 +114,16 @@ class RunnerLockTests(t.Base):
             probes.append((site, self.can_acquire(self.paths.lock)))
 
         class StateSpy:
+            def require_writable(self):
+                pass
+
             def save(self):
                 probe("save")
 
         class RunnerSpy:
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.intake = intake
-                spy.state = StateSpy()
+                spy.state = mock.Mock()
                 calls.append("construct:" + ("nightly" if intake else "primary"))
 
             def _tick_locked(spy, max_items=None):
@@ -246,6 +249,7 @@ class RunnerLockTests(t.Base):
         class RunnerSpy:
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.intake = intake
+                spy.state = mock.Mock()
                 calls.append("construct:" + ("nightly" if intake else "primary"))
 
             def _tick_locked(spy, _max_items=None):
@@ -266,6 +270,7 @@ class RunnerLockTests(t.Base):
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.paths = paths
                 spy.intake = intake
+                spy.state = mock.Mock()
                 seen.append(("construct", paths.state.name, RunnerLockTests.can_acquire(paths.lock)))
 
             def _tick_locked(spy, _max_items=None):
@@ -283,6 +288,9 @@ class RunnerLockTests(t.Base):
         visits = []
 
         class StateSpy:
+            def require_writable(self):
+                pass
+
             def save(self):
                 pass
 
@@ -516,7 +524,8 @@ class RunnerLockTests(t.Base):
                 self.assertEqual((saved["winner"], saved["manual"]), ("committed", "committed"))
 
     def test_manual_job_refusal_retry_preserves_unchanged_state(self):
-        value = {"current": "first"}
+        value = ht.State._empty_data()
+        value["marker"] = "first"
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         self.paths.state.write_text(json.dumps(value))
         with self.held_lock():

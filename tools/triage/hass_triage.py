@@ -197,11 +197,17 @@ class TriageError(RuntimeError):
 class StateLoadError(TriageError):
     """A logical state store cannot safely be used as an authority."""
 
+    def __init__(self, name: str, kind: str):
+        self.name = name
+        self.kind = kind
+        super().__init__(f"state store refused: {kind} for {name}; nothing was changed")
+
 
 class StateSaveError(TriageError):
-    """A state save did not establish the requested durability barrier."""
+    """A state save did not complete the required file-system barrier."""
 
     def __init__(self, name: str, stage: str):
+        self.name = name
         self.stage = stage
         super().__init__(f"state persistence failed during {stage} for {name}")
 
@@ -333,25 +339,12 @@ def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
         if not admitted:
             print("another tick is running")
             return 0, False
-        return load_runner()._tick_locked(max_items), True
+        runner = load_runner()
+        runner.state.require_writable()
+        return runner._tick_locked(max_items), True
 
 
 # MARK: - State
-
-CUSTODY_VERSION = 1
-CUSTODY_PHASES = {"unknown", "pending", "release_authorized"}
-CUSTODY_OUTCOMES = {
-    "unknown", "done", "no_changes", "blocked", "timeout", "no_status",
-    "retry", "error", "split", "needs_pr", "closed_unmerged", "owner_wait",
-    "actionable", "awaiting_review_wiring", "merged_pending_accounting",
-}
-CUSTODY_DELIVERY_STATES = {"unsent", "intent", "uncertain", "confirmed"}
-CUSTODY_FACT_KEYS = {
-    "state", "trust", "exit_code", "archive_disposition", "reason",
-}
-CUSTODY_ARCHIVE_DISPOSITIONS = {"unknown", "absent", "held", "archived", "fully_accounted"}
-CUSTODY_FORBIDDEN_FIELDS = {"status", "decoded", "envelope", "payload", "body"}
-
 
 class _DuplicateJSONKey(ValueError):
     pass
@@ -366,20 +359,28 @@ def _state_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return value
 
 
-def _is_int(value: Any) -> bool:
-    return isinstance(value, int) and not isinstance(value, bool)
-
-
-def durable_mkdir(directory: Path) -> None:
-    """Create directory ancestry and durably record every new directory entry."""
+def durable_mkdir(directory: Path, boundary: Optional[Path] = None) -> None:
+    """Create directory ancestry and sync its entries through ``boundary``."""
     missing = []
     cursor = directory
     while not cursor.exists():
         missing.append(cursor)
         cursor = cursor.parent
     directory.mkdir(parents=True, exist_ok=True)
-    for created in reversed(missing):
-        directory_fd = os.open(str(created.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    entries = list(missing)
+    if boundary is not None:
+        try:
+            directory.relative_to(boundary)
+        except ValueError:
+            pass
+        else:
+            entries = []
+            cursor = directory
+            while cursor != boundary:
+                entries.append(cursor)
+                cursor = cursor.parent
+    for entry in reversed(entries):
+        directory_fd = os.open(str(entry.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
         try:
             os.fsync(directory_fd)
         finally:
@@ -387,42 +388,45 @@ def durable_mkdir(directory: Path) -> None:
 
 
 class State:
-    """One runner-owned logical store, with strict custody and persistence semantics."""
-
-    _known_paths: set = set()
+    """One runner-owned logical store with explicit load and save failures."""
 
     def __init__(self, path: Path):
         self.path = path
         self.load_faults: List[Dict[str, Any]] = []
-        self._custody_records: List[Tuple[Tuple[str, str, str, str], Dict[str, Any]]] = []
         self.data = self._empty_data()
-        path_key = str(path)
+        self.read_result: Dict[str, Any]
         try:
             text = path.read_text()
-            self._known_paths.add(path_key)
         except FileNotFoundError:
-            if path_key in self._known_paths:
-                self._fault("not_found", "established state store is missing")
+            self.read_result = {
+                "kind": "not_found",
+                "exists": "no",
+                "installation": "unknown",
+            }
             return
         except OSError:
-            self._fault("read", "state store cannot be read")
-            self._known_paths.add(path_key)
+            self.read_result = {"kind": "read", "exists": "unknown"}
+            self._fault("read", "unknown")
             return
         try:
             value = json.loads(text, object_pairs_hook=_state_object)
         except _DuplicateJSONKey:
-            self._fault("parse", "state store contains a duplicate JSON key")
+            self.read_result = {"kind": "parse", "exists": "yes"}
+            self._fault("parse", "yes")
             return
         except (TypeError, ValueError):
-            self._fault("parse", "state store contains malformed JSON")
+            self.read_result = {"kind": "parse", "exists": "yes"}
+            self._fault("parse", "yes")
             return
         if not isinstance(value, dict):
-            self._fault("root", "state root must be an object")
+            self.read_result = {"kind": "root", "exists": "yes"}
+            self._fault("root", "yes")
             return
         self.data = value
-        self._validate_custody()
+        self.read_result = {"kind": "loaded", "exists": "yes"}
         for key, default in self._empty_data().items():
             self.data.setdefault(key, default)
+        self._validate_types()
 
     @staticmethod
     def _empty_data() -> Dict[str, Any]:
@@ -437,17 +441,32 @@ class State:
             "archive_holds": {},
         }
 
-    def _fault(self, kind: str, reason: str, key: Optional[Tuple[str, str, str, str]] = None,
-               version: Any = None) -> None:
-        fault = {"kind": kind, "reason": reason, "version": version}
-        if key is not None:
-            fault["key"] = {
-                "repository": key[0],
-                "intake": key[1],
-                "producer": key[2],
-                "generation": key[3],
-            }
-        self.load_faults.append(fault)
+    def _fault(self, kind: str, exists: str) -> None:
+        self.load_faults.append({"kind": kind, "exists": exists})
+
+    def _validate_types(self) -> None:
+        expected = {
+            "attempts": dict,
+            "merging": dict,
+            "parked": dict,
+            "jobs": dict,
+            "history": list,
+            "archive_sessions": dict,
+            "archive_holds": dict,
+        }
+        for name, value_type in expected.items():
+            if not isinstance(self.data.get(name), value_type):
+                self._fault("type", "yes")
+        current = self.data.get("current")
+        if current is not None and not isinstance(current, dict):
+            self._fault("type", "yes")
+        if self.path.name == "state-retro.json":
+            for name in ("queue", "done"):
+                items = self.data.get(name)
+                if items is not None and (
+                        not isinstance(items, list)
+                        or any(not isinstance(item, dict) for item in items)):
+                    self._fault("type", "yes")
 
     @property
     def writable(self) -> bool:
@@ -456,392 +475,14 @@ class State:
     def require_writable(self) -> None:
         if self.load_faults:
             fault = self.load_faults[0]
-            raise StateLoadError(
-                f"state store refused: {fault['kind']} ({fault['reason']}); nothing was changed"
-            )
+            raise StateLoadError(self.path.name, fault["kind"])
 
-    @staticmethod
-    def _valid_outcome(value: Any) -> bool:
-        if value is None:
-            return True
-        if isinstance(value, str):
-            return value in CUSTODY_OUTCOMES
-        if not isinstance(value, dict) or not value or any(key not in CUSTODY_FACT_KEYS for key in value):
-            return False
-        state = value.get("state")
-        if state is not None and (not isinstance(state, str) or state not in CUSTODY_OUTCOMES):
-            return False
-        if "trust" in value and not isinstance(value["trust"], bool):
-            return False
-        if "exit_code" in value and not _is_int(value["exit_code"]):
-            return False
-        if "archive_disposition" in value \
-                and value["archive_disposition"] not in CUSTODY_ARCHIVE_DISPOSITIONS:
-            return False
-        if "reason" in value and (not isinstance(value["reason"], str) or len(value["reason"]) > 300):
-            return False
-        return True
-
-    @staticmethod
-    def _valid_timestamp(value: Any) -> bool:
-        if not isinstance(value, str):
-            return False
-        try:
-            parse_time(value)
-        except (TypeError, ValueError):
-            return False
-        return True
-
-    @staticmethod
-    def _valid_path(value: Any) -> bool:
-        if isinstance(value, str):
-            return bool(value)
-        return isinstance(value, dict) \
-            and value.get("state") in {"unknown", "read_error"} \
-            and isinstance(value.get("reason"), str) \
-            and set(value) <= {"state", "reason"}
-
-    @classmethod
-    def _valid_notice(cls, value: Any) -> bool:
-        if not isinstance(value, dict):
-            return False
-        if "key" in value and (not isinstance(value["key"], str) or not value["key"]):
-            return False
-        if not isinstance(value.get("state"), str) or value["state"] not in CUSTODY_DELIVERY_STATES:
-            return False
-        if "since" in value and not cls._valid_timestamp(value["since"]):
-            return False
-        remote = value.get("remote_identity")
-        if remote is not None:
-            if not isinstance(remote, dict) or not set(remote) <= {"repository", "kind", "id", "issuer"}:
-                return False
-            if any(not isinstance(item, (str, int, type(None))) or isinstance(item, bool)
-                   for item in remote.values()):
-                return False
-        return set(value) <= {"key", "state", "since", "remote_identity"}
-
-    def _validate_custody(self) -> None:
-        if "custody" not in self.data:
-            return
-        custody = self.data["custody"]
-        if not isinstance(custody, dict):
-            self._fault("type", "custody aggregate must be an object")
-            return
-        version = custody.get("version")
-        if not _is_int(version) or version != CUSTODY_VERSION:
-            self._fault("version", "custody version is incompatible", version=version)
-            return
-        records = custody.get("records")
-        if not isinstance(records, dict):
-            self._fault("type", "custody records must be an object", version=version)
-            return
-        for repository, intakes in sorted(records.items()):
-            if not isinstance(repository, str) or not repository or not isinstance(intakes, dict):
-                self._fault("schema", "custody repository index is invalid", version=version)
-                continue
-            for intake, producers in sorted(intakes.items()):
-                if not isinstance(intake, str) or intake not in {"request", "nightly", "retro"} \
-                        or not isinstance(producers, dict):
-                    self._fault("schema", "custody intake index is invalid", version=version)
-                    continue
-                for producer, generations in sorted(producers.items()):
-                    if not isinstance(producer, str) or not producer or not isinstance(generations, dict):
-                        self._fault("schema", "custody producer index is invalid", version=version)
-                        continue
-                    for generation, record in sorted(generations.items()):
-                        key = (repository, intake, producer, generation) \
-                            if isinstance(generation, str) else ("", "", "", "")
-                        if not isinstance(generation, str) or not generation:
-                            self._fault("schema", "custody generation key is invalid", version=version)
-                            continue
-                        if self._validate_custody_record(key, record, version):
-                            self._custody_records.append((key, record))
-
-    def _validate_custody_record(self, key: Tuple[str, str, str, str], record: Any,
-                                 version: int) -> bool:
-        repository, intake, producer, generation = key
-        if not isinstance(record, dict):
-            self._fault("type", "custody record must be an object", key, version)
-            return False
-        expected = {
-            "repository": repository,
-            "intake": intake,
-            "producer": producer,
-            "generation": generation,
-        }
-        if any(record.get(name) != expected[name] for name in expected):
-            self._fault("schema", "custody key copy does not match its canonical key", key, version)
-            return False
-        if not re.fullmatch(r"(request|nightly|job|retro):.+", producer):
-            self._fault("schema", "custody producer is not a typed identity", key, version)
-            return False
-        phase = record.get("phase")
-        if phase not in CUSTODY_PHASES:
-            self._fault("phase", "custody phase is not recognized", key, version)
-            return False
-        if not self._valid_timestamp(record.get("since")):
-            self._fault("type", "custody since value is invalid", key, version)
-            return False
-        reason = record.get("reason")
-        if reason is not None and (not isinstance(reason, str) or len(reason) > 300):
-            self._fault("type", "custody reason is invalid", key, version)
-            return False
-        if CUSTODY_FORBIDDEN_FIELDS.intersection(record):
-            self._fault("type", "custody record contains a non-allowlisted envelope field", key, version)
-            return False
-        original = record.get("original_outcome")
-        if not self._valid_outcome(original):
-            self._fault("type", "custody original outcome is invalid", key, version)
-            return False
-        trust_evidence = record.get("trust_evidence")
-        if trust_evidence is not None \
-                and (not isinstance(trust_evidence, dict) or not self._valid_outcome(trust_evidence)):
-            self._fault("type", "custody trust evidence is invalid", key, version)
-            return False
-        attempts = record.get("attempts", 0)
-        if _is_int(attempts):
-            if attempts < 0:
-                self._fault("type", "custody attempt count is negative", key, version)
-                return False
-        elif isinstance(attempts, dict) \
-                and all(isinstance(name, str) and _is_int(count) and count >= 0
-                        for name, count in attempts.items()):
-            pass
-        else:
-            self._fault("type", "custody attempt count is invalid", key, version)
-            return False
-        if "path" in record and not self._valid_path(record["path"]):
-            self._fault("type", "custody checkout evidence is invalid", key, version)
-            return False
-        expected_branches = record.get("expected_branches")
-        if expected_branches is not None and (
-                not isinstance(expected_branches, list)
-                or any(not isinstance(branch, str) or not branch for branch in expected_branches)):
-            self._fault("type", "custody expected branches are invalid", key, version)
-            return False
-        pre_refs = record.get("pre_refs")
-        if pre_refs is not None:
-            if not isinstance(pre_refs, dict):
-                self._fault("type", "custody pre-refs must be an object", key, version)
-                return False
-            for ref, evidence in pre_refs.items():
-                readable = isinstance(evidence, str) and bool(re.fullmatch(r"[0-9a-fA-F]{40}", evidence))
-                unreadable = isinstance(evidence, dict) \
-                    and evidence.get("readable") is False \
-                    and isinstance(evidence.get("reason"), str) \
-                    and set(evidence) <= {"readable", "reason"}
-                if not isinstance(ref, str) or not ref or not (readable or unreadable):
-                    self._fault("type", "custody pre-ref evidence is invalid", key, version)
-                    return False
-        next_action = record.get("next")
-        if next_action is not None:
-            if not isinstance(next_action, dict) \
-                    or next_action.get("kind") not in {"retry", "human", "unknown"} \
-                    or ("value" in next_action and not isinstance(next_action["value"], str)) \
-                    or set(next_action) - {"kind", "value"}:
-                self._fault("type", "custody next action is invalid", key, version)
-                return False
-        bindings = record.get("bindings", {})
-        if not isinstance(bindings, dict):
-            self._fault("type", "custody bindings must be an object", key, version)
-            return False
-        for binding_key, binding in bindings.items():
-            if not isinstance(binding_key, str) or not binding_key or not isinstance(binding, dict):
-                self._fault("type", "custody binding is invalid", key, version)
-                return False
-            if CUSTODY_FORBIDDEN_FIELDS.intersection(binding):
-                self._fault("type", "custody binding contains a non-allowlisted envelope field", key, version)
-                return False
-            if not isinstance(binding.get("lane"), str) or not binding["lane"] \
-                    or not isinstance(binding.get("branch"), str) or not binding["branch"] \
-                    or not isinstance(binding.get("disposition"), str) or not binding["disposition"]:
-                self._fault("type", "custody binding identity is invalid", key, version)
-                return False
-            tip = binding.get("tip")
-            reviewed = binding.get("reviewed_head")
-            if tip is not None and (not isinstance(tip, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", tip)):
-                self._fault("type", "custody binding tip is invalid", key, version)
-                return False
-            if reviewed is not None and (not isinstance(reviewed, str)
-                                         or not re.fullmatch(r"[0-9a-fA-F]{40}", reviewed)):
-                self._fault("type", "custody reviewed head is invalid", key, version)
-                return False
-            pull = binding.get("pull")
-            if pull is not None and (
-                    not isinstance(pull, (str, int)) or isinstance(pull, bool)):
-                self._fault("type", "custody pull identity is invalid", key, version)
-                return False
-            binding_reason = binding.get("reason")
-            if binding_reason is not None and (
-                    not isinstance(binding_reason, str) or len(binding_reason) > 300):
-                self._fault("type", "custody binding reason is invalid", key, version)
-                return False
-            if "since" in binding and not self._valid_timestamp(binding["since"]):
-                self._fault("type", "custody binding since value is invalid", key, version)
-                return False
-            binding_attempts = binding.get("attempts")
-            if binding_attempts is not None:
-                if _is_int(binding_attempts):
-                    attempts_valid = binding_attempts >= 0
-                elif isinstance(binding_attempts, dict):
-                    attempts_valid = all(
-                        isinstance(name, str) and _is_int(count) and count >= 0
-                        for name, count in binding_attempts.items()
-                    )
-                else:
-                    attempts_valid = False
-                if not attempts_valid:
-                    self._fault("type", "custody binding attempt count is invalid", key, version)
-                    return False
-            binding_next = binding.get("next")
-            if binding_next is not None:
-                if not isinstance(binding_next, dict) \
-                        or binding_next.get("kind") not in {"retry", "human", "unknown"} \
-                        or ("value" in binding_next and not isinstance(binding_next["value"], str)) \
-                        or set(binding_next) - {"kind", "value"}:
-                    self._fault("type", "custody binding next action is invalid", key, version)
-                    return False
-            notice = binding.get("notice", binding.get("delivery"))
-            if notice is not None and not self._valid_notice(notice):
-                self._fault("type", "custody binding notice is invalid", key, version)
-                return False
-        notices = record.get("notices", {})
-        if not isinstance(notices, dict) or any(
-                not isinstance(name, str) or not name or not self._valid_notice(value)
-                for name, value in notices.items()):
-            self._fault("type", "custody notice index is invalid", key, version)
-            return False
-        delivery = record.get("delivery")
-        if delivery is not None and not self._valid_notice(delivery):
-            self._fault("type", "custody delivery is invalid", key, version)
-            return False
-        if phase == "release_authorized":
-            positive = original if isinstance(original, dict) else {}
-            if not isinstance(record.get("path"), str) \
-                    or positive.get("state") not in {"done", "no_changes"} \
-                    or positive.get("archive_disposition") not in {"archived", "fully_accounted"} \
-                    or positive.get("trust") is not True:
-                self._fault("schema", "release authorization lacks positive archived proof", key, version)
-                return False
-        return True
-
-    def custody_projection(self, namespace: str, root: Path,
-                           wall_clock: Optional[float] = None) -> Dict[str, Any]:
-        """Project only allowlisted custody facts for one local store snapshot."""
-        clock = time.time() if wall_clock is None else wall_clock
-        records: List[Dict[str, Any]] = []
-        faults = [{
-            "namespace": namespace,
-            "kind": fault["kind"],
-            "reason": fault["reason"],
-            "version": fault.get("version"),
-            "key": fault.get("key"),
-            "path_tree_exists": fault.get("path_tree_exists"),
-        } for fault in self.load_faults]
-        for key, record in self._custody_records:
-            path_exists: Optional[bool] = None
-            raw_path = record.get("path")
-            if isinstance(raw_path, str):
-                path = Path(raw_path)
-                if not path.is_absolute():
-                    path = root / path
-                try:
-                    path_exists = path.exists()
-                except OSError:
-                    path_exists = None
-                if path_exists is False:
-                    faults.append({
-                        "namespace": namespace,
-                        "kind": "missing_tree",
-                        "reason": "custody checkout is absent",
-                        "version": CUSTODY_VERSION,
-                        "key": {
-                            "repository": key[0],
-                            "intake": key[1],
-                            "producer": key[2],
-                            "generation": key[3],
-                        },
-                        "path_tree_exists": False,
-                    })
-            bindings = []
-            for binding_key, binding in sorted(record.get("bindings", {}).items()):
-                notice = record.get("notices", {}).get(binding_key,
-                                                       binding.get("notice", binding.get("delivery")))
-                projected_notice = None
-                if isinstance(notice, dict):
-                    projected_notice = {
-                        "key": notice.get("key", binding_key),
-                        "state": notice["state"],
-                        "since": notice.get("since"),
-                        "age_seconds": self._age(notice.get("since"), clock),
-                        "remote_identity": self._remote_identity(notice.get("remote_identity")),
-                    }
-                bindings.append({
-                    "binding_key": binding_key,
-                    "lane": binding["lane"],
-                    "branch": binding["branch"],
-                    "disposition": binding["disposition"],
-                    "tip": binding.get("tip"),
-                    "pull": binding.get("pull") if isinstance(binding.get("pull"), (str, int, type(None)))
-                    and not isinstance(binding.get("pull"), bool) else None,
-                    "reviewed_head": binding.get("reviewed_head"),
-                    "reason": binding.get("reason"),
-                    "since": binding.get("since", record["since"]),
-                    "age_seconds": self._age(binding.get("since", record["since"]), clock),
-                    "attempts": binding.get("attempts", record.get("attempts", 0)),
-                    "next": binding.get("next", record.get("next", {"kind": "unknown", "value": None})),
-                    "notice": projected_notice,
-                })
-            outcome = record.get("original_outcome")
-            if isinstance(outcome, dict):
-                outcome = {name: outcome[name] for name in ("state", "trust", "exit_code",
-                                                           "archive_disposition", "reason")
-                           if name in outcome}
-            delivery = record.get("delivery")
-            projected_delivery = None
-            if isinstance(delivery, dict):
-                projected_delivery = {
-                    "key": delivery.get("key"),
-                    "state": delivery["state"],
-                    "since": delivery.get("since"),
-                    "age_seconds": self._age(delivery.get("since"), clock),
-                    "remote_identity": self._remote_identity(delivery.get("remote_identity")),
-                }
-            records.append({
-                "namespace": namespace,
-                "key": {
-                    "repository": key[0],
-                    "intake": key[1],
-                    "producer": key[2],
-                    "generation": key[3],
-                },
-                "phase": record["phase"],
-                "original_outcome": outcome,
-                "reason": record.get("reason"),
-                "since": record["since"],
-                "age_seconds": self._age(record["since"], clock),
-                "attempts": record.get("attempts", 0),
-                "next": record.get("next", {"kind": "unknown", "value": None}),
-                "path_tree_exists": path_exists,
-                "bindings": bindings,
-                "delivery": projected_delivery,
-            })
-        return {"version": CUSTODY_VERSION, "records": records, "faults": faults}
-
-    @staticmethod
-    def _age(since: Any, clock: float) -> Optional[int]:
-        if not isinstance(since, str):
-            return None
-        try:
-            return max(0, int(clock - parse_time(since).timestamp()))
-        except (TypeError, ValueError, OverflowError):
-            return None
-
-    @staticmethod
-    def _remote_identity(value: Any) -> Optional[Dict[str, Any]]:
-        if not isinstance(value, dict):
-            return None
-        return {key: value[key] for key in ("repository", "kind", "id", "issuer") if key in value}
+    def load_projection(self, namespace: str) -> List[Dict[str, Any]]:
+        if self.load_faults:
+            return [{"store": namespace, **fault} for fault in self.load_faults]
+        if self.read_result["kind"] == "not_found":
+            return [{"store": namespace, **self.read_result}]
+        return []
 
     def save(self) -> None:
         self.require_writable()
@@ -849,7 +490,10 @@ class State:
         stage = "directory"
         fd: Optional[int] = None
         try:
-            durable_mkdir(self.path.parent)
+            boundary = next((parent.parent for parent in self.path.parents
+                             if parent.name == ".local"), None)
+            durable_mkdir(self.path.parent, boundary)
+            stage = "serialize"
             payload = json.dumps(self.data, indent=2, sort_keys=True)
             stage = "temp"
             fd, raw_path = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp",
@@ -860,6 +504,8 @@ class State:
                 mode = None
             if mode is not None:
                 os.fchmod(fd, mode)
+            else:
+                os.fchmod(fd, 0o600)
             stage = "write"
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 fd = None
@@ -878,7 +524,6 @@ class State:
                 os.fsync(directory_fd)
             finally:
                 os.close(directory_fd)
-            self._known_paths.add(str(self.path))
         except (OSError, TypeError, ValueError) as exc:
             raise StateSaveError(self.path.name, stage) from exc
         finally:
@@ -1523,8 +1168,6 @@ class Runner:
         self.wall_clock: Callable[[], float] = time.time
         self._state_loader = state_loader or State
         self.state = self._state_loader(paths.state)
-        if hasattr(self.state, "require_writable"):
-            self.state.require_writable()
         self.repo = intake["repo"] if intake else cfg["request_repo"]
         self.authors: List[str] = intake["authors"] if intake else cfg["authors"]  # owner authors: vouch, replies, commands
         #: The agent account's login: its ``Workflow`` issues are picked up (:func:`may_pick`); the nightly intake has none.
@@ -1627,11 +1270,25 @@ class Runner:
                 break
             self.work(n)
             done += 1
+        storage_result = 0
         if drained and not self.intake and not self.dry_run and self.schedules_idle():
-            if not self.run_retro() and not self.check_regressions():
+            retro_ran = None
+            retro_save_failed = False
+            try:
+                retro_ran = self.run_retro()
+            except StateLoadError as exc:
+                print(f"retro state refused: {exc}", file=sys.stderr)
+                storage_result = 4
+            except StateSaveError as exc:
+                if exc.name != self.retro_paths.state.name:
+                    raise
+                print(f"retro persistence failure: {exc}", file=sys.stderr)
+                storage_result = 4
+                retro_save_failed = True
+            if not retro_save_failed and not retro_ran and not self.check_regressions():
                 self.run_due_job()
         self.state.save()
-        return 0
+        return storage_result
 
     # -- live Home Assistant changes that could not be rolled back
 
@@ -3187,9 +2844,15 @@ class Runner:
                                   deny=list(agent.get("disallowed_tools") or []), prompt=prompt, log=log,
                                   timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
                                   trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
-        except StateSaveError:
+        except StateSaveError as exc:
+            print(f"{n}: launched session cleanup unconfirmed after {exc}",
+                  file=sys.stderr)
             raise
         except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
+            if persistence_failures:
+                print(f"{n}: launched session cleanup unconfirmed after "
+                      f"{persistence_failures[0]}", file=sys.stderr)
+                raise persistence_failures[0]
             self.stray = self.t3_stray = bool(getattr(exc, "stray", False))
             print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
             with open(log, "ab") as handle:
@@ -3199,6 +2862,9 @@ class Runner:
             if awake:
                 awake.terminate()
         if persistence_failures:
+            cleanup = "survivor remained" if out.stray else "cleanup confirmed"
+            print(f"{n}: launched session {cleanup} after {persistence_failures[0]}",
+                  file=sys.stderr)
             raise persistence_failures[0]
         self.stray, self.guard_tampered, self.t3_stray = out.stray or out.tampered, out.tampered, out.stray  # a tampered session lands nothing either
         if out.stray:
@@ -3394,10 +3060,17 @@ class Runner:
                 self.state.data["current"]["pid"] = proc.pid
                 try:
                     self.state.save()
-                except StateSaveError:
+                except StateSaveError as exc:
                     if proc.stdin is not None:
                         proc.stdin.close()
-                    lane_land.reap_group(proc.pid)
+                    try:
+                        contained = lane_land.reap_group(proc.pid)
+                    except Exception as cleanup_exc:  # noqa: BLE001
+                        print(f"{n}: launched process cleanup unconfirmed after {exc}: "
+                              f"{type(cleanup_exc).__name__}", file=sys.stderr)
+                    else:
+                        outcome = "cleanup confirmed" if contained else "survivor remained"
+                        print(f"{n}: launched process {outcome} after {exc}", file=sys.stderr)
                     raise
             awake = subprocess.Popen(["caffeinate", "-is", "-w", str(proc.pid)]) if shutil.which("caffeinate") else None
             assert proc.stdin is not None
@@ -3786,7 +3459,13 @@ class Runner:
             self.run_retro_digest(n, dest, attempt, task=task, outcome=outcome)
             if enqueue and not self.dry_run:
                 self.run_retro_phase(n, dest)
-                self.enqueue_retro(dest, task)
+                try:
+                    self.enqueue_retro(dest, task)
+                except StateLoadError as exc:
+                    print(f"{n}: retro enqueue not committed: {exc}", file=sys.stderr)
+                except StateSaveError as exc:
+                    disposition = "enqueue unconfirmed" if exc.stage == "parent_sync" else "enqueue not committed"
+                    print(f"{n}: retro {disposition}: {exc}", file=sys.stderr)
         return dest if copied and not sidecar_failed else None
 
     def archive_gate_decisions(self, n: Any, tree: Path, name: str = "", session: str = "") -> Optional[bool]:
@@ -4294,74 +3973,19 @@ def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict
     return visible
 
 
-def custody_report(states: List[Tuple[str, State, Path]], root: Path,
-                  wall_clock: Optional[float] = None) -> Dict[str, Any]:
-    """One local, read-only custody projection per logical store."""
-    clock = time.time() if wall_clock is None else wall_clock
-    reports = [state.custody_projection(namespace, root, clock)
-               for namespace, state, _path in states]
-    return {
-        "version": CUSTODY_VERSION,
-        "records": [record for report in reports for record in report["records"]],
-        "faults": [fault for report in reports for fault in report["faults"]],
-    }
-
-
-def custody_text(custody: Dict[str, Any]) -> List[str]:
-    """Render custody from the same typed projection used by JSON status."""
+def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
     lines = []
-    for record in custody.get("records") or []:
-        key = record.get("key") or {}
-        identity = (
-            f"{key.get('repository', 'unknown')}/{key.get('intake', 'unknown')} "
-            f"producer {key.get('producer', 'unknown')} generation {key.get('generation', 'unknown')}"
-        )
-        age = record.get("age_seconds")
-        since = f"{record.get('since') or 'unknown'}"
-        if age is not None:
-            since += f" (age {age}s)"
-        lines.append(
-            f"custody: {identity} phase {record.get('phase')} since {since}, "
-            f"attempts {record.get('attempts')}; "
-            f"next {((record.get('next') or {}).get('kind') or 'unknown')}: "
-            f"{((record.get('next') or {}).get('value') or 'unknown')}; "
-            f"reason {record.get('reason') or 'unknown'}"
-        )
-        if record.get("path_tree_exists") is not None:
+    for result in state_loads:
+        if result.get("kind") == "not_found":
             lines.append(
-                f"  checkout exists: {'yes' if record['path_tree_exists'] else 'no'}"
+                f"state store {result.get('store')}: not found "
+                "(exists no, installation unknown)"
             )
-        for binding in record.get("bindings") or []:
-            notice = binding.get("notice") or {}
+        else:
             lines.append(
-                f"  binding {binding.get('lane')}: {binding.get('branch')} "
-                f"{binding.get('disposition')} tip {binding.get('tip') or 'unknown'}"
-                f"; pull {binding.get('pull') if binding.get('pull') is not None else 'unknown'}"
-                f"; reviewed head {binding.get('reviewed_head') or 'unknown'}"
-                f"; reason {binding.get('reason') or record.get('reason') or 'unknown'}"
+                f"state store {result.get('store')}: {result.get('kind')} "
+                f"(exists {result.get('exists', 'unknown')})"
             )
-            if notice:
-                lines.append(
-                    f"  delivery {binding.get('lane')} {notice.get('state')} "
-                    f"since {notice.get('since') or 'unknown'} "
-                    f"age {notice.get('age_seconds') if notice.get('age_seconds') is not None else 'unknown'}s "
-                    f"key {notice.get('key') or 'unknown'}"
-                )
-        delivery = record.get("delivery") or {}
-        if delivery:
-            lines.append(
-                f"  delivery {delivery.get('state')} since {delivery.get('since') or 'unknown'} "
-                f"age {delivery.get('age_seconds') if delivery.get('age_seconds') is not None else 'unknown'}s "
-                f"key {delivery.get('key') or 'unknown'}"
-            )
-    for fault in custody.get("faults") or []:
-        key = fault.get("key") or {}
-        identity = key.get("generation") or key.get("producer") or ""
-        suffix = f" {identity}" if identity else ""
-        lines.append(
-            f"custody fault: {fault.get('namespace')} {fault.get('kind')}{suffix}: "
-            f"{fault.get('reason')} (schema {fault.get('version') if fault.get('version') is not None else 'unknown'})"
-        )
     return lines
 
 
@@ -4396,16 +4020,29 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
             last = {}
         job_data = dict(state.data)
         job_data["jobs"] = jobs_data
-        due = job_next_due(cfg, job_data, name)
-        jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+        raw_last = last.get("last_run")
+        if raw_last is not None and not isinstance(raw_last, str):
+            due = "unknown"
+        else:
+            try:
+                due = job_next_due(cfg, job_data, name)
+            except (TypeError, ValueError, OverflowError):
+                due = "unknown"
+        outcome = last.get("outcome")
+        jobs[name] = {
+            "last_run": raw_last if isinstance(raw_last, str) else None,
+            "outcome": outcome if isinstance(outcome, str) else None,
+            "next_due": due,
+        }
     nightly_paths = Paths(cfg, paths.home, "nightly-")
     nightly_state = State(nightly_paths.state)
     retro_paths = Paths(cfg, paths.home, "retro-")
     retro_state = State(retro_paths.state)
-    states = [("request", state, paths.state)]
-    if nightly or nightly_paths.state.exists() or str(nightly_paths.state) in State._known_paths:
-        states.append(("nightly", nightly_state, nightly_paths.state))
-    states.append(("retro", retro_state, retro_paths.state))
+    states = [("request", state)]
+    if nightly or nightly_paths.state.exists():
+        states.append(("nightly", nightly_state))
+    if retro_paths.state.exists():
+        states.append(("retro", retro_state))
     archive_states = [(state, paths, "request-")]
     if nightly or nightly_paths.state.exists():
         archive_states.append((nightly_state, nightly_paths, "nightly-"))
@@ -4443,9 +4080,13 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         "ha_changes_unreachable_since": ha_changes.get("unreachable_since"),
         "ha_changes_unfiled": len(ha_changes.get("unfiled") or {}),
         "archive_holds": archive_holds,
-        "recent": history[-10:],
+        "recent": [item for item in history[-10:] if isinstance(item, dict)],
         "retro_queue": [q.get("task") for q in retro_queue if isinstance(q, dict)],
-        "custody": custody_report(states, paths.root),
+        "state_loads": [
+            result
+            for namespace, loaded in states
+            for result in loaded.load_projection(namespace)
+        ],
     }
 
 
@@ -4509,18 +4150,27 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                                                               nightly["label"])
                 return runner
 
-            code, entered = admitted_tick(paths, primary, args.max_items)
+            primary_error = False
+            try:
+                code, entered = admitted_tick(paths, primary, args.max_items)
+            except StateLoadError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                code, entered, primary_error = 4, True, True
             if not entered:
                 return code
             if cfg.get("nightly") and not paths.paused.exists():
                 # `Nightly Fix` issues on the product repository: after the owner's requests, same worker, reviewer and
                 # pr_land.sh, separate worktrees (nightly-N), branches (nightly/N) and state (state-nightly.json).
                 nightly_paths = Paths(cfg, home, "nightly-")
-                nightly_code, _entered = admitted_tick(
-                    nightly_paths,
-                    lambda: Runner(cfg, nightly_paths, gh, dry_run=dry, intake=cfg["nightly"]),
-                    args.max_items)
-                code = nightly_code or code
+                try:
+                    nightly_code, _entered = admitted_tick(
+                        nightly_paths,
+                        lambda: Runner(cfg, nightly_paths, gh, dry_run=dry, intake=cfg["nightly"]),
+                        args.max_items)
+                except StateLoadError as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    nightly_code = 4
+                code = 4 if primary_error else nightly_code or code
             return code
         if args.cmd == "run-issue":
             with writer_lock(paths) as admitted:
@@ -4532,6 +4182,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     issue = gh.issue(cfg["request_repo"], args.issue)
                     print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
                     return 0
+                runner.state.require_writable()
                 runner.refresh_clone()
                 outcome = runner.work(args.issue)
                 runner.state.save()
@@ -4546,6 +4197,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("paused")
                     return 0
                 runner = Runner(cfg, paths, gh)
+                runner.state.require_writable()
                 runner.refresh_clone()
                 print(runner.run_job(args.name))
             return 0
@@ -4589,7 +4241,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"job {name}: last {info['last_run'] or 'never'} ({info['outcome'] or '-'}), next due {info['next_due']}")
                 for hold in report["archive_holds"]:
                     print(f"archive hold: {hold['name']} ({hold['reason']}, since {hold['since']})")
-                for line in custody_text(report["custody"]):
+                for line in state_load_text(report["state_loads"]):
                     print(line)
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
@@ -4599,8 +4251,10 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("nightly queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}"
                                                          for q in report["nightly_queue"]) or "empty"))
                 for item in report["recent"]:
-                    tag = f"#{item['issue']}" if isinstance(item["issue"], int) else str(item["issue"])
-                    print(f"  {item['at']}  {tag}  {item['outcome']}  {item.get('detail', '')[:80]}")
+                    tag = f"#{item.get('issue')}" if isinstance(item.get("issue"), int) else str(item.get("issue") or "")
+                    detail = item.get("detail")
+                    print(f"  {item.get('at', '')}  {tag}  {item.get('outcome', '')}  "
+                          f"{str(detail)[:80] if detail is not None else ''}")
             return 0
         if args.cmd == "ack-base":
             with writer_lock(paths) as admitted:
