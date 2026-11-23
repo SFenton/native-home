@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -65,6 +66,274 @@ class StoreTestBase(t.Base):
             mock.patch.object(ht.Runner, "recover",
                               side_effect=lambda: events.append("recover")),
         )
+
+    def main_golden(self, argv, cfg, gh, boundaries):
+        fixed = datetime(2026, 11, 23, 12, 0, tzinfo=timezone.utc)
+        with mock.patch.object(ht, "load_config", return_value=cfg), \
+                mock.patch.object(ht, "GitHub", return_value=gh), \
+                mock.patch.object(
+                    ht.Runner, "_run", autospec=True,
+                    side_effect=boundaries.run,
+                ), \
+                mock.patch.object(
+                    ht.Runner, "_launch", autospec=True,
+                    side_effect=boundaries.launch,
+                ), \
+                mock.patch.object(
+                    ht.lane_land, "git", side_effect=boundaries.land_git,
+                ), \
+                mock.patch.object(
+                    ht.lane_land, "land", side_effect=boundaries.land,
+                ), \
+                mock.patch.object(ht, "claude_logged_in", return_value=True), \
+                mock.patch.object(ht, "iso", return_value="2026-11-23T12:00:00Z"), \
+                mock.patch.object(ht, "now", return_value=fixed), \
+                mock.patch.object(ht.time, "time", return_value=1795435200.0), \
+                mock.patch.object(ht.time, "time_ns", return_value=1795435200000000000), \
+                mock.patch.object(ht.os, "getpid", return_value=4242), \
+                mock.patch.dict(
+                    os.environ,
+                    {"FENTON_HEADLESS": "", "HASS_TRIAGE_ISSUE": ""},
+                ), \
+                mock.patch("sys.stdin.isatty", return_value=True), \
+                mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                mock.patch("sys.stderr", new=io.StringIO()) as err:
+            result = ht.main(argv, home=self.home)
+        return result, out.getvalue(), err.getvalue()
+
+    def file_bytes(self):
+        return {
+            str(path.relative_to(self.home)): path.read_bytes()
+            for path in sorted(self.home.rglob("*"))
+            if path.is_file()
+        }
+
+    @staticmethod
+    def saved_bytes(value):
+        return json.dumps(value, indent=2, sort_keys=True).encode()
+
+
+class RecordlessTraceGitHub(FakeGitHub):
+    """Argument-aware remote seam with a hard call bound."""
+
+    def __init__(self, by_repo=None, pulls=None, limit=200):
+        super().__init__([])
+        self.by_repo = {repo: list(items) for repo, items in (by_repo or {}).items()}
+        self.pulls = dict(pulls or {})
+        self.events = []
+        self.limit = limit
+        self.issues = {
+            item["number"]: item
+            for items in self.by_repo.values()
+            for item in items
+        }
+
+    def _event(self, *event):
+        if len(self.events) >= self.limit:
+            raise AssertionError(f"remote call limit exceeded: {event!r}")
+        self.events.append(event)
+
+    def open_issues(self, repo):
+        self._event("open", repo)
+        return [
+            item for item in self.by_repo.get(repo, [])
+            if item.get("state", "OPEN") == "OPEN"
+        ]
+
+    def issue(self, repo, n):
+        self._event("issue", repo, n)
+        return super().issue(repo, n)
+
+    def comments(self, repo, n):
+        self._event("comments", repo, n)
+        return super().comments(repo, n)
+
+    def edit_labels(self, repo, n, add=(), remove=()):
+        self._event("labels", repo, n, tuple(add), tuple(remove))
+        return super().edit_labels(repo, n, add, remove)
+
+    def create_comment(self, repo, n, body):
+        self._event("comment", repo, n, body)
+        return super().create_comment(repo, n, body)
+
+    def edit_comment(self, repo, comment_id, body):
+        self._event("edit", repo, comment_id, body)
+        return super().edit_comment(repo, comment_id, body)
+
+    def close(self, repo, n, not_planned=False):
+        self._event("close", repo, n, not_planned)
+        return super().close(repo, n, not_planned)
+
+    def pull(self, url):
+        self._event("pull", url)
+        return super().pull(url)
+
+    def label_pull(self, url, add="", remove=""):
+        self._event("label_pull", url, add, remove)
+        return super().label_pull(url, add, remove)
+
+    def ready_pull(self, url):
+        self._event("ready", url)
+        return super().ready_pull(url)
+
+    def branch_pulls(self, repo, branch):
+        self._event("branch_pulls", repo, branch)
+        return super().branch_pulls(repo, branch)
+
+    def disarm_pull(self, url):
+        self._event("disarm", url)
+        return super().disarm_pull(url)
+
+
+class RecordlessBoundaries:
+    """Small Git and launch fakes; no runner branch is replaced."""
+
+    def __init__(self, home: Path, statuses=None, launcher=None, limit=200):
+        self.home = home
+        self.statuses = dict(statuses or {})
+        self.launcher_result = launcher or {}
+        self.git_events = []
+        self.launch_events = []
+        self.limit = limit
+        self.land_events = []
+        self.launched = False
+        self.lane_ref = ""
+
+    def run(self, runner, args, allow_dry=False, cwd=None, check=True):
+        if len(self.git_events) >= self.limit:
+            raise AssertionError(f"git call limit exceeded: {args!r}")
+        self.git_events.append((tuple(str(arg) for arg in args), str(cwd) if cwd else ""))
+        if args[:3] == ["git", "-C", str(runner.paths.clone)] and "worktree" in args:
+            if "add" in args:
+                if "-B" in args:
+                    target = Path(args[args.index("-B") + 2])
+                elif "-b" in args:
+                    target = Path(args[args.index("-b") + 2])
+                else:
+                    target = Path(args[args.index("add") + 1])
+                target.mkdir(parents=True, exist_ok=True)
+        if args[:2] == ["gh", "repo"]:
+            (runner.paths.clone / ".git").mkdir(parents=True, exist_ok=True)
+        return subprocess.CompletedProcess(args, 0, "", "")
+
+    def land_git(self, repo, *args, **kwargs):
+        event = (str(repo), tuple(str(arg) for arg in args))
+        if len(self.git_events) >= self.limit:
+            raise AssertionError(f"git call limit exceeded: {event!r}")
+        self.git_events.append(event)
+        proc = subprocess.CompletedProcess(list(args), 0, "", "")
+        if self.lane_ref and tuple(str(arg) for arg in args)[:4] == (
+            "ls-remote", "origin", "refs/heads/agents/*"
+        ) and self.launched:
+            proc.stdout = f"{'c' * 40}\trefs/heads/{self.lane_ref}\n"
+        return proc
+
+    def land(self, lane, base, **kwargs):
+        self.land_events.append((lane, base, kwargs.get("expected_sha")))
+        return {"parent": "", "merge": "d" * 40}
+
+    def launch(self, runner, label, worktree, prompt, log):
+        if len(self.launch_events) >= self.limit:
+            raise AssertionError(f"launch call limit exceeded: {label!r}")
+        self.launch_events.append((
+            label,
+            str(worktree.relative_to(self.home)),
+            prompt,
+        ))
+        self.launched = True
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text("recordless launcher fixture\n")
+        status = self.statuses.get(label)
+        if status is not None:
+            status_path = (
+                worktree / "build" / "retro" / f"{status[1]}.status.json"
+                if isinstance(status, tuple)
+                else runner.paths.status_file(label)
+            )
+            status_path.parent.mkdir(parents=True, exist_ok=True)
+            status_path.write_text(json.dumps(
+                status[0] if isinstance(status, tuple) else status
+            ))
+        configured = self.launcher_result.get(label, {})
+        seed = configured.get("retro_seed")
+        if seed:
+            path = worktree / "build" / "retro" / seed["name"]
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(seed["value"]))
+        runner.guard_tampered = configured.get("tampered", False)
+        runner.t3_stray = configured.get("stray", False)
+        runner.stray = configured.get("stray", False)
+        return configured.get("code", 0)
+
+
+class RecordlessAckGitHub(RecordlessTraceGitHub):
+    def __init__(self, by_repo, old, head, pr=17):
+        super().__init__(by_repo)
+        self.old = old
+        self.head = head
+        self.pr = pr
+
+    def commit_record(self, repo, sha):
+        self._event("commit_record", repo, sha)
+        return {
+            "committer": {"login": "web-flow"},
+            "commit": {
+                "message": f"merge ({self.pr})",
+                "verification": {"verified": True, "reason": "valid"},
+            },
+        }
+
+    def commit_pulls(self, repo, sha):
+        self._event("commit_pulls", repo, sha)
+        return [{
+            "number": self.pr,
+            "merged_at": "2026-11-22T12:00:00Z",
+            "merge_commit_sha": self.head,
+            "base": {"ref": "main"},
+            "head": {"sha": self.head},
+        }]
+
+    def live_requirements(self, repo, branch):
+        self._event("requirements", repo, branch)
+        return {
+            "problems": [],
+            "contexts": [("pr-checks", 77)],
+            "updated_at": datetime(2026, 11, 21, tzinfo=timezone.utc),
+        }
+
+    def check_runs(self, repo, sha):
+        self._event("checks", repo, sha)
+        return [{
+            "name": "pr-checks",
+            "id": 1,
+            "app": {"id": 77},
+            "conclusion": "success",
+            "completed_at": "2026-11-22T13:00:00Z",
+        }]
+
+
+class RecordlessQueueErrorGitHub(RecordlessTraceGitHub):
+    def open_issues(self, repo):
+        self._event("open", repo)
+        raise ht.TriageError("synthetic queue failure")
+
+
+class RecordlessAckBoundaries(RecordlessBoundaries):
+    def __init__(self, home, old, head):
+        super().__init__(home)
+        self.old = old
+        self.head = head
+
+    def land_git(self, repo, *args, **kwargs):
+        proc = super().land_git(repo, *args, **kwargs)
+        values = tuple(str(arg) for arg in args)
+        if values[:3] == ("ls-remote", "origin", "refs/heads/main"):
+            proc.stdout = f"{self.head}\trefs/heads/main\n"
+        elif values[:2] == ("rev-list", "--first-parent"):
+            proc.stdout = self.head
+        elif values[:3] == ("rev-list", "--parents", "-n1"):
+            proc.stdout = f"{self.head} {self.old}\n"
+        return proc
 
 
 class LoadAndMissingTests(StoreTestBase):
@@ -868,6 +1137,700 @@ class StatusAndGoldenTests(StoreTestBase):
         ])
         reopened = json.loads(self.paths.state.read_text())
         self.assertEqual(reopened["opaque_extension"], {"preserve": ["exact", 1]})
+
+    def test_recordless_both_admissions_choose_priority_and_keep_fixed_bytes(self):
+        self.maxDiff = None
+        request_old = t.issue(
+            41, created="2026-10-12T00:00:00Z"
+        )
+        request_priority = t.issue(
+            42, labels=["Priority"], created="2026-10-13T00:00:00Z"
+        )
+        nightly_old = t.issue(
+            51,
+            labels=["Nightly Fix"],
+            author="github-actions",
+            created="2026-10-12T00:00:00Z",
+        )
+        nightly_priority = t.issue(
+            52,
+            labels=["Nightly Fix", "Priority"],
+            author="github-actions",
+            created="2026-10-13T00:00:00Z",
+        )
+        gh = RecordlessTraceGitHub({
+            self.cfg["request_repo"]: [request_old, request_priority],
+            self.cfg["nightly"]["repo"]: [nightly_old, nightly_priority],
+        })
+        primary_data = self.legacy(
+            opaque_extension={"preserve": ["request", 1]}
+        )
+        nightly_data = self.legacy(
+            opaque_extension={"preserve": ["nightly", 2]}
+        )
+        self.write_raw(self.paths.state, primary_data)
+        nightly_path = ht.Paths(self.cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, nightly_data)
+        boundaries = RecordlessBoundaries(self.home)
+
+        result = self.main_golden(
+            ["tick", "--dry-run", "--max-items", "2"], self.cfg, gh, boundaries
+        )
+
+        self.assertEqual(
+            result,
+            (
+                0,
+                "[dry-run] would work #42: [Bug] Thing 42\n"
+                "[dry-run] queued #41: [Bug] Thing 41\n"
+                "[dry-run] would work #52: [Bug] Thing 52\n"
+                "[dry-run] queued #51: [Bug] Thing 51\n",
+                "",
+            ),
+        )
+        self.assertEqual(gh.events, [
+            ("open", self.cfg["request_repo"]),
+            ("open", self.cfg["request_repo"]),
+            ("open", self.cfg["request_repo"]),
+            ("open", self.cfg["nightly"]["repo"]),
+            ("open", self.cfg["nightly"]["repo"]),
+            ("open", self.cfg["nightly"]["repo"]),
+        ])
+        clone = str(self.paths.clone)
+        self.assertEqual(boundaries.git_events, [
+            (("gh", "repo", "clone", self.cfg["product_repo"], clone), ""),
+            (("git", "-C", clone, "fetch", "-q", "origin",
+              self.cfg["product_base"]), ""),
+            (("git", "-C", clone, "fetch", "-q", "origin",
+              self.cfg["product_base"]), ""),
+        ])
+        self.assertEqual(boundaries.launch_events, [])
+        self.assertEqual(self.file_bytes(), {
+            ".local/state/hass-triage/state-nightly.json": self.saved_bytes(nightly_data),
+            ".local/state/hass-triage/state.json": self.saved_bytes(primary_data),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        })
+
+    def test_recordless_acknowledgements_ignore_bad_primary_and_keep_base_history(self):
+        old = "a" * 40
+        head = "b" * 40
+        cfg = dict(self.cfg)
+        cfg["workflow_base"] = cfg["product_base"]
+        cfg["nightly"] = None
+        self.write_raw(self.paths.state, "{")
+        base = self.paths.state_dir / "workflow-base.json"
+        pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
+        pause_info = self.paths.state_dir / "SELF_CHANGE_PAUSED.json"
+        gh = RecordlessAckGitHub(
+            {cfg["request_repo"]: []}, old, head
+        )
+        boundaries = RecordlessAckBoundaries(self.home, old, head)
+        land = self.paths.root / "land" / cfg["product_repo"].split("/")[-1]
+        (land / ".git").mkdir(parents=True)
+
+        def seed_pause():
+            base.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text(json.dumps({"main": old}, indent=2, sort_keys=True))
+            pause.write_text("unexpected workflow base move\n")
+            pause_info.write_text(json.dumps({
+                "base": "main",
+                "sha": head,
+                "expected": old,
+                "moves": [],
+                "when": "tick",
+                "at": "2026-11-23T12:00:00Z",
+            }))
+
+        seed_pause()
+        accepted = self.main_golden(
+            ["ack-base", head], cfg, gh, boundaries
+        )
+        self.assertEqual(accepted, (
+            0,
+            "Accepted bbbbbbbbbb as the workflow base; SELF_CHANGE_PAUSED cleared.\n",
+            "",
+        ))
+
+        seed_pause()
+        verified = self.main_golden(
+            ["ack-verified"], cfg, gh, boundaries
+        )
+        self.assertEqual(verified, (
+            0,
+            "Accepted 1 PR merges: #17; head bbbbbbbbbb; "
+            "SELF_CHANGE_PAUSED cleared.\n",
+            "",
+        ))
+        self.assertEqual(gh.events, [
+            ("requirements", cfg["product_repo"], "main"),
+            ("commit_record", cfg["product_repo"], head),
+            ("commit_pulls", cfg["product_repo"], head),
+            ("checks", cfg["product_repo"], head),
+        ])
+        self.assertEqual(boundaries.git_events, [
+            (str(land), ("ls-remote", "origin", "refs/heads/main")),
+            (str(land), ("ls-remote", "origin", "refs/heads/main")),
+            (str(land), ("fetch", "-q", "origin",
+                         "+refs/heads/main:refs/remotes/origin/main")),
+            (str(land), ("merge-base", "--is-ancestor", old, head)),
+            (str(land), ("rev-list", "--first-parent",
+                         "--max-count=201", f"{old}..{head}")),
+            (str(land), ("rev-list", "--parents", "-n1", head)),
+            (str(land), ("ls-remote", "origin", "refs/heads/main")),
+        ])
+        ack_log = {
+            "at": "2026-11-23T12:00:00Z",
+            "contexts": ["pr-checks"],
+            "from": old,
+            "mode": "verified",
+            "prs": [17],
+            "session": "owner",
+            "to": head,
+        }
+        self.assertEqual(self.file_bytes(), {
+            ".local/state/hass-triage/ack.lock": b"",
+            ".local/state/hass-triage/ack-log.jsonl":
+                (json.dumps(ack_log, sort_keys=True) + "\n").encode(),
+            ".local/state/hass-triage/state.json": b"{",
+            ".local/state/hass-triage/tick.lock": b"4242",
+            ".local/state/hass-triage/workflow-base.json":
+                json.dumps({"main": head}, indent=2, sort_keys=True).encode(),
+        })
+
+    def test_recordless_tick_routes_merging_parked_recovery_and_stored_finish(self):
+        self.maxDiff = None
+        repo = self.cfg["request_repo"]
+        product = self.cfg["product_repo"]
+        merged_62 = f"https://github.com/{product}/pull/62"
+        merged_63 = f"https://github.com/{product}/pull/63"
+        parked_67 = f"https://github.com/{product}/pull/67"
+        issues = [
+            t.issue(62, labels=["Merging"], created="2026-10-01T00:00:00Z"),
+            t.issue(63, labels=["Needs Decision"], created="2026-10-02T00:00:00Z"),
+            t.issue(64, labels=["In Progress"], created="2026-10-03T00:00:00Z"),
+            t.issue(65, labels=["In Progress"], created="2026-10-04T00:00:00Z"),
+            t.issue(66, labels=["Blocked"], created="2026-10-05T00:00:00Z"),
+            t.issue(67, labels=["Needs Decision"], created="2026-10-06T00:00:00Z"),
+        ]
+        finish_62 = {"state": "done", "summary": "merged sixty-two"}
+        finish_63 = {"state": "done", "summary": "merged sixty-three"}
+        finish_64 = {"state": "done", "summary": "stored finish sixty-four"}
+        hold_path = self.paths.worktrees / "64"
+        hold_path.mkdir(parents=True)
+        self.paths.worktrees.joinpath("62").mkdir(parents=True)
+        state_data = self.legacy(
+            attempts={"65": 1},
+            merging={"62": {
+                "pr": merged_62, "status": finish_62, "since": 1
+            }},
+            parked={
+                "63": {"pr": merged_63, "status": finish_63, "since": 1},
+                "67": {
+                    "pr": parked_67,
+                    "status": finish_63,
+                    "since": 1795435200.0,
+                },
+            },
+            archive_sessions={"request-64": {
+                "name": "request-64",
+                "session": "request-64-fixed",
+                "path": str(hold_path),
+            }},
+            archive_holds={"request-64": {
+                "name": "request-64",
+                "path": str(hold_path),
+                "reason": "sidecar_archive_io",
+                "since": "2026-11-22T00:00:00Z",
+                "finish": {
+                    "kind": "done", "status": finish_64, "pr": merged_63
+                },
+            }},
+            opaque_extension={"preserve": ["maintenance", 3]},
+        )
+        self.write_raw(self.paths.state, state_data)
+        gh = RecordlessTraceGitHub(
+            {repo: issues},
+            {
+                merged_62: {"state": "MERGED", "url": merged_62, "labels": []},
+                merged_63: {"state": "MERGED", "url": merged_63, "labels": []},
+                parked_67: {"state": "OPEN", "url": parked_67, "labels": []},
+            },
+        )
+        for number in (66, 67):
+            gh.comment_store[number] = [
+                {
+                    "id": 700 + number,
+                    "body": f"<!-- hass-triage:{number}:blocked -->",
+                    "user": {"login": "sfenton-agent"},
+                    "created_at": "2026-11-22T00:00:00Z",
+                },
+                {
+                    "id": 800 + number,
+                    "body": "pick the second option",
+                    "user": {"login": "SFenton"},
+                    "created_at": "2026-11-23T00:00:00Z",
+                },
+            ]
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        boundaries = RecordlessBoundaries(self.home)
+
+        result = self.main_golden(
+            ["tick", "--dry-run", "--max-items", "1"],
+            cfg,
+            gh,
+            boundaries,
+        )
+
+        self.assertEqual(result, (
+            0,
+            "#66: owner replied; re-queued\n"
+            "#67: owner replied; re-queued\n"
+            "#65: worker gone; re-queued\n"
+            "[dry-run] would work #65: [Bug] Thing 65\n"
+            "[dry-run] queued #66: [Bug] Thing 66\n"
+            "[dry-run] queued #67: [Bug] Thing 67\n",
+            "",
+        ))
+        self.assertIn(
+            ("pull", merged_62), gh.events
+        )
+        self.assertIn(
+            ("pull", merged_63), gh.events
+        )
+        self.assertIn(
+            ("label_pull", parked_67, "", "Needs Decision"), gh.events
+        )
+        self.assertIn(
+            ("close", repo, 62, False), gh.events
+        )
+        self.assertIn(
+            ("close", repo, 63, False), gh.events
+        )
+        self.assertIn(
+            ("close", repo, 64, False), gh.events
+        )
+        self.assertIn(
+            ("labels", repo, 65, (), ("In Progress",)), gh.events
+        )
+        reopened = json.loads(self.paths.state.read_text())
+        expected_history = [
+            {
+                "at": "2026-11-23T12:00:00Z",
+                "detail": merged_62,
+                "issue": 62,
+                "outcome": "done",
+            },
+            {
+                "at": "2026-11-23T12:00:00Z",
+                "detail": merged_63,
+                "issue": 63,
+                "outcome": "done",
+            },
+            {
+                "at": "2026-11-23T12:00:00Z",
+                "detail": merged_63,
+                "issue": 64,
+                "outcome": "done",
+            },
+        ]
+        self.assertEqual(reopened, self.legacy(
+            attempts={"65": 1},
+            history=expected_history,
+            replies={"66": 866, "67": 867},
+            resumed={"66": "2026-11-23T00:00:00Z"},
+            picked={"67": parked_67},
+            opaque_extension={"preserve": ["maintenance", 3]},
+        ))
+        self.assertEqual(boundaries.launch_events, [])
+        removed = {
+            args[-1]
+            for args, _cwd in boundaries.git_events
+            if "worktree" in args and "remove" in args
+        }
+        self.assertIn(str(self.paths.worktrees / "62"), removed)
+        self.assertIn(str(self.paths.worktrees / "64"), removed)
+        self.assertNotIn(str(self.paths.worktrees / "63"), removed)
+        self.assertEqual(self.file_bytes(), {
+            ".local/state/hass-triage/state.json": self.saved_bytes(reopened),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        })
+
+    def test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        self.write_raw(self.paths.state, self.legacy(
+            jobs={"researcher": {
+                "last_run": "2026-01-01T00:00:00Z",
+                "outcome": "old",
+            }},
+            opaque_extension={"preserve": ["jobs", 4]},
+        ))
+        gh = RecordlessTraceGitHub({cfg["request_repo"]: []})
+        (self.paths.root / "land" / cfg["product_repo"].split("/")[-1] /
+         ".git").mkdir(parents=True)
+        landed_at = 1795435200.0
+        for offset, after in (
+            (-10, False),
+            (10, True),
+        ):
+            for number in range(10):
+                digest = (
+                    self.paths.root / "archive" /
+                    f"request-{after}-{number}" / "retro" /
+                    f"flow-{number}.json"
+                )
+                digest.parent.mkdir(parents=True, exist_ok=True)
+                triggers = (
+                    [{"id": "owner_correction"}, {"id": "routing_override"}]
+                    if after else []
+                )
+                digest.write_text(json.dumps({
+                    "task": f"flow-{after}-{number}",
+                    "triggers": triggers,
+                    "cost": {"tokens": 2000 if after else 100},
+                }))
+                os.utime(digest, (landed_at + offset, landed_at + offset))
+        statuses = {
+            "job-researcher": {
+                "state": "done",
+                "summary": "job completed",
+            },
+            "retro-job-researcher-2026-11-23": (
+                {
+                    "state": "done",
+                    "summary": "retro completed",
+                },
+                "job-researcher-2026-11-23",
+            ),
+        }
+        boundaries = RecordlessBoundaries(self.home, statuses=statuses)
+
+        scheduled = self.main_golden(["tick"], cfg, gh, boundaries)
+        self.assertEqual(scheduled, (0, "", ""))
+
+        task = "job-researcher-2026-11-23"
+        lane = "agents/researcher-golden"
+        boundaries.launched = False
+        boundaries.lane_ref = lane
+        boundaries.statuses["job-researcher"] = {
+            "state": "done",
+            "summary": "job completed",
+            "lanes": [lane],
+        }
+        boundaries.launcher_result["job-researcher"] = {
+            "retro_seed": {
+                "name": f"{task}.json",
+                "value": {"triggers": [{"id": "history-volume"}]},
+            },
+        }
+        manual = self.main_golden(
+            ["run-job", "researcher"], cfg, gh, boundaries
+        )
+        self.assertEqual(manual, (
+            0,
+            "job-researcher: landed agents/researcher-golden "
+            "into main (dddddddddd)\ndone\n",
+            "",
+        ))
+        queued = json.loads(ht.Paths(cfg, self.home, "retro-").state.read_text())
+        self.assertEqual(
+            [item["task"] for item in queued["queue"]],
+            [task],
+        )
+        self.assertEqual(queued["queue"][0]["triggers"], ["history-volume"])
+
+        retro = self.main_golden(["tick"], cfg, gh, boundaries)
+        self.assertEqual(retro, (0, "", ""))
+        self.assertEqual(
+            [(label, tree) for label, tree, _prompt in boundaries.launch_events],
+            [
+                ("job-researcher", "hass-agents/worktrees/job-researcher"),
+                ("job-researcher", "hass-agents/worktrees/job-researcher"),
+                (
+                    "retro-job-researcher-2026-11-23",
+                    "hass-agents/worktrees/retro-job-researcher-2026-11-23",
+                ),
+            ],
+        )
+        self.assertEqual(
+            boundaries.land_events,
+            [(lane, cfg["workflow_base"], "c" * 40)],
+        )
+        primary = json.loads(self.paths.state.read_text())
+        self.assertEqual(primary["opaque_extension"], {"preserve": ["jobs", 4]})
+        self.assertEqual(primary["current"], None)
+        self.assertEqual(primary["jobs"]["researcher"]["outcome"], "done")
+        self.assertEqual(primary["lanes"]["job-researcher"][lane], "merged")
+        self.assertEqual(
+            [entry["outcome"] for entry in primary["history"]],
+            ["job:done", "job:done", "retro:done"],
+        )
+        reopened_retro = json.loads(
+            ht.Paths(cfg, self.home, "retro-").state.read_text()
+        )
+        self.assertEqual(reopened_retro["queue"], [])
+        self.assertIsNone(reopened_retro["current"])
+        self.assertEqual(
+            reopened_retro["done"][-1]["outcome"],
+            "done",
+        )
+        self.assertEqual(
+            reopened_retro["done"][-1]["task"],
+            task,
+        )
+
+        regression = self.main_golden(["tick"], cfg, gh, boundaries)
+        self.assertEqual(regression, (
+            0,
+            f"revert: landed agents/revert-{'d' * 12} "
+            "into main (dddddddddd)\n",
+            "",
+        ))
+        self.assertEqual(boundaries.land_events[-1], (
+            f"agents/revert-{'d' * 12}",
+            cfg["workflow_base"],
+            None,
+        ))
+
+    def test_recordless_run_issue_tamper_routes_block_and_disarms_pull(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        item = t.issue(71, created="2026-10-01T00:00:00Z")
+        pull = f"https://github.com/{cfg['product_repo']}/pull/71"
+        gh = RecordlessTraceGitHub({cfg["request_repo"]: [item]})
+        gh.branch_pull_list = [
+            {"url": pull, "state": "OPEN", "labels": []}
+        ]
+        self.write_raw(self.paths.state, self.legacy(
+            opaque_extension={"preserve": ["tamper", 5]}
+        ))
+        boundaries = RecordlessBoundaries(
+            self.home,
+            launcher={71: {"tampered": True}},
+        )
+
+        result = self.main_golden(
+            ["run-issue", "71"], cfg, gh, boundaries
+        )
+
+        self.assertEqual(
+            result[0],
+            0,
+        )
+        self.assertRegex(
+            result[1],
+            r"^#71: retro phase failed: \[Errno 2\] No such file or directory: "
+            r"'.*/hass-agents/archive/request-71/status\.json'\nblocked\n$",
+        )
+        self.assertEqual(result[2], "")
+        self.assertEqual(gh.events.count(
+            ("branch_pulls", cfg["product_repo"], "report/71")
+        ), 1)
+        self.assertIn(("disarm", pull), gh.events)
+        self.assertIn(
+            ("label_pull", pull, "", cfg["merge"]["label"]), gh.events
+        )
+        self.assertIn(
+            ("labels", cfg["request_repo"], 71, ("Blocked",),
+             ("In Progress", "Merging", "Needs Decision")),
+            gh.events,
+        )
+        self.assertEqual(boundaries.launch_events[0][0], 71)
+        reopened = json.loads(self.paths.state.read_text())
+        self.assertEqual(reopened["current"], None)
+        self.assertEqual(reopened["opaque_extension"], {
+            "preserve": ["tamper", 5]
+        })
+        self.assertEqual(reopened["history"][-1]["outcome"], "blocked:guard_tampered")
+        self.assertEqual(
+            reopened["history"][-1]["detail"],
+            "The session changed the guard hooks, settings or triage record, "
+            "so its result was not used. auto-merge on "
+            f"{pull} was turned off.",
+        )
+
+    def test_recordless_manual_busy_paused_and_asymmetric_preview_modes(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        issue = t.issue(72)
+        gh = RecordlessTraceGitHub({cfg["request_repo"]: [issue]})
+        self.write_raw(self.paths.state, self.legacy(
+            opaque_extension={"preserve": ["manual", 6]}
+        ))
+        boundaries = RecordlessBoundaries(self.home)
+
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            self.assertEqual(
+                self.main_golden(["run-issue", "72"], cfg, gh, boundaries),
+                (
+                    1,
+                    "another runner writer is active; run-issue refused\n",
+                    "",
+                ),
+            )
+            self.assertEqual(
+                self.main_golden(["run-job", "researcher"], cfg, gh, boundaries),
+                (
+                    1,
+                    "another runner writer is active; run-job refused\n",
+                    "",
+                ),
+            )
+        self.assertEqual(
+            self.main_golden(["pause"], cfg, gh, boundaries),
+            (0, "Paused: no new work starts until `resume`.\n", ""),
+        )
+        self.assertTrue(self.paths.paused.exists())
+        self.assertEqual(
+            self.main_golden(["run-job", "researcher"], cfg, gh, boundaries),
+            (0, "paused\n", ""),
+        )
+
+        preview = self.main_golden(
+            ["run-issue", "72", "--dry-run"], cfg, gh, boundaries
+        )
+        self.assertEqual((preview[0], preview[2]), (0, ""))
+        self.assertTrue(
+            preview[1].startswith(
+                "# Fenton Home triage agent: request #72\n"
+            ),
+        )
+        self.assertIn("report/72", preview[1])
+        self.assertIn("## The request", preview[1])
+        self.assertEqual(
+            json.loads(self.paths.state.read_text())["opaque_extension"],
+            {"preserve": ["manual", 6]},
+        )
+        self.assertEqual(
+            self.main_golden(["resume"], cfg, gh, boundaries),
+            (0, "Resumed.\n", ""),
+        )
+        self.assertFalse(self.paths.paused.exists())
+        self.assertEqual(boundaries.git_events, [])
+        self.assertEqual(boundaries.launch_events, [])
+
+    def test_recordless_status_formats_under_real_lock_with_independent_queue_error(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        primary = self.legacy(
+            opaque_extension={"preserve": ["status", 7]}
+        )
+        self.write_raw(self.paths.state, primary)
+        retained_nightly = ht.Paths(self.cfg, self.home, "nightly-").state
+        self.write_raw(retained_nightly, "{")
+        retro = ht.Paths(self.cfg, self.home, "retro-").state
+        self.write_raw(retro, self.legacy(queue=[], done=[]))
+        gh = RecordlessQueueErrorGitHub({cfg["request_repo"]: []})
+        boundaries = RecordlessBoundaries(self.home)
+
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            self.paths.lock.write_text("4242")
+            text = self.main_golden(["status"], cfg, gh, boundaries)
+            encoded = self.main_golden(["status", "--json"], cfg, gh, boundaries)
+
+        self.assertEqual(text, (
+            0,
+            "paused: False   installed: False   running: no\n"
+            "self-changes: running\n"
+            "auth: claude logged in\n"
+            "state store nightly: parse (exists yes)\n"
+            "queue: #None \n",
+            "",
+        ))
+        self.assertEqual((encoded[0], encoded[2]), (0, ""))
+        report = json.loads(encoded[1])
+        self.assertEqual(report["queue"], [{
+            "error": "synthetic queue failure"
+        }])
+        self.assertEqual(report["nightly_queue"], [])
+        self.assertEqual(report["state_loads"], [{
+            "store": "nightly",
+            "kind": "parse",
+            "exists": "yes",
+        }])
+        self.assertEqual(report["retro_queue"], [])
+        self.assertEqual(gh.events, [
+            ("open", cfg["request_repo"]),
+            ("open", cfg["request_repo"]),
+        ])
+        self.assertEqual(boundaries.git_events, [])
+        self.assertEqual(boundaries.launch_events, [])
+        self.assertEqual(self.file_bytes(), {
+            ".local/state/hass-triage/state-nightly.json": b"{",
+            ".local/state/hass-triage/state-retro.json":
+                json.dumps(self.legacy(queue=[], done=[])).encode(),
+            ".local/state/hass-triage/state.json": json.dumps(primary).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        })
+
+    def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        issue = t.issue(81, created="2026-10-01T00:00:00Z")
+        gh = RecordlessTraceGitHub({cfg["request_repo"]: [issue]})
+        self.write_raw(self.paths.state, self.legacy(
+            opaque_extension={"preserve": ["request-save", 8]}
+        ))
+        boundaries = RecordlessBoundaries(
+            self.home,
+            statuses={81: {
+                "state": "blocked",
+                "summary": "worker stopped",
+            }},
+        )
+        original_save = ht.State.save
+        primary_saves = 0
+
+        def save(state):
+            nonlocal primary_saves
+            if state.path == self.paths.state:
+                primary_saves += 1
+                if primary_saves == 4:
+                    raise ht.StateSaveError(state.path.name, "parent_sync")
+            return original_save(state)
+
+        with mock.patch.object(
+            ht.State, "save", autospec=True, side_effect=save
+        ):
+            result = self.main_golden(
+                ["run-issue", "81"], cfg, gh, boundaries
+            )
+
+        self.assertEqual(result, (
+            4,
+            "",
+            "error: state persistence failed during parent_sync "
+            "for state.json\n",
+        ))
+        self.assertEqual(primary_saves, 4)
+        self.assertIn(
+            (
+                "labels",
+                cfg["request_repo"],
+                81,
+                ("Blocked",),
+                ("In Progress", "Merging", "Needs Decision"),
+            ),
+            gh.events,
+        )
+        reopened = json.loads(self.paths.state.read_text())
+        self.assertEqual(reopened["current"]["issue"], 81)
+        self.assertEqual(reopened["attempts"], {"81": 1})
+        self.assertEqual(reopened["history"], [])
+        self.assertEqual(reopened["opaque_extension"], {
+            "preserve": ["request-save", 8]
+        })
+        self.assertTrue(
+            (self.paths.root / "archive" / "request-81" / "status.json").is_file()
+        )
 
 
 if __name__ == "__main__":
