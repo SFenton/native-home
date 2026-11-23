@@ -194,6 +194,18 @@ class TriageError(RuntimeError):
     """A failed command or call (messages never contain a token)."""
 
 
+class StateLoadError(TriageError):
+    """A logical state store cannot safely be used as an authority."""
+
+
+class StateSaveError(TriageError):
+    """A state save did not establish the requested durability barrier."""
+
+    def __init__(self, name: str, stage: str):
+        self.stage = stage
+        super().__init__(f"state persistence failed during {stage} for {name}")
+
+
 # MARK: - Small helpers
 
 def now() -> datetime:
@@ -286,7 +298,7 @@ class Paths:
 @contextlib.contextmanager
 def writer_lock(paths: Paths):
     """Acquire the shared writer inode without disturbing a losing invocation."""
-    paths.state_dir.mkdir(parents=True, exist_ok=True)
+    durable_mkdir(paths.state_dir)
     lock = open(paths.lock, "a+")
     acquired = False
     try:
@@ -326,30 +338,560 @@ def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
 
 # MARK: - State
 
+CUSTODY_VERSION = 1
+CUSTODY_PHASES = {"unknown", "pending", "release_authorized"}
+CUSTODY_OUTCOMES = {
+    "unknown", "done", "no_changes", "blocked", "timeout", "no_status",
+    "retry", "error", "split", "needs_pr", "closed_unmerged", "owner_wait",
+    "actionable", "awaiting_review_wiring", "merged_pending_accounting",
+}
+CUSTODY_DELIVERY_STATES = {"unsent", "intent", "uncertain", "confirmed"}
+CUSTODY_FACT_KEYS = {
+    "state", "trust", "exit_code", "archive_disposition", "reason",
+}
+CUSTODY_ARCHIVE_DISPOSITIONS = {"unknown", "absent", "held", "archived", "fully_accounted"}
+CUSTODY_FORBIDDEN_FIELDS = {"status", "decoded", "envelope", "payload", "body"}
+
+
+class _DuplicateJSONKey(ValueError):
+    pass
+
+
+def _state_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
+    value: Dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise _DuplicateJSONKey(key)
+        value[key] = item
+    return value
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def durable_mkdir(directory: Path) -> None:
+    """Create directory ancestry and durably record every new directory entry."""
+    missing = []
+    cursor = directory
+    while not cursor.exists():
+        missing.append(cursor)
+        cursor = cursor.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    for created in reversed(missing):
+        directory_fd = os.open(str(created.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
 class State:
-    """``state.json``: attempts per issue, the issue being worked, pull requests waiting to merge and the
-    recent outcomes."""
+    """One runner-owned logical store, with strict custody and persistence semantics."""
+
+    _known_paths: set = set()
 
     def __init__(self, path: Path):
         self.path = path
+        self.load_faults: List[Dict[str, Any]] = []
+        self._custody_records: List[Tuple[Tuple[str, str, str, str], Dict[str, Any]]] = []
+        self.data = self._empty_data()
+        path_key = str(path)
         try:
-            self.data: Dict[str, Any] = json.loads(path.read_text())
-        except (OSError, ValueError):
-            self.data = {}
-        self.data.setdefault("attempts", {})
-        self.data.setdefault("merging", {})
-        self.data.setdefault("parked", {})
-        self.data.setdefault("jobs", {})
-        self.data.setdefault("history", [])
-        self.data.setdefault("current", None)
-        self.data.setdefault("archive_sessions", {})
-        self.data.setdefault("archive_holds", {})
+            text = path.read_text()
+            self._known_paths.add(path_key)
+        except FileNotFoundError:
+            if path_key in self._known_paths:
+                self._fault("not_found", "established state store is missing")
+            return
+        except OSError:
+            self._fault("read", "state store cannot be read")
+            self._known_paths.add(path_key)
+            return
+        try:
+            value = json.loads(text, object_pairs_hook=_state_object)
+        except _DuplicateJSONKey:
+            self._fault("parse", "state store contains a duplicate JSON key")
+            return
+        except (TypeError, ValueError):
+            self._fault("parse", "state store contains malformed JSON")
+            return
+        if not isinstance(value, dict):
+            self._fault("root", "state root must be an object")
+            return
+        self.data = value
+        self._validate_custody()
+        for key, default in self._empty_data().items():
+            self.data.setdefault(key, default)
+
+    @staticmethod
+    def _empty_data() -> Dict[str, Any]:
+        return {
+            "attempts": {},
+            "merging": {},
+            "parked": {},
+            "jobs": {},
+            "history": [],
+            "current": None,
+            "archive_sessions": {},
+            "archive_holds": {},
+        }
+
+    def _fault(self, kind: str, reason: str, key: Optional[Tuple[str, str, str, str]] = None,
+               version: Any = None) -> None:
+        fault = {"kind": kind, "reason": reason, "version": version}
+        if key is not None:
+            fault["key"] = {
+                "repository": key[0],
+                "intake": key[1],
+                "producer": key[2],
+                "generation": key[3],
+            }
+        self.load_faults.append(fault)
+
+    @property
+    def writable(self) -> bool:
+        return not self.load_faults
+
+    def require_writable(self) -> None:
+        if self.load_faults:
+            fault = self.load_faults[0]
+            raise StateLoadError(
+                f"state store refused: {fault['kind']} ({fault['reason']}); nothing was changed"
+            )
+
+    @staticmethod
+    def _valid_outcome(value: Any) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            return value in CUSTODY_OUTCOMES
+        if not isinstance(value, dict) or not value or any(key not in CUSTODY_FACT_KEYS for key in value):
+            return False
+        state = value.get("state")
+        if state is not None and (not isinstance(state, str) or state not in CUSTODY_OUTCOMES):
+            return False
+        if "trust" in value and not isinstance(value["trust"], bool):
+            return False
+        if "exit_code" in value and not _is_int(value["exit_code"]):
+            return False
+        if "archive_disposition" in value \
+                and value["archive_disposition"] not in CUSTODY_ARCHIVE_DISPOSITIONS:
+            return False
+        if "reason" in value and (not isinstance(value["reason"], str) or len(value["reason"]) > 300):
+            return False
+        return True
+
+    @staticmethod
+    def _valid_timestamp(value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        try:
+            parse_time(value)
+        except (TypeError, ValueError):
+            return False
+        return True
+
+    @staticmethod
+    def _valid_path(value: Any) -> bool:
+        if isinstance(value, str):
+            return bool(value)
+        return isinstance(value, dict) \
+            and value.get("state") in {"unknown", "read_error"} \
+            and isinstance(value.get("reason"), str) \
+            and set(value) <= {"state", "reason"}
+
+    @classmethod
+    def _valid_notice(cls, value: Any) -> bool:
+        if not isinstance(value, dict):
+            return False
+        if "key" in value and (not isinstance(value["key"], str) or not value["key"]):
+            return False
+        if not isinstance(value.get("state"), str) or value["state"] not in CUSTODY_DELIVERY_STATES:
+            return False
+        if "since" in value and not cls._valid_timestamp(value["since"]):
+            return False
+        remote = value.get("remote_identity")
+        if remote is not None:
+            if not isinstance(remote, dict) or not set(remote) <= {"repository", "kind", "id", "issuer"}:
+                return False
+            if any(not isinstance(item, (str, int, type(None))) or isinstance(item, bool)
+                   for item in remote.values()):
+                return False
+        return set(value) <= {"key", "state", "since", "remote_identity"}
+
+    def _validate_custody(self) -> None:
+        if "custody" not in self.data:
+            return
+        custody = self.data["custody"]
+        if not isinstance(custody, dict):
+            self._fault("type", "custody aggregate must be an object")
+            return
+        version = custody.get("version")
+        if not _is_int(version) or version != CUSTODY_VERSION:
+            self._fault("version", "custody version is incompatible", version=version)
+            return
+        records = custody.get("records")
+        if not isinstance(records, dict):
+            self._fault("type", "custody records must be an object", version=version)
+            return
+        for repository, intakes in sorted(records.items()):
+            if not isinstance(repository, str) or not repository or not isinstance(intakes, dict):
+                self._fault("schema", "custody repository index is invalid", version=version)
+                continue
+            for intake, producers in sorted(intakes.items()):
+                if not isinstance(intake, str) or intake not in {"request", "nightly", "retro"} \
+                        or not isinstance(producers, dict):
+                    self._fault("schema", "custody intake index is invalid", version=version)
+                    continue
+                for producer, generations in sorted(producers.items()):
+                    if not isinstance(producer, str) or not producer or not isinstance(generations, dict):
+                        self._fault("schema", "custody producer index is invalid", version=version)
+                        continue
+                    for generation, record in sorted(generations.items()):
+                        key = (repository, intake, producer, generation) \
+                            if isinstance(generation, str) else ("", "", "", "")
+                        if not isinstance(generation, str) or not generation:
+                            self._fault("schema", "custody generation key is invalid", version=version)
+                            continue
+                        if self._validate_custody_record(key, record, version):
+                            self._custody_records.append((key, record))
+
+    def _validate_custody_record(self, key: Tuple[str, str, str, str], record: Any,
+                                 version: int) -> bool:
+        repository, intake, producer, generation = key
+        if not isinstance(record, dict):
+            self._fault("type", "custody record must be an object", key, version)
+            return False
+        expected = {
+            "repository": repository,
+            "intake": intake,
+            "producer": producer,
+            "generation": generation,
+        }
+        if any(record.get(name) != expected[name] for name in expected):
+            self._fault("schema", "custody key copy does not match its canonical key", key, version)
+            return False
+        if not re.fullmatch(r"(request|nightly|job|retro):.+", producer):
+            self._fault("schema", "custody producer is not a typed identity", key, version)
+            return False
+        phase = record.get("phase")
+        if phase not in CUSTODY_PHASES:
+            self._fault("phase", "custody phase is not recognized", key, version)
+            return False
+        if not self._valid_timestamp(record.get("since")):
+            self._fault("type", "custody since value is invalid", key, version)
+            return False
+        reason = record.get("reason")
+        if reason is not None and (not isinstance(reason, str) or len(reason) > 300):
+            self._fault("type", "custody reason is invalid", key, version)
+            return False
+        if CUSTODY_FORBIDDEN_FIELDS.intersection(record):
+            self._fault("type", "custody record contains a non-allowlisted envelope field", key, version)
+            return False
+        original = record.get("original_outcome")
+        if not self._valid_outcome(original):
+            self._fault("type", "custody original outcome is invalid", key, version)
+            return False
+        trust_evidence = record.get("trust_evidence")
+        if trust_evidence is not None \
+                and (not isinstance(trust_evidence, dict) or not self._valid_outcome(trust_evidence)):
+            self._fault("type", "custody trust evidence is invalid", key, version)
+            return False
+        attempts = record.get("attempts", 0)
+        if _is_int(attempts):
+            if attempts < 0:
+                self._fault("type", "custody attempt count is negative", key, version)
+                return False
+        elif isinstance(attempts, dict) \
+                and all(isinstance(name, str) and _is_int(count) and count >= 0
+                        for name, count in attempts.items()):
+            pass
+        else:
+            self._fault("type", "custody attempt count is invalid", key, version)
+            return False
+        if "path" in record and not self._valid_path(record["path"]):
+            self._fault("type", "custody checkout evidence is invalid", key, version)
+            return False
+        expected_branches = record.get("expected_branches")
+        if expected_branches is not None and (
+                not isinstance(expected_branches, list)
+                or any(not isinstance(branch, str) or not branch for branch in expected_branches)):
+            self._fault("type", "custody expected branches are invalid", key, version)
+            return False
+        pre_refs = record.get("pre_refs")
+        if pre_refs is not None:
+            if not isinstance(pre_refs, dict):
+                self._fault("type", "custody pre-refs must be an object", key, version)
+                return False
+            for ref, evidence in pre_refs.items():
+                readable = isinstance(evidence, str) and bool(re.fullmatch(r"[0-9a-fA-F]{40}", evidence))
+                unreadable = isinstance(evidence, dict) \
+                    and evidence.get("readable") is False \
+                    and isinstance(evidence.get("reason"), str) \
+                    and set(evidence) <= {"readable", "reason"}
+                if not isinstance(ref, str) or not ref or not (readable or unreadable):
+                    self._fault("type", "custody pre-ref evidence is invalid", key, version)
+                    return False
+        next_action = record.get("next")
+        if next_action is not None:
+            if not isinstance(next_action, dict) \
+                    or next_action.get("kind") not in {"retry", "human", "unknown"} \
+                    or ("value" in next_action and not isinstance(next_action["value"], str)) \
+                    or set(next_action) - {"kind", "value"}:
+                self._fault("type", "custody next action is invalid", key, version)
+                return False
+        bindings = record.get("bindings", {})
+        if not isinstance(bindings, dict):
+            self._fault("type", "custody bindings must be an object", key, version)
+            return False
+        for binding_key, binding in bindings.items():
+            if not isinstance(binding_key, str) or not binding_key or not isinstance(binding, dict):
+                self._fault("type", "custody binding is invalid", key, version)
+                return False
+            if CUSTODY_FORBIDDEN_FIELDS.intersection(binding):
+                self._fault("type", "custody binding contains a non-allowlisted envelope field", key, version)
+                return False
+            if not isinstance(binding.get("lane"), str) or not binding["lane"] \
+                    or not isinstance(binding.get("branch"), str) or not binding["branch"] \
+                    or not isinstance(binding.get("disposition"), str) or not binding["disposition"]:
+                self._fault("type", "custody binding identity is invalid", key, version)
+                return False
+            tip = binding.get("tip")
+            reviewed = binding.get("reviewed_head")
+            if tip is not None and (not isinstance(tip, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", tip)):
+                self._fault("type", "custody binding tip is invalid", key, version)
+                return False
+            if reviewed is not None and (not isinstance(reviewed, str)
+                                         or not re.fullmatch(r"[0-9a-fA-F]{40}", reviewed)):
+                self._fault("type", "custody reviewed head is invalid", key, version)
+                return False
+            pull = binding.get("pull")
+            if pull is not None and (
+                    not isinstance(pull, (str, int)) or isinstance(pull, bool)):
+                self._fault("type", "custody pull identity is invalid", key, version)
+                return False
+            binding_reason = binding.get("reason")
+            if binding_reason is not None and (
+                    not isinstance(binding_reason, str) or len(binding_reason) > 300):
+                self._fault("type", "custody binding reason is invalid", key, version)
+                return False
+            if "since" in binding and not self._valid_timestamp(binding["since"]):
+                self._fault("type", "custody binding since value is invalid", key, version)
+                return False
+            binding_attempts = binding.get("attempts")
+            if binding_attempts is not None:
+                if _is_int(binding_attempts):
+                    attempts_valid = binding_attempts >= 0
+                elif isinstance(binding_attempts, dict):
+                    attempts_valid = all(
+                        isinstance(name, str) and _is_int(count) and count >= 0
+                        for name, count in binding_attempts.items()
+                    )
+                else:
+                    attempts_valid = False
+                if not attempts_valid:
+                    self._fault("type", "custody binding attempt count is invalid", key, version)
+                    return False
+            binding_next = binding.get("next")
+            if binding_next is not None:
+                if not isinstance(binding_next, dict) \
+                        or binding_next.get("kind") not in {"retry", "human", "unknown"} \
+                        or ("value" in binding_next and not isinstance(binding_next["value"], str)) \
+                        or set(binding_next) - {"kind", "value"}:
+                    self._fault("type", "custody binding next action is invalid", key, version)
+                    return False
+            notice = binding.get("notice", binding.get("delivery"))
+            if notice is not None and not self._valid_notice(notice):
+                self._fault("type", "custody binding notice is invalid", key, version)
+                return False
+        notices = record.get("notices", {})
+        if not isinstance(notices, dict) or any(
+                not isinstance(name, str) or not name or not self._valid_notice(value)
+                for name, value in notices.items()):
+            self._fault("type", "custody notice index is invalid", key, version)
+            return False
+        delivery = record.get("delivery")
+        if delivery is not None and not self._valid_notice(delivery):
+            self._fault("type", "custody delivery is invalid", key, version)
+            return False
+        if phase == "release_authorized":
+            positive = original if isinstance(original, dict) else {}
+            if not isinstance(record.get("path"), str) \
+                    or positive.get("state") not in {"done", "no_changes"} \
+                    or positive.get("archive_disposition") not in {"archived", "fully_accounted"} \
+                    or positive.get("trust") is not True:
+                self._fault("schema", "release authorization lacks positive archived proof", key, version)
+                return False
+        return True
+
+    def custody_projection(self, namespace: str, root: Path,
+                           wall_clock: Optional[float] = None) -> Dict[str, Any]:
+        """Project only allowlisted custody facts for one local store snapshot."""
+        clock = time.time() if wall_clock is None else wall_clock
+        records: List[Dict[str, Any]] = []
+        faults = [{
+            "namespace": namespace,
+            "kind": fault["kind"],
+            "reason": fault["reason"],
+            "version": fault.get("version"),
+            "key": fault.get("key"),
+            "path_tree_exists": fault.get("path_tree_exists"),
+        } for fault in self.load_faults]
+        for key, record in self._custody_records:
+            path_exists: Optional[bool] = None
+            raw_path = record.get("path")
+            if isinstance(raw_path, str):
+                path = Path(raw_path)
+                if not path.is_absolute():
+                    path = root / path
+                try:
+                    path_exists = path.exists()
+                except OSError:
+                    path_exists = None
+                if path_exists is False:
+                    faults.append({
+                        "namespace": namespace,
+                        "kind": "missing_tree",
+                        "reason": "custody checkout is absent",
+                        "version": CUSTODY_VERSION,
+                        "key": {
+                            "repository": key[0],
+                            "intake": key[1],
+                            "producer": key[2],
+                            "generation": key[3],
+                        },
+                        "path_tree_exists": False,
+                    })
+            bindings = []
+            for binding_key, binding in sorted(record.get("bindings", {}).items()):
+                notice = record.get("notices", {}).get(binding_key,
+                                                       binding.get("notice", binding.get("delivery")))
+                projected_notice = None
+                if isinstance(notice, dict):
+                    projected_notice = {
+                        "key": notice.get("key", binding_key),
+                        "state": notice["state"],
+                        "since": notice.get("since"),
+                        "age_seconds": self._age(notice.get("since"), clock),
+                        "remote_identity": self._remote_identity(notice.get("remote_identity")),
+                    }
+                bindings.append({
+                    "binding_key": binding_key,
+                    "lane": binding["lane"],
+                    "branch": binding["branch"],
+                    "disposition": binding["disposition"],
+                    "tip": binding.get("tip"),
+                    "pull": binding.get("pull") if isinstance(binding.get("pull"), (str, int, type(None)))
+                    and not isinstance(binding.get("pull"), bool) else None,
+                    "reviewed_head": binding.get("reviewed_head"),
+                    "reason": binding.get("reason"),
+                    "since": binding.get("since", record["since"]),
+                    "age_seconds": self._age(binding.get("since", record["since"]), clock),
+                    "attempts": binding.get("attempts", record.get("attempts", 0)),
+                    "next": binding.get("next", record.get("next", {"kind": "unknown", "value": None})),
+                    "notice": projected_notice,
+                })
+            outcome = record.get("original_outcome")
+            if isinstance(outcome, dict):
+                outcome = {name: outcome[name] for name in ("state", "trust", "exit_code",
+                                                           "archive_disposition", "reason")
+                           if name in outcome}
+            delivery = record.get("delivery")
+            projected_delivery = None
+            if isinstance(delivery, dict):
+                projected_delivery = {
+                    "key": delivery.get("key"),
+                    "state": delivery["state"],
+                    "since": delivery.get("since"),
+                    "age_seconds": self._age(delivery.get("since"), clock),
+                    "remote_identity": self._remote_identity(delivery.get("remote_identity")),
+                }
+            records.append({
+                "namespace": namespace,
+                "key": {
+                    "repository": key[0],
+                    "intake": key[1],
+                    "producer": key[2],
+                    "generation": key[3],
+                },
+                "phase": record["phase"],
+                "original_outcome": outcome,
+                "reason": record.get("reason"),
+                "since": record["since"],
+                "age_seconds": self._age(record["since"], clock),
+                "attempts": record.get("attempts", 0),
+                "next": record.get("next", {"kind": "unknown", "value": None}),
+                "path_tree_exists": path_exists,
+                "bindings": bindings,
+                "delivery": projected_delivery,
+            })
+        return {"version": CUSTODY_VERSION, "records": records, "faults": faults}
+
+    @staticmethod
+    def _age(since: Any, clock: float) -> Optional[int]:
+        if not isinstance(since, str):
+            return None
+        try:
+            return max(0, int(clock - parse_time(since).timestamp()))
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    @staticmethod
+    def _remote_identity(value: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(value, dict):
+            return None
+        return {key: value[key] for key in ("repository", "kind", "id", "issuer") if key in value}
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.data, indent=2, sort_keys=True))
-        tmp.replace(self.path)
+        self.require_writable()
+        raw_path: Optional[str] = None
+        stage = "directory"
+        fd: Optional[int] = None
+        try:
+            durable_mkdir(self.path.parent)
+            payload = json.dumps(self.data, indent=2, sort_keys=True)
+            stage = "temp"
+            fd, raw_path = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp",
+                                             dir=str(self.path.parent))
+            try:
+                mode = self.path.stat().st_mode & 0o777
+            except FileNotFoundError:
+                mode = None
+            if mode is not None:
+                os.fchmod(fd, mode)
+            stage = "write"
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                fd = None
+                handle.write(payload)
+                stage = "flush"
+                handle.flush()
+                stage = "file_sync"
+                os.fsync(handle.fileno())
+            stage = "replace"
+            os.replace(raw_path, str(self.path))
+            raw_path = None
+            stage = "parent_sync"
+            directory_fd = os.open(str(self.path.parent),
+                                   os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+            self._known_paths.add(str(self.path))
+        except (OSError, TypeError, ValueError) as exc:
+            raise StateSaveError(self.path.name, stage) from exc
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            if raw_path is not None:
+                try:
+                    Path(raw_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def attempts(self, n: int) -> int:
         return int(self.data["attempts"].get(str(n), 0))
@@ -981,6 +1523,8 @@ class Runner:
         self.wall_clock: Callable[[], float] = time.time
         self._state_loader = state_loader or State
         self.state = self._state_loader(paths.state)
+        if hasattr(self.state, "require_writable"):
+            self.state.require_writable()
         self.repo = intake["repo"] if intake else cfg["request_repo"]
         self.authors: List[str] = intake["authors"] if intake else cfg["authors"]  # owner authors: vouch, replies, commands
         #: The agent account's login: its ``Workflow`` issues are picked up (:func:`may_pick`); the nightly intake has none.
@@ -1386,11 +1930,16 @@ class Runner:
                 self._digest_started = (parse_time(resumed) - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             except (ValueError, TypeError):
                 self._digest_started = ""
+        persistence_failed = False
         try:
             return self._work(n)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         finally:
-            self._collect_owner_comments(n)
-            self.archive_evidence(n, **self._ending)
+            if not persistence_failed:
+                self._collect_owner_comments(n)
+                self.archive_evidence(n, **self._ending)
 
     def _collect_owner_comments(self, n: int) -> None:
         """Add the owner's comments made since this run started to the replies the archive keeps.
@@ -1562,6 +2111,7 @@ class Runner:
         outcome = "error"
         lanes_resolved = True
         previous_job = dict(self.state.data["jobs"].get(name) or {})
+        persistence_failed = False
         if not worktree.exists():
             self._clear_archive_hold(key)
         if worktree.exists():
@@ -1615,31 +2165,35 @@ class Runner:
             status = self.read_status(key)
             outcome = status["state"] if status else ("timeout" if code == -9 else "no_status")
             lanes_resolved = self.land_lanes(status, key, worktree)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         except Exception as exc:  # noqa: BLE001 (a failed job is retried next period and never blocks issues)
             print(f"job {name} failed: {redact(str(exc))[:300]}")
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            self.state.record(key, f"job:{outcome}", branch)
-            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
-            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
-                                  status_file=status_file, task=archive_name,
-                                  outcome=self.job_outcome_code(outcome),
-                                  enqueue=name != "steward",
-                                  archive_session=archive_session,
-                                  include_sidecar=False)  # no post-mortem of the Steward's own run
-            if ready:
-                self.state.data["jobs"][name] = {
-                    "last_run": iso(), "outcome": outcome, "branch": branch,
-                    "archive_name": archive_name, "archive_session": archive_session,
-                }
-            else:
-                held_job = dict(previous_job)
-                held_job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
-                self.state.data["jobs"][name] = held_job
-            if ready and lanes_resolved:  # a lane the runner could not land or file keeps its worktree
-                self._drop_worktree(worktree, str(self.paths.clone))
-            self.state.save()
+            if not persistence_failed:
+                self.state.record(key, f"job:{outcome}", branch)
+                ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+                self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                      status_file=status_file, task=archive_name,
+                                      outcome=self.job_outcome_code(outcome),
+                                      enqueue=name != "steward",
+                                      archive_session=archive_session,
+                                      include_sidecar=False)  # no post-mortem of the Steward's own run
+                if ready:
+                    self.state.data["jobs"][name] = {
+                        "last_run": iso(), "outcome": outcome, "branch": branch,
+                        "archive_name": archive_name, "archive_session": archive_session,
+                    }
+                else:
+                    held_job = dict(previous_job)
+                    held_job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
+                    self.state.data["jobs"][name] = held_job
+                if ready and lanes_resolved:  # a lane the runner could not land or file keeps its worktree
+                    self._drop_worktree(worktree, str(self.paths.clone))
+                self.state.save()
         return outcome
 
     def job_start_point(self) -> str:
@@ -2613,11 +3167,16 @@ class Runner:
         record_env = {k: v for k, v in env.items() if k not in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         kind = "nightly" if self.intake else "request" if isinstance(n, int) else "retro" if str(n).startswith("retro-") else "job"
         branch = (self._run(["git", "-C", str(worktree), "symbolic-ref", "--short", "-q", "HEAD"], check=False).stdout or "").strip()
+        persistence_failures: List[StateSaveError] = []
 
         def started(thread: str) -> None:
             if isinstance(self.state.data.get("current"), dict):
                 self.state.data["current"].update(thread=thread, launcher="t3code", pid=os.getpid())
-                self.state.save()
+                try:
+                    self.state.save()
+                except StateSaveError as exc:
+                    persistence_failures.append(exc)
+                    raise
 
         # The claude path keeps the Mac awake for the session (caffeinate on its pid); the runner is what blocks in `threads wait` here.
         awake = subprocess.Popen(["caffeinate", "-is", "-w", str(os.getpid())]) if shutil.which("caffeinate") else None
@@ -2628,6 +3187,8 @@ class Runner:
                                   deny=list(agent.get("disallowed_tools") or []), prompt=prompt, log=log,
                                   timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
                                   trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
+        except StateSaveError:
+            raise
         except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
             self.stray = self.t3_stray = bool(getattr(exc, "stray", False))
             print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
@@ -2637,6 +3198,8 @@ class Runner:
         finally:
             if awake:
                 awake.terminate()
+        if persistence_failures:
+            raise persistence_failures[0]
         self.stray, self.guard_tampered, self.t3_stray = out.stray or out.tampered, out.tampered, out.stray  # a tampered session lands nothing either
         if out.stray:
             print(f"{n}: processes of the T3 session are still running after the cleanup")
@@ -2679,18 +3242,7 @@ class Runner:
 
     @staticmethod
     def _mkdir_durable(directory: Path) -> None:
-        missing = []
-        cursor = directory
-        while not cursor.exists():
-            missing.append(cursor)
-            cursor = cursor.parent
-        directory.mkdir(parents=True, exist_ok=True)
-        for created in reversed(missing):
-            directory_fd = os.open(str(created.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        durable_mkdir(directory)
 
     def _record_archive_hold(self, label: str, path: Path) -> None:
         """Remember one real sidecar I/O hold; repeat ticks keep the first report and timestamp."""
@@ -2840,7 +3392,13 @@ class Runner:
                                     env=env, start_new_session=True)
             if isinstance(self.state.data.get("current"), dict):
                 self.state.data["current"]["pid"] = proc.pid
-                self.state.save()
+                try:
+                    self.state.save()
+                except StateSaveError:
+                    if proc.stdin is not None:
+                        proc.stdin.close()
+                    lane_land.reap_group(proc.pid)
+                    raise
             awake = subprocess.Popen(["caffeinate", "-is", "-w", str(proc.pid)]) if shutil.which("caffeinate") else None
             assert proc.stdin is not None
             proc.stdin.write(prompt.encode())
@@ -3384,6 +3942,7 @@ class Runner:
             return False
         entry = {"archive": str(dest), "task": task, "triggers": triggers, "touched": touched[:20], "queued": iso()}
         state = State(self.retro_paths.state)
+        state.require_writable()
         queue = [q for q in state.data.setdefault("queue", []) if q.get("archive") != str(dest)]
         queue.append(entry)
         state.data["queue"] = queue
@@ -3405,6 +3964,7 @@ class Runner:
         if self.dry_run or self.intake:
             return None
         retro = State(self.retro_paths.state)
+        retro.require_writable()
         queue = retro.data.get("queue") or []
         if not queue:
             return None
@@ -3491,6 +4051,7 @@ class Runner:
         status: Optional[Dict[str, Any]] = None
         lanes_resolved = True
         had_lanes = False
+        persistence_failed = False
         try:
             if worktree.exists():
                 self._drop_worktree(worktree, clone)
@@ -3514,41 +4075,45 @@ class Runner:
             outcome = status["state"] if status else ("timeout" if code == -9 else "no_status")
             had_lanes = bool((status or {}).get("lanes"))
             lanes_resolved = self.land_lanes(status, key, worktree)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         except Exception as exc:  # noqa: BLE001 (a failed post-mortem is recorded and never blocks issues)
             print(f"retro {task} failed: {redact(str(exc))[:300]}")
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            if status is not None and not status_file.exists():  # the digest and the archive read the same status file
-                status_file.parent.mkdir(parents=True, exist_ok=True)
-                status_file.write_text(json.dumps(status))
-            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
-            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
-                                  status_file=status_file, task=f"retro-{task}", enqueue=False,
-                                  outcome=self.job_outcome_code(outcome),
-                                  archive_session=archive_session,
-                                  include_sidecar=False)  # no retro of a retro
-            if ready:
-                self.state.record(key, f"retro:{outcome}", task)
-                done = retro.data.setdefault("done", [])
-                done.append({**item, "outcome": outcome, "finished": iso(),
-                             "summary": redact(str((status or {}).get("summary") or ""))[:300]})
-                retro.data["done"] = done[-RETRO_HISTORY:]
-                retro.data["current"] = None
-                retro.save()
-                if had_lanes and not lanes_resolved:
-                    print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
-                elif not had_lanes and self.retro_unlanded(clone, worktree, base):
-                    print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+            if not persistence_failed:
+                if status is not None and not status_file.exists():  # the digest and the archive read the same status file
+                    status_file.parent.mkdir(parents=True, exist_ok=True)
+                    status_file.write_text(json.dumps(status))
+                ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+                self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                      status_file=status_file, task=f"retro-{task}", enqueue=False,
+                                      outcome=self.job_outcome_code(outcome),
+                                      archive_session=archive_session,
+                                      include_sidecar=False)  # no retro of a retro
+                if ready:
+                    self.state.record(key, f"retro:{outcome}", task)
+                    done = retro.data.setdefault("done", [])
+                    done.append({**item, "outcome": outcome, "finished": iso(),
+                                 "summary": redact(str((status or {}).get("summary") or ""))[:300]})
+                    retro.data["done"] = done[-RETRO_HISTORY:]
+                    retro.data["current"] = None
+                    retro.save()
+                    if had_lanes and not lanes_resolved:
+                        print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
+                    elif not had_lanes and self.retro_unlanded(clone, worktree, base):
+                        print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+                    else:
+                        self._drop_worktree(worktree, clone)
                 else:
-                    self._drop_worktree(worktree, clone)
-            else:
-                held_queue = list(retro.data.get("queue") or [])
-                held_queue.insert(min(int(selected_index), len(held_queue)), item)
-                retro.data["queue"] = held_queue
-                retro.data["current"] = item
-                retro.save()
-            self.state.save()
+                    held_queue = list(retro.data.get("queue") or [])
+                    held_queue.insert(min(int(selected_index), len(held_queue)), item)
+                    retro.data["queue"] = held_queue
+                    retro.data["current"] = item
+                    retro.save()
+                self.state.save()
         return outcome
 
     def retro_unlanded(self, clone: str, worktree: Path, base: str) -> bool:
@@ -3708,7 +4273,10 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
 
 def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict[str, str]]:
     visible = []
-    for label, record in sorted((state.data.get("archive_holds") or {}).items()):
+    holds = state.data.get("archive_holds")
+    if not isinstance(holds, dict):
+        return visible
+    for label, record in sorted(holds.items()):
         if not isinstance(record, dict):
             continue
         raw_path = str(record.get("path") or "")
@@ -3724,6 +4292,77 @@ def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict
             "since": str(record.get("since") or ""),
         })
     return visible
+
+
+def custody_report(states: List[Tuple[str, State, Path]], root: Path,
+                  wall_clock: Optional[float] = None) -> Dict[str, Any]:
+    """One local, read-only custody projection per logical store."""
+    clock = time.time() if wall_clock is None else wall_clock
+    reports = [state.custody_projection(namespace, root, clock)
+               for namespace, state, _path in states]
+    return {
+        "version": CUSTODY_VERSION,
+        "records": [record for report in reports for record in report["records"]],
+        "faults": [fault for report in reports for fault in report["faults"]],
+    }
+
+
+def custody_text(custody: Dict[str, Any]) -> List[str]:
+    """Render custody from the same typed projection used by JSON status."""
+    lines = []
+    for record in custody.get("records") or []:
+        key = record.get("key") or {}
+        identity = (
+            f"{key.get('repository', 'unknown')}/{key.get('intake', 'unknown')} "
+            f"producer {key.get('producer', 'unknown')} generation {key.get('generation', 'unknown')}"
+        )
+        age = record.get("age_seconds")
+        since = f"{record.get('since') or 'unknown'}"
+        if age is not None:
+            since += f" (age {age}s)"
+        lines.append(
+            f"custody: {identity} phase {record.get('phase')} since {since}, "
+            f"attempts {record.get('attempts')}; "
+            f"next {((record.get('next') or {}).get('kind') or 'unknown')}: "
+            f"{((record.get('next') or {}).get('value') or 'unknown')}; "
+            f"reason {record.get('reason') or 'unknown'}"
+        )
+        if record.get("path_tree_exists") is not None:
+            lines.append(
+                f"  checkout exists: {'yes' if record['path_tree_exists'] else 'no'}"
+            )
+        for binding in record.get("bindings") or []:
+            notice = binding.get("notice") or {}
+            lines.append(
+                f"  binding {binding.get('lane')}: {binding.get('branch')} "
+                f"{binding.get('disposition')} tip {binding.get('tip') or 'unknown'}"
+                f"; pull {binding.get('pull') if binding.get('pull') is not None else 'unknown'}"
+                f"; reviewed head {binding.get('reviewed_head') or 'unknown'}"
+                f"; reason {binding.get('reason') or record.get('reason') or 'unknown'}"
+            )
+            if notice:
+                lines.append(
+                    f"  delivery {binding.get('lane')} {notice.get('state')} "
+                    f"since {notice.get('since') or 'unknown'} "
+                    f"age {notice.get('age_seconds') if notice.get('age_seconds') is not None else 'unknown'}s "
+                    f"key {notice.get('key') or 'unknown'}"
+                )
+        delivery = record.get("delivery") or {}
+        if delivery:
+            lines.append(
+                f"  delivery {delivery.get('state')} since {delivery.get('since') or 'unknown'} "
+                f"age {delivery.get('age_seconds') if delivery.get('age_seconds') is not None else 'unknown'}s "
+                f"key {delivery.get('key') or 'unknown'}"
+            )
+    for fault in custody.get("faults") or []:
+        key = fault.get("key") or {}
+        identity = key.get("generation") or key.get("producer") or ""
+        suffix = f" {identity}" if identity else ""
+        lines.append(
+            f"custody fault: {fault.get('namespace')} {fault.get('kind')}{suffix}: "
+            f"{fault.get('reason')} (schema {fault.get('version') if fault.get('version') is not None else 'unknown'})"
+        )
+    return lines
 
 
 def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
@@ -3747,38 +4386,66 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
                              for i in eligible(gh.open_issues(nightly["repo"]), nightly["authors"], nightly["label"])]
         except TriageError as exc:
             nightly_queue = [{"error": str(exc)}]
+    jobs_data = state.data.get("jobs")
+    if not isinstance(jobs_data, dict):
+        jobs_data = {}
     jobs = {}
     for name, spec in (cfg.get("schedules") or {}).items():
-        last = state.data["jobs"].get(name) or {}
-        due = job_next_due(cfg, state.data, name)
+        last = jobs_data.get(name) or {}
+        if not isinstance(last, dict):
+            last = {}
+        job_data = dict(state.data)
+        job_data["jobs"] = jobs_data
+        due = job_next_due(cfg, job_data, name)
         jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+    nightly_paths = Paths(cfg, paths.home, "nightly-")
+    nightly_state = State(nightly_paths.state)
+    retro_paths = Paths(cfg, paths.home, "retro-")
+    retro_state = State(retro_paths.state)
+    states = [("request", state, paths.state)]
+    if nightly or nightly_paths.state.exists() or str(nightly_paths.state) in State._known_paths:
+        states.append(("nightly", nightly_state, nightly_paths.state))
+    states.append(("retro", retro_state, retro_paths.state))
     archive_states = [(state, paths, "request-")]
-    if nightly:
-        nightly_paths = Paths(cfg, paths.home, "nightly-")
-        archive_states.append((State(nightly_paths.state), nightly_paths, "nightly-"))
+    if nightly or nightly_paths.state.exists():
+        archive_states.append((nightly_state, nightly_paths, "nightly-"))
     archive_holds = []
     for archive_state, archive_paths, prefix in archive_states:
         archive_holds.extend(_visible_archive_holds(archive_state, archive_paths, prefix))
+        current = state.data.get("current")
+        if not isinstance(current, dict):
+            current = None
+        parked = state.data.get("parked")
+        parked = parked if isinstance(parked, dict) else {}
+        merging = state.data.get("merging")
+        merging = merging if isinstance(merging, dict) else {}
+        history = state.data.get("history")
+        history = history if isinstance(history, list) else []
+        retro_queue = retro_state.data.get("queue")
+        retro_queue = retro_queue if isinstance(retro_queue, list) else []
+        ha_changes = state.data.get("ha_changes")
+        ha_changes = ha_changes if isinstance(ha_changes, dict) else {}
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
         "t3_ready": t3_ready,
-        "t3_thread": (state.data.get("current") or {}).get("thread"),
+        "t3_thread": (current or {}).get("thread"),
         "jobs": jobs,
-        "parked": {k: v.get("pr") for k, v in state.data["parked"].items()},
+        "parked": {k: v.get("pr") for k, v in parked.items() if isinstance(v, dict)},
         "nightly_queue": nightly_queue,
         "paused": paths.paused.exists(),
         "self_changes": self_change_status(paths),
         "installed": paths.plist.exists(),
         "lock_holder": holder if holder and Runner._alive(holder) else None,
-        "current": state.data.get("current"),
-        "merging": {k: v.get("pr") for k, v in state.data["merging"].items()},
+        "current": current,
+        "merging": {k: v.get("pr") for k, v in merging.items() if isinstance(v, dict)},
         "queue": queue,
-        "ha_changes_unreachable_since": (state.data.get("ha_changes") or {}).get("unreachable_since"),
-        "ha_changes_unfiled": len((state.data.get("ha_changes") or {}).get("unfiled") or {}),
+        "ha_changes_unreachable_since": ha_changes.get("unreachable_since"),
+        "ha_changes_unfiled": len(ha_changes.get("unfiled") or {}),
         "archive_holds": archive_holds,
-        "recent": state.data["history"][-10:],
-        "retro_queue": [q.get("task") for q in (State(Paths(cfg, paths.home, "retro-").state).data.get("queue") or [])],
+        "recent": history[-10:],
+        "retro_queue": [q.get("task") for q in retro_queue if isinstance(q, dict)],
+        "custody": custody_report(states, paths.root),
     }
 
 
@@ -3921,6 +4588,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"job {name}: last {info['last_run'] or 'never'} ({info['outcome'] or '-'}), next due {info['next_due']}")
                 for hold in report["archive_holds"]:
                     print(f"archive hold: {hold['name']} ({hold['reason']}, since {hold['since']})")
+                for line in custody_text(report["custody"]):
+                    print(line)
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
                 print("queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}" for q in report["queue"])

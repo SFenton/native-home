@@ -546,7 +546,7 @@ class PullPhaseTests(unittest.TestCase):
         for run in runs["check_runs"]:
             if run["name"] == "pr-checks":
                 run["completed_at"] = "2026-11-21T20:10:00Z"
-        runs["check_runs"][1] = {
+        runs["check_runs"].append({
             "id": 3,
             "name": "pr-checks",
             "status": "IN_PROGRESS",
@@ -554,7 +554,8 @@ class PullPhaseTests(unittest.TestCase):
             "started_at": "2026-11-21T20:04:00Z",
             "head_sha": HEAD,
             "app": {"id": ACTIONS_APP_ID},
-        }
+        })
+        runs["total_count"] = len(runs["check_runs"])
         phase = self.phase(self.decoded_open(checks=runs))
         self.assertEqual(phase["phase"], "awaiting_checks")
         self.assertEqual(phase["reason"], "pr_checks_pending")
@@ -631,14 +632,24 @@ class PullPhaseTests(unittest.TestCase):
         ]
         for kind, values, number in cases:
             with self.subTest(kind=kind):
+                reader = FakeReader(fail=[kind], **values)
                 facts = bridge.read_pull_facts(
-                    FakeReader(fail=[kind], **values),
+                    reader,
                     REPO,
                     number,
                 )
                 phase = self.phase(facts, owner_required=True)
                 self.assertEqual(phase["phase"], "held")
                 self.assertFalse(facts["ok"])
+                self.assertEqual(reader.unexpected_calls, [])
+                endpoint = {
+                    "pull": "view",
+                    "reviews": "reviews",
+                    "check_runs": "check-runs",
+                    "commit": "commits",
+                    "associated": "pulls",
+                }[kind]
+                self.assertIn(endpoint, " ".join(reader.calls[-1]))
 
     def test_wrong_pull_number_answer_is_held(self):
         reader = FakeReader(pull=merged_pull(number=199), request_number=200)
@@ -937,6 +948,8 @@ class ReviewRoundTwoTests(unittest.TestCase):
                 reader = FakeReader(pull=open_pull(), missing=[missing])
                 decoded = bridge.read_pull_facts(reader, REPO, 203)
                 self.assertEqual(reader.unexpected_calls, [])
+                if missing == "check_runs":
+                    self.assertFalse(decoded["facts"]["checks_complete"])
                 self.assertEqual(
                     self.phase(decoded, owner_required=True)["reason"],
                     reason,
