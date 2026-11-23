@@ -656,6 +656,7 @@ class InstallTests(Base):
         denied = set(agent["disallowed_tools"])
         # tools/pr_land.sh is allowed; its own gh calls are not the session's, so the merge denies stay.
         self.assertIn("Bash(tools/pr_land.sh*)", agent["allowed_tools"])
+        self.assertIn("Bash(tools/studio_land.py*)", agent["allowed_tools"])
         for rule in ("Bash(gh pr merge*)", "Bash(gh api *pulls/*/merge*)", "Bash(gh api -X PUT*)", "Bash(gh api graphql*)",
                      "Bash(git push origin main*)", "Bash(git push origin HEAD:main*)", "Bash(git push origin --force*)",
                      "Bash(git push --force*)", "Bash(xcrun simctl boot*)", "Bash(xcodebuild test*)",
@@ -3453,7 +3454,7 @@ class T3LauncherTests(Base):
     argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
 
     GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
-                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
+                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/studio_land.py*),Bash(tools/ship.sh*)",
                    "--disallowedTools"]
 
     def worktree(self, settings=True):

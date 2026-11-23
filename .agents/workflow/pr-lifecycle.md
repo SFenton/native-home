@@ -6,8 +6,8 @@
 
 - Every session works in its own linked worktree, never in the shared primary checkout. `tools/hooks/worktree_guard.py` refuses edits, commits and branch changes there; reading and fetching stay allowed.
 - A lane is cut with `tools/lane_new.sh` and started with `tools/lane_check.py start`, which refuses a lane that overlaps an open pull request or a recent commit. Join the existing work; never open a parallel pull request.
-- Nothing is merged, cherry-picked or committed onto a local copy of the base branch; `tools/base_drift.py` lists local-only commits.
-- A base merge into a pull-request branch runs in that branch's own worktree.
+- Nothing is merged, cherry-picked or committed onto a local base branch; `tools/base_drift.py` lists local-only commits.
+- A base merge into a pull-request branch runs in that branch's worktree.
 - Before dispatching into an existing worktree, confirm it is idle: no running job, no recent edit. A live agent gets a message, not a second agent.
 
 ## Shipping
@@ -30,13 +30,13 @@
 
 ## Landing
 
-- Nothing reaches `main` without an independent `pass` recorded for the exact head; a later commit voids it. the landers and the `ai-review` check accept nothing else.
+- Nothing reaches `main` without an independent `pass` recorded for the exact head; a later commit voids it. The landers and the `ai-review` check accept nothing else.
 - The author of a change never reviews it or records its verdict.
-- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then merges ([ci](ci.md#merge-gate)). A Studio pull request lands through `tools/studio_land.py N` instead.
+- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then arms a squash merge ([ci](ci.md#merge-gate)). A Studio pull request lands through `tools/studio_land.py N` instead.
 - A self-change lane without a pull request lands through `tools/lane_land.py` ([eval-gate](eval-gate.md#self-change)).
 - `tools/hooks/merge_guard.py` refuses an agent command that merges any other way, pushes to `main` or edits merge rules.
 - A kill-switch file stops landing.
-- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent reports them.
+- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent reports them, never runs them.
 - A change in the [owner-only](autonomy.md#owner-only) set is never merged by an agent; `pr_land.sh` and `lane_land.py` refuse it; `studio_land.py` refuses the Studio's release files.
 - The session reports the line `pr_land.sh` printed: `merged`, `armed`, `blocked` or `failed`. An `armed` pull request waits as in [ci](ci.md#waiting-on-ci).
 
@@ -44,5 +44,5 @@
 
 - A change is followed from its pull request alone: the description is the living view, comments are point-in-time events.
 - `tools/pr_note.py` is the only writer of both. Notes written before the pull request exists queue and post when it opens.
-- Each role posts as its own identity with `--as <role>`: the Verifier posts evidence, the Designer the pick and verdict, the orchestrator handoff, owner and shipped notes and the status line.
+- Each role posts as itself with `--as <role>`: the Verifier posts evidence, the Designer the pick and verdict, the orchestrator handoff, owner and shipped notes and the status line.
 - The review summary in the description belongs to `tools/review/record.py`. Titles, descriptions and comments follow [pr-form](pr-form.md).
