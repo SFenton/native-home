@@ -329,6 +329,13 @@ def writer_lock(paths: Paths):
             lock.close()
 
 
+def require_state_writable(runner: Any) -> None:
+    state = getattr(runner, "state", None)
+    checker = getattr(state, "require_writable", None)
+    if checker is not None:
+        checker()
+
+
 def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
                   max_items: Optional[int] = None) -> Tuple[int, bool]:
     """Load and run one scheduled intake inside the shared writer admission."""
@@ -340,7 +347,7 @@ def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
             print("another tick is running")
             return 0, False
         runner = load_runner()
-        runner.state.require_writable()
+        require_state_writable(runner)
         return runner._tick_locked(max_items), True
 
 
@@ -4182,7 +4189,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     issue = gh.issue(cfg["request_repo"], args.issue)
                     print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
                     return 0
-                runner.state.require_writable()
+                require_state_writable(runner)
                 runner.refresh_clone()
                 outcome = runner.work(args.issue)
                 runner.state.save()
@@ -4197,7 +4204,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("paused")
                     return 0
                 runner = Runner(cfg, paths, gh)
-                runner.state.require_writable()
+                require_state_writable(runner)
                 runner.refresh_clone()
                 print(runner.run_job(args.name))
             return 0
