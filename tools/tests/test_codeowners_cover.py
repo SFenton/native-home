@@ -19,7 +19,7 @@ OWNER = "@SFenton"
 #: The agent-file globs (audit section 2.3 plus the credential subset and the whole ``.github`` tree, decision D2), as written in CODEOWNERS.
 AGENT_FILES = (
     "/.claude/", "/.agents/workflow/", "/.agents/skills/", "/AGENTS.md", "/tools/hooks/", "/.githooks/", "/tools/review/",
-    "/tools/review_verdict.py", "/tools/ship.sh", "/tools/ship_guard.sh", "/tools/pr_land.py", "/tools/pr_land.sh", "/tools/pr_blockers.py", "/tools/lane_*.py",
+    "/tools/review_verdict.py", "/tools/ship.sh", "/tools/ship_guard.sh", "/tools/pr_land.py", "/tools/pr_land.sh", "/tools/studio_land.py", "/tools/pr_blockers.py", "/tools/lane_*.py",
     "/tools/pr_policy.py", "/tools/ci_aggregate.py", "/tools/agent_eval.py", "/tools/agent_eval_case.py", "/tools/agent_eval_measure.py",
     "/tools/ruleset_gate.py", "/tools/jev_gate.py", "/tools/triage/", "/contracts/jev/", "/evals/", "/.github/", "/tools/agent_login.py",
     "/tools/release/", "/tools/hass_creds.sh", "/tools/gh_app_token.py", "/tools/devcap.py", "/tools/ci_hygiene.py",
