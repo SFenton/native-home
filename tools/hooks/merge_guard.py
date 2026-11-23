@@ -165,7 +165,7 @@ ENV_TAMPER = (
     re.compile(r"\b(?:export|declare|typeset)\s+-[a-zA-Z]*n?\s*(?:FENTON_HEADLESS|HASS_TRIAGE_\w+|T3CODE_\w+|CLAUDE_PROJECT_DIR|CLAUDE_ENV_FILE)\s*$"),
 )
 PTY_WRAPPER = re.compile(r"(?:^|[\s;&|(`])(?:\S*/)?(?:script|expect|unbuffer|faketty|socat|screen|tmux)(?=\s|$)")
-LAND_WORDS = re.compile(r"pr_land|lane_land|ack[-_]?(?:base|verified)")
+LAND_WORDS = re.compile(r"pr_land|studio_land|lane_land|ack[-_]?(?:base|verified)")
 #: `hass_triage` run with `ack-verified`: the agent-runnable acceptance of a range of checked PR merges (owner, 2026-11-10).
 ACK_VERIFIED = re.compile(r"hass_triage[\s\S]*ack[-_]?verified", re.I)
 #: The only form it may take: no wrapper, prefix, chain, pipe or substitution; a relative or absolute path to `hass_triage.py`.
@@ -368,6 +368,7 @@ PINNED_WITH = {
     "pr_land.sh": ("pr_land.sh", "pr_land.py", "house_scan.py", "agent_login.py", "pr_blockers.py", "review_verdict.py", "ruleset_gate.py", "request_repo.py"),
     "lane_land.py": ("lane_land.py", "release_closure.py", "agent_eval_measure.py", "request_repo.py", "agent_login.py"),
     "go_public.sh": ("go_public.sh", "go_public_gate.py", "house_scan.py"),
+    "studio_land.py": ("studio_land.py", "pr_land.py", "house_scan.py", "agent_login.py", "pr_blockers.py", "review_verdict.py", "ruleset_gate.py", "request_repo.py"),
 }
 
 
@@ -406,7 +407,7 @@ def headless_land_reason(command: str) -> Optional[str]:
     away, and no pty wrapper may run the landing tools. ``--owner-ack`` (and any abbreviation of an ``--owner*`` option given to
     ``pr_land`` or ``lane_land``) is the owner's, never an agent's."""
     words = command_words(command)
-    if re.search(r"owner[-_]ack", words) or (OWNER_OPTION.search(words) and re.search(r"pr_land|lane_land", words)):
+    if re.search(r"owner[-_]ack", words) or (OWNER_OPTION.search(words) and re.search(r"pr_land|studio_land|lane_land", words)):
         return "owner-ack: --owner-ack is the owner's, never an agent session's"
     if any(pattern.search(command) for pattern in ENV_TAMPER):
         return "landing: the session markers FENTON_HEADLESS, HASS_TRIAGE_*, T3CODE_*, CLAUDE_PROJECT_DIR and CLAUDE_ENV_FILE are not for a command to unset or change"
@@ -423,6 +424,13 @@ def headless_land_reason(command: str) -> Optional[str]:
         if not pr_land_matches_base(command, public):
             return ("going public: this checkout's tools/go_public.sh, go_public_gate.py, house_scan.py or triage/config.json differs from origin/"
                     + "|".join(base_refs()) + " (or git could not say)")
+    studio = runs_script(command, "studio_land")
+    if studio:
+        if not is_sanctioned(command):
+            return "landing: studio_land runs only as exactly `tools/studio_land.py N [--dry-run]` (no wrapper, prefix, chain or substitution)"
+        if not pr_land_matches_base(command, studio):
+            return ("landing: this checkout's tools/studio_land.py, pr_land.py or triage/config.json differs from origin/" + "|".join(base_refs())
+                    + " (or git could not say): merge from a checkout whose studio_land is the base branch's")
     if runs_pr_land(command):
         if not is_sanctioned(command):
             return "landing: pr_land runs only as exactly `tools/pr_land.sh N [--dry-run]` (no wrapper, prefix, chain or substitution)"
@@ -949,8 +957,12 @@ def headless_git_reason(args: List[str], configs: List[str], rest: List[str]) ->
     return None
 
 
+#: The two scripts a command may be exactly: the native-home lander and the Studio's (SFenton/ha-native-home-app; owner decision 2026-11-23).
+SANCTIONED_SCRIPTS = ("pr_land.sh", "studio_land.py")
+
+
 def is_sanctioned(command: str) -> bool:
-    """Is ``command`` exactly ``tools/pr_land.sh ARGS`` with nothing else in it?"""
+    """Is ``command`` exactly ``tools/pr_land.sh ARGS`` or ``tools/studio_land.py ARGS`` with nothing else in it?"""
     text = command.strip()
     if METACHARS.search(text):
         return False
@@ -961,7 +973,8 @@ def is_sanctioned(command: str) -> bool:
     roots = {REPO}
     if os.environ.get("CLAUDE_PROJECT_DIR"):
         roots.add(Path(os.environ["CLAUDE_PROJECT_DIR"]).resolve())
-    allowed = {"tools/pr_land.sh", "./tools/pr_land.sh"} | {str(r / "tools/pr_land.sh") for r in roots}
+    allowed = {f"{prefix}tools/{name}" for name in SANCTIONED_SCRIPTS for prefix in ("", "./")} | {
+        str(r / "tools" / name) for r in roots for name in SANCTIONED_SCRIPTS}
     return script in allowed
 
 
