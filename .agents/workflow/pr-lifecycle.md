@@ -22,7 +22,7 @@
 - Push first, then review: the Reviewer reads the exact pushed head while CI runs.
 - A verdict is `pass` (minor findings only), `changes` (a major, no blocker) or `blocker`. `tools/review/record.py` rejects a verdict that does not follow from its severities.
 - The Reviewer records with `tools/review/record.py --lane BRANCH`; only the Reviewer records (`tools/hooks/review_guard.py`).
-- The Reviewer edits nothing, runs no lane code, and runs the whole checklist in its agent file every round.
+- The Reviewer edits nothing, runs lane code only as its agent file allows, and runs that checklist every round.
 - A missing test is a major finding. Rung-0 severities are in [change-loop](change-loop.md#rung-0).
 - On `changes` or a failing check, fix with small commits and push to the same branch; the new head gets its own review.
 - Review runs 2 rounds; the round rises when the head moves after `changes`. `record.py` records a later round only as a confirmation `pass` with a stated reason.
