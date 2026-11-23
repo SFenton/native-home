@@ -5,7 +5,7 @@ On a private Free repository GitHub enforces no rulesets, so `pr_land.sh` (the c
 gate and this hook closes the bypasses: ``gh pr merge``, ``gh api …/pulls/N/merge`` (and ``…/merges``), the GraphQL
 merge mutations, a PUT or DELETE on ``/contents/`` and a ``git push`` that lands on main or master.
 
-Arming auto-merge is ``tools/pr_land.sh N`` only (owner, 2026-11-09): the raw ``gh pr merge N --auto ...`` form is refused like any other
+Arming auto-merge is ``tools/pr_land.sh N`` only (owner, 2026-11-09; a Studio PR merges only through ``tools/studio_land.py N``): the raw ``gh pr merge N --auto ...`` form is refused like any other
 ``gh pr merge`` (``--admin`` has its own reason); the one allowed ``gh pr merge`` is ``N -R SFenton/native-home --disable-auto`` on the agent's own PR (authored by ``SFenton`` or the ``agent_login`` of ``tools/triage/config.json``, from this repository).
 Repo-admin writes are refused in every session: a ``gh api`` write to rulesets, ``branches/*/protection``, the repository settings
 (``repos/OWNER/NAME``) or App installations, a GraphQL ruleset or branch-protection mutation, and ``gh repo edit`` of the merge settings.
@@ -83,7 +83,7 @@ MESSAGE = (
     "Blocked: agents merge only through `tools/pr_land.sh N` (its gate: the configured checks and a recorded independent review), never with "
     "`gh pr merge` (including `--auto` and `--admin`), `gh api …/merge` or a push to main, and never change the rulesets, branch protection, "
     "repository settings or App installations (`gh api` writes to them are refused for every session). Run the reviewer (tools/review/record.py) "
-    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR (by SFenton or the configured agent login): "
+    "then `tools/pr_land.sh N`, which arms auto-merge for a native-home PR, or `tools/studio_land.py N` for a SFenton/ha-native-home-app PR. The one `gh pr merge` allowed is `--disable-auto` on your own PR (by SFenton or the configured agent login): "
     "`gh pr merge N -R SFenton/native-home --disable-auto`. See .agents/workflow/pr-lifecycle.md."
 )
 

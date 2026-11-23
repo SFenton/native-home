@@ -194,8 +194,10 @@
   "permissions": {
     "allow": [
       "Bash(tools/pr_land.sh:*)",
+      "Bash(tools/studio_land.py:*)",
       "Bash(tools/ship.sh:*)",
       "Bash(./tools/pr_land.sh:*)",
+      "Bash(./tools/studio_land.py:*)",
       "Bash(./tools/ship.sh:*)",
       "Bash(tools/clean.sh:*)",
       "Bash(./tools/clean.sh:*)"

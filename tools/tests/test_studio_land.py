@@ -121,10 +121,37 @@ class LandTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assert_blocked(Stub(info=info), text)
 
-    def test_a_github_file_blocks_the_merge(self):
-        """Fails if: a change under .github/ (the Studio's release pipeline, or a rename away from it) can be merged by the agent."""
-        self.assert_blocked(Stub(files=["Sources/A.swift", ".github/workflows/ci.yml"]), ".github/")
-        self.assert_blocked(Stub(files=["Sources/B.swift", ".github/workflows/old.yml"]), ".github/")
+    def test_an_owner_path_blocks_the_merge(self):
+        """Fails if: a change to the release pipeline or its inputs (a directory entry, an exact file, or a rename away from one) can be merged by the agent."""
+        for path in (".github/workflows/ci.yml", "Dockerfile", "scripts/release.ts", "scripts/next-version.ts", "CHANGELOG.md", "config.yaml",
+                     "package.json", "package-lock.json"):
+            with self.subTest(path=path):
+                self.assert_blocked(Stub(files=["Sources/A.swift", path]), path)
+        self.assert_blocked(Stub(files=["Sources/B.swift", ".github/workflows/old.yml"]), ".github/workflows/old.yml")
+
+    def test_owner_paths_match_directories_by_prefix_and_files_exactly(self):
+        """Fails if: a file merely named like an owner file (a nested package.json, Dockerfile.dev) blocks, or a .github/ file does not."""
+        owned = studio_land.owner_paths({})
+        self.assertEqual(studio_land.owner_hits(["src/package.json", "Dockerfile.dev", "docs/CHANGELOG.md", "scripts/other.ts", ".githubx/a"], owned), [])
+        self.assertEqual(studio_land.owner_hits([".github/a/b.yml", "Dockerfile"], owned), [".github/a/b.yml", "Dockerfile"])
+        self.assertEqual(studio_land.owner_paths({"studio_owner_paths": ["x/", "y.txt"]}), ["x/", "y.txt"])
+        for bad in ("x", [], [""], [1]):
+            self.assertEqual(studio_land.owner_paths({"studio_owner_paths": bad}), studio_land.DEFAULT_OWNER_PATHS)
+        cfg = json.loads((TOOLS / "triage" / "config.json").read_text())
+        self.assertEqual(cfg["studio_owner_paths"], studio_land.DEFAULT_OWNER_PATHS)
+
+    def test_the_allow_entries_match_pr_land(self):
+        """Fails if: studio_land.py loses the settings or triage allow entries pr_land.sh has, so the route stops running unattended."""
+        allow = json.loads((TOOLS.parent / ".claude/settings.json").read_text())["permissions"]["allow"]
+        for entry in ("Bash(tools/studio_land.py:*)", "Bash(./tools/studio_land.py:*)"):
+            self.assertIn(entry, allow)
+        tools = json.loads((TOOLS / "triage" / "config.json").read_text())["agent"]["allowed_tools"]
+        self.assertIn("Bash(tools/studio_land.py*)", tools)
+
+    def test_the_refusal_message_names_both_landers(self):
+        """Fails if: a refused merge still points a Studio pull request at pr_land.sh only."""
+        self.assertIn("tools/studio_land.py N", merge_guard.MESSAGE)
+        self.assertIn("tools/pr_land.sh N", merge_guard.MESSAGE)
 
     def test_no_pass_stale_head_or_a_pass_for_another_sha(self):
         """Fails if: a missing pass, a pass for an earlier head (the head moved after it) or one for another sha lets the merge through."""

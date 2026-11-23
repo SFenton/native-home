@@ -30,14 +30,14 @@
 
 ## Landing
 
-- Nothing reaches `main` without an independent `pass` recorded for the exact head; a later commit voids it. `pr_land.sh`, `lane_land.py`, `studio_land.py` and the `ai-review` check accept nothing else.
+- Nothing reaches `main` without an independent `pass` recorded for the exact head; a later commit voids it. the landers and the `ai-review` check accept nothing else.
 - The author of a change never reviews it or records its verdict.
-- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then arms a squash merge ([ci](ci.md#merge-gate)). A Studio (`SFenton/ha-native-home-app`) pull request lands through `tools/studio_land.py N` instead.
+- The main session lands pull requests through `tools/pr_land.sh N` after `cd` into the path `tools/land_checkout.py` prints, never from a checkout that differs from `origin/main`: it runs the gates GitHub cannot, then merges ([ci](ci.md#merge-gate)). A Studio pull request lands through `tools/studio_land.py N` instead.
 - A self-change lane without a pull request lands through `tools/lane_land.py` ([eval-gate](eval-gate.md#self-change)).
 - `tools/hooks/merge_guard.py` refuses an agent command that merges any other way, pushes to `main` or edits merge rules.
 - A kill-switch file stops landing.
-- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent only reports them.
-- A change in the [owner-only](autonomy.md#owner-only) set is never merged by an agent; the landing tools refuse it.
+- A pull request that touches a path in `.github/CODEOWNERS` waits for the owner's approval. `pr_land.sh` prints the owner's commands; the agent reports them.
+- A change in the [owner-only](autonomy.md#owner-only) set is never merged by an agent; `pr_land.sh` and `lane_land.py` refuse it; `studio_land.py` refuses the Studio's release files.
 - The session reports the line `pr_land.sh` printed: `merged`, `armed`, `blocked` or `failed`. An `armed` pull request waits as in [ci](ci.md#waiting-on-ci).
 
 ## PR notes

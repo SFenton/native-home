@@ -165,6 +165,7 @@
     "max_attempts": 2,
     "allowed_tools": [
       "Bash(tools/pr_land.sh*)",
+      "Bash(tools/studio_land.py*)",
       "Bash(tools/ship.sh*)"
     ]
   },
@@ -178,6 +179,16 @@
   "denylist_required": true,
   "studio_required_checks": [
     "studio"
+  ],
+  "studio_owner_paths": [
+    ".github/",
+    "Dockerfile",
+    "scripts/release.ts",
+    "scripts/next-version.ts",
+    "CHANGELOG.md",
+    "config.yaml",
+    "package.json",
+    "package-lock.json"
   ],
   "land_core_tests": [],
   "land_full_suite_triggers": [],

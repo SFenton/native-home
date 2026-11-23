@@ -4,7 +4,7 @@
 SFenton/ha-native-home-app has no ruleset, no branch protection and no auto-merge, so GitHub enforces nothing on it: this script checks the
 checks itself. It refuses, in order: the kill switch; a pull request that is not open, not from this repository, not by the owner or the
 configured agent login (:func:`pr_land.author_ok`), not based on ``main``, in conflict, or labelled ``Needs Decision``; any changed
-file under ``.github/`` (the Studio's release pipeline is the owner's); no independent ``pass`` for the full head sha
+file in ``studio_owner_paths`` (``.github/``, the release scripts, ``Dockerfile``, ``CHANGELOG.md``, ``config.yaml``, ``package.json`` and its lock: the owner's); no independent ``pass`` for the full head sha
 (:func:`review_verdict.has_pass`); and any check run on that head that is not completed ``success``, ``skipped`` or ``neutral``, or a
 required check run that is absent (``studio_required_checks`` in ``tools/triage/config.json``, default ``["studio"]``, the ``ci.yml``
 aggregate that needs ``checks``, ``e2e`` and ``container``). Then it runs exactly
@@ -34,8 +34,9 @@ ALLOWED_BASE = "main"
 DEFAULT_REQUIRED = ["studio"]
 #: Conclusions that do not hold a merge.
 PASSING = ("success", "skipped", "neutral")
-#: The one path tree this tool never merges a change to.
-OWNER_PATH = ".github/"
+#: What this tool never merges a change to (``studio_owner_paths``): the release pipeline and its inputs. A trailing ``/`` is a directory prefix.
+DEFAULT_OWNER_PATHS = [".github/", "Dockerfile", "scripts/release.ts", "scripts/next-version.ts", "CHANGELOG.md", "config.yaml",
+                       "package.json", "package-lock.json"]
 
 
 def required_checks(cfg: Optional[Dict[str, Any]] = None) -> List[str]:
@@ -44,6 +45,19 @@ def required_checks(cfg: Optional[Dict[str, Any]] = None) -> List[str]:
     if isinstance(value, list) and value and all(isinstance(n, str) and n.strip() for n in value):
         return [n.strip() for n in value]
     return list(DEFAULT_REQUIRED)
+
+
+def owner_paths(cfg: Optional[Dict[str, Any]] = None) -> List[str]:
+    """``studio_owner_paths`` from the pinned triage config, or :data:`DEFAULT_OWNER_PATHS` when absent or malformed."""
+    value = (pr_land.load_config() if cfg is None else cfg).get("studio_owner_paths")
+    if isinstance(value, list) and value and all(isinstance(n, str) and n.strip() for n in value):
+        return [n.strip() for n in value]
+    return list(DEFAULT_OWNER_PATHS)
+
+
+def owner_hits(files: List[str], owned: List[str]) -> List[str]:
+    """The ``files`` an ``owned`` entry covers: a directory entry (ends in ``/``) by prefix, any other entry exactly."""
+    return [f for f in files if any(f.startswith(o) if o.endswith("/") else f == o for o in owned)]
 
 
 def changed_files(number: str) -> List[str]:
@@ -99,9 +113,9 @@ def land(number: str, dry_run: bool) -> Tuple[int, str]:
         return 1, f"blocked #{number}: merge conflicts with {base}"
     if any((label.get("name") if isinstance(label, dict) else label) == "Needs Decision" for label in info.get("labels") or []):
         return 1, f"blocked #{number}: labelled Needs Decision"
-    owned = [path for path in changed_files(number) if path.startswith(OWNER_PATH)]
+    owned = owner_hits(changed_files(number), owner_paths())
     if owned:
-        return 1, f"blocked #{number}: changes {OWNER_PATH} (the Studio's release pipeline is the owner's): {', '.join(owned[:3])}"
+        return 1, f"blocked #{number}: changes the owner's release files: {', '.join(owned[:3])}"
     head = str(info.get("headRefOid") or "")
     if not review_verdict.has_pass(head):
         return 1, f"blocked #{number}: no independent pass for {head[:12] or '?'} (record.py --lane {info.get('headRefName')} for exactly this head)"
