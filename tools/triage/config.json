@@ -176,6 +176,9 @@
   "workflow_base": "main",
   "land_tests": "tools/run_tool_tests.sh",
   "denylist_required": true,
+  "studio_required_checks": [
+    "studio"
+  ],
   "land_core_tests": [],
   "land_full_suite_triggers": [],
   "protected_paths": [
