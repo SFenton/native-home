@@ -347,10 +347,12 @@ class GoPublicGateTests(unittest.TestCase):
             sha = subprocess.run(["git", "-C", str(snap), "hash-object", "-t", "commit", "-w", "--stdin"], input=raw, text=True,
                                  check=True, capture_output=True, env=ENV).stdout.strip()
             git(snap, "update-ref", "refs/heads/main", sha)
+        # The include target sits under the test's own temp dir and never exists. A fixed path such as /tmp/x can be a
+        # directory on a developer machine, and git then fails (exit 2, "not a git repository") instead of the gate refusing.
         cases = {"encoding_header": header,
                  "insteadOf": lambda snap: git(snap, "config", "url.https://example.org/.insteadOf", "https://github.com/"),
                  "credential": lambda snap: git(snap, "config", "credential.helper", "store"),
-                 "include": lambda snap: git(snap, "config", "include.path", "/tmp/x")}
+                 "include": lambda snap: git(snap, "config", "include.path", str(snap.parent / "no-such-include"))}
         for name, mutate in cases.items():
             with self.subTest(name=name):
                 code, out = self.gate(mutate=mutate)
