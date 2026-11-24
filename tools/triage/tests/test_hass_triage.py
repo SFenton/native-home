@@ -3541,7 +3541,8 @@ class T3LauncherTests(Base):
         with mock.patch.object(runner, "_t3_launch") as t3:
             argv = self.claude_popen(runner, self.worktree(settings=False))
         t3.assert_not_called()
-        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        self.assertEqual(argv[:-3], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-3], ",".join(self.cfg["agent"]["allowed_tools"]))
 
     def test_a_t3_launch_passes_the_record_inputs_and_keeps_the_thread_in_the_state(self):
         runner = self.runner_for(launcher="t3code")
