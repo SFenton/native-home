@@ -655,7 +655,7 @@ class InstallTests(Base):
         agent = ht.load_config(self.home)["agent"]
         denied = set(agent["disallowed_tools"])
         # tools/pr_land.sh is allowed; its own gh calls are not the session's, so the merge denies stay.
-        self.assertIn("Bash(tools/pr_land.sh*)", agent["allowed_tools"])
+        self.assertTrue({"Bash(tools/pr_land.sh*)", "Bash(tools/pr_land.sh *)"} & set(agent["allowed_tools"]))  # unbounded or word-bounded
         for rule in ("Bash(gh pr merge*)", "Bash(gh api *pulls/*/merge*)", "Bash(gh api -X PUT*)", "Bash(gh api graphql*)",
                      "Bash(git push origin main*)", "Bash(git push origin HEAD:main*)", "Bash(git push origin --force*)",
                      "Bash(git push --force*)", "Bash(xcrun simctl boot*)", "Bash(xcodebuild test*)",
@@ -3489,8 +3489,8 @@ class T3LauncherTests(Base):
         self.assertEqual(argv[-3], ",".join(allow))
         self.assertEqual(argv[-2], "--disallowedTools")
         self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
-        for entry in allow:  # `Bash(tools/x.sh*)` today, the bounded `Bash(tools/x.sh *)` after F2
-            self.assertRegex(entry, r"^Bash\([A-Za-z0-9_./-]+ ?\*\)$")
+        for entry in allow:  # only a lander script, with an unbounded or a word-bounded prefix; nothing broader
+            self.assertRegex(entry, r"^Bash\(tools/(?:pr_land\.sh|ship\.sh|studio_land\.py) ?\*\)$")
         self.assertEqual(argv, self.argv({"launcher": "claude"}))
         base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
