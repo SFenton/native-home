@@ -1269,6 +1269,17 @@ class StoreTestBase(t.Base):
             ]
             for store in expected_by_store
         }
+        if storage_facts is not _PA_ABSENT:
+            sampled_stores = {store for store, _state in sampled}
+            expected_stores = {
+                record["intake"]
+                for record in expected_custody["records"]
+            }
+            expected_stores.update(
+                fault["store"]
+                for fault in expected_custody["faults"]
+            )
+            self.assertLessEqual(expected_stores, sampled_stores)
         for store, state in sampled:
             projection = state.load_projection(store)
             scoped = [fault for fault in projection if "scope" in fault]
@@ -1620,7 +1631,7 @@ class StoreTestBase(t.Base):
             self.assertEqual(
                 text,
                 expected_text,
-                "custody text comparison",
+                "custody text stdout comparison",
             )
         self.assertEqual((encoded[0], encoded[2]), (0, ""))
         report = json.loads(encoded[1])
@@ -6048,7 +6059,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     with self.subTest(
                         expectation="supplied custody text"
                     ), self.assertRaisesRegex(
-                        AssertionError, "custody text comparison"
+                        AssertionError, "custody text stdout comparison"
                     ):
                         expected_text_with_custody = (
                             expected_text[0],
@@ -6205,7 +6216,11 @@ class StatusAndGoldenTests(StoreTestBase):
             record = self.fixture_record(aggregate, seed)
             record.update({
                 "phase": "pending",
-                "original_outcome": dict(_PA_DONE_OUTCOME),
+                "original_outcome": {
+                    "trust": "clean_end",
+                    "exit_code": 0,
+                    "state": "done",
+                },
                 "attempts": 0,
                 "reason": "reserved",
                 "next": {"kind": "human"},
@@ -6232,7 +6247,10 @@ class StatusAndGoldenTests(StoreTestBase):
             record = self.fixture_record(aggregate, seed)
             record.update({
                 "phase": "pending",
-                "original_outcome": dict(_PB_SIGNED_OUTCOME),
+                "original_outcome": {
+                    "trust": "untrusted",
+                    "exit_code": -7,
+                },
                 "bindings": {
                     "agents/review": {
                         "disposition": "awaiting_review_wiring",
