@@ -6,14 +6,16 @@ check ran against an open PR; a ``git reset --soft origin/main`` squash reverted
 shared ``origin/main``; ``house_scan`` ran only at push time; ``core.hooksPath`` flipped between ``.githooks`` and an absolute path.
 
     python3 tools/lane_check.py start --task T --branch B --paths P...   # run with the lane worktree as the current directory (after lane_new.sh, before the Coder works)
-    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope|ci]... [--no-repair] [--ack-scope REASON]   # no push; exit 1 on a failure
+    python3 tools/lane_check.py check [--base main] [--only hooks|scan|revert|shape|jev|overlap|scope|ci|separation|tests]... [--no-repair] [--ack-scope REASON]   # no push; exit 1 on a failure
     python3 tools/lane_check.py squash [--dry-run]                       # soft-reset onto the recorded lane base, never origin/main
 
 ``start`` fetches, records the base (the ``origin/main`` sha) in ``<git-dir>/lane-base`` (worktree-local, so another session's fetch
 cannot move it) and appends it to ``<common-git-dir>/lane-bases.log`` (the previous lane's base is the last line of another lane). It
 then lists open PRs whose files match a declared path, and commits on ``origin/main`` since the previous lane's base (skipped when no other lane
 has started in this repository) that touch one; any hit exits 1 unless ``--ack-overlap "<reason>"`` (the reason is printed and recorded).
-``--paths`` entries are exact files, directory prefixes or ``fnmatch`` globs. Ledger: ``start`` also runs ``tasks.py add-branch
+``--paths`` entries are exact files, directory prefixes or ``fnmatch`` globs. Before anything is recorded, ``start`` also runs the policy's
+separation rule (see ``separation`` below) on the declared paths (globs and prefixes expanded against the tracked files, files as given),
+so a brief that asks for a behaviour path and an evaluation path together exits 1 naming the pair before the Coder starts. Ledger: ``start`` also runs ``tasks.py add-branch
 TASK BRANCH`` (a missing entry only prints a note); the base itself is not written to the ledger (its schema takes no such field), the
 lane-base file carries the task id.
 
@@ -30,7 +32,13 @@ command, in CI's order: ``mockups_check.py``, ``mockups_index.py --check``, ``pa
 exact command and exits 1; a tool the checkout lacks is reported ``skipped``) and ``scope`` (every file changed since the lane base, committed or not, must match the ``--paths`` ``start``
 stored, by the same matcher ``start`` uses; a stray file fails and is named. ``--ack-scope "<reason>"`` overrides: the reason is printed and
 recorded in the lane-base file together with the exact files it covered, so a later ``check`` passes for those files only; a new stray file fails again. Files ``jev_ask.py sync`` writes (``contracts/jev/questions/*.json``)
-are exempt. With no lane base for this branch the check fails open: a note, and for an ``agents/*`` or ``port/*`` branch a loud ``WARNING`` line, since such a lane should have run ``start``).
+are exempt. With no lane base for this branch the check fails open: a note, and for an ``agents/*`` or ``port/*`` branch a loud ``WARNING`` line, since such a lane should have run ``start``),
+``separation`` (CI's ``trusted_separation``: this checkout's ``tools/lane_land.py`` and ``tools/pr_policy.py`` are loaded and
+``pr_policy._check_separation`` is called on every file changed since the fork point, committed or not; a lane that changes a behaviour path and an
+evaluation path fails, naming one of each; neither file is edited here, and the base-checkout driver that ``evaluate_policy`` needs is not needed) and ``tests``
+(the whole tool test set, ``tools/run_tool_tests.sh`` with no part, so the pins in tests named for other files run too; it prints ``tests exit=N``
+and on a failure names the failing test modules. It runs by default when the diff touches ``tools/``, ``.claude/``, ``.agents/``,
+``contracts/`` or ``.github/``, says so and skips otherwise, and always runs under an explicit ``--only tests``).
 
 Hooks-path environment: ``core.hooksPath`` lives in the repository's shared config, so every worktree sees one value. Only the relative
 ``.githooks`` that ``tools/setup.sh`` writes resolves to each worktree's own hooks; an absolute path points every worktree at one checkout,
@@ -51,16 +59,20 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import List, Optional, Sequence
 
 TOOLS = Path(__file__).resolve().parent
 NETWORK_TIMEOUT = 15.0  # seconds for each ``gh`` or ``git fetch`` call
-CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap", "scope", "ci")
+CHECKS = ("hooks", "scan", "revert", "shape", "jev", "overlap", "scope", "ci", "separation", "tests")
+TESTS_TIMEOUT = 3600.0  # seconds for the whole tool test set; a hang reports exit 124
+TEST_TRIGGERS = ("tools", ".claude", ".agents", "contracts", ".github")  # a diff under these runs the tool tests by default
 CI_TIMEOUT = 900.0  # seconds for each CI-parity command; a hang reports exit 124
 SCOPE_EXEMPT = ("contracts/jev/questions/*.json",)  # the files ``jev_ask.py sync`` writes
 
@@ -153,7 +165,11 @@ def commit_overlaps(paths: Sequence[str], since_base: Optional[str]) -> List[str
 
 
 def cmd_start(args: argparse.Namespace) -> int:
-    """Fetch, record the base, print and gate on overlap."""
+    """Check the declared paths against the separation rule, fetch, record the base, print and gate on overlap."""
+    why = separation_failure(expand_declared(args.paths))
+    if why:
+        print(f"lane_check: the declared --paths cannot travel in one lane: {why}", file=sys.stderr)
+        return 1
     run(["git", "fetch", "-q", "origin", "main"])
     base = git("rev-parse", "origin/main")
     log = Path(git("rev-parse", "--path-format=absolute", "--git-common-dir")) / "lane-bases.log"
@@ -495,6 +511,130 @@ def check_ci(base: str, root: Optional[Path] = None, commands: Optional[Sequence
     return ("CI repo check(s) fail here and would fail on the pull request: " + "; ".join(failed)) if failed else None
 
 
+def load_policy_module(root: Path, name: str):
+    """Import ``<root>/tools/<name>.py`` under a private module name; None when the checkout lacks it."""
+    path = root / "tools" / f"{name}.py"
+    if not path.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(f"lane_check_policy_{name}", path)
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def separation_failure(paths: Sequence[str], root: Optional[Path] = None) -> Optional[str]:
+    """None when ``paths`` may travel in one lane, else the reason naming one behaviour path and one evaluation path.
+
+    The verdict is ``pr_policy._check_separation`` itself (the rule CI's ``trusted_separation`` runs), called on rows built from
+    ``paths``; the checkout's own lander and policy modules are loaded and neither is edited. The names come from the same path lists.
+    A checkout without both files has no rule to run: None.
+    """
+    root = root or toplevel()
+    lander, policy = load_policy_module(root, "lane_land"), load_policy_module(root, "pr_policy")
+    if lander is None or policy is None:
+        return None
+    rows = [("M", path, "", "") for path in paths]
+    try:
+        policy._check_separation(lander, rows)
+    except policy.PolicyError as exc:
+        behaviour = lander.BEHAVIOUR_PATHS + policy.EXTRA_BEHAVIOUR_PATHS
+        evaluation = lander.EVAL_PATHS + policy.EXTRA_EVAL_PATHS
+        b = [p for p in paths if p not in policy.BEHAVIOUR_EXCLUDED_PATHS and lander.matches(p, behaviour)]
+        e = [p for p in paths if lander.matches(p, evaluation)]
+        if b and e:
+            return (f"{exc.reason}: the lane changes the behaviour path {b[0]} and the evaluation path {e[0]} together "
+                    f"(CI refuses it); split it into two lanes")
+        return f"{exc.reason}: the policy's separation rule refuses these paths"
+    return None
+
+
+def expand_declared(paths: Sequence[str]) -> List[str]:
+    """The ``--paths`` entries as files: globs and directory prefixes expanded against the tracked files, a file as given."""
+    tracked = git("ls-files").splitlines()
+    out: List[str] = []
+    for pat in paths:
+        hit = [f for f in tracked if matches(f, [pat])]
+        out.extend(hit or [pat.rstrip("/")])
+    return sorted(set(out))
+
+
+def changed_files(target: str = "main") -> List[str]:
+    """Every repo-relative file changed since the fork point with ``origin/<target>``: committed, modified or untracked (not ignored)."""
+    base = branch_range(read_lane_base(), target)
+    committed = git("diff", "--name-only", base).splitlines() if base else []
+    untracked = git("ls-files", "--others", "--exclude-standard", "--full-name", str(toplevel())).splitlines()
+    return sorted({f for f in committed + untracked if f})
+
+
+def check_separation(target: str = "main") -> Optional[str]:
+    """None when the files this lane changed pass the policy's separation rule, else the reason."""
+    return separation_failure(changed_files(target))
+
+
+FAILED_TEST = re.compile(r"^(?:FAIL|ERROR): (\S+) \(([\w.]+)\)")
+
+
+def failing_modules(output: str) -> List[str]:
+    """The test modules named by ``FAIL:`` and ``ERROR:`` lines of unittest output, sorted and unique."""
+    found = set()
+    for line in output.splitlines():
+        m = FAILED_TEST.match(line)
+        if not m:
+            continue
+        parts = m.group(2).split(".")  # `module.Class.test` (3.11+) or `module.Class` (older); a loader failure names no module
+        if parts[:2] == ["unittest", "loader"]:
+            found.add(m.group(1))
+            continue
+        drop = 2 if parts[-1] == m.group(1) else 1
+        found.add(".".join(parts[:-drop]) if len(parts) > drop else m.group(2))
+    return sorted(found)
+
+
+def check_tests(target: str = "main", forced: bool = False, root: Optional[Path] = None) -> Optional[str]:
+    """None when the whole tool test set passes (or is skipped), else the reason naming the failing modules.
+
+    Runs ``tools/run_tool_tests.sh`` with no part (core, triage and release, unsharded) and echoes its output, then prints ``tests exit=N``.
+    A diff outside :data:`TEST_TRIGGERS` prints ``tests skipped`` unless ``forced`` (an explicit ``--only tests``); a checkout without the
+    script prints ``tests skipped`` too. The run is killed at :data:`TESTS_TIMEOUT` and reports 124.
+    """
+    root = root or toplevel()
+    script = root / "tools" / "run_tool_tests.sh"
+    if not script.is_file():
+        print("tests skipped (run_tool_tests.sh is not in this checkout)", flush=True)
+        return None
+    if not forced and not any(matches(f, TEST_TRIGGERS) for f in changed_files(target)):
+        print("tests skipped (no change under " + ", ".join(t + "/" for t in TEST_TRIGGERS) + ")", flush=True)
+        return None
+    lines: List[str] = []
+    proc = subprocess.Popen([str(script)], cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    timed_out = threading.Event()
+
+    def stop() -> None:
+        timed_out.set()
+        proc.kill()
+
+    timer = threading.Timer(TESTS_TIMEOUT, stop)
+    timer.start()
+    try:
+        for line in proc.stdout:  # type: ignore[union-attr]
+            lines.append(line)
+            sys.stdout.write(line)
+        code = proc.wait()
+    finally:
+        timer.cancel()
+    if timed_out.is_set():
+        code = 124
+    print(f"tests exit={code}", flush=True)
+    if code == 0:
+        return None
+    mods = failing_modules("".join(lines))
+    return (f"the tool tests fail here and would fail on the pull request (`tools/run_tool_tests.sh` exit={code})"
+            + (": " + ", ".join(mods) if mods else ""))
+
+
 def shape_notes(base: str) -> List[str]:
     """Advisory lines: one commit whose parent is the current ``origin/<base>``, else the safe squash."""
     rec = read_lane_base()
@@ -536,6 +676,10 @@ def cmd_check(args: argparse.Namespace) -> int:
         failures.append(why)
     if "ci" in wanted and (why := check_ci(args.base)):
         failures.append(why)
+    if "separation" in wanted and (why := check_separation(args.base)):
+        failures.append(why)
+    if "tests" in wanted and (why := check_tests(args.base, forced=bool(args.only and "tests" in args.only))):
+        failures.append(why)
     if "shape" in wanted:
         for note in shape_notes(args.base):
             print(f"lane_check: note: {note}", file=sys.stderr)
@@ -572,9 +716,9 @@ def cmd_squash(args: argparse.Namespace) -> int:
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry."""
-    ap = argparse.ArgumentParser(description="Lane checks: overlap, base moved, house scan, hooks path, CI parity.")
+    ap = argparse.ArgumentParser(description="Lane checks: overlap, base moved, house scan, hooks path, CI parity, trusted separation, tool tests.")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("start", help="record the lane base and report overlap")
+    s = sub.add_parser("start", help="check the declared paths against the separation rule, record the lane base and report overlap")
     s.add_argument("--task", required=True)
     s.add_argument("--branch", required=True)
     s.add_argument("--paths", nargs="+", required=True)
@@ -583,7 +727,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     c.add_argument("--base", default="main")
     c.add_argument("--only", action="append", choices=CHECKS,
                    help="run only this check (repeatable); `ci` runs CI's repo checks (mockups_check, mockups_index, house_scan, pattern_guard, components_index, "
-                        "rules_lint, test_plans, test_suites, lint_motion, jev), each its own subprocess, printing `name exit=N`")
+                        "rules_lint, test_plans, test_suites, lint_motion, jev), each its own subprocess, printing `name exit=N`; "
+                        "`separation` runs the policy's trusted-separation rule on the changed files; `tests` runs tools/run_tool_tests.sh "
+                        "(by default only when the diff touches tools/, .claude/, .agents/, contracts/ or .github/)")
     c.add_argument("--no-repair", action="store_true",
                    help="report the hooks check without running tools/setup.sh or writing in the common Git directory")
     c.add_argument("--ack-scope", metavar="REASON", help="accept files outside the declared paths; the reason is printed and recorded")
