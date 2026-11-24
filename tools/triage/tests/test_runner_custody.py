@@ -987,6 +987,18 @@ class CustodySchemaTests(StoreTestBase):
                     ),
                 ),
                 (
+                    "target archive name", "type",
+                    lambda record: record["target"].__setitem__(
+                        "archive_name", "../archive"
+                    ),
+                ),
+                (
+                    "target archive session", "type",
+                    lambda record: record["target"].__setitem__(
+                        "archive_session", "bad session"
+                    ),
+                ),
+                (
                     "target source repository", "namespace",
                     lambda record: record["target"].__setitem__(
                         "source_repository", "Example/Product"
@@ -1005,6 +1017,10 @@ class CustodySchemaTests(StoreTestBase):
                 (
                     "attempts bool", "type",
                     lambda record: record.__setitem__("attempts", True),
+                ),
+                (
+                    "reason enum", "type",
+                    lambda record: record.__setitem__("reason", "unknown"),
                 ),
                 (
                     "next closed", "type",
@@ -1036,6 +1052,38 @@ class CustodySchemaTests(StoreTestBase):
                     self._assert_custody_fault(
                         store, aggregate, kind, "store", version
                     )
+
+        retro = self.stopped_retro_seed()
+        for label, mutate, kind in (
+            (
+                "retro source archive",
+                lambda target: target.__setitem__(
+                    "source_archive", "bad/name"
+                ),
+                "type",
+            ),
+            (
+                "retro source queued",
+                lambda target: target.__setitem__(
+                    "source_queued", "2026-02-30T00:00:00Z"
+                ),
+                "type",
+            ),
+            (
+                "retro source repository",
+                lambda target: target.__setitem__(
+                    "source_repository", "example/issues"
+                ),
+                "namespace",
+            ),
+        ):
+            with self.subTest(cell=label):
+                aggregate = retro.aggregate()
+                target = self._leaf(aggregate, retro)["target"]
+                mutate(target)
+                self._assert_custody_fault(
+                    "primary", aggregate, kind, key=self._key(retro)
+                )
 
     def test_custody_release_conjunction_and_signed_fields(self):
         """Fails if: release authorization accepts any missing positive proof."""
@@ -1347,6 +1395,23 @@ class CustodySchemaTests(StoreTestBase):
                 lane: {head: {"needs_pr": {
                     "state": "confirmed",
                     "since": "2026-01-01T00:00:00Z",
+                }}}
+            }, "type"),
+            ("identity copy", {
+                lane: {head: {"needs_pr": {
+                    "state": "intent",
+                    "since": "2026-01-01T00:00:00Z",
+                    "head": "b" * 40,
+                }}}
+            }, "key"),
+            ("remote repository", {
+                lane: {head: {"needs_pr": {
+                    "state": "confirmed",
+                    "since": "2026-01-01T00:00:00Z",
+                    "remote_identity": {
+                        "repository": "private/Issues",
+                        "number": 1,
+                    },
                 }}}
             }, "type"),
             ("remote extra", {
