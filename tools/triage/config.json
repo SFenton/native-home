@@ -164,8 +164,9 @@
     "timeout_minutes": 300,
     "max_attempts": 2,
     "allowed_tools": [
-      "Bash(tools/pr_land.sh*)",
-      "Bash(tools/ship.sh*)"
+      "Bash(tools/pr_land.sh *)",
+      "Bash(tools/ship.sh *)",
+      "Bash(tools/studio_land.py *)"
     ]
   },
   "merge": {
