@@ -58,6 +58,7 @@ class TriggerTests(Base):
         doc = self.run_digest()
         self.assertEqual(doc["triggers"], [])
         self.assertEqual(doc["counts"]["turns"], 0)
+        self.assertEqual(doc["counts"]["waits"], 0)
         self.assertEqual(doc["aar"]["why_different"], "")
 
     def test_status_defaults_to_the_worktree_status_file(self):
@@ -242,6 +243,70 @@ class TriggerTests(Base):
         self.write("build/review/x.json", "[1]")
         status = self.write("status.json", "nope")
         self.assertEqual(self.run_digest("--status", str(status))["triggers"], [])
+
+
+class NamedWaitTests(Base):
+    OWNER_WAIT = ("owner_wait: the runner exercise receipt and then the owner merge of PR 213; "
+                  "the next lane starts from the merged head")
+
+    def set_wait(self, reason, *, check_passes=True):
+        self.write("build/tasks/R-1.json", {
+            "id": "R-1",
+            "acceptance": [{"id": "digest-wait", "check": "wait is recorded", "passes": check_passes}],
+        })
+        self.write("build/status/R-1.json", {
+            "task": "R-1", "status": "blocked", "blocked_reason": reason,
+        })
+
+    def test_owner_wait_without_failing_check_is_counted_and_named(self):
+        """The verbatim owner wait is a wait, not a blocked trigger."""
+        self.set_wait(self.OWNER_WAIT)
+        doc = self.run_digest()
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 1)
+        self.assertIn(self.OWNER_WAIT, doc["aar"]["happened"])
+
+    def test_same_owner_wait_text_without_prefix_still_blocks(self):
+        reason = self.OWNER_WAIT.removeprefix("owner_wait: ")
+        self.set_wait(reason)
+        self.assertIn("blocked", self.fired(self.run_digest()))
+
+    def test_owner_wait_with_failing_ledger_check_still_blocks(self):
+        self.set_wait(self.OWNER_WAIT, check_passes=False)
+        doc = self.run_digest()
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_lane_wait_without_failing_check_is_counted(self):
+        reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
+        self.set_wait(reason)
+        doc = self.run_digest()
+        self.assertNotIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 1)
+        self.assertIn(reason, doc["aar"]["happened"])
+
+    def test_lane_wait_with_failing_ledger_check_still_blocks(self):
+        reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
+        self.set_wait(reason, check_passes=False)
+        doc = self.run_digest()
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_runner_reported_block_is_not_suppressed_by_wait_prefix(self):
+        self.set_wait(self.OWNER_WAIT)
+        doc = self.run_digest("--outcome", "blocked:timeout")
+        self.assertIn("blocked", self.fired(doc))
+        self.assertIn("timeout", self.fired(doc))
+
+    def test_weekly_reader_parses_digest_with_wait_count(self):
+        self.set_wait(self.OWNER_WAIT)
+        digest = self.run_digest()
+        self.assertEqual(digest["counts"]["waits"], 1)
+        records = rw.collect(None, self.dir, None)
+        self.assertEqual(len(records["digests"]), 1)
+        at = records["digests"][0]["at"]
+        metrics = rw.metrics(records, at, at + timedelta(seconds=1))
+        self.assertEqual(metrics["tasks"][0]["task"], "R-1")
 
 
 class S3ProofTests(Base):

@@ -14,6 +14,10 @@ note). A check-only blocked snapshot is suppressed only when a complete matching
 resolved and no independent status signal remains. A missing or unreadable input is skipped, never fatal. The Steward
 reads the result; this script never judges it.
 
+Named waits use a blocked status whose ``blocked_reason`` starts with ``owner_wait:`` or ``lane_wait:``. They count as
+waits and name the reason in the summary instead of firing ``blocked``. A failing ledger check still makes the wait a
+block, and a runner outcome beginning with ``blocked`` always remains a block.
+
 ``--lane NAME`` (a worktree lane such as ``loop-followups``, or a branch such as ``claude/loop-followups``) digests a lane that has no
 ledger task, e.g. an interactive subagent flow, from what it leaves behind: the lane worktree's ``build/runs`` (``*.digest``
 and ``*.running`` markers from ``bg_run``, with their durations and executed/skipped/failed counts), ``build/review/<branch>.json``
@@ -341,7 +345,8 @@ def reconcile_status(task: str, ledger: Dict[str, Any], status: Dict[str, Any]) 
 
     all_checks_pass = ledger_well_formed and all(checks.values())
     suppress = bool(status_well_formed and stale_failures and all_checks_pass and not separate_reason)
-    return {"stale": sorted(stale), "suppress": suppress}
+    failing = sorted(check_id for check_id, passed in checks.items() if not passed)
+    return {"stale": sorted(stale), "suppress": suppress, "failing": failing}
 
 
 def wait_minutes(raw: str) -> Tuple[int, str]:
@@ -518,9 +523,13 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     state = str(status.get("state") or status.get("status") or "")  # the runner writes state; agents write status
     reconciliation = reconcile_status(args.task, ledger, status)
     status_suppressed = state == "blocked" and reconciliation["suppress"]
+    blocked_reason = status.get("blocked_reason")
+    named_wait = (state == "blocked" and isinstance(blocked_reason, str)
+                  and blocked_reason.startswith(("owner_wait:", "lane_wait:"))
+                  and not reconciliation["failing"])
     if outcome.startswith("blocked"):
         fire("blocked", outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
-    elif state == "blocked" and not status_suppressed:
+    elif state == "blocked" and not status_suppressed and not named_wait:
         fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
     if outcome in ("timeout", "blocked:timeout"):
         fire("timeout", "the session ran past the timeout and was stopped")
@@ -653,9 +662,11 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     intake = ledger.get("intake") or ""
     brief = ledger.get("brief") or ""
     summary = str(status.get("summary") or status.get("blocked_reason") or "").strip()
-    effective_outcome = outcome or ("" if status_suppressed else state) or None
+    effective_outcome = outcome or ("wait" if named_wait else "" if status_suppressed else state) or None
     if outcome:
         happened = outcome if status_suppressed else f"{outcome}: {summary}".strip(": ")
+    elif named_wait:
+        happened = f"wait: {summary}".strip(": ")
     elif status_suppressed:
         passing = sum(1 for check in checks if isinstance(check, dict) and check.get("passes"))
         happened = f"ledger: {passing}/{len(checks)} checks pass"
@@ -670,7 +681,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
             "triggers": len(triggers), "review_rounds": rounds, "review_verdicts": len(reviews),
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
             "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
-            "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0,
+            "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0, "waits": 1 if named_wait else 0,
             "owner_replies": len(comments), "tool_errors": errors, **lane_counts,
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
