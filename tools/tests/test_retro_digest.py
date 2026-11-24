@@ -259,7 +259,10 @@ class NamedWaitTests(Base):
         })
 
     def test_owner_wait_without_failing_check_is_counted_and_named(self):
-        """The verbatim owner wait is a wait, not a blocked trigger."""
+        """The verbatim owner wait is a wait, not a blocked trigger.
+
+        Fails if: a clean owner wait fires blocked, is not counted, or loses its reason from the summary.
+        """
         self.set_wait(self.OWNER_WAIT)
         doc = self.run_digest()
         self.assertNotIn("blocked", self.fired(doc))
@@ -267,17 +270,20 @@ class NamedWaitTests(Base):
         self.assertIn(self.OWNER_WAIT, doc["aar"]["happened"])
 
     def test_same_owner_wait_text_without_prefix_still_blocks(self):
+        """Fails if: removing the owner_wait prefix stops an ordinary blocked status from firing."""
         reason = self.OWNER_WAIT.removeprefix("owner_wait: ")
         self.set_wait(reason)
         self.assertIn("blocked", self.fired(self.run_digest()))
 
     def test_owner_wait_with_failing_ledger_check_still_blocks(self):
+        """Fails if: the owner_wait prefix suppresses a block contradicted by a failing ledger check."""
         self.set_wait(self.OWNER_WAIT, check_passes=False)
         doc = self.run_digest()
         self.assertIn("blocked", self.fired(doc))
         self.assertEqual(doc["counts"]["waits"], 0)
 
     def test_lane_wait_without_failing_check_is_counted(self):
+        """Fails if: a clean lane wait fires blocked, is not counted, or loses its reason from the summary."""
         reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
         self.set_wait(reason)
         doc = self.run_digest()
@@ -286,6 +292,7 @@ class NamedWaitTests(Base):
         self.assertIn(reason, doc["aar"]["happened"])
 
     def test_lane_wait_with_failing_ledger_check_still_blocks(self):
+        """Fails if: the lane_wait prefix suppresses a block contradicted by a failing ledger check."""
         reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
         self.set_wait(reason, check_passes=False)
         doc = self.run_digest()
@@ -293,12 +300,14 @@ class NamedWaitTests(Base):
         self.assertEqual(doc["counts"]["waits"], 0)
 
     def test_runner_reported_block_is_not_suppressed_by_wait_prefix(self):
+        """Fails if: a runner blocked outcome with a wait-prefixed reason omits blocked or timeout."""
         self.set_wait(self.OWNER_WAIT)
         doc = self.run_digest("--outcome", "blocked:timeout")
         self.assertIn("blocked", self.fired(doc))
         self.assertIn("timeout", self.fired(doc))
 
     def test_weekly_reader_parses_digest_with_wait_count(self):
+        """Fails if: the weekly reader rejects or drops a digest carrying counts.waits."""
         self.set_wait(self.OWNER_WAIT)
         digest = self.run_digest()
         self.assertEqual(digest["counts"]["waits"], 1)
