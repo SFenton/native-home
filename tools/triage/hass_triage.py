@@ -1280,19 +1280,12 @@ class Runner:
         storage_result = 0
         if drained and not self.intake and not self.dry_run and self.schedules_idle():
             retro_ran = None
-            retro_save_failed = False
             try:
                 retro_ran = self.run_retro()
             except StateLoadError as exc:
                 print(f"retro state refused: {exc}", file=sys.stderr)
                 storage_result = 4
-            except StateSaveError as exc:
-                if exc.name != self.retro_paths.state.name:
-                    raise
-                print(f"retro persistence failure: {exc}", file=sys.stderr)
-                storage_result = 4
-                retro_save_failed = True
-            if not retro_save_failed and not retro_ran and not self.check_regressions():
+            if not retro_ran and not self.check_regressions():
                 self.run_due_job()
         self.state.save()
         return storage_result
@@ -2366,6 +2359,8 @@ class Runner:
         for lane in lanes:
             try:
                 results[lane] = self.land_lane(lane, base, label, tips.get(lane, ""))
+            except StateSaveError:
+                raise
             except Exception as exc:  # noqa: BLE001 (an unexpected failure leaves the lane for the next look)
                 results[lane] = "error"
                 print(f"{label}: landing {lane} failed: {redact(str(exc))[:300]}")

@@ -123,7 +123,7 @@ class RunnerLockTests(t.Base):
         class RunnerSpy:
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.intake = intake
-                spy.state = mock.Mock()
+                spy.state = StateSpy()
                 calls.append("construct:" + ("nightly" if intake else "primary"))
 
             def _tick_locked(spy, max_items=None):

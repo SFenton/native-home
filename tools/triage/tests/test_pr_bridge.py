@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 import os
 import socket
 import subprocess
@@ -542,7 +543,6 @@ class PullPhaseTests(unittest.TestCase):
                 self.assertEqual(phase["reason"], "ai_review_missing")
 
     def test_check_identity_accepts_only_newest_expected_sources(self):
-        completed = self.phase(self.decoded_open(checks=check_runs()))
         runs = check_runs()
         for run in runs["check_runs"]:
             if run["name"] == "pr-checks":
@@ -555,8 +555,15 @@ class PullPhaseTests(unittest.TestCase):
             "started_at": "2026-11-21T20:04:00Z",
             "head_sha": HEAD,
             "app": {"id": ACTIONS_APP_ID},
+            "completed_at": "2026-11-21T20:10:00Z",
         })
         runs["total_count"] = len(runs["check_runs"])
+        completed_runs = json.loads(json.dumps(runs))
+        completed_runs["check_runs"][-1].update({
+            "status": "COMPLETED",
+            "conclusion": "success",
+        })
+        completed = self.phase(self.decoded_open(checks=completed_runs))
         phase = self.phase(self.decoded_open(checks=runs))
         self.assertEqual(completed["phase"], "awaiting_merge")
         self.assertEqual(phase["phase"], "awaiting_checks")
