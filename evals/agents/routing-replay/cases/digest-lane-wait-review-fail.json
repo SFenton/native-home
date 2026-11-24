@@ -1,0 +1,35 @@
+{
+  "id": "digest-lane-wait-review-fail",
+  "source": "Steward fifth pass, Action 1, 2026-11-23; pull request 216.",
+  "recorded": "2026-11-23",
+  "kind": "digest",
+  "input": {
+    "files": {
+      "build/tasks/EVAL-1.json": {
+        "id": "EVAL-1",
+        "acceptance": [
+          {
+            "id": "review-eval",
+            "passes": false
+          }
+        ]
+      },
+      "build/status/EVAL-1.json": {
+        "task": "EVAL-1",
+        "status": "blocked",
+        "blocked_reason": "lane_wait: review remains open",
+        "acceptance": {
+          "review-eval": "fail"
+        }
+      }
+    }
+  },
+  "expect": {
+    "triggers": {
+      "lacks": [
+        "blocked"
+      ]
+    },
+    "counts.waits": 1
+  }
+}
