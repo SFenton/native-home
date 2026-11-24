@@ -5,7 +5,10 @@ In the main session launch it with the Bash tool's ``run_in_background: true`` a
 foreground (its background jobs die with its turn). The harness notifies the main session when it
 exits, and the notification carries the digest, not the log. Never poll the log with ``until … sleep``.
 
-    tools/bg_run.py LABEL [--timeout SECONDS] [--expect-minutes N] [--dir DIR] [--allow-empty] -- COMMAND [ARG …]
+    tools/bg_run.py LABEL [--timeout SECONDS] [--expect-minutes N] [--dir DIR] [--allow-empty] [--task ID] -- COMMAND [ARG …]
+
+``--task ID`` (default ``$SH_TASK``) stamps ``task=ID`` on the digest's RESULT line; ``tools/retro_digest.py`` keeps, for a ledger
+task, only the digests stamped with that task.
 
 The full output goes to ``build/runs/LABEL.log`` (``--dir`` to change it) and the digest, from
 ``tools/log_digest.py`` (its RESULT line carries the git SHA and the worktree name of the command's working directory, not of the worktree that launched bg_run), to ``LABEL.digest`` next to it. The exit status is the command's, or 124 after
@@ -202,10 +205,11 @@ def _begin_lease(cwd: str, marker: Path, label: str):
 
 
 def run(label: str, command: List[str], directory: Path, timeout: Optional[float], allow_empty: bool = False,
-        cwd: Optional[str] = None) -> int:
+        cwd: Optional[str] = None, task: str = "") -> int:
     """Run ``command`` with output to ``directory/label.log``, print its digest and return its status.
 
-    ``cwd`` is where the command runs and where the digest's ``sha`` and ``lane`` are read from (default: the current directory)."""
+    ``cwd`` is where the command runs and where the digest's ``sha`` and ``lane`` are read from (default: the current directory).
+    ``task`` is the ledger task id stamped on the digest's RESULT line (``task=<id>``), so a task's retro keeps only its own runs."""
     cwd = cwd or os.getcwd()
     directory.mkdir(parents=True, exist_ok=True)
     log = directory / f"{label}.log"
@@ -285,7 +289,7 @@ def run(label: str, command: List[str], directory: Path, timeout: Optional[float
         log.write_text(text, encoding="utf-8")  # the kept log never holds a token
         sha, lane = log_digest.git_context(cwd)
         digest = redact(log_digest.digest_text(text, exit_code=status, elapsed=elapsed, label=label, log=str(log),
-                                               sha=sha, lane=lane, allow_empty=allow_empty))
+                                               sha=sha, lane=lane, allow_empty=allow_empty, task=task))
         if status == 0 and digest.startswith(("RESULT: EMPTY", "RESULT: MISMATCH")):
             status = 1  # an empty run is not a pass
         (directory / f"{label}.digest").write_text(digest + "\n", encoding="utf-8")
@@ -320,6 +324,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--expect-minutes", type=float, default=None)
     parser.add_argument("--allow-empty", action="store_true")
     parser.add_argument("--dir", type=Path, default=ROOT / "build" / "runs")
+    parser.add_argument("--task", default=os.environ.get("SH_TASK", ""))
     args = parser.parse_args(argv[:split])
     command = argv[split + 1:]
     if not command:
@@ -328,7 +333,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     note = harness_note(args.expect_minutes)
     if note:
         print(note, file=sys.stderr, flush=True)
-    return run(args.label, command, args.dir, args.timeout, args.allow_empty)
+    return run(args.label, command, args.dir, args.timeout, args.allow_empty, task=args.task.strip())
 
 
 if __name__ == "__main__":

@@ -1453,6 +1453,21 @@ class AgentFlagTests(Base):
         self.assertEqual(self.launch_env["FENTON_HEADLESS"], "1")
         self.assertEqual(self.launch_env["FENTON_DEVCAP_MAX_WAIT"], "1200")
 
+    def test_launch_env_carries_the_task_id_for_the_run_digests(self):
+        """Fails if: a worker's env lacks SH_TASK, so bg_run stamps no task on its digests."""
+        self.argv({})
+        self.assertEqual(self.launch_env["SH_TASK"], "R-1")
+
+    def test_job_and_retro_launches_carry_no_task_id(self):
+        """Fails if: a job or retro launch (string key) gets SH_TASK, so its digests are dropped as another task's."""
+        self.argv({})
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: None)
+        for key in ("job-nightly", "retro-parity-loop"):
+            self.assertNotIn("SH_TASK", runner._session_env(key), key)
+        self.assertEqual(runner._session_env(7)["SH_TASK"], "R-7")
+        runner.intake = True
+        self.assertEqual(runner._session_env(7)["SH_TASK"], "N-7")
+
     def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
         """Fails if the reviewer inherits the worker's Fable model or medium effort."""
         argv = self.argv({})
@@ -3476,8 +3491,8 @@ class T3LauncherTests(Base):
         base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
                     "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(1)), "HASS_TRIAGE_BIN": str(ht.HERE / "hass_triage.py"),
-                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", **base}
-        self.assertEqual(self.launch_env, expected)  # exactly today's environment: no key added or dropped
+                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", "SH_TASK": "R-1", **base}
+        self.assertEqual(self.launch_env, expected)  # exactly today's environment plus SH_TASK
 
     def test_the_t3_block_does_not_touch_the_deny_list(self):
         agent = self.cfg["agent"]

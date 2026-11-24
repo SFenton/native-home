@@ -61,6 +61,44 @@ class TriggerTests(Base):
         self.assertEqual(doc["counts"]["waits"], 0)
         self.assertEqual(doc["aar"]["why_different"], "")
 
+    def test_a_task_digest_ignores_another_tasks_empty_run(self):
+        """Fails if: an EMPTY run stamped for another task fires empty_runs for this one, or stops firing for its own task."""
+        self.write("build/runs/journeys.digest", "RESULT: EMPTY (exit 0)  journeys  13s  task=sdui-review\ntests: executed 0, skipped 3, failed 0\n")
+        self.write("build/runs/unit.digest", "RESULT: PASS (exit 0)  unit  45s  task=parity-loop\ntests: executed 40, skipped 0, failed 0\n")
+        other = self.run_digest(task="parity-loop")
+        self.assertNotIn("empty_runs", self.fired(other))
+        self.assertEqual(other["counts"]["skipped_runs"], 1)
+        own = self.run_digest(task="sdui-review")
+        self.assertIn("empty_runs", self.fired(own))
+        self.assertEqual(own["counts"]["skipped_runs"], 1)
+
+    def test_an_unstamped_digest_still_counts_and_is_marked_unscoped(self):
+        """Fails if: a digest with no task stamp stops counting in task mode, or is not marked unscoped."""
+        self.write("build/runs/journeys.digest", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc lane=wt\ntests: executed 0, skipped 3, failed 0\n")
+        doc = self.run_digest()
+        self.assertIn("(unscoped: no task stamp)", self.fired(doc)["empty_runs"][0])
+        self.assertEqual((doc["counts"]["skipped_runs"], doc["counts"]["unscoped_runs"]), (0, 1))
+
+    def test_the_main_prints_a_note_when_another_tasks_runs_were_skipped(self):
+        """Fails if: skipped runs of another task are dropped without a one-line count on stdout."""
+        self.write("build/runs/a.digest", "RESULT: PASS (exit 0)  a  5s  task=other\n")
+        self.write("build/runs/b.digest", "RESULT: PASS (exit 0)  b  5s  task=other\n")
+        from contextlib import redirect_stdout
+        from io import StringIO
+        buffer = StringIO()
+        with redirect_stdout(buffer):
+            self.run_digest()
+        self.assertIn("skipped 2 run digest(s) stamped for another task", buffer.getvalue())
+
+    def test_a_review_of_a_branch_outside_the_ledger_is_skipped(self):
+        """Fails if: a round-5 review of a branch the ledger does not list fires review_rounds_over_cap."""
+        self.write("build/tasks/R-1.json", {"branches": ["lane/mine"]})
+        self.write("build/review/other.json", {"branch": "lane/other", "verdict": "changes", "round": 5})
+        self.write("build/review/mine.json", {"branch": "lane/mine", "verdict": "pass", "round": 1})
+        doc = self.run_digest()
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
+        self.assertEqual((doc["counts"]["review_rounds"], doc["counts"]["skipped_reviews"]), (1, 1))
+
     def test_status_defaults_to_the_worktree_status_file(self):
         self.write("build/status/T.json", {"status": "blocked", "blocked_reason": "owner_review"})
         doc = self.run_digest(task="T")
@@ -83,12 +121,13 @@ class TriggerTests(Base):
         self.assertIn("worker_failed", self.fired(self.run_digest("--outcome", "blocked:worker_failed")))
 
     def test_review_rounds_over_cap(self):
-        self.write("build/review/a.json", {"verdict": "changes", "round": 3})
-        self.write("build/review/b.json", {"verdict": "pass", "round": 1})
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a", "lane/b"]})
+        self.write("build/review/a.json", {"branch": "lane/a", "verdict": "changes", "round": 3})
+        self.write("build/review/b.json", {"branch": "lane/b", "verdict": "pass", "round": 1})
         doc = self.run_digest()
         self.assertIn("review_rounds_over_cap", self.fired(doc))
         self.assertEqual(doc["counts"]["review_rounds"], 3)
-        self.write("build/review/a.json", {"verdict": "pass", "round": 2})
+        self.write("build/review/a.json", {"branch": "lane/a", "verdict": "pass", "round": 2})
         self.assertNotIn("review_rounds_over_cap", self.fired(self.run_digest()))
 
     def test_owner_correction_after_start(self):
@@ -978,9 +1017,9 @@ class LaneTests(Base):
         self.assertFalse(any("build" in line for line in evidence))
 
     def test_task_flows_get_the_run_triggers_too(self):
-        self.write("build/runs/uitest-1.digest", "RESULT: PASS (exit 0)  uitest-1  34m10s\n")
-        self.write("build/runs/uitest-2.digest", "RESULT: FAIL (exit 1)  uitest-2  34m02s\n")
-        self.write("build/runs/journeys.digest", "RESULT: EMPTY (exit 0)  journeys  13s\ntests: executed 0, skipped 3, failed 0\n")
+        self.write("build/runs/uitest-1.digest", "RESULT: PASS (exit 0)  uitest-1  34m10s  task=R-1\n")
+        self.write("build/runs/uitest-2.digest", "RESULT: FAIL (exit 1)  uitest-2  34m02s  task=R-1\n")
+        self.write("build/runs/journeys.digest", "RESULT: EMPTY (exit 0)  journeys  13s  task=R-1\ntests: executed 0, skipped 3, failed 0\n")
         fired = self.fired(self.run_digest())
         self.assertIn("repeated_long_device_rounds", fired)
         self.assertIn("empty_runs", fired)
