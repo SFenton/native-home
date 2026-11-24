@@ -4,7 +4,7 @@
 
 ## Waiting
 
-- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest.
+- **Never poll or sleep-loop.** The main session runs a long command as `tools/bg_run.py LABEL -- COMMAND` in the background and ends the turn; the notice carries a digest. A ledger task's runs carry `--task <id>` (or `$SH_TASK`); its retro counts only those.
 - **A sub-agent's background job dies with its turn,** as does a foreground call moved to the background at its `timeout`: it runs foreground in pieces (`timeout` up to 600000, with `bg_run.py --timeout S`, S at most the timeout in seconds minus 30) or reports `blocked` with the exact command.
 - **Read the digest, not the log.** Open the log only for a failure the digest cannot explain.
 - **Infra is the machine, not the test.** Rerun once, then report it.

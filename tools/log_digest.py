@@ -9,13 +9,14 @@ A run that shows test evidence (an ``Executed N tests`` line, a Swift Testing ru
 whose every test skipped, is ``RESULT: EMPTY``, never PASS (2026-11-03: journeys that skipped for lack of credentials reported PASS
 in 13 s). ``--allow-empty``, or an ``allow-empty`` line in the log (tools/ios_uitest.sh prints it for its own flag), keeps PASS.
 
-Usage: tools/log_digest.py LOG [--exit-code N] [--elapsed SECONDS] [--label NAME] [--max-lines N] [--allow-empty]
+Usage: tools/log_digest.py LOG [--exit-code N] [--elapsed SECONDS] [--label NAME] [--max-lines N] [--allow-empty] [--task ID]
        some-command 2>&1 | tools/log_digest.py -
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -327,7 +328,7 @@ class Digest:
         return "FAIL" if exit_code else "PASS"
 
     def render(self, exit_code: Optional[int], elapsed: Optional[float], label: str, log: str, max_lines: int,
-               sha: str = "", lane: str = "") -> str:
+               sha: str = "", lane: str = "", task: str = "") -> str:
         """Format the digest."""
         verdict = self.verdict(exit_code)
         head = f"RESULT: {verdict}"
@@ -337,8 +338,9 @@ class Digest:
             head += f"  {label}"
         if elapsed is not None:
             head += f"  {describe(elapsed)}"
-        if sha or lane:
-            head += "  " + " ".join(part for part in (f"sha={sha}" if sha else "", f"lane={lane}" if lane else "") if part)
+        if sha or lane or task:
+            head += "  " + " ".join(part for part in (f"sha={sha}" if sha else "", f"lane={lane}" if lane else "",
+                                              f"task={task}" if task else "") if part)
         out = [head]
 
         counts = []
@@ -409,12 +411,12 @@ def describe(seconds: float) -> str:
 
 
 def digest_text(text: str, exit_code: Optional[int] = None, elapsed: Optional[float] = None, label: str = "",
-                log: str = "", max_lines: int = 30, sha: str = "", lane: str = "", allow_empty: bool = False) -> str:
-    """Digest a log held in memory; ``sha`` and ``lane`` (see ``git_context``) go on the RESULT line."""
+                log: str = "", max_lines: int = 30, sha: str = "", lane: str = "", allow_empty: bool = False, task: str = "") -> str:
+    """Digest a log held in memory; ``sha`` and ``lane`` (see ``git_context``) and the ledger ``task`` go on the RESULT line."""
     digest = Digest()
     digest.allow_empty = allow_empty
     digest.feed(text.splitlines())
-    return digest.render(exit_code, elapsed, label, log, max_lines, sha, lane)
+    return digest.render(exit_code, elapsed, label, log, max_lines, sha, lane, task)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -426,6 +428,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--label", default="")
     parser.add_argument("--max-lines", type=int, default=30)
     parser.add_argument("--allow-empty", action="store_true", help="a run that executed no test is not EMPTY")
+    parser.add_argument("--task", default=os.environ.get("SH_TASK", ""), help="ledger task id stamped on the RESULT line (default $SH_TASK)")
     args = parser.parse_args(argv)
     digest = Digest()
     digest.allow_empty = args.allow_empty
@@ -435,7 +438,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         with open(args.log, encoding="utf-8", errors="replace") as handle:
             digest.feed(handle)
     sha, lane = git_context()
-    print(digest.render(args.exit_code, args.elapsed, args.label, "" if args.log == "-" else args.log, args.max_lines, sha, lane))
+    print(digest.render(args.exit_code, args.elapsed, args.label, "" if args.log == "-" else args.log, args.max_lines, sha, lane, args.task))
     return 0
 
 

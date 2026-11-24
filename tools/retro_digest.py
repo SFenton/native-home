@@ -71,6 +71,7 @@ RERUN_SKIP = re.compile(r"already passed on this tree|== nothing to run")
 RUN_HEAD = re.compile(r"^RESULT: (?P<verdict>\w+)(?: \(exit (?P<exit>-?\d+)\))?(?:  (?P<label>\S+))?(?:  (?P<time>\S+))?")
 RUN_DURATION = re.compile(r"^(?:(\d+)h(\d+)m|(\d+)m(\d+)s|(\d+)s)$")
 RUN_SHA = re.compile(r"\bsha=(\S+)")
+RUN_TASK = re.compile(r"\btask=(\S+)")
 RUN_PRODUCTS = re.compile(r"(?m)^products: (?:hit|built) ([0-9a-f]+)")
 RUN_COUNTS = re.compile(r"executed (\d+), skipped (\d+), failed (\d+)")
 
@@ -404,8 +405,12 @@ def duration_seconds(token: str) -> Optional[int]:
     return int(h) * 3600 + int(m) * 60 if h else int(m2) * 60 + int(s2) if m2 else int(s)
 
 
-def run_records(runs: Optional[Path]) -> List[Dict[str, Any]]:
-    """One record per ``bg_run`` digest (``build/runs/*.digest``): label, verdict, exit, seconds, counts, device flag."""
+def run_records(runs: Optional[Path], task: Optional[str] = None, skipped: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    """One record per ``bg_run`` digest (``build/runs/*.digest``): label, verdict, exit, seconds, counts, device flag.
+
+    With ``task`` (a ledger task) only digests whose RESULT line carries ``task=<that id>`` are kept: a digest stamped with another
+    task, or not stamped, is another task's or unknown, and its file name is appended to ``skipped``. Without ``task`` (``--lane``)
+    every digest is kept."""
     records: List[Dict[str, Any]] = []
     try:
         files = sorted(runs.glob("*.digest")) if runs else []
@@ -420,6 +425,10 @@ def run_records(runs: Optional[Path]) -> List[Dict[str, Any]]:
         lines = text.splitlines()
         head = RUN_HEAD.match(lines[0]) if lines else None
         if not head:
+            continue
+        if task is not None and (RUN_TASK.search(lines[0]) or [None, None])[1] != task:
+            if skipped is not None:
+                skipped.append(path.name)
             continue
         label, token = head["label"] or path.stem, head["time"]
         if label and duration_seconds(label) is not None and not token:  # `RESULT: PASS (exit 0)  3m05s`: no label given
@@ -497,13 +506,18 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         review_files = sorted(src["review"].glob("*.json")) if src["review"] else []
     except OSError:
         review_files = []
+    branches = ledger.get("branches") if isinstance(ledger.get("branches"), list) else []
+    skipped_reviews: List[str] = []
     if getattr(args, "lane", None):  # only the lane's own branch file (the lane worktree's build/review may hold others)
         review_files = [p for p in review_files if p.name == review_file_name(args.branch)]
     for path in review_files:
         data = read_json(path)
-        if isinstance(data, dict):
-            reviews.append(data)
-    branches = ledger.get("branches") if isinstance(ledger.get("branches"), list) else []
+        if not isinstance(data, dict):
+            continue
+        if not getattr(args, "lane", None) and data.get("branch") not in branches:  # a ledger task keeps only its own branches' rounds
+            skipped_reviews.append(path.name)
+            continue
+        reviews.append(data)
     seen = {(r.get("branch"), r.get("head"), r.get("round")) for r in reviews if r.get("branch") and r.get("head")}
     for branch in dict.fromkeys(b.strip() for b in branches if isinstance(b, str) and b.strip()):  # each ledger branch once
         for record in store_records(branch):  # ``record.py --lane`` also writes the local copy: count a verdict once
@@ -627,7 +641,9 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         fire("stopped_with_live_children", *live)
 
     lane_counts: Dict[str, Any] = {}
-    runs = run_records(src["runs"])  # task flows and lanes alike: the same run digests feed these two triggers
+    skipped_runs: List[str] = []
+    # A ledger task keeps only the digests stamped with its id (``bg_run --task``); a lane keeps all of its worktree's.
+    runs = run_records(src["runs"], None if getattr(args, "lane", None) else args.task, skipped_runs)
     long_rounds = [r for r in runs if r["device"] and (r["seconds"] or 0) >= LONG_ROUND_MINUTES * 60]
     if len(long_rounds) >= REPEATED_LONG_ROUNDS:
         fire("repeated_long_device_rounds", *[f"{r['label']}: {describe_seconds(r['seconds'] or 0)} ({r['verdict']})" for r in long_rounds],
@@ -690,7 +706,8 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
             "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
             "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0, "waits": 1 if named_wait else 0,
-            "owner_replies": len(comments), "tool_errors": errors, **lane_counts,
+            "owner_replies": len(comments), "tool_errors": errors,
+            "skipped_runs": len(skipped_runs), "skipped_reviews": len(skipped_reviews), **lane_counts,
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
                       "slot_wait_minutes": waited},

@@ -97,6 +97,31 @@ class CwdStampTests(unittest.TestCase):
         self.assertIn("here-lane", digest)
 
 
+class TaskStampTests(unittest.TestCase):
+    def test_task_flag_and_environment_stamp_the_digest(self):
+        """Fails if: --task or $SH_TASK does not reach the digest's RESULT line, or an unset task stamps one."""
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            with redirect_stdout(StringIO()):
+                self.assertEqual(bg_run.main(["flag", "--dir", str(logs), "--task", "parity-loop", "--", "true"]), 0)
+                self.assertEqual(bg_run.main(["none", "--dir", str(logs), "--task", "", "--", "true"]), 0)
+            flag, none = ((logs / f"{n}.digest").read_text().splitlines()[0] for n in ("flag", "none"))
+        self.assertIn("task=parity-loop", flag)
+        self.assertNotIn("task=", none)
+
+    def test_the_environment_task_is_the_default(self):
+        """Fails if: $SH_TASK is not the default for --task."""
+        with tempfile.TemporaryDirectory() as tmp:
+            logs = Path(tmp) / "logs"
+            script = ("import sys; sys.path.insert(0, %r); import bg_run; sys.exit(bg_run.main(['env', '--dir', %r, '--', 'true']))"
+                      % (str(Path(bg_run.__file__).parent), str(logs)))
+            done = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True,
+                                  env={"PATH": "/usr/bin:/bin", "SH_TASK": "sdui-review"})
+            self.assertEqual(done.returncode, 0, done.stderr)
+            head = (logs / "env.digest").read_text().splitlines()[0]
+        self.assertIn("task=sdui-review", head)
+
+
 class MarkerLeaseTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

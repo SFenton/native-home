@@ -76,6 +76,13 @@ class DigestTests(unittest.TestCase):
         self.assertIn("sha=abc12345 lane=test-speed", out.splitlines()[0])
         self.assertNotIn("sha=", log_digest.digest_text("ok\n", exit_code=0))
 
+    def test_result_line_carries_the_task_stamp(self):
+        """Fails if: the task id is dropped from the RESULT line, or printed when no task is given."""
+        out = log_digest.digest_text("ok\n", exit_code=0, label="unit", sha="abc12345", lane="wt", task="parity-loop")
+        self.assertIn("sha=abc12345 lane=wt task=parity-loop", out.splitlines()[0])
+        self.assertIn("task=parity-loop", log_digest.digest_text("ok\n", exit_code=0, task="parity-loop").splitlines()[0])
+        self.assertNotIn("task=", log_digest.digest_text("ok\n", exit_code=0, sha="abc12345"))
+
     def test_git_context_names_this_checkout(self):
         sha, lane = log_digest.git_context(str(Path(__file__).resolve().parents[2]))
         self.assertRegex(sha, r"^[0-9a-f]{8}$")
