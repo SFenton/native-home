@@ -23,7 +23,7 @@
     },
     "evidence.blocked": {
       "has": [
-        "EVAL-1.json"
+        "tasks/EVAL-1.json"
       ]
     },
     "counts.waits": 0
