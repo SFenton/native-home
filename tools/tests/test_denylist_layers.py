@@ -357,7 +357,8 @@ class GoPublicGateTests(unittest.TestCase):
             with self.subTest(name=name):
                 code, out = self.gate(mutate=mutate)
                 self.assertEqual(code, 1, out)
-                self.assertIn("identity:", out)
+                self.assertIn("identity: " + ("the commit has extra headers" if name == "encoding_header"
+                                              else ".git/config has 1 key(s) beyond what git init writes"), out)
 
     def test_round2_a_utf16_file_is_scanned(self):
         def utf16(snap):
