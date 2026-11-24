@@ -1458,6 +1458,16 @@ class AgentFlagTests(Base):
         self.argv({})
         self.assertEqual(self.launch_env["SH_TASK"], "R-1")
 
+    def test_job_and_retro_launches_carry_no_task_id(self):
+        """Fails if: a job or retro launch (string key) gets SH_TASK, so its digests are dropped as another task's."""
+        self.argv({})
+        runner = ht.Runner(self.cfg, self.paths, FakeGitHub([]), run=lambda *a, **k: None)
+        for key in ("job-nightly", "retro-parity-loop"):
+            self.assertNotIn("SH_TASK", runner._session_env(key), key)
+        self.assertEqual(runner._session_env(7)["SH_TASK"], "R-7")
+        runner.intake = True
+        self.assertEqual(runner._session_env(7)["SH_TASK"], "N-7")
+
     def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
         """Fails if the reviewer inherits the worker's Fable model or medium effort."""
         argv = self.argv({})

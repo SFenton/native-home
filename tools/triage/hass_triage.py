@@ -2812,8 +2812,9 @@ class Runner:
                     "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(n)),
                     "HASS_TRIAGE_BIN": str(HERE / "hass_triage.py"),
                     "FENTON_DEVCAP_MAX_WAIT": str(AGENT_DEVCAP_MAX_WAIT),  # a coder yields a slot queue after 20 minutes
-                    "FENTON_HEADLESS": "1",  # arms the Stop hook that refuses to end a headless turn on running work
-                    "SH_TASK": self.task_id(n)})  # bg_run stamps it on every run digest, so the task's retro finds its own runs
+                    "FENTON_HEADLESS": "1"})  # arms the Stop hook that refuses to end a headless turn on running work
+        if isinstance(n, int):  # a request or nightly run: its archive is digested under this task id. A job or retro launch (string key) is digested under another name, so it stays unstamped
+            env["SH_TASK"] = self.task_id(n)  # bg_run stamps it on every run digest, so the task's retro finds its own runs
         if self.intake:
             env["HASS_TRIAGE_INTAKE"] = "nightly"  # `comment` and `upload` then post to the product repository
         return env
