@@ -99,3 +99,5 @@ echo 'tools/pr_land.sh 1 {FLAG}' | tcsh	block	pipe into tcsh	agent
 echo 'tools/pr_land.sh 1 {FLAG}' | s''h	block	pipe into a split-quoted shell	agent
 echo 'tools/pr_land.sh 1 {FLAG}' | $SHELL	block	pipe into the SHELL variable	agent
 echo 'tools/pr_land.sh 1 {FLAG}' | tclsh	block	pipe into tclsh	agent
+tools/pr_land.shx 12	block	no word boundary: a longer file name is not the lander	agent
+tools/studio_land.pyx 12	block	no word boundary: a longer file name is not the lander	agent

@@ -655,7 +655,7 @@ class InstallTests(Base):
         agent = ht.load_config(self.home)["agent"]
         denied = set(agent["disallowed_tools"])
         # tools/pr_land.sh is allowed; its own gh calls are not the session's, so the merge denies stay.
-        self.assertIn("Bash(tools/pr_land.sh*)", agent["allowed_tools"])
+        self.assertTrue({"Bash(tools/pr_land.sh*)", "Bash(tools/pr_land.sh *)"} & set(agent["allowed_tools"]))  # unbounded or word-bounded
         for rule in ("Bash(gh pr merge*)", "Bash(gh api *pulls/*/merge*)", "Bash(gh api -X PUT*)", "Bash(gh api graphql*)",
                      "Bash(git push origin main*)", "Bash(git push origin HEAD:main*)", "Bash(git push origin --force*)",
                      "Bash(git push --force*)", "Bash(xcrun simctl boot*)", "Bash(xcodebuild test*)",
@@ -3468,8 +3468,7 @@ class T3LauncherTests(Base):
     argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
 
     GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
-                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
-                   "--disallowedTools"]
+                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools"]
 
     def worktree(self, settings=True):
         tree = self.home / "tree"
@@ -3485,8 +3484,13 @@ class T3LauncherTests(Base):
     def test_the_default_launcher_is_claude_and_its_argv_is_the_golden_one(self):
         self.assertEqual(ht.load_config(self.home)["agent"]["launcher"], "claude")
         argv = self.argv({})
-        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        allow = self.cfg["agent"]["allowed_tools"]
+        self.assertEqual(argv[:-3], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-3], ",".join(allow))
+        self.assertEqual(argv[-2], "--disallowedTools")
         self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
+        for entry in allow:  # only a lander script, with an unbounded or a word-bounded prefix; nothing broader
+            self.assertRegex(entry, r"^Bash\(tools/(?:pr_land\.sh|ship\.sh|studio_land\.py) ?\*\)$")
         self.assertEqual(argv, self.argv({"launcher": "claude"}))
         base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
@@ -3537,7 +3541,8 @@ class T3LauncherTests(Base):
         with mock.patch.object(runner, "_t3_launch") as t3:
             argv = self.claude_popen(runner, self.worktree(settings=False))
         t3.assert_not_called()
-        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        self.assertEqual(argv[:-3], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-3], ",".join(self.cfg["agent"]["allowed_tools"]))
 
     def test_a_t3_launch_passes_the_record_inputs_and_keeps_the_thread_in_the_state(self):
         runner = self.runner_for(launcher="t3code")
