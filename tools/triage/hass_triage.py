@@ -194,6 +194,24 @@ class TriageError(RuntimeError):
     """A failed command or call (messages never contain a token)."""
 
 
+class StateLoadError(TriageError):
+    """A logical state store cannot safely be used as an authority."""
+
+    def __init__(self, name: str, kind: str):
+        self.name = name
+        self.kind = kind
+        super().__init__(f"state store refused: {kind} for {name}; nothing was changed")
+
+
+class StateSaveError(TriageError):
+    """A state save did not complete the required file-system barrier."""
+
+    def __init__(self, name: str, stage: str):
+        self.name = name
+        self.stage = stage
+        super().__init__(f"state persistence failed during {stage} for {name}")
+
+
 # MARK: - Small helpers
 
 def now() -> datetime:
@@ -286,7 +304,7 @@ class Paths:
 @contextlib.contextmanager
 def writer_lock(paths: Paths):
     """Acquire the shared writer inode without disturbing a losing invocation."""
-    paths.state_dir.mkdir(parents=True, exist_ok=True)
+    durable_mkdir(paths.state_dir)
     lock = open(paths.lock, "a+")
     acquired = False
     try:
@@ -311,6 +329,13 @@ def writer_lock(paths: Paths):
             lock.close()
 
 
+def require_state_writable(runner: Any) -> None:
+    state = getattr(runner, "state", None)
+    checker = getattr(state, "require_writable", None)
+    if checker is not None:
+        checker()
+
+
 def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
                   max_items: Optional[int] = None) -> Tuple[int, bool]:
     """Load and run one scheduled intake inside the shared writer admission."""
@@ -321,35 +346,204 @@ def admitted_tick(paths: Paths, load_runner: Callable[[], Any],
         if not admitted:
             print("another tick is running")
             return 0, False
-        return load_runner()._tick_locked(max_items), True
+        runner = load_runner()
+        require_state_writable(runner)
+        return runner._tick_locked(max_items), True
 
 
 # MARK: - State
 
+class _DuplicateJSONKey(ValueError):
+    pass
+
+
+def _state_object(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
+    value: Dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise _DuplicateJSONKey(key)
+        value[key] = item
+    return value
+
+
+def durable_mkdir(directory: Path, boundary: Optional[Path] = None) -> None:
+    """Create directory ancestry and sync its entries through ``boundary``."""
+    missing = []
+    cursor = directory
+    while not cursor.exists():
+        missing.append(cursor)
+        cursor = cursor.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    entries = list(missing)
+    if boundary is not None:
+        try:
+            directory.relative_to(boundary)
+        except ValueError:
+            pass
+        else:
+            entries = []
+            cursor = directory
+            while cursor != boundary:
+                entries.append(cursor)
+                cursor = cursor.parent
+    for entry in reversed(entries):
+        directory_fd = os.open(str(entry.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+
+
 class State:
-    """``state.json``: attempts per issue, the issue being worked, pull requests waiting to merge and the
-    recent outcomes."""
+    """One runner-owned logical store with explicit load and save failures."""
 
     def __init__(self, path: Path):
         self.path = path
+        self.load_faults: List[Dict[str, Any]] = []
+        self.data = self._empty_data()
+        self.read_result: Dict[str, Any]
         try:
-            self.data: Dict[str, Any] = json.loads(path.read_text())
-        except (OSError, ValueError):
-            self.data = {}
-        self.data.setdefault("attempts", {})
-        self.data.setdefault("merging", {})
-        self.data.setdefault("parked", {})
-        self.data.setdefault("jobs", {})
-        self.data.setdefault("history", [])
-        self.data.setdefault("current", None)
-        self.data.setdefault("archive_sessions", {})
-        self.data.setdefault("archive_holds", {})
+            text = path.read_text()
+        except FileNotFoundError:
+            self.read_result = {
+                "kind": "not_found",
+                "exists": "no",
+                "installation": "unknown",
+            }
+            return
+        except OSError:
+            self.read_result = {"kind": "read", "exists": "unknown"}
+            self._fault("read", "unknown")
+            return
+        try:
+            value = json.loads(text, object_pairs_hook=_state_object)
+        except _DuplicateJSONKey:
+            self.read_result = {"kind": "parse", "exists": "yes"}
+            self._fault("parse", "yes")
+            return
+        except (TypeError, ValueError):
+            self.read_result = {"kind": "parse", "exists": "yes"}
+            self._fault("parse", "yes")
+            return
+        if not isinstance(value, dict):
+            self.read_result = {"kind": "root", "exists": "yes"}
+            self._fault("root", "yes")
+            return
+        self.data = value
+        self.read_result = {"kind": "loaded", "exists": "yes"}
+        for key, default in self._empty_data().items():
+            self.data.setdefault(key, default)
+        self._validate_types()
+
+    @staticmethod
+    def _empty_data() -> Dict[str, Any]:
+        return {
+            "attempts": {},
+            "merging": {},
+            "parked": {},
+            "jobs": {},
+            "history": [],
+            "current": None,
+            "archive_sessions": {},
+            "archive_holds": {},
+        }
+
+    def _fault(self, kind: str, exists: str) -> None:
+        self.load_faults.append({"kind": kind, "exists": exists})
+
+    def _validate_types(self) -> None:
+        expected = {
+            "attempts": dict,
+            "merging": dict,
+            "parked": dict,
+            "jobs": dict,
+            "history": list,
+            "archive_sessions": dict,
+            "archive_holds": dict,
+        }
+        for name, value_type in expected.items():
+            if not isinstance(self.data.get(name), value_type):
+                self._fault("type", "yes")
+        current = self.data.get("current")
+        if current is not None and not isinstance(current, dict):
+            self._fault("type", "yes")
+        if self.path.name == "state-retro.json":
+            for name in ("queue", "done"):
+                items = self.data.get(name)
+                if items is not None and (
+                        not isinstance(items, list)
+                        or any(not isinstance(item, dict) for item in items)):
+                    self._fault("type", "yes")
+
+    @property
+    def writable(self) -> bool:
+        return not self.load_faults
+
+    def require_writable(self) -> None:
+        if self.load_faults:
+            fault = self.load_faults[0]
+            raise StateLoadError(self.path.name, fault["kind"])
+
+    def load_projection(self, namespace: str) -> List[Dict[str, Any]]:
+        if self.load_faults:
+            return [{"store": namespace, **fault} for fault in self.load_faults]
+        if self.read_result["kind"] == "not_found":
+            return [{"store": namespace, **self.read_result}]
+        return []
 
     def save(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(self.data, indent=2, sort_keys=True))
-        tmp.replace(self.path)
+        self.require_writable()
+        raw_path: Optional[str] = None
+        stage = "directory"
+        fd: Optional[int] = None
+        try:
+            boundary = next((parent.parent for parent in self.path.parents
+                             if parent.name == ".local"), None)
+            durable_mkdir(self.path.parent, boundary)
+            stage = "serialize"
+            payload = json.dumps(self.data, indent=2, sort_keys=True)
+            stage = "temp"
+            fd, raw_path = tempfile.mkstemp(prefix=f".{self.path.name}.", suffix=".tmp",
+                                             dir=str(self.path.parent))
+            try:
+                mode = self.path.stat().st_mode & 0o777
+            except FileNotFoundError:
+                mode = None
+            if mode is not None:
+                os.fchmod(fd, mode)
+            else:
+                os.fchmod(fd, 0o600)
+            stage = "write"
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                fd = None
+                handle.write(payload)
+                stage = "flush"
+                handle.flush()
+                stage = "file_sync"
+                os.fsync(handle.fileno())
+            stage = "replace"
+            os.replace(raw_path, str(self.path))
+            raw_path = None
+            stage = "parent_sync"
+            directory_fd = os.open(str(self.path.parent),
+                                   os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except (OSError, TypeError, ValueError) as exc:
+            raise StateSaveError(self.path.name, stage) from exc
+        finally:
+            if fd is not None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+            if raw_path is not None:
+                try:
+                    Path(raw_path).unlink(missing_ok=True)
+                except OSError:
+                    pass
 
     def attempts(self, n: int) -> int:
         return int(self.data["attempts"].get(str(n), 0))
@@ -1083,11 +1277,18 @@ class Runner:
                 break
             self.work(n)
             done += 1
+        storage_result = 0
         if drained and not self.intake and not self.dry_run and self.schedules_idle():
-            if not self.run_retro() and not self.check_regressions():
+            retro_ran = None
+            try:
+                retro_ran = self.run_retro()
+            except StateLoadError as exc:
+                print(f"retro state refused: {exc}", file=sys.stderr)
+                storage_result = 4
+            if not retro_ran and not self.check_regressions():
                 self.run_due_job()
         self.state.save()
-        return 0
+        return storage_result
 
     # -- live Home Assistant changes that could not be rolled back
 
@@ -1386,11 +1587,16 @@ class Runner:
                 self._digest_started = (parse_time(resumed) - timedelta(seconds=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
             except (ValueError, TypeError):
                 self._digest_started = ""
+        persistence_failed = False
         try:
             return self._work(n)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         finally:
-            self._collect_owner_comments(n)
-            self.archive_evidence(n, **self._ending)
+            if not persistence_failed:
+                self._collect_owner_comments(n)
+                self.archive_evidence(n, **self._ending)
 
     def _collect_owner_comments(self, n: int) -> None:
         """Add the owner's comments made since this run started to the replies the archive keeps.
@@ -1562,6 +1768,7 @@ class Runner:
         outcome = "error"
         lanes_resolved = True
         previous_job = dict(self.state.data["jobs"].get(name) or {})
+        persistence_failed = False
         if not worktree.exists():
             self._clear_archive_hold(key)
         if worktree.exists():
@@ -1615,31 +1822,35 @@ class Runner:
             status = self.read_status(key)
             outcome = status["state"] if status else ("timeout" if code == -9 else "no_status")
             lanes_resolved = self.land_lanes(status, key, worktree)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         except Exception as exc:  # noqa: BLE001 (a failed job is retried next period and never blocks issues)
             print(f"job {name} failed: {redact(str(exc))[:300]}")
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            self.state.record(key, f"job:{outcome}", branch)
-            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
-            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
-                                  status_file=status_file, task=archive_name,
-                                  outcome=self.job_outcome_code(outcome),
-                                  enqueue=name != "steward",
-                                  archive_session=archive_session,
-                                  include_sidecar=False)  # no post-mortem of the Steward's own run
-            if ready:
-                self.state.data["jobs"][name] = {
-                    "last_run": iso(), "outcome": outcome, "branch": branch,
-                    "archive_name": archive_name, "archive_session": archive_session,
-                }
-            else:
-                held_job = dict(previous_job)
-                held_job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
-                self.state.data["jobs"][name] = held_job
-            if ready and lanes_resolved:  # a lane the runner could not land or file keeps its worktree
-                self._drop_worktree(worktree, str(self.paths.clone))
-            self.state.save()
+            if not persistence_failed:
+                self.state.record(key, f"job:{outcome}", branch)
+                ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+                self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                      status_file=status_file, task=archive_name,
+                                      outcome=self.job_outcome_code(outcome),
+                                      enqueue=name != "steward",
+                                      archive_session=archive_session,
+                                      include_sidecar=False)  # no post-mortem of the Steward's own run
+                if ready:
+                    self.state.data["jobs"][name] = {
+                        "last_run": iso(), "outcome": outcome, "branch": branch,
+                        "archive_name": archive_name, "archive_session": archive_session,
+                    }
+                else:
+                    held_job = dict(previous_job)
+                    held_job.update({"archive_name": archive_name, "archive_session": archive_session, "branch": branch})
+                    self.state.data["jobs"][name] = held_job
+                if ready and lanes_resolved:  # a lane the runner could not land or file keeps its worktree
+                    self._drop_worktree(worktree, str(self.paths.clone))
+                self.state.save()
         return outcome
 
     def job_start_point(self) -> str:
@@ -2148,6 +2359,8 @@ class Runner:
         for lane in lanes:
             try:
                 results[lane] = self.land_lane(lane, base, label, tips.get(lane, ""))
+            except StateSaveError:
+                raise
             except Exception as exc:  # noqa: BLE001 (an unexpected failure leaves the lane for the next look)
                 results[lane] = "error"
                 print(f"{label}: landing {lane} failed: {redact(str(exc))[:300]}")
@@ -2613,11 +2826,16 @@ class Runner:
         record_env = {k: v for k, v in env.items() if k not in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         kind = "nightly" if self.intake else "request" if isinstance(n, int) else "retro" if str(n).startswith("retro-") else "job"
         branch = (self._run(["git", "-C", str(worktree), "symbolic-ref", "--short", "-q", "HEAD"], check=False).stdout or "").strip()
+        persistence_failures: List[StateSaveError] = []
 
         def started(thread: str) -> None:
             if isinstance(self.state.data.get("current"), dict):
                 self.state.data["current"].update(thread=thread, launcher="t3code", pid=os.getpid())
-                self.state.save()
+                try:
+                    self.state.save()
+                except StateSaveError as exc:
+                    persistence_failures.append(exc)
+                    raise
 
         # The claude path keeps the Mac awake for the session (caffeinate on its pid); the runner is what blocks in `threads wait` here.
         awake = subprocess.Popen(["caffeinate", "-is", "-w", str(os.getpid())]) if shutil.which("caffeinate") else None
@@ -2628,7 +2846,15 @@ class Runner:
                                   deny=list(agent.get("disallowed_tools") or []), prompt=prompt, log=log,
                                   timeout=float(self.job_timeout or agent["timeout_minutes"]) * 60,
                                   trusted=self.trusted_clone(self.cfg["product_base"]), on_thread=started)
+        except StateSaveError as exc:
+            print(f"{n}: launched session cleanup unconfirmed after {exc}",
+                  file=sys.stderr)
+            raise
         except Exception as exc:  # noqa: BLE001 (any failure to start safely, the trusted checkout's included, is a failed launch)
+            if persistence_failures:
+                print(f"{n}: launched session cleanup unconfirmed after "
+                      f"{persistence_failures[0]}", file=sys.stderr)
+                raise persistence_failures[0]
             self.stray = self.t3_stray = bool(getattr(exc, "stray", False))
             print(f"{n}: t3 launch failed: {redact(str(exc))[:300]}")
             with open(log, "ab") as handle:
@@ -2637,6 +2863,11 @@ class Runner:
         finally:
             if awake:
                 awake.terminate()
+        if persistence_failures:
+            cleanup = "survivor remained" if out.stray else "cleanup confirmed"
+            print(f"{n}: launched session {cleanup} after {persistence_failures[0]}",
+                  file=sys.stderr)
+            raise persistence_failures[0]
         self.stray, self.guard_tampered, self.t3_stray = out.stray or out.tampered, out.tampered, out.stray  # a tampered session lands nothing either
         if out.stray:
             print(f"{n}: processes of the T3 session are still running after the cleanup")
@@ -2679,18 +2910,7 @@ class Runner:
 
     @staticmethod
     def _mkdir_durable(directory: Path) -> None:
-        missing = []
-        cursor = directory
-        while not cursor.exists():
-            missing.append(cursor)
-            cursor = cursor.parent
-        directory.mkdir(parents=True, exist_ok=True)
-        for created in reversed(missing):
-            directory_fd = os.open(str(created.parent), os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
-            try:
-                os.fsync(directory_fd)
-            finally:
-                os.close(directory_fd)
+        durable_mkdir(directory)
 
     def _record_archive_hold(self, label: str, path: Path) -> None:
         """Remember one real sidecar I/O hold; repeat ticks keep the first report and timestamp."""
@@ -2840,7 +3060,20 @@ class Runner:
                                     env=env, start_new_session=True)
             if isinstance(self.state.data.get("current"), dict):
                 self.state.data["current"]["pid"] = proc.pid
-                self.state.save()
+                try:
+                    self.state.save()
+                except StateSaveError as exc:
+                    if proc.stdin is not None:
+                        proc.stdin.close()
+                    try:
+                        contained = lane_land.reap_group(proc.pid)
+                    except Exception as cleanup_exc:  # noqa: BLE001
+                        print(f"{n}: launched process cleanup unconfirmed after {exc}: "
+                              f"{type(cleanup_exc).__name__}", file=sys.stderr)
+                    else:
+                        outcome = "cleanup confirmed" if contained else "survivor remained"
+                        print(f"{n}: launched process {outcome} after {exc}", file=sys.stderr)
+                    raise
             awake = subprocess.Popen(["caffeinate", "-is", "-w", str(proc.pid)]) if shutil.which("caffeinate") else None
             assert proc.stdin is not None
             proc.stdin.write(prompt.encode())
@@ -3228,7 +3461,13 @@ class Runner:
             self.run_retro_digest(n, dest, attempt, task=task, outcome=outcome)
             if enqueue and not self.dry_run:
                 self.run_retro_phase(n, dest)
-                self.enqueue_retro(dest, task)
+                try:
+                    self.enqueue_retro(dest, task)
+                except StateLoadError as exc:
+                    print(f"{n}: retro enqueue not committed: {exc}", file=sys.stderr)
+                except StateSaveError as exc:
+                    disposition = "enqueue unconfirmed" if exc.stage == "parent_sync" else "enqueue not committed"
+                    print(f"{n}: retro {disposition}: {exc}", file=sys.stderr)
         return dest if copied and not sidecar_failed else None
 
     def archive_gate_decisions(self, n: Any, tree: Path, name: str = "", session: str = "") -> Optional[bool]:
@@ -3384,6 +3623,7 @@ class Runner:
             return False
         entry = {"archive": str(dest), "task": task, "triggers": triggers, "touched": touched[:20], "queued": iso()}
         state = State(self.retro_paths.state)
+        state.require_writable()
         queue = [q for q in state.data.setdefault("queue", []) if q.get("archive") != str(dest)]
         queue.append(entry)
         state.data["queue"] = queue
@@ -3405,6 +3645,7 @@ class Runner:
         if self.dry_run or self.intake:
             return None
         retro = State(self.retro_paths.state)
+        retro.require_writable()
         queue = retro.data.get("queue") or []
         if not queue:
             return None
@@ -3491,6 +3732,7 @@ class Runner:
         status: Optional[Dict[str, Any]] = None
         lanes_resolved = True
         had_lanes = False
+        persistence_failed = False
         try:
             if worktree.exists():
                 self._drop_worktree(worktree, clone)
@@ -3514,41 +3756,45 @@ class Runner:
             outcome = status["state"] if status else ("timeout" if code == -9 else "no_status")
             had_lanes = bool((status or {}).get("lanes"))
             lanes_resolved = self.land_lanes(status, key, worktree)
+        except StateSaveError:
+            persistence_failed = True
+            raise
         except Exception as exc:  # noqa: BLE001 (a failed post-mortem is recorded and never blocks issues)
             print(f"retro {task} failed: {redact(str(exc))[:300]}")
         finally:
             self.job_timeout = None
             self.state.data["current"] = None
-            if status is not None and not status_file.exists():  # the digest and the archive read the same status file
-                status_file.parent.mkdir(parents=True, exist_ok=True)
-                status_file.write_text(json.dumps(status))
-            ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
-            self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
-                                  status_file=status_file, task=f"retro-{task}", enqueue=False,
-                                  outcome=self.job_outcome_code(outcome),
-                                  archive_session=archive_session,
-                                  include_sidecar=False)  # no retro of a retro
-            if ready:
-                self.state.record(key, f"retro:{outcome}", task)
-                done = retro.data.setdefault("done", [])
-                done.append({**item, "outcome": outcome, "finished": iso(),
-                             "summary": redact(str((status or {}).get("summary") or ""))[:300]})
-                retro.data["done"] = done[-RETRO_HISTORY:]
-                retro.data["current"] = None
-                retro.save()
-                if had_lanes and not lanes_resolved:
-                    print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
-                elif not had_lanes and self.retro_unlanded(clone, worktree, base):
-                    print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+            if not persistence_failed:
+                if status is not None and not status_file.exists():  # the digest and the archive read the same status file
+                    status_file.parent.mkdir(parents=True, exist_ok=True)
+                    status_file.write_text(json.dumps(status))
+                ready = self.archive_before_change(key, key, worktree, archive_name, archive_session)
+                self.archive_evidence(key, log=log, name=archive_name, tree=worktree,
+                                      status_file=status_file, task=f"retro-{task}", enqueue=False,
+                                      outcome=self.job_outcome_code(outcome),
+                                      archive_session=archive_session,
+                                      include_sidecar=False)  # no retro of a retro
+                if ready:
+                    self.state.record(key, f"retro:{outcome}", task)
+                    done = retro.data.setdefault("done", [])
+                    done.append({**item, "outcome": outcome, "finished": iso(),
+                                 "summary": redact(str((status or {}).get("summary") or ""))[:300]})
+                    retro.data["done"] = done[-RETRO_HISTORY:]
+                    retro.data["current"] = None
+                    retro.save()
+                    if had_lanes and not lanes_resolved:
+                        print(f"retro {task}: a lane is not landed or filed; worktree kept at {worktree}")
+                    elif not had_lanes and self.retro_unlanded(clone, worktree, base):
+                        print(f"retro {task}: commits not on origin/{base}; worktree kept at {worktree}")
+                    else:
+                        self._drop_worktree(worktree, clone)
                 else:
-                    self._drop_worktree(worktree, clone)
-            else:
-                held_queue = list(retro.data.get("queue") or [])
-                held_queue.insert(min(int(selected_index), len(held_queue)), item)
-                retro.data["queue"] = held_queue
-                retro.data["current"] = item
-                retro.save()
-            self.state.save()
+                    held_queue = list(retro.data.get("queue") or [])
+                    held_queue.insert(min(int(selected_index), len(held_queue)), item)
+                    retro.data["queue"] = held_queue
+                    retro.data["current"] = item
+                    retro.save()
+                self.state.save()
         return outcome
 
     def retro_unlanded(self, clone: str, worktree: Path, base: str) -> bool:
@@ -3708,7 +3954,10 @@ def self_change_status(paths: Paths) -> Dict[str, Any]:
 
 def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict[str, str]]:
     visible = []
-    for label, record in sorted((state.data.get("archive_holds") or {}).items()):
+    holds = state.data.get("archive_holds")
+    if not isinstance(holds, dict):
+        return visible
+    for label, record in sorted(holds.items()):
         if not isinstance(record, dict):
             continue
         raw_path = str(record.get("path") or "")
@@ -3724,6 +3973,22 @@ def _visible_archive_holds(state: State, paths: Paths, prefix: str) -> List[Dict
             "since": str(record.get("since") or ""),
         })
     return visible
+
+
+def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
+    lines = []
+    for result in state_loads:
+        if result.get("kind") == "not_found":
+            lines.append(
+                f"state store {result.get('store')}: not found "
+                "(exists no, installation unknown)"
+            )
+        else:
+            lines.append(
+                f"state store {result.get('store')}: {result.get('kind')} "
+                f"(exists {result.get('exists', 'unknown')})"
+            )
+    return lines
 
 
 def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
@@ -3747,38 +4012,83 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
                              for i in eligible(gh.open_issues(nightly["repo"]), nightly["authors"], nightly["label"])]
         except TriageError as exc:
             nightly_queue = [{"error": str(exc)}]
+    jobs_data = state.data.get("jobs")
+    if not isinstance(jobs_data, dict):
+        jobs_data = {}
     jobs = {}
     for name, spec in (cfg.get("schedules") or {}).items():
-        last = state.data["jobs"].get(name) or {}
-        due = job_next_due(cfg, state.data, name)
-        jobs[name] = {"last_run": last.get("last_run"), "outcome": last.get("outcome"), "next_due": due}
+        last = jobs_data.get(name) or {}
+        if not isinstance(last, dict):
+            last = {}
+        job_data = dict(state.data)
+        job_data["jobs"] = jobs_data
+        raw_last = last.get("last_run")
+        if raw_last is not None and not isinstance(raw_last, str):
+            due = "unknown"
+        else:
+            try:
+                due = job_next_due(cfg, job_data, name)
+            except (TypeError, ValueError, OverflowError):
+                due = "unknown"
+        outcome = last.get("outcome")
+        jobs[name] = {
+            "last_run": raw_last if isinstance(raw_last, str) else None,
+            "outcome": outcome if isinstance(outcome, str) else None,
+            "next_due": due,
+        }
+    nightly_paths = Paths(cfg, paths.home, "nightly-")
+    nightly_state = State(nightly_paths.state)
+    retro_paths = Paths(cfg, paths.home, "retro-")
+    retro_state = State(retro_paths.state)
+    states = [("request", state)]
+    if nightly or nightly_paths.state.exists():
+        states.append(("nightly", nightly_state))
+    if retro_paths.state.exists():
+        states.append(("retro", retro_state))
     archive_states = [(state, paths, "request-")]
-    if nightly:
-        nightly_paths = Paths(cfg, paths.home, "nightly-")
-        archive_states.append((State(nightly_paths.state), nightly_paths, "nightly-"))
+    if nightly or nightly_paths.state.exists():
+        archive_states.append((nightly_state, nightly_paths, "nightly-"))
     archive_holds = []
     for archive_state, archive_paths, prefix in archive_states:
         archive_holds.extend(_visible_archive_holds(archive_state, archive_paths, prefix))
+        current = state.data.get("current")
+        if not isinstance(current, dict):
+            current = None
+        parked = state.data.get("parked")
+        parked = parked if isinstance(parked, dict) else {}
+        merging = state.data.get("merging")
+        merging = merging if isinstance(merging, dict) else {}
+        history = state.data.get("history")
+        history = history if isinstance(history, list) else []
+        retro_queue = retro_state.data.get("queue")
+        retro_queue = retro_queue if isinstance(retro_queue, list) else []
+        ha_changes = state.data.get("ha_changes")
+        ha_changes = ha_changes if isinstance(ha_changes, dict) else {}
     return {
         "claude_logged_in": logged_in,
         "launcher": cfg["agent"].get("launcher") or "claude",
         "t3_ready": t3_ready,
-        "t3_thread": (state.data.get("current") or {}).get("thread"),
+        "t3_thread": (current or {}).get("thread"),
         "jobs": jobs,
-        "parked": {k: v.get("pr") for k, v in state.data["parked"].items()},
+        "parked": {k: v.get("pr") for k, v in parked.items() if isinstance(v, dict)},
         "nightly_queue": nightly_queue,
         "paused": paths.paused.exists(),
         "self_changes": self_change_status(paths),
         "installed": paths.plist.exists(),
         "lock_holder": holder if holder and Runner._alive(holder) else None,
-        "current": state.data.get("current"),
-        "merging": {k: v.get("pr") for k, v in state.data["merging"].items()},
+        "current": current,
+        "merging": {k: v.get("pr") for k, v in merging.items() if isinstance(v, dict)},
         "queue": queue,
-        "ha_changes_unreachable_since": (state.data.get("ha_changes") or {}).get("unreachable_since"),
-        "ha_changes_unfiled": len((state.data.get("ha_changes") or {}).get("unfiled") or {}),
+        "ha_changes_unreachable_since": ha_changes.get("unreachable_since"),
+        "ha_changes_unfiled": len(ha_changes.get("unfiled") or {}),
         "archive_holds": archive_holds,
-        "recent": state.data["history"][-10:],
-        "retro_queue": [q.get("task") for q in (State(Paths(cfg, paths.home, "retro-").state).data.get("queue") or [])],
+        "recent": [item for item in history[-10:] if isinstance(item, dict)],
+        "retro_queue": [q.get("task") for q in retro_queue if isinstance(q, dict)],
+        "state_loads": [
+            result
+            for namespace, loaded in states
+            for result in loaded.load_projection(namespace)
+        ],
     }
 
 
@@ -3842,18 +4152,27 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                                                               nightly["label"])
                 return runner
 
-            code, entered = admitted_tick(paths, primary, args.max_items)
+            primary_error = False
+            try:
+                code, entered = admitted_tick(paths, primary, args.max_items)
+            except StateLoadError as exc:
+                print(f"error: {exc}", file=sys.stderr)
+                code, entered, primary_error = 4, True, True
             if not entered:
                 return code
             if cfg.get("nightly") and not paths.paused.exists():
                 # `Nightly Fix` issues on the product repository: after the owner's requests, same worker, reviewer and
                 # pr_land.sh, separate worktrees (nightly-N), branches (nightly/N) and state (state-nightly.json).
                 nightly_paths = Paths(cfg, home, "nightly-")
-                nightly_code, _entered = admitted_tick(
-                    nightly_paths,
-                    lambda: Runner(cfg, nightly_paths, gh, dry_run=dry, intake=cfg["nightly"]),
-                    args.max_items)
-                code = nightly_code or code
+                try:
+                    nightly_code, _entered = admitted_tick(
+                        nightly_paths,
+                        lambda: Runner(cfg, nightly_paths, gh, dry_run=dry, intake=cfg["nightly"]),
+                        args.max_items)
+                except StateLoadError as exc:
+                    print(f"error: {exc}", file=sys.stderr)
+                    nightly_code = 4
+                code = 4 if primary_error else nightly_code or code
             return code
         if args.cmd == "run-issue":
             with writer_lock(paths) as admitted:
@@ -3865,9 +4184,11 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     issue = gh.issue(cfg["request_repo"], args.issue)
                     print(render_prompt(cfg, paths, issue, [], 1, None, HERE / "hass_triage.py"))
                     return 0
+                require_state_writable(runner)
                 runner.refresh_clone()
-                print(runner.work(args.issue))
+                outcome = runner.work(args.issue)
                 runner.state.save()
+                print(outcome)
             return 0
         if args.cmd == "run-job":
             with writer_lock(paths) as admitted:
@@ -3878,6 +4199,7 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("paused")
                     return 0
                 runner = Runner(cfg, paths, gh)
+                require_state_writable(runner)
                 runner.refresh_clone()
                 print(runner.run_job(args.name))
             return 0
@@ -3921,6 +4243,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print(f"job {name}: last {info['last_run'] or 'never'} ({info['outcome'] or '-'}), next due {info['next_due']}")
                 for hold in report["archive_holds"]:
                     print(f"archive hold: {hold['name']} ({hold['reason']}, since {hold['since']})")
+                for line in state_load_text(report["state_loads"]):
+                    print(line)
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))
                 print("queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}" for q in report["queue"])
@@ -3929,8 +4253,10 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                     print("nightly queue: " + (", ".join(f"#{q.get('number')} {q.get('title', '')}"
                                                          for q in report["nightly_queue"]) or "empty"))
                 for item in report["recent"]:
-                    tag = f"#{item['issue']}" if isinstance(item["issue"], int) else str(item["issue"])
-                    print(f"  {item['at']}  {tag}  {item['outcome']}  {item.get('detail', '')[:80]}")
+                    tag = f"#{item.get('issue')}" if isinstance(item.get("issue"), int) else str(item.get("issue") or "")
+                    detail = item.get("detail")
+                    print(f"  {item.get('at', '')}  {tag}  {item.get('outcome', '')}  "
+                          f"{str(detail)[:80] if detail is not None else ''}")
             return 0
         if args.cmd == "ack-base":
             with writer_lock(paths) as admitted:

@@ -114,6 +114,9 @@ class RunnerLockTests(t.Base):
             probes.append((site, self.can_acquire(self.paths.lock)))
 
         class StateSpy:
+            def require_writable(self):
+                pass
+
             def save(self):
                 probe("save")
 
@@ -246,6 +249,7 @@ class RunnerLockTests(t.Base):
         class RunnerSpy:
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.intake = intake
+                spy.state = mock.Mock()
                 calls.append("construct:" + ("nightly" if intake else "primary"))
 
             def _tick_locked(spy, _max_items=None):
@@ -266,6 +270,7 @@ class RunnerLockTests(t.Base):
             def __init__(spy, cfg, paths, gh, dry_run=False, intake=None, **_kw):
                 spy.paths = paths
                 spy.intake = intake
+                spy.state = mock.Mock()
                 seen.append(("construct", paths.state.name, RunnerLockTests.can_acquire(paths.lock)))
 
             def _tick_locked(spy, _max_items=None):
@@ -283,6 +288,9 @@ class RunnerLockTests(t.Base):
         visits = []
 
         class StateSpy:
+            def require_writable(self):
+                pass
+
             def save(self):
                 pass
 
@@ -515,8 +523,9 @@ class RunnerLockTests(t.Base):
                 saved = json.loads(self.paths.state.read_text())
                 self.assertEqual((saved["winner"], saved["manual"]), ("committed", "committed"))
 
-    def test_manual_job_preserves_disjoint_updates_after_refusal_retry(self):
-        value = {"current": "first"}
+    def test_manual_job_refusal_retry_preserves_unchanged_state(self):
+        value = ht.State._empty_data()
+        value["marker"] = "first"
         self.paths.state_dir.mkdir(parents=True, exist_ok=True)
         self.paths.state.write_text(json.dumps(value))
         with self.held_lock():
@@ -1143,6 +1152,14 @@ class RunnerLockTests(t.Base):
                 ht.main(["tick"], home=self.home)
         self.assertTrue(self.can_acquire(self.paths.lock))
 
+        out = io.StringIO()
+        with mock.patch.object(ht, "State", side_effect=OSError("load failed")), \
+                mock.patch("sys.stdout", new=out):
+            with self.assertRaisesRegex(OSError, "load failed"):
+                ht.main(["tick"], home=self.home)
+        self.assertNotIn("another tick is running", out.getvalue())
+        self.assertTrue(self.can_acquire(self.paths.lock))
+
     def test_job_with_no_lanes_drops_worktree_after_unaccepted_base_move(self):
         runner = self.runner(FakeGitHub([]), {"state": "done", "summary": "ok"})
         accepted, current = self.seed_unaccepted_base_move(runner)
@@ -1158,14 +1175,6 @@ class RunnerLockTests(t.Base):
             self.assertEqual(runner.run_job("steward"), "done")
         self.assert_tick_base_move_recorded(accepted, current)
         self.assertEqual(dropped, [(self.paths.worktrees / "job-steward", str(self.paths.clone))])
-
-        out = io.StringIO()
-        with mock.patch.object(ht, "State", side_effect=OSError("load failed")), \
-                mock.patch("sys.stdout", new=out):
-            with self.assertRaisesRegex(OSError, "load failed"):
-                ht.main(["tick"], home=self.home)
-        self.assertNotIn("another tick is running", out.getvalue())
-        self.assertTrue(self.can_acquire(self.paths.lock))
 
     def test_non_contention_flock_error_is_not_reported_busy(self):
         calls = 0
