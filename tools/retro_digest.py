@@ -14,9 +14,12 @@ note). A check-only blocked snapshot is suppressed only when a complete matching
 resolved and no independent status signal remains. A missing or unreadable input is skipped, never fatal. The Steward
 reads the result; this script never judges it.
 
-Named waits use a blocked status whose ``blocked_reason`` starts with ``owner_wait:`` or ``lane_wait:``. They count as
-waits and name the reason in the summary instead of firing ``blocked``. A failing ledger check still makes the wait a
-block, and a runner outcome beginning with ``blocked`` always remains a block.
+Named waits use a blocked status whose ``blocked_reason`` starts with ``owner_wait:`` or ``lane_wait:`` followed by
+non-empty text. With a complete matching ledger and matching status task, they count as waits instead of firing
+``blocked`` unless reconciliation reports stale status (``pass`` for a ledger check that does not pass, or ``fail`` for
+one that does). A missing, unreadable or malformed ledger cancels the wait, as does a mismatching status task. An open
+ledger check with ``passes: false`` remains compatible with status ``fail`` or ``not_run``. A runner outcome beginning
+with ``blocked`` always remains a block.
 
 ``--lane NAME`` (a worktree lane such as ``loop-followups``, or a branch such as ``claude/loop-followups``) digests a lane that has no
 ledger task, e.g. an interactive subagent flow, from what it leaves behind: the lane worktree's ``build/runs`` (``*.digest``
@@ -345,8 +348,7 @@ def reconcile_status(task: str, ledger: Dict[str, Any], status: Dict[str, Any]) 
 
     all_checks_pass = ledger_well_formed and all(checks.values())
     suppress = bool(status_well_formed and stale_failures and all_checks_pass and not separate_reason)
-    failing = sorted(check_id for check_id, passed in checks.items() if not passed)
-    return {"stale": sorted(stale), "suppress": suppress, "failing": failing}
+    return {"stale": sorted(stale), "suppress": suppress, "ledger_well_formed": ledger_well_formed}
 
 
 def wait_minutes(raw: str) -> Tuple[int, str]:
@@ -524,13 +526,21 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     reconciliation = reconcile_status(args.task, ledger, status)
     status_suppressed = state == "blocked" and reconciliation["suppress"]
     blocked_reason = status.get("blocked_reason")
-    named_wait = (state == "blocked" and isinstance(blocked_reason, str)
-                  and blocked_reason.startswith(("owner_wait:", "lane_wait:"))
-                  and not reconciliation["failing"])
+    wait_prefixed = state == "blocked" and isinstance(blocked_reason, str) and any(
+        blocked_reason.startswith(prefix) and blocked_reason[len(prefix):].strip()
+        for prefix in ("owner_wait:", "lane_wait:")
+    )
+    wait_ledger_invalid = bool(wait_prefixed and not reconciliation["ledger_well_formed"])
+    named_wait = bool(wait_prefixed and not wait_ledger_invalid
+                      and status.get("task") == args.task and not reconciliation["stale"])
+    wait_ledger_evidence = f"ledger {src['ledger']} is missing, unreadable, or malformed"
     if outcome.startswith("blocked"):
-        fire("blocked", outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
+        fire("blocked", wait_ledger_evidence if wait_ledger_invalid
+             else outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
     elif state == "blocked" and not status_suppressed and not named_wait:
-        fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
+        evidence = (wait_ledger_evidence if wait_ledger_invalid
+                    else status.get("blocked_reason") or status.get("summary") or outcome)
+        fire("blocked", evidence)
     if outcome in ("timeout", "blocked:timeout"):
         fire("timeout", "the session ran past the timeout and was stopped")
     if outcome == "retry":
@@ -662,11 +672,9 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     intake = ledger.get("intake") or ""
     brief = ledger.get("brief") or ""
     summary = str(status.get("summary") or status.get("blocked_reason") or "").strip()
-    effective_outcome = outcome or ("wait" if named_wait else "" if status_suppressed else state) or None
+    effective_outcome = outcome or ("" if status_suppressed else state) or None
     if outcome:
         happened = outcome if status_suppressed else f"{outcome}: {summary}".strip(": ")
-    elif named_wait:
-        happened = f"wait: {summary}".strip(": ")
     elif status_suppressed:
         passing = sum(1 for check in checks if isinstance(check, dict) and check.get("passes"))
         happened = f"ledger: {passing}/{len(checks)} checks pass"

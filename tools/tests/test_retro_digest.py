@@ -246,58 +246,105 @@ class TriggerTests(Base):
 
 
 class NamedWaitTests(Base):
-    OWNER_WAIT = ("owner_wait: the runner exercise receipt and then the owner merge of PR 213; "
-                  "the next lane starts from the merged head")
+    OWNER_WAIT = "owner_wait: PR 211 head ea49c6d7"
 
-    def set_wait(self, reason, *, check_passes=True):
-        self.write("build/tasks/R-1.json", {
-            "id": "R-1",
-            "acceptance": [{"id": "digest-wait", "check": "wait is recorded", "passes": check_passes}],
-        })
+    def set_wait(self, reason=OWNER_WAIT, *, check_passes=False, observed="not_run",
+                 observed_check="digest-wait", status_task="R-1", write_ledger=True):
+        if write_ledger:
+            self.write("build/tasks/R-1.json", {
+                "id": "R-1",
+                "acceptance": [
+                    {"id": "factory-impl", "passes": True},
+                    {"id": "unit-tests", "passes": True},
+                    {"id": "digest-wait", "passes": check_passes},
+                    {"id": "digest-wait-rev", "passes": False},
+                ],
+            })
+        else:
+            (self.build / "tasks" / "R-1.json").unlink(missing_ok=True)
         self.write("build/status/R-1.json", {
-            "task": "R-1", "status": "blocked", "blocked_reason": reason,
+            "task": status_task, "status": "blocked", "blocked_reason": reason,
+            "acceptance": {observed_check: observed},
         })
 
-    def test_owner_wait_without_failing_check_is_counted_and_named(self):
-        """The verbatim owner wait is a wait, not a blocked trigger.
-
-        Fails if: a clean owner wait fires blocked, is not counted, or loses its reason from the summary.
-        """
+    def test_owner_wait_with_open_not_run_check_is_counted(self):
+        """Fails if: owner_wait on an open check reported not_run fires blocked or is not counted."""
         self.set_wait(self.OWNER_WAIT)
         doc = self.run_digest()
         self.assertNotIn("blocked", self.fired(doc))
         self.assertEqual(doc["counts"]["waits"], 1)
-        self.assertIn(self.OWNER_WAIT, doc["aar"]["happened"])
 
-    def test_same_owner_wait_text_without_prefix_still_blocks(self):
-        """Fails if: removing the owner_wait prefix stops an ordinary blocked status from firing."""
-        reason = self.OWNER_WAIT.removeprefix("owner_wait: ")
-        self.set_wait(reason)
-        self.assertIn("blocked", self.fired(self.run_digest()))
-
-    def test_owner_wait_with_failing_ledger_check_still_blocks(self):
-        """Fails if: the owner_wait prefix suppresses a block contradicted by a failing ledger check."""
-        self.set_wait(self.OWNER_WAIT, check_passes=False)
-        doc = self.run_digest()
-        self.assertIn("blocked", self.fired(doc))
-        self.assertEqual(doc["counts"]["waits"], 0)
-
-    def test_lane_wait_without_failing_check_is_counted(self):
-        """Fails if: a clean lane wait fires blocked, is not counted, or loses its reason from the summary."""
-        reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
-        self.set_wait(reason)
+    def test_lane_wait_with_open_failed_status_is_counted(self):
+        """Fails if: lane_wait on an open check reported fail fires blocked or is not counted."""
+        self.set_wait(self.OWNER_WAIT.replace("owner_wait:", "lane_wait:"),
+                      observed="fail", observed_check="digest-wait-rev")
         doc = self.run_digest()
         self.assertNotIn("blocked", self.fired(doc))
         self.assertEqual(doc["counts"]["waits"], 1)
-        self.assertIn(reason, doc["aar"]["happened"])
 
-    def test_lane_wait_with_failing_ledger_check_still_blocks(self):
-        """Fails if: the lane_wait prefix suppresses a block contradicted by a failing ledger check."""
-        reason = self.OWNER_WAIT.replace("owner_wait:", "lane_wait:")
-        self.set_wait(reason, check_passes=False)
+    def test_same_wait_text_without_prefix_fires_blocked(self):
+        """Fails if: removing the owner_wait prefix stops an ordinary blocked status from firing."""
+        reason = self.OWNER_WAIT.removeprefix("owner_wait: ")
+        self.set_wait(reason)
         doc = self.run_digest()
         self.assertIn("blocked", self.fired(doc))
         self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_with_pass_against_open_check_fires_blocked(self):
+        """Fails if: stale pass against an open ledger check does not cancel the named wait."""
+        self.set_wait(observed="pass")
+        doc = self.run_digest()
+        self.assertEqual(doc["status_stale"], ["digest-wait"])
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_with_fail_against_passing_check_fires_blocked(self):
+        """Fails if: stale fail against a passing ledger check does not cancel the named wait."""
+        self.set_wait(check_passes=True, observed="fail")
+        doc = self.run_digest()
+        self.assertEqual(doc["status_stale"], ["digest-wait"])
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_for_another_task_fires_blocked(self):
+        """Fails if: a wait-prefixed status for another task is treated as this task's wait."""
+        self.set_wait(status_task="R-2")
+        doc = self.run_digest()
+        self.assertEqual(doc["status_stale"], [])
+        self.assertIn("blocked", self.fired(doc))
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_without_ledger_fires_and_names_ledger(self):
+        """Fails if: a missing ledger permits the wait or blocked evidence omits the ledger."""
+        self.set_wait(write_ledger=False)
+        doc = self.run_digest()
+        evidence = self.fired(doc)["blocked"]
+        self.assertIn("ledger", evidence[0])
+        self.assertIn("R-1.json", evidence[0])
+        self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_with_malformed_ledger_fires_blocked(self):
+        """Fails if: either a non-Boolean passes value or a duplicated check id permits the wait."""
+        malformed = [
+            [{"id": "digest-wait", "passes": "false"}],
+            [{"id": "digest-wait", "passes": False}, {"id": "digest-wait", "passes": False}],
+        ]
+        for checks in malformed:
+            with self.subTest(checks=checks):
+                self.set_wait()
+                self.write("build/tasks/R-1.json", {"id": "R-1", "acceptance": checks})
+                doc = self.run_digest()
+                self.assertIn("blocked", self.fired(doc))
+                self.assertEqual(doc["counts"]["waits"], 0)
+
+    def test_owner_wait_with_empty_text_fires_blocked(self):
+        """Fails if: a wait prefix without non-whitespace text suppresses blocked."""
+        for reason in ("owner_wait:", "owner_wait:   "):
+            with self.subTest(reason=reason):
+                self.set_wait(reason)
+                doc = self.run_digest()
+                self.assertIn("blocked", self.fired(doc))
+                self.assertEqual(doc["counts"]["waits"], 0)
 
     def test_runner_reported_block_is_not_suppressed_by_wait_prefix(self):
         """Fails if: a runner blocked outcome with a wait-prefixed reason omits blocked or timeout."""
@@ -305,6 +352,13 @@ class NamedWaitTests(Base):
         doc = self.run_digest("--outcome", "blocked:timeout")
         self.assertIn("blocked", self.fired(doc))
         self.assertIn("timeout", self.fired(doc))
+
+    def test_named_wait_keeps_base_outcome_and_happened_values(self):
+        """Fails if: a named wait changes the base state outcome or uses a wait happened line."""
+        self.set_wait()
+        doc = self.run_digest()
+        self.assertEqual(doc["outcome"], "blocked")
+        self.assertEqual(doc["aar"]["happened"], f"blocked: {self.OWNER_WAIT}")
 
     def test_weekly_reader_parses_digest_with_wait_count(self):
         """Fails if: the weekly reader rejects or drops a digest carrying counts.waits."""
