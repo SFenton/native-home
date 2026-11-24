@@ -343,33 +343,42 @@ class StoreTestBase(t.Base):
             seed.producer
         ][seed.generation]
 
+    @staticmethod
+    def fixture_records(aggregate):
+        return [
+            record
+            for intakes in aggregate["records"].values()
+            for producers in intakes.values()
+            for generations in producers.values()
+            for record in generations.values()
+        ]
+
     def custody_variants(self, seed):
         cases = []
         for phase in ("unknown", "pending", "release_authorized"):
             aggregate = seed.aggregate()
-            record = self.fixture_record(aggregate, seed)
-            record["phase"] = phase
-            if phase == "unknown":
-                for name in (
-                    "target", "pre_refs", "original_outcome",
-                    "release_proof",
-                ):
-                    record.pop(name, None)
-            elif phase == "pending":
-                record.pop("release_proof")
-                record["bindings"] = {
-                    "agents/test": {
-                        "disposition": "owner_wait",
-                        "tip": "a" * 40,
-                        "since": "2026-01-01T00:00:00Z",
-                    },
-                }
+            for record in self.fixture_records(aggregate):
+                record["phase"] = phase
+                if phase == "unknown":
+                    for name in (
+                        "target", "pre_refs", "original_outcome",
+                        "release_proof",
+                    ):
+                        record.pop(name, None)
+                elif phase == "pending":
+                    record.pop("release_proof")
+                    record["bindings"] = {
+                        "agents/test": {
+                            "disposition": "owner_wait",
+                            "tip": "a" * 40,
+                            "since": "2026-01-01T00:00:00Z",
+                        },
+                    }
             cases.append((f"phase {phase}", CustodyAggregateSeed(aggregate)))
         for notice_state in (
             "unsent", "intent", "uncertain", "confirmed",
         ):
             aggregate = seed.aggregate()
-            record = self.fixture_record(aggregate, seed)
             payload = {
                 "state": notice_state,
                 "since": "2026-01-01T00:00:00Z",
@@ -379,13 +388,14 @@ class StoreTestBase(t.Base):
                     "repository": "private/issues",
                     "number": 1,
                 }
-            record["notices"] = {
-                "agents/test": {
-                    "b" * 40: {
-                        "needs_pr": payload,
+            for record in self.fixture_records(aggregate):
+                record["notices"] = {
+                    "agents/test": {
+                        "b" * 40: {
+                            "needs_pr": payload,
+                        },
                     },
-                },
-            }
+                }
             cases.append((
                 f"notice {notice_state}",
                 CustodyAggregateSeed(aggregate),
@@ -1087,485 +1097,845 @@ class CustodySchemaTests(StoreTestBase):
 
     def test_custody_release_conjunction_and_signed_fields(self):
         """Fails if: release authorization accepts any missing positive proof."""
-        seed = self.request_seed(42)
-        mutations = [
-            ("outcome trust", lambda record:
-             record["original_outcome"].__setitem__(
-                 "trust", "untrusted"
-             ), "type"),
-            ("outcome exit", lambda record:
-             record["original_outcome"].__setitem__("exit_code", 1),
-             "type"),
-            ("archive session", lambda record:
-             record["release_proof"].__setitem__(
-                 "archive_session", "other-session"
-             ), "phase"),
-            ("inventory", lambda record:
-             record["release_proof"].__setitem__(
-                 "inventory", "not_empty"
-             ), "phase"),
-            ("bindings", lambda record:
-             record.__setitem__("bindings", {
-                 "agents/test": {
-                     "disposition": "owner_wait",
-                     "tip": "a" * 40,
-                     "since": "2026-01-01T00:00:00Z",
-                 },
-             }), "phase"),
-        ]
-        for label, mutate, kind in mutations:
-            with self.subTest(field=label):
-                aggregate = seed.aggregate()
-                mutate(self._leaf(aggregate, seed))
-                self._assert_custody_fault(
-                    "primary", aggregate, kind, key=self._key(seed)
-                )
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            mutations = [
+                ("target absent", lambda record:
+                 record.pop("target"), "phase"),
+                ("original outcome absent", lambda record:
+                 record.pop("original_outcome"), "phase"),
+                ("release proof absent", lambda record:
+                 record.pop("release_proof"), "phase"),
+                (
+                    "outcome trust",
+                    lambda record: (
+                        record["original_outcome"].__setitem__(
+                            "trust", "untrusted"
+                        ),
+                        record["original_outcome"].pop("exit_code"),
+                        record["original_outcome"].pop("state"),
+                    ),
+                    "phase",
+                ),
+                ("outcome exit", lambda record:
+                 record["original_outcome"].__setitem__("exit_code", 1),
+                 "type"),
+                ("outcome state", lambda record:
+                 record["original_outcome"].__setitem__(
+                     "state", "blocked"
+                 ), "phase"),
+                ("proof scalar", lambda record:
+                 record.__setitem__("release_proof", []), "type"),
+                ("inventory", lambda record:
+                 record["release_proof"].__setitem__(
+                     "inventory", "not_empty"
+                 ), "phase"),
+                ("unlanded", lambda record:
+                 record["release_proof"].__setitem__(
+                     "unlanded", "none"
+                 ), "phase"),
+                ("archive name", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_name", "other-name"
+                 ), "phase"),
+                ("archive session", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_session", "other-session"
+                 ), "phase"),
+                ("archive disposition missing", lambda record:
+                 record["release_proof"].pop("archive_disposition"), "phase"),
+                ("archive disposition", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_disposition", "missing"
+                 ), "phase"),
+                ("bindings", lambda record:
+                 record.__setitem__("bindings", {
+                     "agents/test": {
+                         "disposition": "owner_wait",
+                         "tip": "a" * 40,
+                         "since": "2026-01-01T00:00:00Z",
+                     },
+                 }), "phase"),
+                (
+                    "target absent pending",
+                    lambda record: (
+                        record.__setitem__("phase", "pending"),
+                        record.pop("target"),
+                        record.pop("release_proof"),
+                    ),
+                    "type",
+                ),
+                (
+                    "proof on pending",
+                    lambda record: record.__setitem__("phase", "pending"),
+                    "phase",
+                ),
+            ]
+            for label, mutate, kind in mutations:
+                with self.subTest(store=store, field=label):
+                    aggregate = seed.aggregate()
+                    mutate(self._leaf(aggregate, seed))
+                    self._assert_custody_fault(
+                        store, aggregate, kind, key=self._key(seed)
+                    )
 
     def test_custody_wire_key_binding_and_optional_matrix(self):
         """Fails if: a hierarchy, copy, binding or optional field is coerced."""
-        seed = self.request_seed(42)
-        key = self._key(seed)
-
-        def tree(aggregate):
-            records = aggregate["records"]
-            intakes = records[seed.repository]
-            producers = intakes[seed.intake]
-            generations = producers[seed.producer]
-            return records, intakes, producers, generations
-
-        hierarchy = [
-            (
-                "repository spelling",
-                lambda aggregate: aggregate["records"].__setitem__(
-                    "Example/Product", aggregate["records"].pop(seed.repository)
-                ),
-                "namespace", "store", None,
-            ),
-            (
-                "repository value",
-                lambda aggregate: aggregate["records"].__setitem__(
-                    seed.repository, []
-                ),
-                "type", "record", {"repository": seed.repository},
-            ),
-            (
-                "intake placement",
-                lambda aggregate: tree(aggregate)[0].__setitem__(
-                    seed.repository,
-                    {"nightly": tree(aggregate)[0][seed.repository]["request"]},
-                ),
-                "namespace", "record", {"repository": seed.repository},
-            ),
-            (
-                "intake value",
-                lambda aggregate: tree(aggregate)[1].__setitem__(
-                    seed.intake, []
-                ),
-                "type", "record", {
-                    "repository": seed.repository,
-                    "intake": seed.intake,
-                },
-            ),
-            (
-                "producer spelling",
-                lambda aggregate: tree(aggregate)[2].__setitem__(
-                    "request:042",
-                    tree(aggregate)[2].pop(seed.producer),
-                ),
-                "namespace", "record", {
-                    "repository": seed.repository,
-                    "intake": seed.intake,
-                },
-            ),
-            (
-                "producer value",
-                lambda aggregate: tree(aggregate)[2].__setitem__(
-                    seed.producer, []
-                ),
-                "type", "record", {
-                    "repository": seed.repository,
-                    "intake": seed.intake,
-                    "producer": seed.producer,
-                },
-            ),
-            (
-                "generation spelling",
-                lambda aggregate: tree(aggregate)[3].__setitem__(
-                    "../generation",
-                    tree(aggregate)[3].pop(seed.generation),
-                ),
-                "key", "record", {
-                    "repository": seed.repository,
-                    "intake": seed.intake,
-                    "producer": seed.producer,
-                },
-            ),
-            (
-                "record value",
-                lambda aggregate: tree(aggregate)[3].__setitem__(
-                    seed.generation, []
-                ),
-                "type", "record", key,
-            ),
-            (
-                "identity copy",
-                lambda aggregate: self._leaf(
-                    aggregate, seed
-                ).__setitem__("producer", "request:99"),
-                "key", "record", key,
-            ),
-            (
-                "target null",
-                lambda aggregate: self._leaf(
-                    aggregate, seed
-                ).__setitem__("target", None),
-                "type", "record", key,
-            ),
-            (
-                "outcome null",
-                lambda aggregate: self._leaf(
-                    aggregate, seed
-                ).__setitem__("original_outcome", None),
-                "type", "record", key,
-            ),
-            (
-                "pre refs null",
-                lambda aggregate: self._leaf(
-                    aggregate, seed
-                ).__setitem__("pre_refs", None),
-                "type", "record", key,
-            ),
-            (
-                "proof null",
-                lambda aggregate: self._leaf(
-                    aggregate, seed
-                ).__setitem__("release_proof", None),
-                "type", "record", key,
-            ),
-        ]
-        for label, mutate, kind, scope, expected_key in hierarchy:
-            with self.subTest(cell=label):
-                aggregate = seed.aggregate()
-                mutate(aggregate)
-                self._assert_custody_fault(
-                    "primary", aggregate, kind, scope, key=expected_key
-                )
-
-        binding_cases = [
-            ("lane", "invalid lane", "key"),
-            ("binding container", None, "type"),
-            ("lane copy", {"lane": "agents/other"}, "key"),
-            ("branch copy", {"branch": "refs/heads/agents/other"}, "key"),
-            ("disposition type", {"disposition": []}, "disposition"),
-            ("disposition enum", {"disposition": "terminal"}, "disposition"),
-            ("tip", {"tip": "deadbeef"}, "type"),
-            ("since", {"since": "2026-02-30T00:00:00Z"}, "type"),
-            ("pull bool", {"pull": True}, "type"),
-            ("reviewed head", {"reviewed_head": "A" * 40}, "type"),
-            ("attempts bool", {"attempts": True}, "type"),
-            ("reason", {"reason": "unknown"}, "type"),
-            ("next extra", {"next": {"kind": "human", "extra": 1}}, "type"),
-        ]
-        for label, change, kind in binding_cases:
-            with self.subTest(cell=label):
-                aggregate = seed.aggregate()
-                record = self._leaf(aggregate, seed)
-                record["phase"] = "pending"
-                record.pop("release_proof")
-                binding = {
-                    "disposition": "owner_wait",
-                    "tip": "a" * 40,
-                    "since": "2026-01-01T00:00:00Z",
-                }
-                lane = "agents/test"
-                if label == "lane":
-                    lane = change
-                elif label == "binding container":
-                    binding = change
-                else:
-                    binding.update(change)
-                record["bindings"] = {lane: binding}
-                self._assert_custody_fault(
-                    "primary", aggregate, kind, key=key
-                )
-
-    def test_custody_closed_payload_and_extra_boundaries(self):
-        """Fails if: opaque extras become authority or closed payloads admit them."""
-        seed = self.request_seed(42)
-        aggregate = seed.aggregate()
-        record = self._leaf(aggregate, seed)
-        aggregate["future"] = {"envelope": True}
-        record["future"] = {"record": True}
-        record["target"]["future"] = {"target": True}
-        path = self._write_custody("primary", aggregate)
-        state = ht.State(path)
-        self.assertTrue(state.writable)
-        with self.assertRaises(TypeError):
-            state.vetted_custody_records[0][1]["phase"] = "unknown"
-        for closed, field, value in (
-            ("original_outcome", "extra", True),
-            ("next", "extra", True),
-            ("release_proof", "extra", True),
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
         ):
-            with self.subTest(closed=closed):
-                invalid = seed.aggregate()
-                invalid_record = self._leaf(invalid, seed)
-                if closed == "next":
-                    invalid_record["next"] = {"kind": "human"}
-                invalid_record[closed]["extra"] = value
-                self._assert_custody_fault(
-                    "primary", invalid, "type", key=self._key(seed)
-                )
+            key = self._key(seed)
+            other_intake = (
+                "nightly" if seed.intake == "request" else "request"
+            )
+            producer_alias = (
+                f"{seed.producer.split(':', 1)[0]}:"
+                f"0{seed.producer.split(':', 1)[1]}"
+            )
 
-    def test_custody_alias_collisions_refuse_both_spelling_orders(self):
-        """Fails if: a producer or notice alias collision trusts its valid twin."""
-        seed = self.request_seed(42)
-        for reverse in (False, True):
-            with self.subTest(record_reverse=reverse):
-                aggregate = seed.aggregate()
+            def tree(aggregate):
                 records = aggregate["records"]
-                producer_map = records[seed.repository][seed.intake]
-                entries = [
-                    (seed.producer, self._clone(
-                        producer_map[seed.producer]
-                    )),
-                    ("request:042", self._clone(
-                        producer_map[seed.producer]
-                    )),
-                ]
-                producer_map.clear()
-                producer_map.update(entries[::-1] if reverse else entries)
-                self._assert_custody_fault(
-                    "primary", aggregate, "key",
-                    key={
+                intakes = records[seed.repository]
+                producers = intakes[seed.intake]
+                generations = producers[seed.producer]
+                return records, intakes, producers, generations
+
+            hierarchy = [
+                (
+                    "repository spelling",
+                    lambda aggregate: aggregate["records"].__setitem__(
+                        "Example/Product",
+                        aggregate["records"].pop(seed.repository),
+                    ),
+                    "namespace", "store", None,
+                ),
+                (
+                    "repository value",
+                    lambda aggregate: aggregate["records"].__setitem__(
+                        seed.repository, []
+                    ),
+                    "type", "record", {"repository": seed.repository},
+                ),
+                (
+                    "intake placement",
+                    lambda aggregate: tree(aggregate)[0].__setitem__(
+                        seed.repository,
+                        {
+                            other_intake: tree(
+                                aggregate
+                            )[0][seed.repository][seed.intake],
+                        },
+                    ),
+                    "namespace", "record", {"repository": seed.repository},
+                ),
+                (
+                    "intake value",
+                    lambda aggregate: tree(aggregate)[1].__setitem__(
+                        seed.intake, []
+                    ),
+                    "type", "record", {
                         "repository": seed.repository,
                         "intake": seed.intake,
                     },
-                )
-            with self.subTest(notice_reverse=reverse):
-                aggregate = seed.aggregate()
-                notices = [
-                    ("needs_pr", {
-                        "state": "intent",
-                        "since": "2026-01-01T00:00:00Z",
+                ),
+                (
+                    "producer spelling",
+                    lambda aggregate: tree(aggregate)[2].__setitem__(
+                        producer_alias,
+                        tree(aggregate)[2].pop(seed.producer),
+                    ),
+                    "namespace", "record", {
+                        "repository": seed.repository,
+                        "intake": seed.intake,
+                    },
+                ),
+                (
+                    "producer value",
+                    lambda aggregate: tree(aggregate)[2].__setitem__(
+                        seed.producer, []
+                    ),
+                    "type", "record", {
+                        "repository": seed.repository,
+                        "intake": seed.intake,
+                        "producer": seed.producer,
+                    },
+                ),
+                (
+                    "generation spelling",
+                    lambda aggregate: tree(aggregate)[3].__setitem__(
+                        "../generation",
+                        tree(aggregate)[3].pop(seed.generation),
+                    ),
+                    "key", "record", {
+                        "repository": seed.repository,
+                        "intake": seed.intake,
+                        "producer": seed.producer,
+                    },
+                ),
+                (
+                    "record value",
+                    lambda aggregate: tree(aggregate)[3].__setitem__(
+                        seed.generation, []
+                    ),
+                    "type", "record", key,
+                ),
+                (
+                    "identity copy",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("producer", "request:99"),
+                    "key", "record", key,
+                ),
+                (
+                    "target null",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("target", None),
+                    "type", "record", key,
+                ),
+                (
+                    "outcome null",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("original_outcome", None),
+                    "type", "record", key,
+                ),
+                (
+                    "pre refs null",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("pre_refs", None),
+                    "type", "record", key,
+                ),
+                (
+                    "pre refs key",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    )["pre_refs"].__setitem__("refs/heads/-bad", "absent"),
+                    "key", "record", key,
+                ),
+                (
+                    "source archive on non-retro",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    )["target"].__setitem__("source_archive", "source"),
+                    "namespace", "record", key,
+                ),
+                (
+                    "source queued on non-retro",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    )["target"].__setitem__(
+                        "source_queued", "2026-01-01T00:00:00Z"
+                    ),
+                    "namespace", "record", key,
+                ),
+                (
+                    "next kind",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("next", {"kind": "later"}),
+                    "type", "record", key,
+                ),
+                (
+                    "next time on human",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("next", {
+                        "kind": "human",
+                        "at": "2026-01-01T00:00:00Z",
                     }),
-                    ("NEEDS_PR", {
-                        "state": "intent",
+                    "type", "record", key,
+                ),
+                (
+                    "record delivery alias",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("delivery", {}),
+                    "key", "record", key,
+                ),
+                (
+                    "record notice alias",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("notice", {}),
+                    "key", "record", key,
+                ),
+                (
+                    "proof null",
+                    lambda aggregate: self._leaf(
+                        aggregate, seed
+                    ).__setitem__("release_proof", None),
+                    "type", "record", key,
+                ),
+            ]
+            for label, mutate, kind, scope, expected_key in hierarchy:
+                with self.subTest(store=store, cell=label):
+                    aggregate = seed.aggregate()
+                    mutate(aggregate)
+                    self._assert_custody_fault(
+                        store, aggregate, kind, scope, key=expected_key
+                    )
+
+            binding_cases = [
+                ("lane plain", "invalid lane", "key"),
+                ("lane hyphen", "agents/-x", "key"),
+                ("lane underscore", "agents/_x", "key"),
+                ("binding container", None, "type"),
+                ("lane copy", {"lane": "agents/other"}, "key"),
+                ("branch copy", {
+                    "branch": "refs/heads/agents/other"
+                }, "key"),
+                ("disposition type", {"disposition": []}, "disposition"),
+                ("disposition enum", {
+                    "disposition": "terminal"
+                }, "disposition"),
+                ("tip", {"tip": "deadbeef"}, "type"),
+                ("since", {"since": "2026-02-30T00:00:00Z"}, "type"),
+                ("pull bool", {"pull": True}, "type"),
+                ("reviewed head", {"reviewed_head": "A" * 40}, "type"),
+                ("attempts bool", {"attempts": True}, "type"),
+                ("reason", {"reason": "unknown"}, "type"),
+                ("next extra", {
+                    "next": {"kind": "human", "extra": 1}
+                }, "type"),
+                ("next kind", {"next": {"kind": "later"}}, "type"),
+                ("next time on human", {
+                    "next": {
+                        "kind": "human",
+                        "at": "2026-01-01T00:00:00Z",
+                    },
+                }, "type"),
+                ("notices alias", {"notices": {}}, "key"),
+                ("delivery alias", {"delivery": {}}, "key"),
+            ]
+            for label, change, kind in binding_cases:
+                with self.subTest(store=store, cell=label):
+                    aggregate = seed.aggregate()
+                    record = self._leaf(aggregate, seed)
+                    record["phase"] = "pending"
+                    record.pop("release_proof")
+                    binding = {
+                        "disposition": "owner_wait",
+                        "tip": "a" * 40,
                         "since": "2026-01-01T00:00:00Z",
-                    }),
-                ]
-                self._leaf(aggregate, seed)["notices"] = {
-                    "agents/test": {
-                        "a" * 40: dict(
-                            notices[::-1] if reverse else notices
+                    }
+                    lane = "agents/test"
+                    if label.startswith("lane ") and label not in (
+                        "lane copy",
+                    ):
+                        lane = change
+                    elif label == "binding container":
+                        binding = change
+                    else:
+                        binding.update(change)
+                    record["bindings"] = {lane: binding}
+                    self._assert_custody_fault(
+                        store, aggregate, kind, key=key
+                    )
+
+    def test_custody_closed_payload_and_extra_boundaries(self):
+        """Fails if: opaque extras become authority or closed payloads admit them."""
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            aggregate = seed.aggregate()
+            record = self._leaf(aggregate, seed)
+            aggregate["future"] = {"envelope": True}
+            record["future"] = {"record": True}
+            record["target"]["future"] = {"target": True}
+            path = self._write_custody(store, aggregate)
+            state = ht.State(path)
+            self.assertTrue(state.writable)
+            with self.assertRaises(TypeError):
+                state.vetted_custody_records[0][1]["phase"] = "unknown"
+            for closed, field, value in (
+                ("original_outcome", "extra", True),
+                ("next", "extra", True),
+                ("release_proof", "extra", True),
+            ):
+                with self.subTest(store=store, closed=closed):
+                    invalid = seed.aggregate()
+                    invalid_record = self._leaf(invalid, seed)
+                    if closed == "next":
+                        invalid_record["next"] = {"kind": "human"}
+                    invalid_record[closed]["extra"] = value
+                    self._assert_custody_fault(
+                        store, invalid, "type", key=self._key(seed)
+                    )
+
+    def test_custody_alias_collisions_refuse_both_spelling_orders(self):
+        """Fails if: an alias collision trusts either spelling in any order."""
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            producer_alias = (
+                f"{seed.producer.split(':', 1)[0]}:"
+                f"0{seed.producer.split(':', 1)[1]}"
+            )
+            for reverse in (False, True):
+                with self.subTest(
+                    store=store, collision="producer", reverse=reverse
+                ):
+                    aggregate = seed.aggregate()
+                    records = aggregate["records"]
+                    producer_map = records[seed.repository][seed.intake]
+                    entries = [
+                        (seed.producer, self._clone(
+                            producer_map[seed.producer]
+                        )),
+                        (producer_alias, self._clone(
+                            producer_map[seed.producer]
+                        )),
+                    ]
+                    producer_map.clear()
+                    producer_map.update(
+                        entries[::-1] if reverse else entries
+                    )
+                    self._assert_custody_fault(
+                        store, aggregate, "key",
+                        key={
+                            "repository": seed.repository,
+                            "intake": seed.intake,
+                        },
+                    )
+                with self.subTest(
+                    store=store, collision="class", reverse=reverse
+                ):
+                    aggregate = seed.aggregate()
+                    notices = [
+                        ("needs_pr", {
+                            "state": "intent",
+                            "since": "2026-01-01T00:00:00Z",
+                        }),
+                        ("NEEDS_PR", {
+                            "state": "intent",
+                            "since": "2026-01-01T00:00:00Z",
+                        }),
+                    ]
+                    self._leaf(aggregate, seed)["notices"] = {
+                        "agents/test": {
+                            "a" * 40: dict(
+                                notices[::-1] if reverse else notices
+                            ),
+                        },
+                    }
+                    state = self._assert_custody_fault(
+                        store, aggregate, "key", "notice",
+                        key={
+                            **self._key(seed),
+                            "lane": "agents/test",
+                            "head": "a" * 40,
+                        },
+                    )
+                    self.assertEqual(state.vetted_custody_records[0][2], ())
+                with self.subTest(
+                    store=store, collision="head", reverse=reverse
+                ):
+                    aggregate = seed.aggregate()
+                    heads = [
+                        ("a" * 40, {
+                            "needs_pr": {
+                                "state": "intent",
+                                "since": "2026-01-01T00:00:00Z",
+                            },
+                        }),
+                        ("A" * 40, {
+                            "needs_pr": {
+                                "state": "intent",
+                                "since": "2026-01-01T00:00:00Z",
+                            },
+                        }),
+                    ]
+                    self._leaf(aggregate, seed)["notices"] = {
+                        "agents/test": dict(
+                            heads[::-1] if reverse else heads
                         ),
-                    },
-                }
-                state = self._assert_custody_fault(
-                    "primary", aggregate, "key", "notice",
-                    key={
-                        **self._key(seed),
-                        "lane": "agents/test",
-                        "head": "a" * 40,
-                    },
-                )
-                self.assertEqual(state.vetted_custody_records[0][2], ())
+                    }
+                    state = self._assert_custody_fault(
+                        store, aggregate, "key", "notice",
+                        key={
+                            **self._key(seed),
+                            "lane": "agents/test",
+                        },
+                    )
+                    self.assertEqual(state.vetted_custody_records[0][2], ())
+
+    def test_custody_noncanonical_repository_collision_has_store_scope(self):
+        """Fails if: rejected repository text is lowercased into a record key."""
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            entries = [
+                (
+                    "Example/Product",
+                    self._clone(seed.aggregate()["records"][seed.repository]),
+                ),
+                (
+                    "EXAMPLE/PRODUCT",
+                    self._clone(seed.aggregate()["records"][seed.repository]),
+                ),
+            ]
+            for reverse in (False, True):
+                with self.subTest(store=store, reverse=reverse):
+                    aggregate = {
+                        "version": 1,
+                        "records": dict(
+                            entries[::-1] if reverse else entries
+                        ),
+                    }
+                    state = self._assert_custody_fault(
+                        store, aggregate, "namespace", "store", 1, None
+                    )
+                    self.assertEqual(state.vetted_custody_records, ())
 
     def test_custody_notice_field_matrix_refuses_each_invalid_cell(self):
         """Fails if: a malformed notice field is accepted or loses bounded scope."""
-        seed = self.request_seed(42)
         lane = "agents/test"
         head = "a" * 40
-        cases = [
-            ("lane", { "not a lane": {head: {}}}, "key"),
-            ("head", {lane: {"A" * 40: {}}}, "key"),
-            ("fault class", {lane: {head: {"unknown": {}}}}, "key"),
-            ("payload type", {lane: {head: {"needs_pr": []}}}, "type"),
-            ("state type", {
-                lane: {head: {"needs_pr": {
-                    "state": [], "since": "2026-01-01T00:00:00Z",
-                }}}
-            }, "type"),
-            ("since", {
-                lane: {head: {"needs_pr": {
-                    "state": "intent", "since": "not-a-time",
-                }}}
-            }, "type"),
-            ("remote missing", {
-                lane: {head: {"needs_pr": {
-                    "state": "confirmed",
-                    "since": "2026-01-01T00:00:00Z",
-                }}}
-            }, "type"),
-            ("identity copy", {
-                lane: {head: {"needs_pr": {
-                    "state": "intent",
-                    "since": "2026-01-01T00:00:00Z",
-                    "head": "b" * 40,
-                }}}
-            }, "key"),
-            ("remote repository", {
-                lane: {head: {"needs_pr": {
-                    "state": "confirmed",
-                    "since": "2026-01-01T00:00:00Z",
-                    "remote_identity": {
-                        "repository": "private/Issues",
-                        "number": 1,
-                    },
-                }}}
-            }, "type"),
-            ("remote extra", {
-                lane: {head: {"needs_pr": {
-                    "state": "confirmed",
-                    "since": "2026-01-01T00:00:00Z",
-                    "remote_identity": {
-                        "repository": "private/issues",
-                        "number": 1,
-                        "extra": True,
-                    },
-                }}}
-            }, "type"),
-        ]
-        for label, notices, kind in cases:
-            with self.subTest(cell=label):
-                aggregate = seed.aggregate()
-                self._leaf(aggregate, seed)["notices"] = notices
-                key = self._key(seed)
-                if label != "lane":
-                    key["lane"] = lane
-                if label not in ("lane", "head"):
-                    key["head"] = head
-                if label not in ("lane", "head", "fault class"):
-                    key["fault_class"] = "needs_pr"
-                state = self._assert_custody_fault(
-                    "primary", aggregate, kind, "notice", key=key
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            cases = [
+                ("notices container", [], "type"),
+                ("lane", {"not a lane": {head: {}}}, "key"),
+                ("lane hyphen", {"agents/-x": {head: {}}}, "key"),
+                ("lane underscore", {"agents/_x": {head: {}}}, "key"),
+                ("heads container", {lane: []}, "type"),
+                ("head", {lane: {"A" * 40: {}}}, "key"),
+                ("fault classes container", {lane: {head: []}}, "type"),
+                ("fault class", {
+                    lane: {head: {"unknown": {}}}
+                }, "key"),
+                ("payload type", {
+                    lane: {head: {"needs_pr": []}}
+                }, "type"),
+                ("state type", {
+                    lane: {head: {"needs_pr": {
+                        "state": [], "since": "2026-01-01T00:00:00Z",
+                    }}}
+                }, "type"),
+                ("state enum", {
+                    lane: {head: {"needs_pr": {
+                        "state": "later",
+                        "since": "2026-01-01T00:00:00Z",
+                    }}}
+                }, "type"),
+                ("since spelling", {
+                    lane: {head: {"needs_pr": {
+                        "state": "intent", "since": "not-a-time",
+                    }}}
+                }, "type"),
+                ("since calendar", {
+                    lane: {head: {"needs_pr": {
+                        "state": "intent",
+                        "since": "2026-02-30T00:00:00Z",
+                    }}}
+                }, "type"),
+                ("remote missing", {
+                    lane: {head: {"needs_pr": {
+                        "state": "confirmed",
+                        "since": "2026-01-01T00:00:00Z",
+                    }}}
+                }, "type"),
+                ("remote on intent", {
+                    lane: {head: {"needs_pr": {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                        "remote_identity": {
+                            "repository": "private/issues",
+                            "number": 1,
+                        },
+                    }}}
+                }, "type"),
+                ("identity copy", {
+                    lane: {head: {"needs_pr": {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                        "head": "b" * 40,
+                    }}}
+                }, "key"),
+                ("delivery alias", {
+                    lane: {head: {"needs_pr": {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                        "delivery": {},
+                    }}}
+                }, "key"),
+                ("remote repository", {
+                    lane: {head: {"needs_pr": {
+                        "state": "confirmed",
+                        "since": "2026-01-01T00:00:00Z",
+                        "remote_identity": {
+                            "repository": "private/Issues",
+                            "number": 1,
+                        },
+                    }}}
+                }, "type"),
+                ("remote number bool", {
+                    lane: {head: {"needs_pr": {
+                        "state": "confirmed",
+                        "since": "2026-01-01T00:00:00Z",
+                        "remote_identity": {
+                            "repository": "private/issues",
+                            "number": True,
+                        },
+                    }}}
+                }, "type"),
+                ("remote number zero", {
+                    lane: {head: {"needs_pr": {
+                        "state": "confirmed",
+                        "since": "2026-01-01T00:00:00Z",
+                        "remote_identity": {
+                            "repository": "private/issues",
+                            "number": 0,
+                        },
+                    }}}
+                }, "type"),
+                ("remote extra", {
+                    lane: {head: {"needs_pr": {
+                        "state": "confirmed",
+                        "since": "2026-01-01T00:00:00Z",
+                        "remote_identity": {
+                            "repository": "private/issues",
+                            "number": 1,
+                            "extra": True,
+                        },
+                    }}}
+                }, "type"),
+            ]
+            for label, notices, kind in cases:
+                with self.subTest(store=store, cell=label):
+                    aggregate = seed.aggregate()
+                    self._leaf(aggregate, seed)["notices"] = notices
+                    key = self._key(seed)
+                    if label not in (
+                        "notices container", "lane",
+                        "lane hyphen", "lane underscore",
+                    ):
+                        key["lane"] = lane
+                    if label not in (
+                        "notices container", "lane",
+                        "lane hyphen", "lane underscore",
+                        "heads container", "head",
+                    ):
+                        key["head"] = head
+                    if label not in (
+                        "notices container", "lane",
+                        "lane hyphen", "lane underscore",
+                        "heads container", "head",
+                        "fault classes container", "fault class",
+                    ):
+                        key["fault_class"] = "needs_pr"
+                    state = self._assert_custody_fault(
+                        store, aggregate, kind, "notice", key=key
+                    )
+                    self.assertTrue(state.vetted_custody_records)
+
+    def test_custody_empty_v1_is_writable_without_a_record_key(self):
+        """Fails if: an explicitly empty v1 aggregate is treated as no record."""
+        for store in ("primary", "nightly"):
+            with self.subTest(store=store):
+                path = self._write_custody(
+                    store, {"version": 1, "records": {}}
                 )
-                self.assertTrue(state.vetted_custody_records)
+                state = ht.State(path)
+                self.assertTrue(state.writable)
+                self.assertEqual(state.load_faults, [])
+                self.assertEqual(state.vetted_custody_records, ())
+
+    def test_custody_duplicate_name_inside_notice_is_a_file_parse_fault(self):
+        """Fails if: a duplicate notice member is partially decoded as a notice fault."""
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            with self.subTest(store=store):
+                aggregate = seed.aggregate()
+                self._leaf(aggregate, seed)["notices"] = {
+                    "agents/test": {
+                        "a" * 40: {
+                            "needs_pr": {
+                                "state": "intent",
+                                "since": "2026-01-01T00:00:00Z",
+                            },
+                        },
+                    },
+                }
+                value = self.legacy(custody=aggregate)
+                raw = json.dumps(value, separators=(",", ":"))
+                raw = raw.replace(
+                    '"state":"intent"',
+                    '"state":"intent","state":"confirmed"',
+                    1,
+                )
+                path = self.logical_path(store)
+                self.write_raw(path, raw)
+                before = path.read_bytes()
+                state = ht.State(path)
+                self.assertEqual(state.load_faults, [{
+                    "kind": "parse",
+                    "exists": "yes",
+                }])
+                self.assertEqual(state.vetted_custody_records, ())
+                with self.assertRaises(ht.StateLoadError):
+                    state.save()
+                self.assertEqual(path.read_bytes(), before)
 
     def test_custody_bad_record_refuses_store_and_preserves_vetted_sibling(self):
         """Fails if: one bad record is trusted or discarded without refusing its store."""
-        good = self.request_seed(42)
-        bad = self.request_seed(43)
-        for seeds in ((good, bad), (bad, good)):
-            with self.subTest(order=[seed.producer for seed in seeds]):
-                aggregate = CustodySeeds(seeds).aggregate()
-                self._leaf(aggregate, bad)["phase"] = "invalid"
-                state = self._assert_custody_fault(
-                    "primary", aggregate, "phase", key=self._key(bad)
-                )
-                self.assertEqual(
-                    [item[0] for item in state.vetted_custody_records],
-                    [(
-                        good.repository,
-                        good.intake,
-                        good.producer,
-                        good.generation,
-                    )],
-                )
+        for good, bad, store in (
+            (self.request_seed(42), self.request_seed(43), "primary"),
+            (self.nightly_seed(52), self.nightly_seed(53), "nightly"),
+        ):
+            for seeds in ((good, bad), (bad, good)):
+                with self.subTest(
+                    store=store, order=[seed.producer for seed in seeds]
+                ):
+                    aggregate = CustodySeeds(seeds).aggregate()
+                    self._leaf(aggregate, bad)["phase"] = "invalid"
+                    state = self._assert_custody_fault(
+                        store, aggregate, "phase", key=self._key(bad)
+                    )
+                    self.assertEqual(
+                        [item[0] for item in state.vetted_custody_records],
+                        [(
+                            good.repository,
+                            good.intake,
+                            good.producer,
+                            good.generation,
+                        )],
+                    )
 
     def test_custody_bad_notice_refuses_store_and_preserves_safe_notice(self):
         """Fails if: a bad notice removes its valid body, bindings or safe notice."""
-        seed = self.request_seed(42)
-        aggregate = seed.aggregate()
-        record = self._leaf(aggregate, seed)
-        notice_items = (
-            ("agents/safe", {
-                "a" * 40: {
-                    "needs_pr": {
-                        "state": "intent",
-                        "since": "2026-01-01T00:00:00Z",
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            aggregate = seed.aggregate()
+            record = self._leaf(aggregate, seed)
+            notice_items = (
+                ("agents/safe", {
+                    "a" * 40: {
+                        "needs_pr": {
+                            "state": "intent",
+                            "since": "2026-01-01T00:00:00Z",
+                        },
                     },
-                },
-            }),
-            ("agents/bad", {
-                "b" * 40: {
-                    "needs_pr": {
-                        "state": "unknown",
-                        "since": "2026-01-01T00:00:00Z",
+                }),
+                ("agents/bad", {
+                    "b" * 40: {
+                        "needs_pr": {
+                            "state": "unknown",
+                            "since": "2026-01-01T00:00:00Z",
+                        },
                     },
-                },
-            }),
-        )
-        for items in (notice_items, tuple(reversed(notice_items))):
-            with self.subTest(order=[item[0] for item in items]):
-                record["notices"] = dict(items)
-                state = self._assert_custody_fault(
-                    "primary", aggregate, "type", "notice",
-                    key={
-                        **self._key(seed),
-                        "lane": "agents/bad",
-                        "head": "b" * 40,
-                        "fault_class": "needs_pr",
-                    },
-                )
-                self.assertEqual(len(state.vetted_custody_records), 1)
-                body = state.vetted_custody_records[0][1]
-                notices = state.vetted_custody_records[0][2]
-                self.assertEqual(body["phase"], "release_authorized")
-                self.assertEqual(
-                    [item[0] for item in notices],
-                    [("agents/safe", "a" * 40, "needs_pr")],
-                )
+                }),
+            )
+            for items in (notice_items, tuple(reversed(notice_items))):
+                with self.subTest(
+                    store=store, order=[item[0] for item in items]
+                ):
+                    record["notices"] = dict(items)
+                    state = self._assert_custody_fault(
+                        store, aggregate, "type", "notice",
+                        key={
+                            **self._key(seed),
+                            "lane": "agents/bad",
+                            "head": "b" * 40,
+                            "fault_class": "needs_pr",
+                        },
+                    )
+                    self.assertEqual(len(state.vetted_custody_records), 1)
+                    body = state.vetted_custody_records[0][1]
+                    notices = state.vetted_custody_records[0][2]
+                    self.assertEqual(body["phase"], "release_authorized")
+                    self.assertEqual(
+                        [item[0] for item in notices],
+                        [("agents/safe", "a" * 40, "needs_pr")],
+                    )
 
     def test_custody_absent_notice_is_valid_and_not_synthesized(self):
         """Fails if: missing notices become a delivery fact or a writer veto."""
-        seed = self.request_seed(42)
-        path = self._write_custody("primary", seed.aggregate())
-        state = ht.State(path)
-        self.assertTrue(state.writable)
-        self.assertEqual(state.vetted_custody_records[0][2], ())
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            with self.subTest(store=store):
+                path = self._write_custody(store, seed.aggregate())
+                state = ht.State(path)
+                self.assertTrue(state.writable)
+                self.assertEqual(state.vetted_custody_records[0][2], ())
 
     def test_custody_tuple_collision_trusts_neither_spelling(self):
         """Fails if: an alias collision trusts either record spelling."""
-        seed = self.request_seed(42)
-        aggregate = seed.aggregate()
-        record_map = aggregate["records"]
-        canonical = seed.repository
-        alias = canonical.upper()
-        record_map[alias] = self._clone(record_map[canonical])
-        source = self.request_seed(43)
-        disjoint = CustodySeed(
-            repository="other/product",
-            intake=source.intake,
-            producer=source.producer,
-            generation=source.generation,
-            branch=source.branch,
-            archive_name=source.archive_name,
-            archive_session=source.archive_session,
-            source_repository=source.source_repository,
-        )
-        record_map[disjoint.repository] = {
-            disjoint.intake: {
-                disjoint.producer: {
-                    disjoint.generation: self._clone(
-                        self._leaf(disjoint.aggregate(), disjoint)
-                    ),
-                },
-            },
-        }
-        expected = [(
-            disjoint.repository,
-            disjoint.intake,
-            disjoint.producer,
-            disjoint.generation,
-        )]
-        for order in (
-            tuple(record_map),
-            tuple(reversed(tuple(record_map))),
+        for seed, source, store in (
+            (
+                self.request_seed(42),
+                self.request_seed(43),
+                "primary",
+            ),
+            (
+                self.nightly_seed(52),
+                self.nightly_seed(53),
+                "nightly",
+            ),
         ):
-            with self.subTest(order=order):
-                aggregate["records"] = {
-                    repository: record_map[repository]
-                    for repository in order
-                }
-                state = self._assert_custody_fault(
-                    "primary", aggregate, "key",
-                    key={"repository": seed.repository},
-                )
-                self.assertEqual(
-                    [item[0] for item in state.vetted_custody_records],
-                    expected,
-                )
+            aggregate = seed.aggregate()
+            record_map = aggregate["records"]
+            canonical = seed.repository
+            alias = canonical.upper()
+            record_map[alias] = self._clone(record_map[canonical])
+            disjoint = CustodySeed(
+                repository="other/product",
+                intake=source.intake,
+                producer=source.producer,
+                generation=source.generation,
+                branch=source.branch,
+                archive_name=source.archive_name,
+                archive_session=source.archive_session,
+                source_repository=source.source_repository,
+            )
+            record_map[disjoint.repository] = {
+                disjoint.intake: {
+                    disjoint.producer: {
+                        disjoint.generation: self._clone(
+                            self._leaf(disjoint.aggregate(), disjoint)
+                        ),
+                    },
+                },
+            }
+            expected = [(
+                disjoint.repository,
+                disjoint.intake,
+                disjoint.producer,
+                disjoint.generation,
+            )]
+            for order in (
+                tuple(record_map),
+                tuple(reversed(tuple(record_map))),
+            ):
+                with self.subTest(store=store, order=order):
+                    aggregate["records"] = {
+                        repository: record_map[repository]
+                        for repository in order
+                    }
+                    state = self._assert_custody_fault(
+                        store, aggregate, "key",
+                        key={"repository": seed.repository},
+                    )
+                    self.assertEqual(
+                        [item[0] for item in state.vetted_custody_records],
+                        expected,
+                    )
 
     def test_custody_unbounded_namespace_fault_has_no_guessed_view(self):
         """Fails if: an unbounded namespace leak invents a projected identity."""
@@ -1577,10 +1947,12 @@ class CustodySchemaTests(StoreTestBase):
                 },
             },
         }
-        state = self._assert_custody_fault(
-            "primary", aggregate, "namespace", "store", 1, None
-        )
-        self.assertEqual(state.vetted_custody_records, ())
+        for store in ("primary", "nightly"):
+            with self.subTest(store=store):
+                state = self._assert_custody_fault(
+                    store, aggregate, "namespace", "store", 1, None
+                )
+                self.assertEqual(state.vetted_custody_records, ())
 
     def test_custody_direct_save_refuses_before_any_save_effect(self):
         """Fails if: direct save serializes or creates anything for a faulted state."""
@@ -1729,10 +2101,15 @@ class CustodySchemaTests(StoreTestBase):
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
-        before = self.file_bytes()
-        with ht.writer_lock(self.paths) as admitted:
-            self.assertTrue(admitted)
+
+        def run_status(args):
             with mock.patch.object(
+                ht, "load_config", return_value=cfg
+            ), mock.patch.object(
+                ht, "GitHub", return_value=FakeGitHub([])
+            ), mock.patch.object(
+                ht, "claude_logged_in", return_value=True
+            ), mock.patch.object(
                 ht, "durable_mkdir",
                 side_effect=AssertionError("status repaired state"),
             ), mock.patch.object(
@@ -1741,12 +2118,20 @@ class CustodySchemaTests(StoreTestBase):
             ), mock.patch.object(
                 ht, "writer_lock",
                 side_effect=AssertionError("status acquired writer lock"),
-            ):
-                report = ht.status_report(
-                    cfg, self.paths, FakeGitHub([]), logged_in=True
-                )
+            ), mock.patch("sys.stdout", new=io.StringIO()) as out:
+                self.assertEqual(ht.main(args, home=self.home), 0)
+            return out.getvalue()
+
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            before = self.file_bytes()
+            text = run_status(["status"])
+            encoded = run_status(["status", "--json"])
+            after = self.file_bytes()
+        report = json.loads(encoded)
+        self.assertNotIn("custody", text)
         self.assertNotIn("custody", report)
-        self.assertNotIn("custody", json.dumps(report))
+        self.assertNotIn("custody", encoded)
         self.assertEqual(report["state_loads"], [
             {
                 "store": "request",
@@ -1762,15 +2147,13 @@ class CustodySchemaTests(StoreTestBase):
                 "exists": "yes",
             },
         ])
-        self.assertEqual(ht.state_load_text(report["state_loads"])[1],
-                         "state store nightly: type (exists yes)")
-        after = self.file_bytes()
-        self.assertEqual(after[self.paths.state.relative_to(self.home).as_posix()],
-                         before[self.paths.state.relative_to(self.home).as_posix()])
-        self.assertEqual(
-            after[nightly_path.relative_to(self.home).as_posix()],
-            before[nightly_path.relative_to(self.home).as_posix()],
+        self.assertIn(
+            "state store request: phase (exists yes, scope record, "
+            f"version 1, key {json.dumps(self._key(seed), separators=(',', ':'))})",
+            text,
         )
+        self.assertIn("state store nightly: type (exists yes)", text)
+        self.assertEqual(after, before)
 
     def test_custody_retro_presence_refuses_all_retro_effects(self):
         """Fails if: even an empty aggregate in the shared retro store reaches an effect."""
@@ -1862,43 +2245,96 @@ class CustodySchemaTests(StoreTestBase):
     def test_custody_faulted_tick_refuses_only_affected_intake(self):
         """Fails if: a faulty intake suppresses its healthy sibling or does work."""
         cases = (
-            ("primary", self.request_seed(42), ["tick"], ["nightly"]),
+            ("primary", self.request_seed(42), ["tick"], "nightly"),
             (
                 "primary", self.request_seed(42),
-                ["tick", "--dry-run"], ["nightly"],
+                ["tick", "--dry-run"], "nightly",
             ),
-            ("nightly", self.nightly_seed(), ["tick"], ["primary"]),
+            ("nightly", self.nightly_seed(), ["tick"], "primary"),
         )
-        for store, seed, argv, expected_calls in cases:
+        for store, seed, argv, healthy_store in cases:
             with self.subTest(store=store, argv=argv):
                 for path in (
                     self.paths.state,
                     ht.Paths(self.cfg, self.home, "nightly-").state,
+                    self.paths.lock,
                 ):
                     path.unlink(missing_ok=True)
                 aggregate = seed.aggregate()
                 self._leaf(aggregate, seed)["phase"] = "invalid"
-                path = self._write_custody(store, aggregate)
-                before = path.read_bytes()
-                calls = []
+                bad_path = self._write_custody(store, aggregate)
+                bad_bytes = bad_path.read_bytes()
+                healthy_data = self.legacy(
+                    opaque_extension={"preserve": [healthy_store, 11]}
+                )
+                healthy_path = self.logical_path(healthy_store)
+                self.write_raw(healthy_path, healthy_data)
+                base_calls = []
+                refresh_calls = []
+                saves = []
+                original_save = ht.State.save
+
+                def save(state):
+                    saves.append(state.path)
+                    return original_save(state)
+
+                def label(runner):
+                    return "nightly" if runner.intake else "primary"
+
                 with mock.patch.object(
                     ht, "load_config", return_value=self.cfg
                 ), mock.patch.object(
                     ht, "GitHub", return_value=FakeGitHub([])
                 ), mock.patch.object(
-                    ht.Runner, "_tick_locked", autospec=True,
-                    side_effect=lambda runner, _max: calls.append(
-                        "nightly" if runner.intake else "primary"
-                    ) or 0,
+                    ht.os, "getpid", return_value=4242
+                ), mock.patch.object(
+                    ht.State, "save", autospec=True, side_effect=save
+                ), mock.patch.object(
+                    ht.Runner, "readable_base_map", autospec=True,
+                    side_effect=lambda runner: (
+                        base_calls.append(label(runner)) or {}
+                    ),
+                ), mock.patch.object(
+                    ht.Runner, "refresh_clone", autospec=True,
+                    side_effect=lambda runner: refresh_calls.append(
+                        label(runner)
+                    ),
+                ), mock.patch.object(
+                    ht.Runner, "check_base"
+                ), mock.patch.object(
+                    ht.Runner, "check_ha_changes"
+                ), mock.patch.object(
+                    ht.Runner, "check_merging"
+                ), mock.patch.object(
+                    ht.Runner, "check_parked"
+                ), mock.patch.object(
+                    ht.Runner, "requeue"
+                ), mock.patch.object(
+                    ht.Runner, "recover"
                 ), mock.patch("sys.stderr", new=io.StringIO()) as err:
-                    code = ht.main(argv, home=self.home)
+                    code = ht.main(
+                        [*argv, "--max-items", "0"], home=self.home
+                    )
                 self.assertEqual(code, 4)
-                self.assertEqual(calls, expected_calls)
+                self.assertEqual(base_calls, [healthy_store])
+                self.assertEqual(refresh_calls, [healthy_store])
+                self.assertEqual(saves, [healthy_path])
                 self.assertIn(
-                    f"state store refused: phase for {path.name}",
+                    f"state store refused: phase for {bad_path.name}",
                     err.getvalue(),
                 )
-                self.assertEqual(path.read_bytes(), before)
+                self.assertEqual(bad_path.read_bytes(), bad_bytes)
+                self.assertEqual(healthy_path.read_bytes(),
+                                 self.saved_bytes(healthy_data))
+                self.assertEqual(self.file_bytes(), {
+                    bad_path.relative_to(self.home).as_posix(): bad_bytes,
+                    healthy_path.relative_to(
+                        self.home
+                    ).as_posix(): self.saved_bytes(healthy_data),
+                    self.paths.lock.relative_to(
+                        self.home
+                    ).as_posix(): b"4242",
+                })
 
     def test_custody_command_precedence_and_exemptions_remain_pinned(self):
         """Fails if: malformed custody changes busy, pause, preview or ack precedence."""
@@ -4574,37 +5010,117 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_custody_seeded_phase_and_notice_variants_are_inert(self):
         """Fails if: a valid phase or notice state changes a full decision golden."""
-        scenarios = (
+        def reset():
+            shutil.rmtree(self.home, ignore_errors=True)
+            self.home.mkdir()
+            ht._PRINTED.clear()
+
+        single_scenarios = (
             (
                 "quiet",
-                self.request_seed(42),
+                self.custody_fixture("quiet request"),
                 self.test_recordless_quiet_tick_has_fixed_ordered_transcript_and_opaque_bytes,
             ),
             (
+                "self-change",
+                self.custody_fixture("self-change pause"),
+                self.test_recordless_tick_self_change_pause_stops_retro_dispatch,
+            ),
+            (
+                "maintenance",
+                self.custody_fixture("maintenance"),
+                self.test_recordless_tick_routes_merging_parked_recovery_and_stored_finish,
+            ),
+            (
+                "integrated job and retro",
+                self.custody_fixture("integrated job and retro"),
+                self.test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue,
+            ),
+            (
+                "tamper",
+                self.custody_fixture("tamper 71"),
+                self.test_recordless_run_issue_tamper_routes_block_and_disarms_pull,
+            ),
+            (
                 "ordinary",
-                self.request_seed(70, outcome="no_changes"),
+                self.custody_fixture("ordinary request 70"),
                 self.test_recordless_ordinary_request_finishes_successfully,
             ),
             (
-                "self-change",
-                self.request_seed(42),
-                self.test_recordless_tick_self_change_pause_stops_retro_dispatch,
+                "post-launch",
+                self.custody_fixture("post-launch request 81"),
+                self.test_recordless_request_post_launch_save_failure_preserves_disk_authority,
             ),
         )
-        for scenario, seed, golden in scenarios:
+        for scenario, seed, golden in single_scenarios:
             for label, variant in self.custody_variants(seed):
                 with self.subTest(scenario=scenario, case=label):
-                    shutil.rmtree(self.home, ignore_errors=True)
-                    self.home.mkdir()
-                    ht._PRINTED.clear()
+                    reset()
                     with self.seeded_golden(variant):
                         golden()
-        for label, variant in self.custody_variants(self.request_seed(42)):
+
+        for scenario, primary_seed, nightly_seed, golden in (
+            (
+                "priority",
+                self.custody_fixture("priority request"),
+                self.custody_fixture("priority nightly"),
+                self.test_recordless_both_admissions_choose_priority_and_keep_fixed_bytes,
+            ),
+            (
+                "drained",
+                self.custody_fixture("drained request"),
+                self.custody_fixture("drained nightly"),
+                self.test_recordless_idle_primary_reads_nightly_queue_before_job_work,
+            ),
+        ):
+            for producer, seed in (
+                ("primary", primary_seed),
+                ("nightly", nightly_seed),
+            ):
+                for label, variant in self.custody_variants(seed):
+                    with self.subTest(
+                        scenario=scenario, producer=producer, case=label
+                    ):
+                        reset()
+                        with self.seeded_golden(
+                            variant
+                            if producer == "primary"
+                            else primary_seed,
+                            variant
+                            if producer == "nightly"
+                            else nightly_seed,
+                        ):
+                            golden()
+
+        for label, variant in self.custody_variants(
+            self.custody_fixture("valid acknowledgement")
+        ):
             with self.subTest(scenario="acknowledgement", case=label):
-                shutil.rmtree(self.home, ignore_errors=True)
-                self.home.mkdir()
-                ht._PRINTED.clear()
+                reset()
                 self.assert_valid_acknowledgement_pair(variant)
+
+        direct_scenarios = (
+            (
+                "request 63 path absent",
+                self.custody_fixture("request 63 path absent"),
+                self.assert_request_63_path_absent_no_drop,
+            ),
+            (
+                "old retro pre-drop",
+                self.custody_fixture("old retro pre-drop"),
+                self.assert_old_retro_tree_pre_drop_pair,
+            ),
+            (
+                "stopped retro",
+                self.custody_fixture("identified stopped retro pair"),
+                self.assert_identified_stopped_retro_pair,
+            ),
+        )
+        for scenario, seed, assertion in direct_scenarios:
+            for label, variant in self.custody_variants(seed):
+                with self.subTest(scenario=scenario, case=label):
+                    reset()
+                    assertion(variant)
 
     def test_seeded_quiet_tick_preserves_fixed_legacy_transcript_and_bytes(self):
         """Fails if: a valid installed request seed changes quiet selection, saves or bytes."""

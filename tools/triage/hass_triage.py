@@ -96,6 +96,15 @@ DEFAULT_WORKFLOW_BASE = "main"
 REVERT_FLOWS, REVERT_DAYS, REVERT_MIN_FLOWS, REVERT_MARGIN, REVERT_NEEDS = 10, 14, 3, 0.2, 2
 #: Most lanes the runner lands from one session's status file.
 LANE_LIMIT = 5
+#: Custody disposition and reason vocabularies are shared by records and bindings.
+CUSTODY_DISPOSITIONS = frozenset((
+    "needs_pr", "closed_unmerged", "owner_wait", "actionable",
+    "read_fault", "awaiting_review_wiring", "merged_pending_accounting",
+))
+CUSTODY_REASONS = CUSTODY_DISPOSITIONS | frozenset((
+    "reserved", "untrusted_exit", "positive_empty", "merge_conflict",
+    "pr_checks_failed", "ai_review_failed", "non_owner_stall",
+))
 #: Finished retro queue entries kept in ``state-retro.json``.
 RETRO_HISTORY = 100
 #: The acceptance checks every ledger entry starts with (shadow: reported, not gated).
@@ -538,7 +547,9 @@ class State:
     def _custody_lane(cls, value: Any) -> bool:
         return (
             isinstance(value, str)
-            and value.startswith("agents/")
+            and re.fullmatch(
+                r"agents/[A-Za-z0-9][A-Za-z0-9._/-]*", value
+            ) is not None
             and cls._custody_ref(f"refs/heads/{value}")
         )
 
@@ -579,10 +590,10 @@ class State:
 
     def _custody_closed(
             self, value: Any, names: Iterable[str], key: Dict[str, str],
-            scope: str = "record", kind: str = "type",
+            scope: str = "record",
     ) -> bool:
         if not isinstance(value, dict) or any(name not in names for name in value):
-            self._custody_fault(kind, scope, 1, key)
+            self._custody_fault("type", scope, 1, key)
             return False
         return True
 
@@ -748,11 +759,7 @@ class State:
         tip = binding.get("tip")
         if (
             not isinstance(disposition, str)
-            or disposition not in (
-                "needs_pr", "closed_unmerged", "owner_wait", "actionable",
-                "read_fault", "awaiting_review_wiring",
-                "merged_pending_accounting",
-            )
+            or disposition not in CUSTODY_DISPOSITIONS
         ):
             self._custody_fault("disposition", "record", 1, record_key)
             return None
@@ -779,16 +786,9 @@ class State:
         ):
             self._custody_fault("type", "record", 1, record_key)
             return None
-        reasons = {
-            "needs_pr", "closed_unmerged", "owner_wait", "actionable",
-            "read_fault", "awaiting_review_wiring",
-            "merged_pending_accounting", "reserved", "untrusted_exit",
-            "positive_empty", "merge_conflict", "pr_checks_failed",
-            "ai_review_failed", "non_owner_stall",
-        }
         if "reason" in binding and (
             not isinstance(binding["reason"], str)
-            or binding["reason"] not in reasons
+            or binding["reason"] not in CUSTODY_REASONS
         ):
             self._custody_fault("type", "record", 1, record_key)
             return None
@@ -952,15 +952,9 @@ class State:
         if "attempts" in record and not self._custody_int(record["attempts"], 0):
             self._custody_fault("type", "record", 1, key)
             return None
-        reasons = {
-            "needs_pr", "closed_unmerged", "owner_wait", "actionable",
-            "read_fault", "awaiting_review_wiring",
-            "merged_pending_accounting", "reserved", "untrusted_exit",
-            "positive_empty", "merge_conflict", "pr_checks_failed",
-            "ai_review_failed", "non_owner_stall",
-        }
         if "reason" in record and (
-            not isinstance(record["reason"], str) or record["reason"] not in reasons
+            not isinstance(record["reason"], str)
+            or record["reason"] not in CUSTODY_REASONS
         ):
             self._custody_fault("type", "record", 1, key)
             return None
@@ -975,8 +969,6 @@ class State:
             if (
                 target is None
                 or not outcome
-                or outcome.get("trust") != "clean_end"
-                or outcome.get("exit_code") != 0
                 or outcome.get("state") not in ("done", "no_changes")
                 or bindings
                 or not isinstance(proof, dict)
@@ -1021,8 +1013,6 @@ class State:
                 return None
         elif proof is not None:
             self._custody_fault("phase", "record", 1, key)
-            return None
-        if len(self.load_faults) != body_faults:
             return None
         body = {
             "phase": phase,
@@ -1090,10 +1080,13 @@ class State:
         }
         for canonical, spellings in sorted(repository_aliases.items()):
             if len(spellings) > 1:
-                self._custody_fault(
-                    "key", "record", 1,
-                    self._custody_key(canonical),
-                )
+                if canonical in spellings:
+                    self._custody_fault(
+                        "key", "record", 1,
+                        self._custody_key(canonical),
+                    )
+                else:
+                    self._custody_fault("namespace", "store", 1)
         for repository, intakes in sorted(records.items()):
             if repository in collided:
                 continue
