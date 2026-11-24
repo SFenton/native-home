@@ -21,6 +21,7 @@
 /tools/pr_land.py @SFenton
 /tools/pr_blockers.py @SFenton
 /tools/pr_land.sh @SFenton
+/tools/studio_land.py @SFenton
 /tools/lane_*.py @SFenton
 /tools/pr_policy.py @SFenton
 /tools/ci_aggregate.py @SFenton
