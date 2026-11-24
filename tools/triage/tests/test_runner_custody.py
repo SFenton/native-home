@@ -945,6 +945,7 @@ class StoreTestBase(t.Base):
         expected_nightly_queue,
         expected_retro_queue,
         expected_queue_events,
+        expected_remote_events,
         expected_files,
         expected_git_events=(),
         expected_launch_events=(),
@@ -957,13 +958,23 @@ class StoreTestBase(t.Base):
             ht.Paths(self.cfg, self.home, "nightly-").state,
             ht.Paths(self.cfg, self.home, "retro-").state,
         )
-        queue_events = []
+        queue_events, remote_events = expected_queue_events, expected_remote_events
+        text_queue_events, encoded_queue_events = queue_events
+        if remote_events is None:
+            text_remote_events = encoded_remote_events = None
+        else:
+            text_remote_events, encoded_remote_events = remote_events
 
-        def invoke(argv):
+        def invoke(
+            argv, call_queue_events, call_remote_events
+        ):
             constructors = []
             reads = []
             original_init = ht.State.__init__
             original_read_text = Path.read_text
+            remote_start = (
+                len(gh.events) if hasattr(gh, "events") else None
+            )
 
             def observed_init(state, path):
                 constructors.append(Path(path))
@@ -1002,10 +1013,20 @@ class StoreTestBase(t.Base):
             admission.assert_not_called()
             save.assert_not_called()
             mkdir.assert_not_called()
-            queue_events.extend(
-                ("open", call.args[0])
-                for call in queue_open.call_args_list
+            self.assertEqual(
+                list(
+                    ("open", call.args[0])
+                    for call in queue_open.call_args_list
+                ),
+                list(call_queue_events),
+                f"queue events for {' '.join(argv)}",
             )
+            if remote_start is not None:
+                self.assertEqual(
+                    list(gh.events[remote_start:]),
+                    list(call_remote_events),
+                    f"complete remote events for {' '.join(argv)}",
+                )
             return result
 
         with ht.writer_lock(self.paths) as admitted:
@@ -1013,10 +1034,19 @@ class StoreTestBase(t.Base):
             self.paths.lock.write_text("4242")
             before_bytes = self.file_bytes()
             before_inventory = self.file_inventory()
-            text = invoke(["status"])
-            encoded = invoke(["status", "--json"])
+            text = invoke(
+                ["status"],
+                text_queue_events,
+                text_remote_events,
+            )
+            encoded = invoke(
+                ["status", "--json"],
+                encoded_queue_events,
+                encoded_remote_events,
+            )
             after_bytes = self.file_bytes()
             after_inventory = self.file_inventory()
+        after_lock_bytes = self.file_bytes()
 
         self.assertEqual(text, expected_text)
         self.assertEqual((encoded[0], encoded[2]), (0, ""))
@@ -1029,21 +1059,32 @@ class StoreTestBase(t.Base):
         self.assertEqual(report["state_loads"], expected_state_loads)
         self.assertEqual(report["retro_queue"], expected_retro_queue)
         if expected_custody is _PA_ABSENT:
-            self.assertNotIn("custody", text[1])
             self.assertNotIn("custody", report)
             self.assertNotIn("custody", encoded[1])
         else:
-            self.assertIn("custody", report)
-            self.assertEqual(report["custody"], expected_custody)
-        if expected_custody_text is _PA_ABSENT:
-            self.assertNotIn("custody", text[1])
-        else:
-            additions = "".join(
-                line for line in text[1].splitlines(True)
-                if line.startswith("custody ")
+            self.assertIn(
+                "custody", report, "custody JSON comparison"
             )
-            self.assertEqual(additions, expected_custody_text)
-        self.assertEqual(queue_events, expected_queue_events)
+            self.assertEqual(
+                report["custody"],
+                expected_custody,
+                "custody JSON comparison",
+            )
+        if expected_custody_text is _PA_ABSENT:
+            self.assertNotIn(
+                "custody", text[1], "custody text comparison"
+            )
+        else:
+            offset = 0
+            for line in expected_custody_text.splitlines(True):
+                position = expected_text[1].find(line, offset)
+                self.assertNotEqual(
+                    position,
+                    -1,
+                    "custody text comparison: supplied line is missing "
+                    "from expected text",
+                )
+                offset = position + len(line)
         self.assertEqual(
             tuple(boundaries.git_events), expected_git_events
         )
@@ -1055,6 +1096,7 @@ class StoreTestBase(t.Base):
         )
         self.assertEqual(before_bytes, expected_files)
         self.assertEqual(after_bytes, before_bytes)
+        self.assertEqual(after_lock_bytes, expected_files)
         self.assertEqual(after_inventory, before_inventory)
 
     def file_bytes(self):
@@ -2667,7 +2709,11 @@ class CustodySchemaTests(StoreTestBase):
             _PA_INVALID_JSON_FIELDS["queue"],
             _PA_INVALID_JSON_FIELDS["nightly_queue"],
             _PA_INVALID_JSON_FIELDS["retro_queue"],
-            [("open", cfg["request_repo"])] * 2,
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
+            None,
             {
                 ".local/state/hass-triage/state.json":
                     json.dumps(primary).encode(),
@@ -5231,7 +5277,14 @@ class StatusAndGoldenTests(StoreTestBase):
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["queue"],
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["nightly_queue"],
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["retro_queue"],
-            [("open", cfg["request_repo"])] * 2,
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
             {
                 ".local/state/hass-triage/state-nightly.json": b"{",
                 ".local/state/hass-triage/state-retro.json":
@@ -5240,6 +5293,10 @@ class StatusAndGoldenTests(StoreTestBase):
                     json.dumps(primary).encode(),
                 ".local/state/hass-triage/tick.lock": b"4242",
             },
+        )
+        self.assertEqual(
+            gh.events,
+            [("open", cfg["request_repo"])] * 2,
         )
 
     def test_custody_pa_locked_status_profiles(self):
@@ -5339,9 +5396,14 @@ class StatusAndGoldenTests(StoreTestBase):
                     })
                     expected_text = _PA_QUEUE_ERROR_STATUS_TEXT
                     expected_json = _PA_QUEUE_ERROR_JSON_FIELDS
-                    expected_queue_events = [
-                        ("open", cfg["request_repo"])
-                    ] * 2
+                    expected_queue_events = (
+                        (("open", cfg["request_repo"]),),
+                        (("open", cfg["request_repo"]),),
+                    )
+                    expected_remote_events = (
+                        (("open", cfg["request_repo"]),),
+                        (("open", cfg["request_repo"]),),
+                    )
                 else:
                     gh = RecordlessTraceGitHub({
                         cfg["request_repo"]: [],
@@ -5349,13 +5411,36 @@ class StatusAndGoldenTests(StoreTestBase):
                     })
                     expected_text = _PA_HEALTHY_STATUS_TEXT
                     expected_json = _PA_HEALTHY_JSON_FIELDS
-                    expected_queue_events = [
-                        ("open", cfg["request_repo"]),
-                        ("open", cfg["nightly"]["repo"]),
-                    ] * 2
+                    expected_queue_events = (
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                    )
+                    expected_remote_events = (
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                    )
                 self.assert_pa_custody_loader(
                     cfg, expected_custody, expected_json["state_loads"]
                 )
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
                 self.assert_pa_locked_status(
                     cfg,
                     gh,
@@ -5367,14 +5452,62 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_json["nightly_queue"],
                     expected_json["retro_queue"],
                     expected_queue_events,
-                    {
-                        ".local/state/hass-triage/state.json":
-                            json.dumps(primary).encode(),
-                        ".local/state/hass-triage/state-nightly.json":
-                            json.dumps(nightly).encode(),
-                        ".local/state/hass-triage/tick.lock": b"4242",
-                    },
+                    expected_remote_events,
+                    expected_files,
                 )
+                if label == "healthy readable recordless":
+                    with self.subTest(
+                        expectation="supplied custody JSON"
+                    ), self.assertRaisesRegex(
+                        AssertionError, "custody JSON comparison"
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody={
+                                "version": 1,
+                                "records": [],
+                                "faults": [],
+                            },
+                        )
+                    with self.subTest(
+                        expectation="supplied custody text"
+                    ), self.assertRaisesRegex(
+                        AssertionError, "custody text comparison"
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody_text=(
+                                "custody record request:42\n"
+                            ),
+                        )
 
     def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
         """Fails if: request 81 save failure changes containment, prompt normalization or last committed bytes."""
