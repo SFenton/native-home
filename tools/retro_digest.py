@@ -14,6 +14,13 @@ note). A check-only blocked snapshot is suppressed only when a complete matching
 resolved and no independent status signal remains. A missing or unreadable input is skipped, never fatal. The Steward
 reads the result; this script never judges it.
 
+Named waits use a blocked status whose ``blocked_reason`` starts with ``owner_wait:`` or ``lane_wait:`` followed by
+non-empty text. With a complete matching ledger and matching status task, they count as waits instead of firing
+``blocked`` unless reconciliation reports stale status (``pass`` for a ledger check that does not pass, or ``fail`` for
+one that does). A missing, unreadable or malformed ledger cancels the wait, as does a mismatching status task. An open
+ledger check with ``passes: false`` remains compatible with status ``fail`` or ``not_run``. A runner outcome beginning
+with ``blocked`` always remains a block.
+
 ``--lane NAME`` (a worktree lane such as ``loop-followups``, or a branch such as ``claude/loop-followups``) digests a lane that has no
 ledger task, e.g. an interactive subagent flow, from what it leaves behind: the lane worktree's ``build/runs`` (``*.digest``
 and ``*.running`` markers from ``bg_run``, with their durations and executed/skipped/failed counts), ``build/review/<branch>.json``
@@ -341,7 +348,7 @@ def reconcile_status(task: str, ledger: Dict[str, Any], status: Dict[str, Any]) 
 
     all_checks_pass = ledger_well_formed and all(checks.values())
     suppress = bool(status_well_formed and stale_failures and all_checks_pass and not separate_reason)
-    return {"stale": sorted(stale), "suppress": suppress}
+    return {"stale": sorted(stale), "suppress": suppress, "ledger_well_formed": ledger_well_formed}
 
 
 def wait_minutes(raw: str) -> Tuple[int, str]:
@@ -518,10 +525,22 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     state = str(status.get("state") or status.get("status") or "")  # the runner writes state; agents write status
     reconciliation = reconcile_status(args.task, ledger, status)
     status_suppressed = state == "blocked" and reconciliation["suppress"]
+    blocked_reason = status.get("blocked_reason")
+    wait_prefixed = state == "blocked" and isinstance(blocked_reason, str) and any(
+        blocked_reason.startswith(prefix) and blocked_reason[len(prefix):].strip()
+        for prefix in ("owner_wait:", "lane_wait:")
+    )
+    wait_ledger_invalid = bool(wait_prefixed and not reconciliation["ledger_well_formed"])
+    named_wait = bool(wait_prefixed and not wait_ledger_invalid
+                      and status.get("task") == args.task and not reconciliation["stale"])
+    wait_ledger_evidence = f"ledger {src['ledger']} is missing, unreadable, or malformed"
     if outcome.startswith("blocked"):
-        fire("blocked", outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
-    elif state == "blocked" and not status_suppressed:
-        fire("blocked", status.get("blocked_reason") or status.get("summary") or outcome)
+        fire("blocked", wait_ledger_evidence if wait_ledger_invalid
+             else outcome if status_suppressed else status.get("blocked_reason") or status.get("summary") or outcome)
+    elif state == "blocked" and not status_suppressed and not named_wait:
+        evidence = (wait_ledger_evidence if wait_ledger_invalid
+                    else status.get("blocked_reason") or status.get("summary") or outcome)
+        fire("blocked", evidence)
     if outcome in ("timeout", "blocked:timeout"):
         fire("timeout", "the session ran past the timeout and was stopped")
     if outcome == "retry":
@@ -670,7 +689,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
             "triggers": len(triggers), "review_rounds": rounds, "review_verdicts": len(reviews),
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
             "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
-            "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0,
+            "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0, "waits": 1 if named_wait else 0,
             "owner_replies": len(comments), "tool_errors": errors, **lane_counts,
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
