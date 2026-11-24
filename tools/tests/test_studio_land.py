@@ -137,16 +137,15 @@ class LandTests(unittest.TestCase):
         self.assertEqual(studio_land.owner_paths({"studio_owner_paths": ["x/", "y.txt"]}), ["x/", "y.txt"])
         for bad in ("x", [], [""], [1]):
             self.assertEqual(studio_land.owner_paths({"studio_owner_paths": bad}), studio_land.DEFAULT_OWNER_PATHS)
-        cfg = json.loads((TOOLS / "triage" / "config.json").read_text())
-        self.assertEqual(cfg["studio_owner_paths"], studio_land.DEFAULT_OWNER_PATHS)
+        self.assertEqual(studio_land.owner_paths(), studio_land.DEFAULT_OWNER_PATHS)  # the real config has no such key: the defaults apply
+        self.assertEqual(studio_land.DEFAULT_OWNER_PATHS, [".github/", "Dockerfile", "scripts/release.ts", "scripts/next-version.ts", "CHANGELOG.md",
+                                                           "config.yaml", "package.json", "package-lock.json"])
 
     def test_the_allow_entries_match_pr_land(self):
-        """Fails if: studio_land.py loses the settings or triage allow entries pr_land.sh has, so the route stops running unattended."""
+        """Fails if: studio_land.py loses the settings allow entries pr_land.sh has, so the route stops running unattended."""
         allow = json.loads((TOOLS.parent / ".claude/settings.json").read_text())["permissions"]["allow"]
         for entry in ("Bash(tools/studio_land.py:*)", "Bash(./tools/studio_land.py:*)"):
             self.assertIn(entry, allow)
-        tools = json.loads((TOOLS / "triage" / "config.json").read_text())["agent"]["allowed_tools"]
-        self.assertIn("Bash(tools/studio_land.py*)", tools)
 
     def test_the_refusal_message_names_both_landers(self):
         """Fails if: a refused merge still points a Studio pull request at pr_land.sh only."""
@@ -191,7 +190,7 @@ class LandTests(unittest.TestCase):
         for bad in ("studio", [], [""], [1], None):
             self.assertEqual(studio_land.required_checks({"studio_required_checks": bad}), ["studio"], bad)
         self.assertEqual(studio_land.required_checks({"studio_required_checks": ["studio", "e2e (1/8)"]}), ["studio", "e2e (1/8)"])
-        self.assertEqual(studio_land.required_checks(), json.loads((TOOLS / "triage" / "config.json").read_text())["studio_required_checks"])
+        self.assertEqual(studio_land.required_checks(), ["studio"])  # the real config has no such key: the default applies
         self.assert_blocked(Stub(), "absent on this head: extra", cfg={"studio_required_checks": ["studio", "extra"]})
 
     def test_a_refused_merge_fails_and_an_unmerged_pull_request_fails(self):

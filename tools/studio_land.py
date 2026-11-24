@@ -6,7 +6,7 @@ checks itself. It refuses, in order: the kill switch; a pull request that is not
 configured agent login (:func:`pr_land.author_ok`), not based on ``main``, in conflict, or labelled ``Needs Decision``; any changed
 file in ``studio_owner_paths`` (``.github/``, the release scripts, ``Dockerfile``, ``CHANGELOG.md``, ``config.yaml``, ``package.json`` and its lock: the owner's); no independent ``pass`` for the full head sha
 (:func:`review_verdict.has_pass`); and any check run on that head that is not completed ``success``, ``skipped`` or ``neutral``, or a
-required check run that is absent (``studio_required_checks`` in ``tools/triage/config.json``, default ``["studio"]``, the ``ci.yml``
+required check run that is absent (default ``["studio"]``, overridable by an optional ``studio_required_checks`` key in ``tools/triage/config.json``, the ``ci.yml``
 aggregate that needs ``checks``, ``e2e`` and ``container``). Then it runs exactly
 ``gh pr merge N -R SFenton/ha-native-home-app --squash --match-head-commit <head>`` (no ``--auto``, no ``--admin``, no ``--delete-branch``),
 re-reads the pull request and prints one line: ``merged``, ``blocked`` or ``failed`` (``would merge`` for ``--dry-run``).
