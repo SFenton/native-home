@@ -140,7 +140,12 @@ class StoreTestBase(t.Base):
             archive_session, source_archive="", source_queued="",
             outcome="done",
     ):
-        return CustodySeed(
+        source_repository = ""
+        if producer.startswith("request:"):
+            source_repository = self.cfg["request_repo"].lower()
+        elif producer.startswith("nightly:"):
+            source_repository = self.cfg["nightly"]["repo"].lower()
+        seed = CustodySeed(
             repository=self.cfg["product_repo"].lower(),
             intake=intake,
             producer=producer,
@@ -148,17 +153,17 @@ class StoreTestBase(t.Base):
             branch=branch,
             archive_name=archive_name,
             archive_session=archive_session,
-            source_repository=(
-                self.cfg["request_repo"].lower()
-                if intake == "request"
-                else self.cfg["nightly"]["repo"].lower()
-                if intake == "nightly"
-                else ""
-            ),
+            source_repository=source_repository,
             source_archive=source_archive,
             source_queued=source_queued,
             outcome=outcome,
         )
+        if producer.startswith(("job:", "retro:")):
+            target = seed.aggregate()["records"][seed.repository][
+                intake
+            ][producer][generation]["target"]
+            self.assertNotIn("source_repository", target)
+        return seed
 
     def request_seed(self, number, outcome="done"):
         return self.custody_seed(
@@ -214,7 +219,7 @@ class StoreTestBase(t.Base):
             "old-input",
             "2026-11-22T12:00:00Z",
             "retro-old-input",
-            "retro-old-retro-bc9b9b0ea1cf",
+            "retro-old-retro-seed",
         )
 
     def integrated_job_seeds(self):
@@ -1295,6 +1300,10 @@ class ContainmentTests(StoreTestBase):
         else:
             process.stdin.close.assert_called_once_with()
             reap.assert_called_once_with(987654)
+            self.assertIn(
+                "launched process cleanup confirmed after",
+                err.getvalue(),
+            )
 
     def test_classic_reviewer_save_failure_is_not_a_job_lane_error(self):
         """Fails if: the classic reviewer hides persistence failure or fails to contain its exact fake pid."""
@@ -1333,7 +1342,7 @@ class ContainmentTests(StoreTestBase):
             ht.subprocess, "Popen", return_value=process
         ) as popen, mock.patch.object(
             runner, "_wait_group", return_value=(0, True)
-        ), mock.patch.object(
+        ) as wait, mock.patch.object(
             ht.shutil, "which", return_value=None
         ):
             self.assertEqual(
@@ -1350,6 +1359,8 @@ class ContainmentTests(StoreTestBase):
         popen.assert_called_once()
         process.stdin.write.assert_called_once_with(b"review prompt")
         process.stdin.close.assert_called_once_with()
+        wait.assert_called_once_with(process, 18000.0)
+        ht.lane_land.reap_group.assert_not_called()
 
     def assert_retro_final_save_failure_preserves_primary_authority(self, ready):
         runner = self.runner(
@@ -2148,10 +2159,6 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/tick.lock": b"4242",
         })
         self.assertEqual(boundaries.forget_events, [])
-        self.assertNotIn(
-            (self.paths.worktrees / "63", self.home),
-            boundaries.forget_events,
-        )
 
     def test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue(self):
         """Fails if: job, retro or regression changes any ordered effect, normalized prompt or byte."""
@@ -3201,6 +3208,270 @@ class StatusAndGoldenTests(StoreTestBase):
         })
         self.assertEqual(boundaries.forget_events, [])
 
+    def test_every_seed_fixture_is_coherent_under_the_wire_contract(self):
+        """Fails if: R221-1, R221-2, R221-3 or R221-4 leaves an incoherent seed fixture."""
+        scenarios = (
+            ("quiet request", "primary", self.request_seed(42), (), ()),
+            (
+                "priority request",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "priority nightly",
+                "nightly",
+                self.nightly_seed(),
+                (),
+                (),
+            ),
+            (
+                "drained request",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "drained nightly",
+                "nightly",
+                self.nightly_seed(),
+                (),
+                (),
+            ),
+            (
+                "self-change pause",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "valid acknowledgement",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "maintenance",
+                "primary",
+                self.maintenance_seeds(),
+                (),
+                ("request-64-fixed",),
+            ),
+            (
+                "integrated job and retro",
+                "primary",
+                self.integrated_job_seeds(),
+                ((
+                    "job-researcher-2026-11-23",
+                    "job-researcher-2026-11-23",
+                    "2026-11-23T12:00:00Z",
+                ),),
+                (
+                    "job-researcher-897aded5543e",
+                    "retro-job-researcher-2026-11-23-e6789b1f72f7",
+                ),
+            ),
+            (
+                "tamper 71",
+                "primary",
+                self.request_seed(71, outcome="done"),
+                (),
+                ("request-71-a2d9ced85f6f",),
+            ),
+            (
+                "ordinary request 70",
+                "primary",
+                self.request_seed(70, outcome="no_changes"),
+                (),
+                (),
+            ),
+            (
+                "manual controls 72",
+                "primary",
+                self.request_seed(72),
+                (),
+                (),
+            ),
+            (
+                "locked status 72",
+                "primary",
+                self.request_seed(72),
+                (),
+                (),
+            ),
+            (
+                "post-launch request 81",
+                "primary",
+                self.request_seed(81, outcome="done"),
+                (),
+                ("request-81-10cf3364c1d1",),
+            ),
+            (
+                "classic reviewer",
+                "primary",
+                self.job_seed(),
+                (),
+                (),
+            ),
+            (
+                "worker reviewer callback",
+                "primary",
+                self.job_seed(),
+                (),
+                (),
+            ),
+            (
+                "identified stopped retro pair",
+                "primary",
+                self.stopped_retro_seed(),
+                ((
+                    "held-retro",
+                    "held-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (),
+            ),
+            (
+                "request 63 path absent",
+                "primary",
+                self.request_seed(63),
+                (),
+                ("request-63-installed",),
+            ),
+            (
+                "old retro pre-drop",
+                "primary",
+                self.old_retro_seed(),
+                ((
+                    "old-retro",
+                    "old-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (
+                    "retro-old-input-prior",
+                    "retro-old-retro-bc9b9b0ea1cf",
+                ),
+            ),
+        )
+        for scenario, store, seed, queue_sources, other_sessions in scenarios:
+            aggregate = seed.aggregate()
+            self.assertEqual(aggregate["version"], 1)
+            for repository, intakes in aggregate["records"].items():
+                self.assertEqual(repository, self.cfg["product_repo"].lower())
+                for intake, producers in intakes.items():
+                    for producer, generations in producers.items():
+                        for generation, record in generations.items():
+                            with self.subTest(
+                                scenario=scenario,
+                                store=store,
+                                intake=intake,
+                                producer=producer,
+                                generation=generation,
+                            ):
+                                target = record["target"]
+                                if producer.startswith(
+                                    ("request:", "nightly:")
+                                ):
+                                    expected_repository = (
+                                        self.cfg["request_repo"].lower()
+                                        if producer.startswith("request:")
+                                        else self.cfg["nightly"]["repo"].lower()
+                                    )
+                                    self.assertEqual(
+                                        target["source_repository"],
+                                        expected_repository,
+                                    )
+                                    self.assertEqual(
+                                        intake,
+                                        "nightly"
+                                        if producer.startswith("nightly:")
+                                        else "request",
+                                    )
+                                elif producer.startswith(("job:", "retro:")):
+                                    self.assertNotIn(
+                                        "source_repository", target
+                                    )
+                                    self.assertEqual(intake, "request")
+                                else:
+                                    self.fail(f"unexpected producer {producer!r}")
+                                expected_store = (
+                                    "nightly"
+                                    if intake == "nightly"
+                                    else "primary"
+                                )
+                                self.assertEqual(store, expected_store)
+                                if producer.startswith("retro:"):
+                                    sources = {
+                                        task: (archive, queued)
+                                        for task, archive, queued
+                                        in queue_sources
+                                    }
+                                    task = producer.removeprefix("retro:")
+                                    self.assertIn(task, sources)
+                                    archive, queued = sources[task]
+                                    self.assertIsNotNone(archive)
+                                    self.assertIsNotNone(queued)
+                                    self.assertEqual(
+                                        target["source_archive"], archive
+                                    )
+                                    self.assertEqual(
+                                        target["source_queued"], queued
+                                    )
+                                    self.assertNotIn("/", archive)
+                                    self.assertNotIn("\\", archive)
+                                else:
+                                    self.assertNotIn(
+                                        "source_archive", target
+                                    )
+                                    self.assertNotIn(
+                                        "source_queued", target
+                                    )
+                                self.assertEqual(
+                                    record["phase"], "release_authorized"
+                                )
+                                self.assertEqual(record["bindings"], {})
+                                self.assertEqual(
+                                    record["original_outcome"]["trust"],
+                                    "clean_end",
+                                )
+                                self.assertEqual(
+                                    record["original_outcome"]["exit_code"],
+                                    0,
+                                )
+                                self.assertIn(
+                                    record["original_outcome"]["state"],
+                                    ("done", "no_changes"),
+                                )
+                                self.assertTrue(
+                                    target["branch"].startswith(
+                                        "refs/heads/"
+                                    )
+                                )
+                                for branch in record["pre_refs"]:
+                                    self.assertTrue(
+                                        branch.startswith("refs/heads/")
+                                    )
+                                self.assertEqual(
+                                    record["release_proof"],
+                                    {
+                                        "inventory": "positive_empty",
+                                        "unlanded": "verified_none",
+                                        "archive_name":
+                                            target["archive_name"],
+                                        "archive_session":
+                                            target["archive_session"],
+                                        "archive_disposition": "archived",
+                                    },
+                                )
+                                self.assertNotIn(
+                                    target["archive_session"],
+                                    other_sessions,
+                                )
+
     def test_seeded_quiet_tick_preserves_fixed_legacy_transcript_and_bytes(self):
         """Fails if: a valid installed request seed changes quiet selection, saves or bytes."""
         with self.seeded_golden(self.request_seed(42)):
@@ -3221,8 +3492,8 @@ class StatusAndGoldenTests(StoreTestBase):
             self.test_recordless_idle_primary_reads_nightly_queue_before_job_work()
 
     def test_seeded_self_change_pause_preserves_stopped_retro_dispatch(self):
-        """Fails if: a valid installed retro seed changes the self-change stop or pause."""
-        with self.seeded_golden(self.stopped_retro_seed()):
+        """Fails if: an installed historical request seed changes the self-change stop or pause."""
+        with self.seeded_golden(self.request_seed(42)):
             self.test_recordless_tick_self_change_pause_stops_retro_dispatch()
 
     def test_seeded_maintenance_preserves_all_reached_request_paths(self):
@@ -3237,7 +3508,7 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_seeded_tamper_preserves_block_and_disarm_effects(self):
         """Fails if: a valid request 71 seed changes tamper classification or effects."""
-        with self.seeded_golden(self.request_seed(71, outcome="blocked")):
+        with self.seeded_golden(self.request_seed(71, outcome="done")):
             self.test_recordless_run_issue_tamper_routes_block_and_disarms_pull()
 
     def test_seeded_ordinary_request_preserves_positive_empty_cleanup(self):
@@ -3259,7 +3530,7 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_seeded_post_launch_save_failure_preserves_last_committed_bytes(self):
         """Fails if: a valid request 81 seed changes save failure authority or output."""
-        with self.seeded_golden(self.request_seed(81, outcome="blocked")):
+        with self.seeded_golden(self.request_seed(81, outcome="done")):
             self.test_recordless_request_post_launch_save_failure_preserves_disk_authority()
 
     def assert_valid_acknowledgement_pair(self, seed):
