@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -21,6 +22,108 @@ import test_hass_triage as t
 ht = t.ht
 FakeGitHub = t.FakeGitHub
 
+ELIDED_PROMPT_ARGUMENTS = {
+    "scheduled researcher": mock.ANY,
+    "manual researcher": mock.ANY,
+    "retro": mock.ANY,
+    "request 71": mock.ANY,
+    "request 70": mock.ANY,
+    "request 81": mock.ANY,
+}
+
+
+@dataclass(frozen=True)
+class CustodySeed:
+    repository: str
+    intake: str
+    producer: str
+    generation: str
+    branch: str
+    archive_name: str
+    archive_session: str
+    source_repository: str = ""
+    source_archive: str = ""
+    source_queued: str = ""
+    outcome: str = "done"
+
+    def aggregate(self):
+        target = {
+            "branch": self.branch,
+            "archive_name": self.archive_name,
+            "archive_session": self.archive_session,
+        }
+        if self.source_repository:
+            target["source_repository"] = self.source_repository
+        if self.source_archive:
+            target["source_archive"] = self.source_archive
+            target["source_queued"] = self.source_queued
+        record = {
+            "phase": "release_authorized",
+            "since": "2026-11-23T12:00:00Z",
+            "target": target,
+            "pre_refs": {self.branch: "absent"},
+            "bindings": {},
+            "original_outcome": {
+                "trust": "clean_end",
+                "exit_code": 0,
+                "state": self.outcome,
+            },
+            "release_proof": {
+                "inventory": "positive_empty",
+                "unlanded": "verified_none",
+                "archive_name": self.archive_name,
+                "archive_session": self.archive_session,
+                "archive_disposition": "archived",
+            },
+        }
+        return {
+            "version": 1,
+            "records": {
+                self.repository: {
+                    self.intake: {
+                        self.producer: {
+                            self.generation: record,
+                        },
+                    },
+                },
+            },
+        }
+
+
+@dataclass(frozen=True)
+class CustodySeeds:
+    items: tuple
+
+    def aggregate(self):
+        result = {"version": 1, "records": {}}
+        for seed in self.items:
+            aggregate = seed.aggregate()
+            for repository, intakes in aggregate["records"].items():
+                repos = result["records"].setdefault(repository, {})
+                for intake, producers in intakes.items():
+                    entries = repos.setdefault(intake, {})
+                    for producer, generations in producers.items():
+                        values = entries.setdefault(producer, {})
+                        for generation, record in generations.items():
+                            if generation in values:
+                                raise AssertionError(
+                                    "duplicate custody seed generation"
+                                )
+                            values[generation] = record
+        return result
+
+
+def seeded_expected(expected, seed):
+    value = json.loads(json.dumps(expected))
+    if seed is None:
+        return value
+    aggregate = seed.aggregate()
+    existing = value.get("custody")
+    if existing is not None and existing != aggregate:
+        raise AssertionError("seed does not match the expected custody fixture")
+    value["custody"] = aggregate
+    return value
+
 
 class StoreTestBase(t.Base):
     def write_raw(self, path: Path, value) -> None:
@@ -31,6 +134,167 @@ class StoreTestBase(t.Base):
         value = ht.State._empty_data()
         value.update(extra)
         return value
+
+    def custody_seed(
+            self, intake, producer, generation, branch, archive_name,
+            archive_session, source_archive="", source_queued="",
+            outcome="done",
+    ):
+        source_repository = ""
+        if producer.startswith("request:"):
+            source_repository = self.cfg["request_repo"].lower()
+        elif producer.startswith("nightly:"):
+            source_repository = self.cfg["nightly"]["repo"].lower()
+        seed = CustodySeed(
+            repository=self.cfg["product_repo"].lower(),
+            intake=intake,
+            producer=producer,
+            generation=generation,
+            branch=branch,
+            archive_name=archive_name,
+            archive_session=archive_session,
+            source_repository=source_repository,
+            source_archive=source_archive,
+            source_queued=source_queued,
+            outcome=outcome,
+        )
+        if producer.startswith(("job:", "retro:")):
+            target = seed.aggregate()["records"][seed.repository][
+                intake
+            ][producer][generation]["target"]
+            self.assertNotIn("source_repository", target)
+        return seed
+
+    def request_seed(self, number, outcome="done"):
+        return self.custody_seed(
+            "request",
+            f"request:{number}",
+            f"request-{number}-g1",
+            f"refs/heads/report/{number}",
+            f"request-{number}",
+            f"request-{number}-seed",
+            outcome=outcome,
+        )
+
+    def job_seed(self):
+        return self.custody_seed(
+            "request",
+            "job:researcher",
+            "job-researcher-g1",
+            "refs/heads/agents/researcher-261123",
+            "job-researcher-2026-11-23",
+            "job-researcher-seed",
+        )
+
+    def nightly_seed(self, number=52):
+        return self.custody_seed(
+            "nightly",
+            f"nightly:{number}",
+            f"nightly-{number}-g1",
+            f"refs/heads/nightly/{number}",
+            f"nightly-{number}",
+            f"nightly-{number}-seed",
+        )
+
+    def maintenance_seeds(self):
+        return CustodySeeds(tuple(
+            self.request_seed(number)
+            for number in range(62, 68)
+        ))
+
+    def stopped_retro_seed(self):
+        return self.retro_seed(
+            "held-retro",
+            "refs/heads/agents/retro-held-retro-261123",
+            "held-input",
+            "2026-11-22T12:00:00Z",
+            "retro-held-retro",
+            "retro-held-retro-seed",
+        )
+
+    def old_retro_seed(self):
+        return self.retro_seed(
+            "old-retro",
+            "refs/heads/agents/retro-old-retro-261123",
+            "old-input",
+            "2026-11-22T12:00:00Z",
+            "retro-old-input",
+            "retro-old-retro-seed",
+        )
+
+    def integrated_job_seeds(self):
+        return CustodySeeds((
+            self.job_seed(),
+            self.retro_seed(
+                "job-researcher-2026-11-23",
+                "refs/heads/agents/"
+                "retro-job-researcher-2026-11-23-261123",
+                "job-researcher-2026-11-23",
+                "2026-11-23T12:00:00Z",
+                "retro-job-researcher-2026-11-23",
+                "retro-job-researcher-2026-11-23-seed",
+            ),
+        ))
+
+    def retro_seed(
+            self, task, branch, source_archive, source_queued,
+            archive_name, archive_session,
+    ):
+        return self.custody_seed(
+            "request",
+            f"retro:{task}",
+            f"retro-{task}-g1",
+            branch,
+            archive_name,
+            archive_session,
+            source_archive=source_archive,
+            source_queued=source_queued,
+        )
+
+    @contextlib.contextmanager
+    def seeded_golden(self, primary_seed, nightly_seed=None):
+        original_legacy = self.legacy
+        original_write_raw = self.write_raw
+
+        def legacy_seed(extra):
+            if "queue" in extra or "done" in extra:
+                return None
+            marker = (extra.get("opaque_extension") or {}).get("preserve")
+            if nightly_seed is not None and marker and marker[-1] == 2:
+                return nightly_seed
+            return primary_seed
+
+        def legacy(**extra):
+            return seeded_expected(original_legacy(**extra), legacy_seed(extra))
+
+        def write_raw(path, value):
+            if isinstance(value, dict):
+                if path.name == "state-retro.json":
+                    seed = None
+                elif path.name == "state-nightly.json":
+                    seed = nightly_seed
+                else:
+                    seed = primary_seed
+                value = seeded_expected(value, seed)
+            original_write_raw(path, value)
+
+        with mock.patch.object(self, "legacy", side_effect=legacy), \
+                mock.patch.object(self, "write_raw", side_effect=write_raw):
+            yield
+            reopened = ht.State(self.paths.state)
+            self.assertEqual(
+                reopened.data["custody"],
+                primary_seed.aggregate(),
+            )
+            if nightly_seed is not None:
+                nightly_path = ht.Paths(
+                    self.cfg, self.home, "nightly-"
+                ).state
+                reopened_nightly = ht.State(nightly_path)
+                self.assertEqual(
+                    reopened_nightly.data["custody"],
+                    nightly_seed.aggregate(),
+                )
 
     def main_with(self, argv, cfg=None, gh=None):
         with mock.patch.object(ht, "load_config", return_value=cfg or self.cfg), \
@@ -95,6 +359,9 @@ class StoreTestBase(t.Base):
                 mock.patch.object(
                     ht.lane_land, "land", side_effect=boundaries.land,
                 ), \
+                mock.patch.object(
+                    ht.t3launch, "forget", side_effect=boundaries.forget
+                ), \
                 mock.patch.object(ht, "claude_logged_in", return_value=True), \
                 mock.patch.object(ht, "iso", return_value="2026-11-23T12:00:00Z"), \
                 mock.patch.object(ht, "now", return_value=fixed), \
@@ -122,6 +389,11 @@ class StoreTestBase(t.Base):
     @staticmethod
     def saved_bytes(value):
         return json.dumps(value, indent=2, sort_keys=True).encode()
+
+    @staticmethod
+    def expected_seeded_bytes(value, seed):
+        expected = seeded_expected(value, seed)
+        return json.dumps(expected, indent=2, sort_keys=True).encode()
 
 
 class RecordlessTraceGitHub(FakeGitHub):
@@ -216,8 +488,12 @@ class RecordlessBoundaries:
         self.limit = limit
         self.land_events = []
         self.persistence_events = []
+        self.forget_events = []
         self.launched = False
         self.lane_ref = ""
+
+    def forget(self, path, home):
+        self.forget_events.append((Path(path), Path(home)))
 
     def run(self, runner, args, allow_dry=False, cwd=None, check=True):
         if len(self.git_events) >= self.limit:
@@ -920,8 +1196,13 @@ class ContainmentTests(StoreTestBase):
         self.assertEqual(primary_saves, 2)
 
     def assert_reviewer_save_failure_propagates_through_job(
-            self, callback: bool) -> None:
+            self, callback: bool, seed=None) -> None:
         lane = "agents/researcher-reviewer-save"
+        if seed is not None:
+            self.write_raw(
+                self.paths.state,
+                seeded_expected(self.legacy(), seed),
+            )
         runner = self.runner(
             FakeGitHub([]),
             {
@@ -947,6 +1228,8 @@ class ContainmentTests(StoreTestBase):
         diff.write_text("fixture diff\n")
         worker_launch = runner.launch
         process = mock.Mock(pid=987654, stdin=mock.Mock(), stdout=None)
+        reap = ht.lane_land.reap_group
+        reap.reset_mock()
 
         class Launcher:
             def __init__(self, *_args, **_kwargs):
@@ -1010,16 +1293,74 @@ class ContainmentTests(StoreTestBase):
         disk = ht.State(self.paths.state).data
         self.assertEqual(disk["history"], [])
         self.assertEqual(disk["current"]["job"], "researcher")
+        if seed is not None:
+            self.assertEqual(disk["custody"], seed.aggregate())
         if callback:
             self.assertIn("cleanup", err.getvalue())
         else:
             process.stdin.close.assert_called_once_with()
+            reap.assert_called_once_with(987654)
+            self.assertIn(
+                "launched process cleanup confirmed after",
+                err.getvalue(),
+            )
 
     def test_classic_reviewer_save_failure_is_not_a_job_lane_error(self):
+        """Fails if: the classic reviewer hides persistence failure or fails to contain its exact fake pid."""
         self.assert_reviewer_save_failure_propagates_through_job(False)
 
     def test_callback_reviewer_save_failure_is_not_a_job_lane_error(self):
+        """Fails if: the T3 callback turns reviewer persistence failure into a normal lane result."""
         self.assert_reviewer_save_failure_propagates_through_job(True)
+
+    def test_seeded_classic_reviewer_save_failure_preserves_custody(self):
+        """Fails if: a staged valid job seed changes classic reviewer containment or failure propagation."""
+        self.assert_reviewer_save_failure_propagates_through_job(
+            False, self.job_seed()
+        )
+
+    def test_seeded_callback_reviewer_save_failure_preserves_custody(self):
+        """Fails if: a staged valid job seed changes worker callback containment or error propagation."""
+        self.assert_reviewer_save_failure_propagates_through_job(
+            True, self.job_seed()
+        )
+
+    def test_t3_reviewer_override_dispatches_to_the_classic_launcher(self):
+        """Fails if: a T3-configured reviewer is sent through the worker callback launcher."""
+        cfg = dict(self.cfg)
+        cfg["agent"] = dict(cfg["agent"])
+        cfg["agent"]["launcher"] = "t3code"
+        runner = ht.Runner(cfg, self.paths, FakeGitHub([]))
+        runner.agent_override = "reviewer"
+        process = mock.Mock(pid=54321, stdin=mock.Mock(), stdout=None)
+        with mock.patch.object(
+            ht.t3launch, "settings_agree", return_value=True
+        ) as agree, mock.patch.object(
+            runner, "_t3_launch",
+            side_effect=AssertionError("reviewer entered worker launcher"),
+        ) as callback, mock.patch.object(
+            ht.subprocess, "Popen", return_value=process
+        ) as popen, mock.patch.object(
+            runner, "_wait_group", return_value=(0, True)
+        ) as wait, mock.patch.object(
+            ht.shutil, "which", return_value=None
+        ):
+            self.assertEqual(
+                runner.launch(
+                    "job-researcher",
+                    self.home / "tree",
+                    "review prompt",
+                    self.home / "review.log",
+                ),
+                0,
+            )
+        agree.assert_not_called()
+        callback.assert_not_called()
+        popen.assert_called_once()
+        process.stdin.write.assert_called_once_with(b"review prompt")
+        process.stdin.close.assert_called_once_with()
+        wait.assert_called_once_with(process, 18000.0)
+        ht.lane_land.reap_group.assert_not_called()
 
     def assert_retro_final_save_failure_preserves_primary_authority(self, ready):
         runner = self.runner(
@@ -1279,10 +1620,12 @@ class StatusAndGoldenTests(StoreTestBase):
         }])
 
     def test_recordless_quiet_tick_has_fixed_ordered_transcript_and_opaque_bytes(self):
+        """Fails if: quiet tick ordering, the one save or its complete state bytes change."""
         events = []
-        self.write_raw(self.paths.state, self.legacy(
+        expected = self.legacy(
             opaque_extension={"preserve": ["exact", 1]}
-        ))
+        )
+        self.write_raw(self.paths.state, expected)
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         patches = self.quiet_tick_patches(events)
@@ -1307,8 +1650,13 @@ class StatusAndGoldenTests(StoreTestBase):
         ])
         reopened = json.loads(self.paths.state.read_text())
         self.assertEqual(reopened["opaque_extension"], {"preserve": ["exact", 1]})
+        self.assertEqual(
+            self.paths.state.read_bytes(),
+            self.saved_bytes(expected),
+        )
 
     def test_recordless_both_admissions_choose_priority_and_keep_fixed_bytes(self):
+        """Fails if: dry priority, admission ordering or any complete intake byte changes."""
         self.maxDiff = None
         request_old = t.issue(
             41, created="2026-10-12T00:00:00Z"
@@ -1380,8 +1728,10 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/state.json": self.saved_bytes(primary_data),
             ".local/state/hass-triage/tick.lock": b"4242",
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_idle_primary_reads_nightly_queue_before_job_work(self):
+        """Fails if: the drained intake order, nightly idle callback or bytes change."""
         cfg = dict(self.cfg)
         cfg["schedules"] = {}
         primary = self.legacy(opaque_extension={"preserve": ["idle", 1]})
@@ -1433,8 +1783,10 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/state.json": self.saved_bytes(primary),
             ".local/state/hass-triage/tick.lock": b"4242",
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_tick_self_change_pause_stops_retro_dispatch(self):
+        """Fails if: the moved-base stop, pause audit or suppressed retro dispatch changes."""
         old = "a" * 40
         head = "b" * 40
         cfg = dict(self.cfg)
@@ -1532,6 +1884,7 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/workflow-base.json":
                 json.dumps({"workflow": old}, indent=2, sort_keys=True).encode(),
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_acknowledgements_ignore_bad_primary_and_keep_base_history(self):
         old = "a" * 40
@@ -1620,6 +1973,7 @@ class StatusAndGoldenTests(StoreTestBase):
         })
 
     def test_recordless_tick_routes_merging_parked_recovery_and_stored_finish(self):
+        """Fails if: maintenance 62-67 changes a route, effect, drop or expected complete byte."""
         self.maxDiff = None
         repo = self.cfg["request_repo"]
         product = self.cfg["product_repo"]
@@ -1774,14 +2128,15 @@ class StatusAndGoldenTests(StoreTestBase):
                 "outcome": "done",
             },
         ]
-        self.assertEqual(reopened, self.legacy(
+        expected = self.legacy(
             attempts={"65": 1},
             history=expected_history,
             replies={"66": 866, "67": 867},
             resumed={"66": "2026-11-23T00:00:00Z"},
             picked={"67": parked_67},
             opaque_extension={"preserve": ["maintenance", 3]},
-        ))
+        )
+        self.assertEqual(reopened, expected)
         self.assertEqual(boundaries.launch_events, [])
         clone = str(self.paths.clone)
         tree_62 = str(self.paths.worktrees / "62")
@@ -1800,11 +2155,13 @@ class StatusAndGoldenTests(StoreTestBase):
               tree_64), ""),
         ])
         self.assertEqual(self.file_bytes(), {
-            ".local/state/hass-triage/state.json": self.saved_bytes(reopened),
+            ".local/state/hass-triage/state.json": self.saved_bytes(expected),
             ".local/state/hass-triage/tick.lock": b"4242",
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue(self):
+        """Fails if: job, retro or regression changes any ordered effect, normalized prompt or byte."""
         self.maxDiff = None
         cfg = dict(self.cfg)
         cfg["nightly"] = None
@@ -1980,13 +2337,19 @@ class StatusAndGoldenTests(StoreTestBase):
              ("Workflow",)),
         ])
         self.assertEqual(boundaries.launch_events, [
-            ("job-researcher", "hass-agents/worktrees/job-researcher",
-             mock.ANY),
-            ("job-researcher", "hass-agents/worktrees/job-researcher",
-             mock.ANY),
+            (
+                "job-researcher",
+                "hass-agents/worktrees/job-researcher",
+                ELIDED_PROMPT_ARGUMENTS["scheduled researcher"],
+            ),
+            (
+                "job-researcher",
+                "hass-agents/worktrees/job-researcher",
+                ELIDED_PROMPT_ARGUMENTS["manual researcher"],
+            ),
             ("retro-job-researcher-2026-11-23",
              "hass-agents/worktrees/retro-job-researcher-2026-11-23",
-             mock.ANY),
+             ELIDED_PROMPT_ARGUMENTS["retro"]),
         ])
         self.assertEqual(boundaries.land_events, [
             (lane, cfg["workflow_base"], "c" * 40),
@@ -2321,8 +2684,19 @@ class StatusAndGoldenTests(StoreTestBase):
             ("save", "state.json"),
             ("save", "state.json"),
         ])
+        self.assertEqual(boundaries.forget_events, [
+            (self.paths.worktrees / "job-researcher", self.home),
+            (self.paths.worktrees / "job-researcher", self.home),
+            (self.paths.worktrees / "job-researcher", self.home),
+            (
+                self.paths.worktrees /
+                "retro-job-researcher-2026-11-23",
+                self.home,
+            ),
+        ])
 
     def test_recordless_run_issue_tamper_routes_block_and_disarms_pull(self):
+        """Fails if: request 71 tamper changes classification, disarm, prompt normalization or bytes."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
@@ -2407,7 +2781,11 @@ class StatusAndGoldenTests(StoreTestBase):
               "2026-11-23T12:00:00Z"), ""),
         ])
         self.assertEqual(boundaries.launch_events, [
-            (71, "hass-agents/worktrees/71", mock.ANY),
+            (
+                71,
+                "hass-agents/worktrees/71",
+                ELIDED_PROMPT_ARGUMENTS["request 71"],
+            ),
         ])
         reopened = json.loads(self.paths.state.read_text())
         self.assertEqual(reopened["current"], None)
@@ -2453,8 +2831,10 @@ class StatusAndGoldenTests(StoreTestBase):
             "hass-agents/requests/71.json":
                 json.dumps(request_snapshot, indent=2).encode(),
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_ordinary_request_finishes_successfully(self):
+        """Fails if: request 70 changes positive-empty cleanup, prompt or complete bytes."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
@@ -2519,7 +2899,11 @@ class StatusAndGoldenTests(StoreTestBase):
               "2026-11-23T12:00:00Z"), ""),
         ])
         self.assertEqual(boundaries.launch_events, [
-            (70, "hass-agents/worktrees/70", mock.ANY),
+            (
+                70,
+                "hass-agents/worktrees/70",
+                ELIDED_PROMPT_ARGUMENTS["request 70"],
+            ),
         ])
         self.assertIn("request #70", boundaries.launch_events[0][2])
         expected = self.legacy(
@@ -2544,8 +2928,12 @@ class StatusAndGoldenTests(StoreTestBase):
             "hass-agents/status/70.json":
                 b'{"state": "no_changes", "summary": "nothing to change"}',
         })
+        self.assertEqual(boundaries.forget_events, [
+            (self.paths.worktrees / "70", self.home),
+        ])
 
     def test_recordless_manual_busy_paused_and_asymmetric_preview_modes(self):
+        """Fails if: busy, pause or preview paths perform any extra launch, Git or drop work."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
@@ -2616,8 +3004,10 @@ class StatusAndGoldenTests(StoreTestBase):
                 )).encode(),
             ".local/state/hass-triage/tick.lock": b"4242",
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_status_formats_under_real_lock_with_independent_queue_error(self):
+        """Fails if: locked status stops being read-only, bounded or byte-identical."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
@@ -2672,8 +3062,10 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/state.json": json.dumps(primary).encode(),
             ".local/state/hass-triage/tick.lock": b"4242",
         })
+        self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
+        """Fails if: request 81 save failure changes containment, prompt normalization or last committed bytes."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
@@ -2756,7 +3148,11 @@ class StatusAndGoldenTests(StoreTestBase):
               "2026-11-23T12:00:00Z"), ""),
         ])
         self.assertEqual(boundaries.launch_events, [
-            (81, "hass-agents/worktrees/81", mock.ANY),
+            (
+                81,
+                "hass-agents/worktrees/81",
+                ELIDED_PROMPT_ARGUMENTS["request 81"],
+            ),
         ])
         reopened = json.loads(self.paths.state.read_text())
         self.assertEqual(reopened["current"]["issue"], 81)
@@ -2810,6 +3206,679 @@ class StatusAndGoldenTests(StoreTestBase):
             "hass-agents/status/81.json":
                 b'{"state": "blocked", "summary": "worker stopped"}',
         })
+        self.assertEqual(boundaries.forget_events, [])
+
+    def test_every_seed_fixture_is_coherent_under_the_wire_contract(self):
+        """Fails if: R221-1, R221-2, R221-3 or R221-4 leaves an incoherent seed fixture."""
+        scenarios = (
+            ("quiet request", "primary", self.request_seed(42), (), ()),
+            (
+                "priority request",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "priority nightly",
+                "nightly",
+                self.nightly_seed(),
+                (),
+                (),
+            ),
+            (
+                "drained request",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "drained nightly",
+                "nightly",
+                self.nightly_seed(),
+                (),
+                (),
+            ),
+            (
+                "self-change pause",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "valid acknowledgement",
+                "primary",
+                self.request_seed(42),
+                (),
+                (),
+            ),
+            (
+                "maintenance",
+                "primary",
+                self.maintenance_seeds(),
+                (),
+                ("request-64-fixed",),
+            ),
+            (
+                "integrated job and retro",
+                "primary",
+                self.integrated_job_seeds(),
+                ((
+                    "job-researcher-2026-11-23",
+                    "job-researcher-2026-11-23",
+                    "2026-11-23T12:00:00Z",
+                ),),
+                (
+                    "job-researcher-897aded5543e",
+                    "retro-job-researcher-2026-11-23-e6789b1f72f7",
+                ),
+            ),
+            (
+                "tamper 71",
+                "primary",
+                self.request_seed(71, outcome="done"),
+                (),
+                ("request-71-a2d9ced85f6f",),
+            ),
+            (
+                "ordinary request 70",
+                "primary",
+                self.request_seed(70, outcome="no_changes"),
+                (),
+                (),
+            ),
+            (
+                "manual controls 72",
+                "primary",
+                self.request_seed(72),
+                (),
+                (),
+            ),
+            (
+                "locked status 72",
+                "primary",
+                self.request_seed(72),
+                (),
+                (),
+            ),
+            (
+                "post-launch request 81",
+                "primary",
+                self.request_seed(81, outcome="done"),
+                (),
+                ("request-81-10cf3364c1d1",),
+            ),
+            (
+                "classic reviewer",
+                "primary",
+                self.job_seed(),
+                (),
+                (),
+            ),
+            (
+                "worker reviewer callback",
+                "primary",
+                self.job_seed(),
+                (),
+                (),
+            ),
+            (
+                "identified stopped retro pair",
+                "primary",
+                self.stopped_retro_seed(),
+                ((
+                    "held-retro",
+                    "held-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (),
+            ),
+            (
+                "request 63 path absent",
+                "primary",
+                self.request_seed(63),
+                (),
+                ("request-63-installed",),
+            ),
+            (
+                "old retro pre-drop",
+                "primary",
+                self.old_retro_seed(),
+                ((
+                    "old-retro",
+                    "old-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (
+                    "retro-old-input-prior",
+                    "retro-old-retro-bc9b9b0ea1cf",
+                ),
+            ),
+        )
+        for scenario, store, seed, queue_sources, other_sessions in scenarios:
+            aggregate = seed.aggregate()
+            self.assertEqual(aggregate["version"], 1)
+            for repository, intakes in aggregate["records"].items():
+                self.assertEqual(repository, self.cfg["product_repo"].lower())
+                for intake, producers in intakes.items():
+                    for producer, generations in producers.items():
+                        for generation, record in generations.items():
+                            with self.subTest(
+                                scenario=scenario,
+                                store=store,
+                                intake=intake,
+                                producer=producer,
+                                generation=generation,
+                            ):
+                                target = record["target"]
+                                if producer.startswith(
+                                    ("request:", "nightly:")
+                                ):
+                                    expected_repository = (
+                                        self.cfg["request_repo"].lower()
+                                        if producer.startswith("request:")
+                                        else self.cfg["nightly"]["repo"].lower()
+                                    )
+                                    self.assertEqual(
+                                        target["source_repository"],
+                                        expected_repository,
+                                    )
+                                    self.assertEqual(
+                                        intake,
+                                        "nightly"
+                                        if producer.startswith("nightly:")
+                                        else "request",
+                                    )
+                                elif producer.startswith(("job:", "retro:")):
+                                    self.assertNotIn(
+                                        "source_repository", target
+                                    )
+                                    self.assertEqual(intake, "request")
+                                else:
+                                    self.fail(f"unexpected producer {producer!r}")
+                                expected_store = (
+                                    "nightly"
+                                    if intake == "nightly"
+                                    else "primary"
+                                )
+                                self.assertEqual(store, expected_store)
+                                if producer.startswith("retro:"):
+                                    sources = {
+                                        task: (archive, queued)
+                                        for task, archive, queued
+                                        in queue_sources
+                                    }
+                                    task = producer.removeprefix("retro:")
+                                    self.assertIn(task, sources)
+                                    archive, queued = sources[task]
+                                    self.assertIsNotNone(archive)
+                                    self.assertIsNotNone(queued)
+                                    self.assertEqual(
+                                        target["source_archive"], archive
+                                    )
+                                    self.assertEqual(
+                                        target["source_queued"], queued
+                                    )
+                                    self.assertNotIn("/", archive)
+                                    self.assertNotIn("\\", archive)
+                                else:
+                                    self.assertNotIn(
+                                        "source_archive", target
+                                    )
+                                    self.assertNotIn(
+                                        "source_queued", target
+                                    )
+                                self.assertEqual(
+                                    record["phase"], "release_authorized"
+                                )
+                                self.assertEqual(record["bindings"], {})
+                                self.assertEqual(
+                                    record["original_outcome"]["trust"],
+                                    "clean_end",
+                                )
+                                self.assertEqual(
+                                    record["original_outcome"]["exit_code"],
+                                    0,
+                                )
+                                self.assertIn(
+                                    record["original_outcome"]["state"],
+                                    ("done", "no_changes"),
+                                )
+                                self.assertTrue(
+                                    target["branch"].startswith(
+                                        "refs/heads/"
+                                    )
+                                )
+                                for branch in record["pre_refs"]:
+                                    self.assertTrue(
+                                        branch.startswith("refs/heads/")
+                                    )
+                                self.assertEqual(
+                                    record["release_proof"],
+                                    {
+                                        "inventory": "positive_empty",
+                                        "unlanded": "verified_none",
+                                        "archive_name":
+                                            target["archive_name"],
+                                        "archive_session":
+                                            target["archive_session"],
+                                        "archive_disposition": "archived",
+                                    },
+                                )
+                                self.assertNotIn(
+                                    target["archive_session"],
+                                    other_sessions,
+                                )
+
+    def test_seeded_quiet_tick_preserves_fixed_legacy_transcript_and_bytes(self):
+        """Fails if: a valid installed request seed changes quiet selection, saves or bytes."""
+        with self.seeded_golden(self.request_seed(42)):
+            self.test_recordless_quiet_tick_has_fixed_ordered_transcript_and_opaque_bytes()
+
+    def test_seeded_priority_admission_preserves_both_intake_goldens(self):
+        """Fails if: valid request and nightly seeds change dry priority, siblings or order."""
+        with self.seeded_golden(
+            self.request_seed(42), self.nightly_seed()
+        ):
+            self.test_recordless_both_admissions_choose_priority_and_keep_fixed_bytes()
+
+    def test_seeded_drained_intakes_preserve_nightly_idle_callback(self):
+        """Fails if: valid seeds change the drained request or nightly idle transcript."""
+        with self.seeded_golden(
+            self.request_seed(42), self.nightly_seed()
+        ):
+            self.test_recordless_idle_primary_reads_nightly_queue_before_job_work()
+
+    def test_seeded_self_change_pause_preserves_stopped_retro_dispatch(self):
+        """Fails if: an installed historical request seed changes the self-change stop or pause."""
+        with self.seeded_golden(self.request_seed(42)):
+            self.test_recordless_tick_self_change_pause_stops_retro_dispatch()
+
+    def test_seeded_maintenance_preserves_all_reached_request_paths(self):
+        """Fails if: valid request 62-67 seeds change a maintenance branch or byte."""
+        with self.seeded_golden(self.maintenance_seeds()):
+            self.test_recordless_tick_routes_merging_parked_recovery_and_stored_finish()
+
+    def test_seeded_job_retro_and_regression_preserve_the_integrated_golden(self):
+        """Fails if: valid job and retro seeds change any integrated legacy effect."""
+        with self.seeded_golden(self.integrated_job_seeds()):
+            self.test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue()
+
+    def test_seeded_tamper_preserves_block_and_disarm_effects(self):
+        """Fails if: a valid request 71 seed changes tamper classification or effects."""
+        with self.seeded_golden(self.request_seed(71, outcome="done")):
+            self.test_recordless_run_issue_tamper_routes_block_and_disarms_pull()
+
+    def test_seeded_ordinary_request_preserves_positive_empty_cleanup(self):
+        """Fails if: a valid request 70 seed changes no-changes cleanup or bytes."""
+        with self.seeded_golden(
+            self.request_seed(70, outcome="no_changes")
+        ):
+            self.test_recordless_ordinary_request_finishes_successfully()
+
+    def test_seeded_manual_controls_preserve_precedence_and_preview(self):
+        """Fails if: a valid request 72 seed adds work to busy, paused or preview paths."""
+        with self.seeded_golden(self.request_seed(72)):
+            self.test_recordless_manual_busy_paused_and_asymmetric_preview_modes()
+
+    def test_seeded_locked_status_preserves_both_read_only_formats(self):
+        """Fails if: a valid primary seed changes status or the retained malformed sibling."""
+        with self.seeded_golden(self.request_seed(72)):
+            self.test_recordless_status_formats_under_real_lock_with_independent_queue_error()
+
+    def test_seeded_post_launch_save_failure_preserves_last_committed_bytes(self):
+        """Fails if: a valid request 81 seed changes save failure authority or output."""
+        with self.seeded_golden(self.request_seed(81, outcome="done")):
+            self.test_recordless_request_post_launch_save_failure_preserves_disk_authority()
+
+    def assert_valid_acknowledgement_pair(self, seed):
+        old = "a" * 40
+        head = "b" * 40
+        cfg = dict(self.cfg)
+        cfg["workflow_base"] = cfg["product_base"]
+        cfg["nightly"] = None
+        primary = self.legacy()
+        expected_primary = seeded_expected(primary, seed)
+        self.write_raw(self.paths.state, expected_primary)
+        base = self.paths.state_dir / "workflow-base.json"
+        pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
+        pause_info = self.paths.state_dir / "SELF_CHANGE_PAUSED.json"
+        gh = RecordlessAckGitHub(
+            {cfg["request_repo"]: []}, old, head
+        )
+        boundaries = RecordlessAckBoundaries(self.home, old, head)
+        land = self.paths.root / "land" / cfg["product_repo"].split("/")[-1]
+        (land / ".git").mkdir(parents=True, exist_ok=True)
+
+        def seed_pause():
+            base.parent.mkdir(parents=True, exist_ok=True)
+            base.write_text(json.dumps({"main": old}, indent=2, sort_keys=True))
+            pause.write_text("unexpected workflow base move\n")
+            pause_info.write_text(json.dumps({
+                "base": "main",
+                "sha": head,
+                "expected": old,
+                "moves": [],
+                "when": "tick",
+                "at": "2026-11-23T12:00:00Z",
+            }))
+
+        seed_pause()
+        accepted = self.main_golden(["ack-base", head], cfg, gh, boundaries)
+        self.assertEqual(accepted, (
+            0,
+            "Accepted bbbbbbbbbb as the workflow base; "
+            "SELF_CHANGE_PAUSED cleared.\n",
+            "",
+        ))
+        seed_pause()
+        verified = self.main_golden(
+            ["ack-verified"], cfg, gh, boundaries
+        )
+        self.assertEqual(verified, (
+            0,
+            "Accepted 1 PR merges: #17; head bbbbbbbbbb; "
+            "SELF_CHANGE_PAUSED cleared.\n",
+            "",
+        ))
+        self.assertEqual(gh.events, [
+            ("requirements", cfg["product_repo"], "main"),
+            ("commit_record", cfg["product_repo"], head),
+            ("commit_pulls", cfg["product_repo"], head),
+            ("checks", cfg["product_repo"], head),
+        ])
+        self.assertEqual(boundaries.launch_events, [])
+        self.assertEqual(boundaries.forget_events, [])
+        ack_log = {
+            "at": "2026-11-23T12:00:00Z",
+            "contexts": ["pr-checks"],
+            "from": old,
+            "mode": "verified",
+            "prs": [17],
+            "session": "owner",
+            "to": head,
+        }
+        self.assertEqual(self.file_bytes(), {
+            ".local/state/hass-triage/ack.lock": b"",
+            ".local/state/hass-triage/ack-log.jsonl":
+                (json.dumps(ack_log, sort_keys=True) + "\n").encode(),
+            ".local/state/hass-triage/state.json":
+                json.dumps(expected_primary).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+            ".local/state/hass-triage/workflow-base.json":
+                json.dumps({"main": head}, indent=2, sort_keys=True).encode(),
+        })
+
+    def test_valid_primary_acknowledgements_match_recordless_and_seeded_inputs(self):
+        """Fails if: a valid seeded primary changes either acknowledgement's base or audit effects."""
+        for label, seed in (
+            ("recordless", None),
+            ("seeded", self.request_seed(42)),
+        ):
+            with self.subTest(case=label):
+                for name in ("ack.lock", "ack-log.jsonl"):
+                    (self.paths.state_dir / name).unlink(missing_ok=True)
+                self.assert_valid_acknowledgement_pair(seed)
+
+    def assert_identified_stopped_retro_pair(self, seed):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        source = self.paths.root / "archive" / "held-input"
+        source.mkdir(parents=True)
+        queue = [{
+            "task": "held-retro",
+            "archive": str(source),
+            "queued": "2026-11-22T12:00:00Z",
+            "triggers": ["owner_correction"],
+            "touched": [],
+        }]
+        primary = seeded_expected(
+            self.legacy(opaque_extension={"preserve": ["stop-pair", 1]}),
+            seed,
+        )
+        retro = self.legacy(queue=queue, done=[])
+        self.write_raw(self.paths.state, primary)
+        self.write_raw(
+            ht.Paths(cfg, self.home, "retro-").state,
+            retro,
+        )
+        pause = self.paths.state_dir / "SELF_CHANGE_PAUSED"
+        pause.parent.mkdir(parents=True, exist_ok=True)
+        pause.write_text("identified stop fixture\n")
+        runner = self.runner(FakeGitHub([]))
+        with mock.patch("sys.stdout", new=io.StringIO()) as out, \
+                mock.patch("sys.stderr", new=io.StringIO()) as err:
+            self.assertIsNone(runner.run_retro())
+        self.assertEqual(out.getvalue(), (
+            "retro: paused (PAUSED file); queued post-mortems wait\n"
+        ))
+        self.assertEqual(err.getvalue(), "")
+        self.assertEqual(self.commands, [])
+        self.assertEqual(self.prompts, [])
+        self.assertEqual(self.paths.state.read_bytes(), json.dumps(primary).encode())
+        self.assertEqual(
+            ht.Paths(cfg, self.home, "retro-").state.read_bytes(),
+            json.dumps(retro).encode(),
+        )
+
+    def test_identified_stopped_retro_recordless_control(self):
+        """Fails if: an identified queue item is not stopped before Git or dispatch."""
+        self.assert_identified_stopped_retro_pair(None)
+
+    def test_identified_stopped_retro_seeded_pair(self):
+        """Fails if: a valid stopped-retro seed changes stop, pause or suppressed dispatch."""
+        self.assert_identified_stopped_retro_pair(self.stopped_retro_seed())
+
+    def assert_request_63_path_absent_no_drop(self, seed):
+        tree = self.paths.worktrees / "63"
+        label = "request-63"
+        initial = self.legacy(
+            archive_sessions={
+                label: {
+                    "name": label,
+                    "session": "request-63-installed",
+                    "path": str(tree),
+                },
+            },
+            opaque_extension={"preserve": ["request-63", 1]},
+        )
+        self.write_raw(
+            self.paths.state,
+            seeded_expected(initial, seed),
+        )
+        runner = self.runner(FakeGitHub([]))
+        archive_gate = mock.Mock(return_value=True)
+        runner.archive_before_change = archive_gate
+        with mock.patch.object(
+            runner, "_drop_worktree"
+        ) as drop, mock.patch.object(
+            ht.t3launch, "forget"
+        ) as forget:
+            self.assertTrue(runner.cleanup(63))
+        archive_gate.assert_called_once_with(
+            label, 63, tree, label, "request-63-installed",
+            evidence=True, digest=False,
+        )
+        drop.assert_not_called()
+        forget.assert_not_called()
+        expected = self.legacy(
+            opaque_extension={"preserve": ["request-63", 1]}
+        )
+        self.assertEqual(
+            self.paths.state.read_bytes(),
+            self.expected_seeded_bytes(expected, seed),
+        )
+
+    def test_request_63_path_absent_reaches_no_drop_recordless(self):
+        """Fails if: absent request 63 unexpectedly enters the worktree drop boundary."""
+        self.assert_request_63_path_absent_no_drop(None)
+
+    def test_request_63_path_absent_reaches_no_drop_seeded(self):
+        """Fails if: a valid request 63 seed causes an absent-tree cleanup to drop."""
+        self.assert_request_63_path_absent_no_drop(self.request_seed(63))
+
+    def assert_old_retro_tree_pre_drop_pair(self, seed):
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        task = "old-retro"
+        key = f"retro-{task}"
+        tree = self.paths.worktrees / key
+        tree.mkdir(parents=True)
+        source = self.paths.root / "archive" / "old-input"
+        source.mkdir(parents=True)
+        queued = "2026-11-22T12:00:00Z"
+        queue = [{
+            "task": task,
+            "archive": str(source),
+            "queued": queued,
+            "triggers": ["owner_correction"],
+            "touched": [],
+        }]
+        prior = {
+            "name": "retro-old-input",
+            "session": "retro-old-input-prior",
+            "path": str(tree),
+        }
+        primary = self.legacy(
+            archive_sessions={key: prior},
+            opaque_extension={"preserve": ["old-retro", 4]},
+        )
+        self.write_raw(
+            self.paths.state,
+            seeded_expected(primary, seed),
+        )
+        retro = self.legacy(queue=queue, done=[])
+        self.write_raw(
+            ht.Paths(cfg, self.home, "retro-").state,
+            retro,
+        )
+        status = {
+            "state": "done",
+            "summary": "old tree retro completed",
+        }
+        gh = RecordlessTraceGitHub({cfg["request_repo"]: []})
+        boundaries = RecordlessBoundaries(
+            self.home,
+            statuses={key: (status, task)},
+        )
+        archive_calls = []
+
+        def archive_before(
+                _runner, label, n, path, name, session,
+                evidence=False, digest=False,
+        ):
+            archive_calls.append((
+                label, n, path, name, session, evidence, digest
+            ))
+            return True
+
+        with mock.patch.object(
+            ht.Runner, "archive_before_change",
+            autospec=True, side_effect=archive_before,
+        ):
+            result = self.main_golden(["tick"], cfg, gh, boundaries)
+
+        self.assertEqual(result, (0, "", ""))
+        self.assertEqual(boundaries.launch_events, [(
+            key,
+            "hass-agents/worktrees/retro-old-retro",
+            ELIDED_PROMPT_ARGUMENTS["retro"],
+        )])
+        expected_session = "retro-old-retro-bc9b9b0ea1cf"
+        self.assertEqual(archive_calls, [
+            (
+                key, key, tree, "retro-old-input",
+                "retro-old-input-prior", True, False,
+            ),
+            (
+                key, key, tree, "retro-old-input",
+                expected_session, False, False,
+            ),
+        ])
+        removes = [
+            index for index, (args, _cwd) in enumerate(
+                boundaries.git_events
+            )
+            if isinstance(args, tuple)
+            and "worktree" in args
+            and "remove" in args
+        ]
+        adds = [
+            index for index, (args, _cwd) in enumerate(
+                boundaries.git_events
+            )
+            if isinstance(args, tuple)
+            and "worktree" in args
+            and "add" in args
+            and "-B" in args
+        ]
+        self.assertEqual(len(removes), 2)
+        self.assertEqual(len(adds), 1)
+        self.assertLess(removes[0], adds[0])
+        self.assertGreater(removes[1], adds[0])
+        self.assertEqual(boundaries.persistence_events, [
+            ("drop", "hass-agents/worktrees/retro-old-retro"),
+            ("drop", "hass-agents/worktrees/retro-old-retro"),
+        ])
+        self.assertEqual(boundaries.forget_events, [
+            (tree, self.home),
+            (tree, self.home),
+        ])
+        expected_primary = self.legacy(
+            archive_sessions={
+                key: {
+                    "name": "retro-old-input",
+                    "session": expected_session,
+                    "path": str(tree),
+                },
+            },
+            history=[{
+                "at": "2026-11-23T12:00:00Z",
+                "detail": task,
+                "issue": key,
+                "outcome": "retro:done",
+            }],
+            opaque_extension={"preserve": ["old-retro", 4]},
+        )
+        expected_retro = self.legacy(
+            queue=[],
+            done=[{
+                "task": task,
+                "archive": str(source),
+                "queued": queued,
+                "triggers": ["owner_correction"],
+                "touched": [],
+                "archive_name": "retro-old-input",
+                "archive_session": expected_session,
+                "outcome": "done",
+                "finished": "2026-11-23T12:00:00Z",
+                "summary": "old tree retro completed",
+            }],
+        )
+        self.assertEqual(
+            self.paths.state.read_bytes(),
+            self.expected_seeded_bytes(expected_primary, seed),
+        )
+        self.assertEqual(
+            ht.Paths(cfg, self.home, "retro-").state.read_bytes(),
+            self.saved_bytes(expected_retro),
+        )
+        reopened_primary = ht.State(self.paths.state)
+        self.assertEqual(
+            reopened_primary.data,
+            seeded_expected(expected_primary, seed),
+        )
+
+    def test_old_retro_tree_reaches_pre_drop_recordless_control(self):
+        """Fails if: an old retro tree is not dropped before add with a separate final drop."""
+        self.assert_old_retro_tree_pre_drop_pair(None)
+
+    def test_old_retro_tree_reaches_pre_drop_seeded_pair(self):
+        """Fails if: a valid identified retro seed changes old-tree pre-drop or final-drop effects."""
+        self.assert_old_retro_tree_pre_drop_pair(self.old_retro_seed())
 
 
 if __name__ == "__main__":
