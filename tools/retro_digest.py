@@ -514,7 +514,8 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         data = read_json(path)
         if not isinstance(data, dict):
             continue
-        if not getattr(args, "lane", None) and data.get("branch") not in branches:  # a ledger task keeps only its own branches' rounds
+        # A ledger task that lists branches keeps only their rounds; one that lists none cannot be scoped, so it keeps every file.
+        if not getattr(args, "lane", None) and branches and data.get("branch") not in branches:
             skipped_reviews.append(path.name)
             continue
         reviews.append(data)
