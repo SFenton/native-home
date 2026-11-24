@@ -188,6 +188,20 @@ class SessionScopeTests(unittest.TestCase):
         self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
         self.assertIn("rebuilt", mockup_hub_guard.stale_reason(self.root, None, since))
 
+    def test_fallback_ignores_a_lane_commit_from_before_the_transcript(self):
+        self.page.write_text("earlier session")
+        run_git(self.root, "commit", "-qam", "earlier lane mockup")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, time.time() + 60), [])
+
+    def test_fallback_on_a_detached_head_uses_the_remote_default_as_base(self):
+        run_git(self.root, "config", "--unset", "branch.lane.sh-base")
+        since = time.time() - 5
+        self.page.write_text("detached edit")
+        run_git(self.root, "commit", "-qam", "detached mockup")
+        run_git(self.root, "checkout", "-q", "--detach")
+        self.assertEqual(mockup_hub_guard.lane_base(self.root), "origin/main")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
+
     def test_fallback_still_blocks_a_dirty_file_edited_after_the_transcript_began(self):
         since = time.time() - 5
         self.page.write_text("edited, not committed")
