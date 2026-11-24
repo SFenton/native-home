@@ -3481,8 +3481,8 @@ class T3LauncherTests(Base):
         base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
                     "HASS_TRIAGE_STATUS_FILE": str(self.paths.status_file(1)), "HASS_TRIAGE_BIN": str(ht.HERE / "hass_triage.py"),
-                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", **base}
-        self.assertEqual(self.launch_env, expected)  # exactly today's environment: no key added or dropped
+                    "FENTON_DEVCAP_MAX_WAIT": "1200", "FENTON_HEADLESS": "1", "SH_TASK": "R-1", **base}
+        self.assertEqual(self.launch_env, expected)  # exactly today's environment plus SH_TASK
 
     def test_the_t3_block_does_not_touch_the_deny_list(self):
         agent = self.cfg["agent"]
