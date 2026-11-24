@@ -15,8 +15,9 @@ triggers it. ``--snapshot`` is the same write for any other hook that fires firs
 
 A session usually starts in the primary checkout and works in a linked worktree (``EnterWorktree``), where SessionStart
 never ran. With no snapshot for the Stop checkout the hook does not pass: it falls back to files that are uncommitted or
-untracked and modified after the transcript began, plus files in commits made since then (a checkout's fresh mtimes
-on clean files are not in that set). Registering ``--snapshot`` on PreToolUse Edit|Write|MultiEdit|Bash would make the
+untracked and modified after the transcript began, plus files in the commits this checkout has that the lane base does not
+(``<lane base>..HEAD``; a checkout's fresh mtimes on clean files, and commits that arrived by fast-forward from the base,
+are not in that set, so a land checkout at ``origin/main`` has no candidates). Registering ``--snapshot`` on PreToolUse Edit|Write|MultiEdit|Bash would make the
 lazy snapshot exact; that is a ``.claude/settings.json`` change, so it is not wired here.
 
 The candidates also include commits since the merge-base of HEAD and the lane base (the remote default branch, or a
@@ -126,7 +127,8 @@ def changed_mockups(root: Path, snapshot: Dict[str, str] | None = None, since: f
 
     With a session-start ``snapshot`` for this checkout, those whose content differs from it. Without one (the session
     started in another checkout), the fallback: uncommitted or untracked files modified at or after ``since``, plus files
-    in commits made since then; with ``since`` unknown, every uncommitted or untracked file.
+    in the commits ahead of the lane base (``<lane base>..HEAD``; with no resolvable base, commits made since ``since``);
+    with ``since`` unknown, every uncommitted or untracked file.
     """
     names = set()
     merge_base = (_lines(root, "merge-base", "HEAD", lane_base(root)) or [""])[0]
@@ -140,7 +142,11 @@ def changed_mockups(root: Path, snapshot: Dict[str, str] | None = None, since: f
         return [root / n for n in sorted(names) if _publishable(n) and n in now and now[n] != snapshot.get(n)]
     if since is not None:
         names = {n for n in dirty if (root / n).is_file() and (root / n).stat().st_mtime >= since}
-        names |= set(_lines(root, "log", f"--since=@{int(since) + 1}", "--name-only", "--format=", "--", MOCKUPS))
+        base = lane_base(root)
+        if _lines(root, "rev-parse", "--verify", "-q", f"{base}^{{commit}}"):
+            names |= set(_lines(root, "log", f"{base}..HEAD", "--name-only", "--format=", "--", MOCKUPS))
+        else:
+            names |= set(_lines(root, "log", f"--since=@{int(since) + 1}", "--name-only", "--format=", "--", MOCKUPS))
     return [root / n for n in sorted(names) if _publishable(n) and n in now]
 
 
