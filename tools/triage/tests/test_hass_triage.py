@@ -1453,6 +1453,11 @@ class AgentFlagTests(Base):
         self.assertEqual(self.launch_env["FENTON_HEADLESS"], "1")
         self.assertEqual(self.launch_env["FENTON_DEVCAP_MAX_WAIT"], "1200")
 
+    def test_launch_env_carries_the_task_id_for_the_run_digests(self):
+        """Fails if: a worker's env lacks SH_TASK, so bg_run stamps no task on its digests."""
+        self.argv({})
+        self.assertEqual(self.launch_env["SH_TASK"], "R-1")
+
     def test_worker_runs_fable_medium_and_the_reviewer_keeps_opus_high(self):
         """Fails if the reviewer inherits the worker's Fable model or medium effort."""
         argv = self.argv({})

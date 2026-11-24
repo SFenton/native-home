@@ -72,12 +72,23 @@ class TriggerTests(Base):
         self.assertIn("empty_runs", self.fired(own))
         self.assertEqual(own["counts"]["skipped_runs"], 1)
 
-    def test_an_unstamped_digest_is_skipped_and_counted_in_task_mode(self):
-        """Fails if: a digest with no task stamp fires a trigger for a ledger task, or is not counted as skipped."""
+    def test_an_unstamped_digest_still_counts_and_is_marked_unscoped(self):
+        """Fails if: a digest with no task stamp stops counting in task mode, or is not marked unscoped."""
         self.write("build/runs/journeys.digest", "RESULT: EMPTY (exit 0)  journeys  13s  sha=abc lane=wt\ntests: executed 0, skipped 3, failed 0\n")
         doc = self.run_digest()
-        self.assertEqual(doc["triggers"], [])
-        self.assertEqual(doc["counts"]["skipped_runs"], 1)
+        self.assertIn("(unscoped: no task stamp)", self.fired(doc)["empty_runs"][0])
+        self.assertEqual((doc["counts"]["skipped_runs"], doc["counts"]["unscoped_runs"]), (0, 1))
+
+    def test_the_main_prints_a_note_when_another_tasks_runs_were_skipped(self):
+        """Fails if: skipped runs of another task are dropped without a one-line count on stdout."""
+        self.write("build/runs/a.digest", "RESULT: PASS (exit 0)  a  5s  task=other\n")
+        self.write("build/runs/b.digest", "RESULT: PASS (exit 0)  b  5s  task=other\n")
+        from contextlib import redirect_stdout
+        from io import StringIO
+        buffer = StringIO()
+        with redirect_stdout(buffer):
+            self.run_digest()
+        self.assertIn("skipped 2 run digest(s) stamped for another task", buffer.getvalue())
 
     def test_a_review_of_a_branch_outside_the_ledger_is_skipped(self):
         """Fails if: a round-5 review of a branch the ledger does not list fires review_rounds_over_cap."""

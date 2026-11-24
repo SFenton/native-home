@@ -408,8 +408,8 @@ def duration_seconds(token: str) -> Optional[int]:
 def run_records(runs: Optional[Path], task: Optional[str] = None, skipped: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """One record per ``bg_run`` digest (``build/runs/*.digest``): label, verdict, exit, seconds, counts, device flag.
 
-    With ``task`` (a ledger task) only digests whose RESULT line carries ``task=<that id>`` are kept: a digest stamped with another
-    task, or not stamped, is another task's or unknown, and its file name is appended to ``skipped``. Without ``task`` (``--lane``)
+    With ``task`` (a ledger task) a digest stamped with another task is dropped and its file name appended to ``skipped``. A digest
+    with no stamp is kept and marked ``unscoped`` (its task is unknown, so it counts as before). Without ``task`` (``--lane``)
     every digest is kept."""
     records: List[Dict[str, Any]] = []
     try:
@@ -426,7 +426,8 @@ def run_records(runs: Optional[Path], task: Optional[str] = None, skipped: Optio
         head = RUN_HEAD.match(lines[0]) if lines else None
         if not head:
             continue
-        if task is not None and (RUN_TASK.search(lines[0]) or [None, None])[1] != task:
+        stamp = (RUN_TASK.search(lines[0]) or [None, None])[1]
+        if task is not None and stamp is not None and stamp != task:
             if skipped is not None:
                 skipped.append(path.name)
             continue
@@ -440,7 +441,7 @@ def run_records(runs: Optional[Path], task: Optional[str] = None, skipped: Optio
         counts = RUN_COUNTS.search(text)
         seconds = duration_seconds(token or "")
         records.append({
-            "label": label or path.stem, "verdict": head["verdict"], "exit": int(head["exit"]) if head["exit"] else None,
+            "label": label or path.stem, "unscoped": task is not None and stamp is None, "verdict": head["verdict"], "exit": int(head["exit"]) if head["exit"] else None,
             "seconds": seconds, "finished": finished,
             "sha": (RUN_SHA.search(lines[0]) or [None, ""])[1],
             "products": frozenset(RUN_PRODUCTS.findall(text)),  # keys only: `built K in 9s` and `hit K, saved` name one build
@@ -661,6 +662,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     if empties:
         fire("empty_runs", *[f"{r['label']}: {r['verdict']}, executed {r['executed'] if r['executed'] is not None else '?'}, "
                              f"skipped {r['skipped'] if r['skipped'] is not None else '?'}, {describe_seconds(r['seconds'] or 0)}"
+                             f"{' (unscoped: no task stamp)' if r['unscoped'] else ''}"
                              for r in empties])
     if getattr(args, "lane", None):
         commits = lane_commits(args.worktree and Path(args.worktree), args.branch, args.base or "")
@@ -708,7 +710,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
             "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
             "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0, "waits": 1 if named_wait else 0,
             "owner_replies": len(comments), "tool_errors": errors,
-            "skipped_runs": len(skipped_runs), "skipped_reviews": len(skipped_reviews), **lane_counts,
+            "skipped_runs": len(skipped_runs), "unscoped_runs": sum(1 for r in runs if r["unscoped"]), "skipped_reviews": len(skipped_reviews), **lane_counts,
         },
         "durations": {"minutes": minutes, "api_minutes": round(float(result.get("duration_api_ms") or 0) / 60000, 1),
                       "slot_wait_minutes": waited},
@@ -772,6 +774,11 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
     fired = ", ".join(t["id"] for t in document["triggers"]) or "none"
     print(f"{out} (triggers: {fired})")
+    counts = document.get("counts") or {}
+    if counts.get("skipped_runs"):
+        print(f"retro_digest: skipped {counts['skipped_runs']} run digest(s) stamped for another task")
+    if counts.get("unscoped_runs"):
+        print(f"retro_digest: {counts['unscoped_runs']} run digest(s) carry no task stamp and count as unscoped")
     return 0
 
 
