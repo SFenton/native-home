@@ -5,6 +5,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
@@ -111,6 +112,14 @@ class CustodySeeds:
                                 )
                             values[generation] = record
         return result
+
+
+@dataclass(frozen=True)
+class CustodyAggregateSeed:
+    value: dict
+
+    def aggregate(self):
+        return json.loads(json.dumps(self.value))
 
 
 def seeded_expected(expected, seed):
@@ -221,6 +230,167 @@ class StoreTestBase(t.Base):
             "retro-old-input",
             "retro-old-retro-seed",
         )
+
+    def custody_fixtures(self):
+        return {
+            "quiet request": (
+                "primary", self.request_seed(42), (), (),
+            ),
+            "priority request": (
+                "primary", self.request_seed(42), (), (),
+            ),
+            "priority nightly": (
+                "nightly", self.nightly_seed(), (), (),
+            ),
+            "drained request": (
+                "primary", self.request_seed(42), (), (),
+            ),
+            "drained nightly": (
+                "nightly", self.nightly_seed(), (), (),
+            ),
+            "self-change pause": (
+                "primary", self.request_seed(42), (), (),
+            ),
+            "valid acknowledgement": (
+                "primary", self.request_seed(42), (), (),
+            ),
+            "maintenance": (
+                "primary",
+                self.maintenance_seeds(),
+                (),
+                ("request-64-fixed",),
+            ),
+            "integrated job and retro": (
+                "primary",
+                self.integrated_job_seeds(),
+                ((
+                    "job-researcher-2026-11-23",
+                    "job-researcher-2026-11-23",
+                    "2026-11-23T12:00:00Z",
+                ),),
+                (
+                    "job-researcher-897aded5543e",
+                    "retro-job-researcher-2026-11-23-e6789b1f72f7",
+                ),
+            ),
+            "tamper 71": (
+                "primary",
+                self.request_seed(71, outcome="done"),
+                (),
+                ("request-71-a2d9ced85f6f",),
+            ),
+            "ordinary request 70": (
+                "primary",
+                self.request_seed(70, outcome="no_changes"),
+                (),
+                (),
+            ),
+            "manual controls 72": (
+                "primary", self.request_seed(72), (), (),
+            ),
+            "locked status 72": (
+                "primary", self.request_seed(72), (), (),
+            ),
+            "post-launch request 81": (
+                "primary",
+                self.request_seed(81, outcome="done"),
+                (),
+                ("request-81-10cf3364c1d1",),
+            ),
+            "classic reviewer": (
+                "primary", self.job_seed(), (), (),
+            ),
+            "worker reviewer callback": (
+                "primary", self.job_seed(), (), (),
+            ),
+            "identified stopped retro pair": (
+                "primary",
+                self.stopped_retro_seed(),
+                ((
+                    "held-retro",
+                    "held-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (),
+            ),
+            "request 63 path absent": (
+                "primary",
+                self.request_seed(63),
+                (),
+                ("request-63-installed",),
+            ),
+            "old retro pre-drop": (
+                "primary",
+                self.old_retro_seed(),
+                ((
+                    "old-retro",
+                    "old-input",
+                    "2026-11-22T12:00:00Z",
+                ),),
+                (
+                    "retro-old-input-prior",
+                    "retro-old-retro-bc9b9b0ea1cf",
+                ),
+            ),
+        }
+
+    def custody_fixture(self, name):
+        return self.custody_fixtures()[name][1]
+
+    @staticmethod
+    def fixture_record(aggregate, seed):
+        return aggregate["records"][seed.repository][seed.intake][
+            seed.producer
+        ][seed.generation]
+
+    def custody_variants(self, seed):
+        cases = []
+        for phase in ("unknown", "pending", "release_authorized"):
+            aggregate = seed.aggregate()
+            record = self.fixture_record(aggregate, seed)
+            record["phase"] = phase
+            if phase == "unknown":
+                for name in (
+                    "target", "pre_refs", "original_outcome",
+                    "release_proof",
+                ):
+                    record.pop(name, None)
+            elif phase == "pending":
+                record.pop("release_proof")
+                record["bindings"] = {
+                    "agents/test": {
+                        "disposition": "owner_wait",
+                        "tip": "a" * 40,
+                        "since": "2026-01-01T00:00:00Z",
+                    },
+                }
+            cases.append((f"phase {phase}", CustodyAggregateSeed(aggregate)))
+        for notice_state in (
+            "unsent", "intent", "uncertain", "confirmed",
+        ):
+            aggregate = seed.aggregate()
+            record = self.fixture_record(aggregate, seed)
+            payload = {
+                "state": notice_state,
+                "since": "2026-01-01T00:00:00Z",
+            }
+            if notice_state == "confirmed":
+                payload["remote_identity"] = {
+                    "repository": "private/issues",
+                    "number": 1,
+                }
+            record["notices"] = {
+                "agents/test": {
+                    "b" * 40: {
+                        "needs_pr": payload,
+                    },
+                },
+            }
+            cases.append((
+                f"notice {notice_state}",
+                CustodyAggregateSeed(aggregate),
+            ))
+        return cases
 
     def integrated_job_seeds(self):
         return CustodySeeds((
@@ -715,6 +885,1006 @@ class LoadAndMissingTests(StoreTestBase):
                     "kind": "type",
                     "exists": "yes",
                 })
+
+
+class CustodySchemaTests(StoreTestBase):
+    @staticmethod
+    def _clone(value):
+        return json.loads(json.dumps(value))
+
+    @staticmethod
+    def _leaf(aggregate, seed):
+        return aggregate["records"][seed.repository][seed.intake][
+            seed.producer
+        ][seed.generation]
+
+    @staticmethod
+    def _key(seed):
+        return {
+            "repository": seed.repository,
+            "intake": seed.intake,
+            "producer": seed.producer,
+            "generation": seed.generation,
+        }
+
+    def _write_custody(self, store, aggregate, extra=None):
+        path = self.logical_path(store)
+        value = self.legacy(**(extra or {}))
+        value["custody"] = self._clone(aggregate)
+        self.write_raw(path, value)
+        return path
+
+    def _assert_custody_fault(
+            self, store, aggregate, kind, scope="record",
+            version=1, key=None,
+    ):
+        path = self._write_custody(store, aggregate)
+        before = path.read_bytes()
+        state = ht.State(path)
+        self.assertFalse(state.writable)
+        expected = {
+            "kind": kind,
+            "exists": "yes",
+            "scope": scope,
+            "version": version,
+            "key": key,
+        }
+        self.assertIn(expected, state.load_faults)
+        self.assertEqual(path.read_bytes(), before)
+        with self.assertRaises(ht.StateLoadError):
+            state.require_writable()
+        return state
+
+    def test_custody_wire_field_matrix_refuses_each_invalid_cell(self):
+        """Fails if: one invalid wire cell is accepted in a correctly placed intake."""
+        for seed, store in (
+            (self.request_seed(42), "primary"),
+            (self.nightly_seed(), "nightly"),
+        ):
+            cases = [
+                (
+                    "phase type", "phase",
+                    lambda record: record.__setitem__("phase", []),
+                ),
+                (
+                    "phase enum", "phase",
+                    lambda record: record.__setitem__("phase", "ready"),
+                ),
+                (
+                    "since spelling", "type",
+                    lambda record: record.__setitem__(
+                        "since", "2026-11-23 12:00:00Z"
+                    ),
+                ),
+                (
+                    "since calendar", "type",
+                    lambda record: record.__setitem__(
+                        "since", "2026-02-30T12:00:00Z"
+                    ),
+                ),
+                (
+                    "outcome closed", "type",
+                    lambda record: record["original_outcome"].__setitem__(
+                        "extra", True
+                    ),
+                ),
+                (
+                    "outcome exit bool", "type",
+                    lambda record: record["original_outcome"].__setitem__(
+                        "exit_code", False
+                    ),
+                ),
+                (
+                    "outcome state", "type",
+                    lambda record: record["original_outcome"].__setitem__(
+                        "state", "rejected"
+                    ),
+                ),
+                (
+                    "target branch", "type",
+                    lambda record: record["target"].__setitem__(
+                        "branch", "agents/report"
+                    ),
+                ),
+                (
+                    "target source repository", "namespace",
+                    lambda record: record["target"].__setitem__(
+                        "source_repository", "Example/Product"
+                    ),
+                ),
+                (
+                    "pre refs", "type",
+                    lambda record: record["pre_refs"].__setitem__(
+                        record["target"]["branch"], "deadbeef"
+                    ),
+                ),
+                (
+                    "bindings container", "type",
+                    lambda record: record.__setitem__("bindings", []),
+                ),
+                (
+                    "attempts bool", "type",
+                    lambda record: record.__setitem__("attempts", True),
+                ),
+                (
+                    "next closed", "type",
+                    lambda record: record.__setitem__(
+                        "next", {"kind": "retry", "at": None}
+                    ),
+                ),
+            ]
+            for label, kind, mutate in cases:
+                with self.subTest(store=store, cell=label):
+                    aggregate = seed.aggregate()
+                    mutate(self._leaf(aggregate, seed))
+                    self._assert_custody_fault(
+                        store, aggregate, kind, key=self._key(seed)
+                    )
+
+            envelope_cases = [
+                ("aggregate type", [], "type", None),
+                ("version missing", {"records": {}}, "version", None),
+                ("version bool", {"version": True, "records": {}},
+                 "version", None),
+                ("version unsupported", {"version": 2, "records": {}},
+                 "version", None),
+                ("records type", {"version": 1, "records": []},
+                 "type", 1),
+            ]
+            for label, aggregate, kind, version in envelope_cases:
+                with self.subTest(store=store, cell=label):
+                    self._assert_custody_fault(
+                        store, aggregate, kind, "store", version
+                    )
+
+    def test_custody_release_conjunction_and_signed_fields(self):
+        """Fails if: release authorization accepts any missing positive proof."""
+        seed = self.request_seed(42)
+        mutations = [
+            ("outcome trust", lambda record:
+             record["original_outcome"].__setitem__(
+                 "trust", "untrusted"
+             ), "type"),
+            ("outcome exit", lambda record:
+             record["original_outcome"].__setitem__("exit_code", 1),
+             "type"),
+            ("archive session", lambda record:
+             record["release_proof"].__setitem__(
+                 "archive_session", "other-session"
+             ), "phase"),
+            ("inventory", lambda record:
+             record["release_proof"].__setitem__(
+                 "inventory", "not_empty"
+             ), "phase"),
+            ("bindings", lambda record:
+             record.__setitem__("bindings", {
+                 "agents/test": {
+                     "disposition": "owner_wait",
+                     "tip": "a" * 40,
+                     "since": "2026-01-01T00:00:00Z",
+                 },
+             }), "phase"),
+        ]
+        for label, mutate, kind in mutations:
+            with self.subTest(field=label):
+                aggregate = seed.aggregate()
+                mutate(self._leaf(aggregate, seed))
+                self._assert_custody_fault(
+                    "primary", aggregate, kind, key=self._key(seed)
+                )
+
+    def test_custody_wire_key_binding_and_optional_matrix(self):
+        """Fails if: a hierarchy, copy, binding or optional field is coerced."""
+        seed = self.request_seed(42)
+        key = self._key(seed)
+
+        def tree(aggregate):
+            records = aggregate["records"]
+            intakes = records[seed.repository]
+            producers = intakes[seed.intake]
+            generations = producers[seed.producer]
+            return records, intakes, producers, generations
+
+        hierarchy = [
+            (
+                "repository spelling",
+                lambda aggregate: aggregate["records"].__setitem__(
+                    "Example/Product", aggregate["records"].pop(seed.repository)
+                ),
+                "namespace", "store", None,
+            ),
+            (
+                "repository value",
+                lambda aggregate: aggregate["records"].__setitem__(
+                    seed.repository, []
+                ),
+                "type", "record", {"repository": seed.repository},
+            ),
+            (
+                "intake placement",
+                lambda aggregate: tree(aggregate)[0].__setitem__(
+                    seed.repository,
+                    {"nightly": tree(aggregate)[0][seed.repository]["request"]},
+                ),
+                "namespace", "record", {"repository": seed.repository},
+            ),
+            (
+                "intake value",
+                lambda aggregate: tree(aggregate)[1].__setitem__(
+                    seed.intake, []
+                ),
+                "type", "record", {
+                    "repository": seed.repository,
+                    "intake": seed.intake,
+                },
+            ),
+            (
+                "producer spelling",
+                lambda aggregate: tree(aggregate)[2].__setitem__(
+                    "request:042",
+                    tree(aggregate)[2].pop(seed.producer),
+                ),
+                "namespace", "record", {
+                    "repository": seed.repository,
+                    "intake": seed.intake,
+                },
+            ),
+            (
+                "producer value",
+                lambda aggregate: tree(aggregate)[2].__setitem__(
+                    seed.producer, []
+                ),
+                "type", "record", {
+                    "repository": seed.repository,
+                    "intake": seed.intake,
+                    "producer": seed.producer,
+                },
+            ),
+            (
+                "generation spelling",
+                lambda aggregate: tree(aggregate)[3].__setitem__(
+                    "../generation",
+                    tree(aggregate)[3].pop(seed.generation),
+                ),
+                "key", "record", {
+                    "repository": seed.repository,
+                    "intake": seed.intake,
+                    "producer": seed.producer,
+                },
+            ),
+            (
+                "record value",
+                lambda aggregate: tree(aggregate)[3].__setitem__(
+                    seed.generation, []
+                ),
+                "type", "record", key,
+            ),
+            (
+                "identity copy",
+                lambda aggregate: self._leaf(
+                    aggregate, seed
+                ).__setitem__("producer", "request:99"),
+                "key", "record", key,
+            ),
+            (
+                "target null",
+                lambda aggregate: self._leaf(
+                    aggregate, seed
+                ).__setitem__("target", None),
+                "type", "record", key,
+            ),
+            (
+                "outcome null",
+                lambda aggregate: self._leaf(
+                    aggregate, seed
+                ).__setitem__("original_outcome", None),
+                "type", "record", key,
+            ),
+            (
+                "pre refs null",
+                lambda aggregate: self._leaf(
+                    aggregate, seed
+                ).__setitem__("pre_refs", None),
+                "type", "record", key,
+            ),
+            (
+                "proof null",
+                lambda aggregate: self._leaf(
+                    aggregate, seed
+                ).__setitem__("release_proof", None),
+                "type", "record", key,
+            ),
+        ]
+        for label, mutate, kind, scope, expected_key in hierarchy:
+            with self.subTest(cell=label):
+                aggregate = seed.aggregate()
+                mutate(aggregate)
+                self._assert_custody_fault(
+                    "primary", aggregate, kind, scope, key=expected_key
+                )
+
+        binding_cases = [
+            ("lane", "invalid lane", "key"),
+            ("binding container", None, "type"),
+            ("lane copy", {"lane": "agents/other"}, "key"),
+            ("branch copy", {"branch": "refs/heads/agents/other"}, "key"),
+            ("disposition type", {"disposition": []}, "disposition"),
+            ("disposition enum", {"disposition": "terminal"}, "disposition"),
+            ("tip", {"tip": "deadbeef"}, "type"),
+            ("since", {"since": "2026-02-30T00:00:00Z"}, "type"),
+            ("pull bool", {"pull": True}, "type"),
+            ("reviewed head", {"reviewed_head": "A" * 40}, "type"),
+            ("attempts bool", {"attempts": True}, "type"),
+            ("reason", {"reason": "unknown"}, "type"),
+            ("next extra", {"next": {"kind": "human", "extra": 1}}, "type"),
+        ]
+        for label, change, kind in binding_cases:
+            with self.subTest(cell=label):
+                aggregate = seed.aggregate()
+                record = self._leaf(aggregate, seed)
+                record["phase"] = "pending"
+                record.pop("release_proof")
+                binding = {
+                    "disposition": "owner_wait",
+                    "tip": "a" * 40,
+                    "since": "2026-01-01T00:00:00Z",
+                }
+                lane = "agents/test"
+                if label == "lane":
+                    lane = change
+                elif label == "binding container":
+                    binding = change
+                else:
+                    binding.update(change)
+                record["bindings"] = {lane: binding}
+                self._assert_custody_fault(
+                    "primary", aggregate, kind, key=key
+                )
+
+    def test_custody_closed_payload_and_extra_boundaries(self):
+        """Fails if: opaque extras become authority or closed payloads admit them."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        record = self._leaf(aggregate, seed)
+        aggregate["future"] = {"envelope": True}
+        record["future"] = {"record": True}
+        record["target"]["future"] = {"target": True}
+        path = self._write_custody("primary", aggregate)
+        state = ht.State(path)
+        self.assertTrue(state.writable)
+        with self.assertRaises(TypeError):
+            state.vetted_custody_records[0][1]["phase"] = "unknown"
+        for closed, field, value in (
+            ("original_outcome", "extra", True),
+            ("next", "extra", True),
+            ("release_proof", "extra", True),
+        ):
+            with self.subTest(closed=closed):
+                invalid = seed.aggregate()
+                invalid_record = self._leaf(invalid, seed)
+                if closed == "next":
+                    invalid_record["next"] = {"kind": "human"}
+                invalid_record[closed]["extra"] = value
+                self._assert_custody_fault(
+                    "primary", invalid, "type", key=self._key(seed)
+                )
+
+    def test_custody_alias_collisions_refuse_both_spelling_orders(self):
+        """Fails if: a producer or notice alias collision trusts its valid twin."""
+        seed = self.request_seed(42)
+        for reverse in (False, True):
+            with self.subTest(record_reverse=reverse):
+                aggregate = seed.aggregate()
+                records = aggregate["records"]
+                producer_map = records[seed.repository][seed.intake]
+                entries = [
+                    (seed.producer, self._clone(
+                        producer_map[seed.producer]
+                    )),
+                    ("request:042", self._clone(
+                        producer_map[seed.producer]
+                    )),
+                ]
+                producer_map.clear()
+                producer_map.update(entries[::-1] if reverse else entries)
+                self._assert_custody_fault(
+                    "primary", aggregate, "key",
+                    key={
+                        "repository": seed.repository,
+                        "intake": seed.intake,
+                    },
+                )
+            with self.subTest(notice_reverse=reverse):
+                aggregate = seed.aggregate()
+                notices = [
+                    ("needs_pr", {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                    }),
+                    ("NEEDS_PR", {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                    }),
+                ]
+                self._leaf(aggregate, seed)["notices"] = {
+                    "agents/test": {
+                        "a" * 40: dict(
+                            notices[::-1] if reverse else notices
+                        ),
+                    },
+                }
+                state = self._assert_custody_fault(
+                    "primary", aggregate, "key", "notice",
+                    key={
+                        **self._key(seed),
+                        "lane": "agents/test",
+                        "head": "a" * 40,
+                    },
+                )
+                self.assertEqual(state.vetted_custody_records[0][2], ())
+
+    def test_custody_notice_field_matrix_refuses_each_invalid_cell(self):
+        """Fails if: a malformed notice field is accepted or loses bounded scope."""
+        seed = self.request_seed(42)
+        lane = "agents/test"
+        head = "a" * 40
+        cases = [
+            ("lane", { "not a lane": {head: {}}}, "key"),
+            ("head", {lane: {"A" * 40: {}}}, "key"),
+            ("fault class", {lane: {head: {"unknown": {}}}}, "key"),
+            ("payload type", {lane: {head: {"needs_pr": []}}}, "type"),
+            ("state type", {
+                lane: {head: {"needs_pr": {
+                    "state": [], "since": "2026-01-01T00:00:00Z",
+                }}}
+            }, "type"),
+            ("since", {
+                lane: {head: {"needs_pr": {
+                    "state": "intent", "since": "not-a-time",
+                }}}
+            }, "type"),
+            ("remote missing", {
+                lane: {head: {"needs_pr": {
+                    "state": "confirmed",
+                    "since": "2026-01-01T00:00:00Z",
+                }}}
+            }, "type"),
+            ("remote extra", {
+                lane: {head: {"needs_pr": {
+                    "state": "confirmed",
+                    "since": "2026-01-01T00:00:00Z",
+                    "remote_identity": {
+                        "repository": "private/issues",
+                        "number": 1,
+                        "extra": True,
+                    },
+                }}}
+            }, "type"),
+        ]
+        for label, notices, kind in cases:
+            with self.subTest(cell=label):
+                aggregate = seed.aggregate()
+                self._leaf(aggregate, seed)["notices"] = notices
+                key = self._key(seed)
+                if label != "lane":
+                    key["lane"] = lane
+                if label not in ("lane", "head"):
+                    key["head"] = head
+                if label not in ("lane", "head", "fault class"):
+                    key["fault_class"] = "needs_pr"
+                state = self._assert_custody_fault(
+                    "primary", aggregate, kind, "notice", key=key
+                )
+                self.assertTrue(state.vetted_custody_records)
+
+    def test_custody_bad_record_refuses_store_and_preserves_vetted_sibling(self):
+        """Fails if: one bad record is trusted or discarded without refusing its store."""
+        good = self.request_seed(42)
+        bad = self.request_seed(43)
+        for seeds in ((good, bad), (bad, good)):
+            with self.subTest(order=[seed.producer for seed in seeds]):
+                aggregate = CustodySeeds(seeds).aggregate()
+                self._leaf(aggregate, bad)["phase"] = "invalid"
+                state = self._assert_custody_fault(
+                    "primary", aggregate, "phase", key=self._key(bad)
+                )
+                self.assertEqual(
+                    [item[0] for item in state.vetted_custody_records],
+                    [(
+                        good.repository,
+                        good.intake,
+                        good.producer,
+                        good.generation,
+                    )],
+                )
+
+    def test_custody_bad_notice_refuses_store_and_preserves_safe_notice(self):
+        """Fails if: a bad notice removes its valid body, bindings or safe notice."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        record = self._leaf(aggregate, seed)
+        notice_items = (
+            ("agents/safe", {
+                "a" * 40: {
+                    "needs_pr": {
+                        "state": "intent",
+                        "since": "2026-01-01T00:00:00Z",
+                    },
+                },
+            }),
+            ("agents/bad", {
+                "b" * 40: {
+                    "needs_pr": {
+                        "state": "unknown",
+                        "since": "2026-01-01T00:00:00Z",
+                    },
+                },
+            }),
+        )
+        for items in (notice_items, tuple(reversed(notice_items))):
+            with self.subTest(order=[item[0] for item in items]):
+                record["notices"] = dict(items)
+                state = self._assert_custody_fault(
+                    "primary", aggregate, "type", "notice",
+                    key={
+                        **self._key(seed),
+                        "lane": "agents/bad",
+                        "head": "b" * 40,
+                        "fault_class": "needs_pr",
+                    },
+                )
+                self.assertEqual(len(state.vetted_custody_records), 1)
+                body = state.vetted_custody_records[0][1]
+                notices = state.vetted_custody_records[0][2]
+                self.assertEqual(body["phase"], "release_authorized")
+                self.assertEqual(
+                    [item[0] for item in notices],
+                    [("agents/safe", "a" * 40, "needs_pr")],
+                )
+
+    def test_custody_absent_notice_is_valid_and_not_synthesized(self):
+        """Fails if: missing notices become a delivery fact or a writer veto."""
+        seed = self.request_seed(42)
+        path = self._write_custody("primary", seed.aggregate())
+        state = ht.State(path)
+        self.assertTrue(state.writable)
+        self.assertEqual(state.vetted_custody_records[0][2], ())
+
+    def test_custody_tuple_collision_trusts_neither_spelling(self):
+        """Fails if: an alias collision trusts either record spelling."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        record_map = aggregate["records"]
+        canonical = seed.repository
+        alias = canonical.upper()
+        record_map[alias] = self._clone(record_map[canonical])
+        source = self.request_seed(43)
+        disjoint = CustodySeed(
+            repository="other/product",
+            intake=source.intake,
+            producer=source.producer,
+            generation=source.generation,
+            branch=source.branch,
+            archive_name=source.archive_name,
+            archive_session=source.archive_session,
+            source_repository=source.source_repository,
+        )
+        record_map[disjoint.repository] = {
+            disjoint.intake: {
+                disjoint.producer: {
+                    disjoint.generation: self._clone(
+                        self._leaf(disjoint.aggregate(), disjoint)
+                    ),
+                },
+            },
+        }
+        expected = [(
+            disjoint.repository,
+            disjoint.intake,
+            disjoint.producer,
+            disjoint.generation,
+        )]
+        for order in (
+            tuple(record_map),
+            tuple(reversed(tuple(record_map))),
+        ):
+            with self.subTest(order=order):
+                aggregate["records"] = {
+                    repository: record_map[repository]
+                    for repository in order
+                }
+                state = self._assert_custody_fault(
+                    "primary", aggregate, "key",
+                    key={"repository": seed.repository},
+                )
+                self.assertEqual(
+                    [item[0] for item in state.vetted_custody_records],
+                    expected,
+                )
+
+    def test_custody_unbounded_namespace_fault_has_no_guessed_view(self):
+        """Fails if: an unbounded namespace leak invents a projected identity."""
+        aggregate = {
+            "version": 1,
+            "records": {
+                "../outside": {
+                    "request": {},
+                },
+            },
+        }
+        state = self._assert_custody_fault(
+            "primary", aggregate, "namespace", "store", 1, None
+        )
+        self.assertEqual(state.vetted_custody_records, ())
+
+    def test_custody_direct_save_refuses_before_any_save_effect(self):
+        """Fails if: direct save serializes or creates anything for a faulted state."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        self._leaf(aggregate, seed)["phase"] = "invalid"
+        path = self._write_custody("primary", aggregate)
+        before = path.read_bytes()
+        state = ht.State(path)
+        with mock.patch.object(ht, "durable_mkdir") as mkdir, \
+                mock.patch.object(ht.json, "dumps") as dumps, \
+                mock.patch.object(ht.tempfile, "mkstemp") as temp, \
+                mock.patch.object(ht.os, "replace") as replace:
+            with self.assertRaises(ht.StateLoadError):
+                state.save()
+        mkdir.assert_not_called()
+        dumps.assert_not_called()
+        temp.assert_not_called()
+        replace.assert_not_called()
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_custody_fresh_tick_reloads_and_refuses_fault(self):
+        """Fails if: Runner.tick trusts its earlier in-memory state."""
+        runner = self.runner(FakeGitHub([]))
+        runner._state_loader = ht.State
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        self._leaf(aggregate, seed)["phase"] = "invalid"
+        self._write_custody("primary", aggregate)
+        with mock.patch.object(
+            runner, "_tick_locked",
+            side_effect=AssertionError("work after custody refusal"),
+        ):
+            with self.assertRaisesRegex(ht.StateLoadError, "phase"):
+                runner.tick()
+
+    def test_custody_fault_projection_and_text_have_exact_metadata(self):
+        """Fails if: custody metadata changes legacy fault shapes or text."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        self._leaf(aggregate, seed)["phase"] = "invalid"
+        state = self._assert_custody_fault(
+            "primary", aggregate, "phase", key=self._key(seed)
+        )
+        projection = state.load_projection("request")
+        self.assertEqual(projection, [{
+            "store": "request",
+            "kind": "phase",
+            "exists": "yes",
+            "scope": "record",
+            "version": 1,
+            "key": self._key(seed),
+        }])
+        self.assertEqual(
+            ht.state_load_text(projection),
+            ["state store request: phase (exists yes, scope record, "
+             f"version 1, key {json.dumps(self._key(seed), separators=(',', ':'))})"],
+        )
+        legacy = {"store": "nightly", "kind": "type", "exists": "yes"}
+        self.assertEqual(
+            ht.state_load_text([legacy]),
+            ["state store nightly: type (exists yes)"],
+        )
+
+        mixed_path = self._write_custody(
+            "primary", {"version": 1, "records": []}, {"jobs": []}
+        )
+        mixed = ht.State(mixed_path).load_projection("request")
+        self.assertEqual(mixed, [
+            {"store": "request", "kind": "type", "exists": "yes"},
+            {
+                "store": "request",
+                "kind": "type",
+                "exists": "yes",
+                "scope": "store",
+                "version": 1,
+                "key": None,
+            },
+        ])
+        self.assertEqual(ht.state_load_text(mixed), [
+            "state store request: type (exists yes)",
+            "state store request: type "
+            "(exists yes, scope store, version 1, key unknown)",
+        ])
+
+    def test_custody_unrelated_save_preserves_seed_and_extras(self):
+        """Fails if: a required legacy save drops or reinterprets custody."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        aggregate["opaque"] = {"future": ["kept"]}
+        self._leaf(aggregate, seed)["opaque"] = {"record": True}
+        path = self._write_custody(
+            "primary", aggregate, {"opaque_extension": {"legacy": 1}}
+        )
+        expected = json.loads(path.read_text())
+        state = ht.State(path)
+        state.data["history"].append({
+            "issue": 42,
+            "outcome": "done",
+            "detail": "",
+            "at": "2026-01-01T00:00:00Z",
+        })
+        expected["history"] = self._clone(state.data["history"])
+        state.save()
+        self.assertEqual(path.read_bytes(), self.saved_bytes(expected))
+        reopened = ht.State(path)
+        self.assertTrue(reopened.writable)
+        self.assertEqual(reopened.data["custody"], aggregate)
+
+    def test_custody_missing_tree_does_not_veto_writer_or_probe(self):
+        """Fails if: schema validation turns an absent target tree into authority."""
+        seed = self.request_seed(42)
+        path = self._write_custody("primary", seed.aggregate())
+        target = self.paths.worktrees / "42"
+        original_exists = Path.exists
+
+        def guarded_exists(candidate):
+            if candidate == target:
+                raise AssertionError("loader or save probed a custody tree")
+            return original_exists(candidate)
+
+        with mock.patch.object(
+            Path, "exists", autospec=True, side_effect=guarded_exists,
+        ):
+            state = ht.State(path)
+        self.assertTrue(state.writable)
+        self.assertFalse(
+            self.paths.worktrees.joinpath("42").exists()
+        )
+        with mock.patch.object(
+            Path, "exists", autospec=True, side_effect=guarded_exists,
+        ):
+            state.data["opaque_extension"] = {"saved": True}
+            state.save()
+
+    def test_custody_status_has_only_existing_fault_channel(self):
+        """Fails if: status gains a custody section or performs a writer repair."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        self._leaf(aggregate, seed)["phase"] = "invalid"
+        self._write_custody("primary", aggregate)
+        nightly_path = ht.Paths(
+            self.cfg, self.home, "nightly-"
+        ).state
+        self.write_raw(nightly_path, self.legacy(jobs=[]))
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        cfg["schedules"] = {}
+        before = self.file_bytes()
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            with mock.patch.object(
+                ht, "durable_mkdir",
+                side_effect=AssertionError("status repaired state"),
+            ), mock.patch.object(
+                ht.State, "save",
+                side_effect=AssertionError("status saved state"),
+            ), mock.patch.object(
+                ht, "writer_lock",
+                side_effect=AssertionError("status acquired writer lock"),
+            ):
+                report = ht.status_report(
+                    cfg, self.paths, FakeGitHub([]), logged_in=True
+                )
+        self.assertNotIn("custody", report)
+        self.assertNotIn("custody", json.dumps(report))
+        self.assertEqual(report["state_loads"], [
+            {
+                "store": "request",
+                "kind": "phase",
+                "exists": "yes",
+                "scope": "record",
+                "version": 1,
+                "key": self._key(seed),
+            },
+            {
+                "store": "nightly",
+                "kind": "type",
+                "exists": "yes",
+            },
+        ])
+        self.assertEqual(ht.state_load_text(report["state_loads"])[1],
+                         "state store nightly: type (exists yes)")
+        after = self.file_bytes()
+        self.assertEqual(after[self.paths.state.relative_to(self.home).as_posix()],
+                         before[self.paths.state.relative_to(self.home).as_posix()])
+        self.assertEqual(
+            after[nightly_path.relative_to(self.home).as_posix()],
+            before[nightly_path.relative_to(self.home).as_posix()],
+        )
+
+    def test_custody_retro_presence_refuses_all_retro_effects(self):
+        """Fails if: even an empty aggregate in the shared retro store reaches an effect."""
+        runner = self.runner(FakeGitHub([]))
+        path = runner.retro_paths.state
+        self.write_raw(path, self.legacy(queue=[], done=[], custody={}))
+        before = path.read_bytes()
+        with self.assertRaisesRegex(ht.StateLoadError, "namespace"):
+            runner.run_retro()
+        self.assertEqual(path.read_bytes(), before)
+        state = ht.State(path)
+        self.assertEqual(state.load_faults, [{
+            "kind": "namespace",
+            "exists": "yes",
+            "scope": "store",
+            "version": None,
+            "key": None,
+        }])
+        self.assertEqual(state.vetted_custody_records, ())
+        existing_queue = [{
+            "task": "existing",
+            "archive": str(self.paths.root / "archive" / "existing"),
+        }]
+        self.write_raw(
+            path,
+            self.legacy(queue=existing_queue, done=[], custody={}),
+        )
+        before = path.read_bytes()
+        task = "request-42"
+        tree = self.paths.worktree(42)
+        digest = tree / "build" / "retro" / f"{task}.json"
+        digest.parent.mkdir(parents=True, exist_ok=True)
+        digest.write_text(json.dumps({
+            "triggers": [{"id": "schema-custody"}],
+        }))
+        runner.state.record(42, "done", "completed")
+        with mock.patch.object(
+            runner, "run_retro_digest"
+        ), mock.patch.object(
+            runner, "run_retro_phase"
+        ), mock.patch(
+            "sys.stderr", new=io.StringIO()
+        ) as err:
+            archived = runner.archive_evidence(
+                42,
+                tree=tree,
+                name="request-42",
+                task=task,
+                include_sidecar=False,
+            )
+            runner.state.save()
+        self.assertEqual(
+            archived,
+            self.paths.root / "archive" / "request-42",
+        )
+        self.assertIn("retro enqueue not committed", err.getvalue())
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(ht.State(path).data["queue"], existing_queue)
+
+        with mock.patch.object(
+            runner, "readable_base_map", return_value={}
+        ), mock.patch.object(
+            runner, "refresh_clone"
+        ), mock.patch.object(
+            runner, "check_base"
+        ), mock.patch.object(
+            runner, "check_ha_changes"
+        ), mock.patch.object(
+            runner, "check_merging"
+        ), mock.patch.object(
+            runner, "check_parked"
+        ), mock.patch.object(
+            runner, "requeue"
+        ), mock.patch.object(
+            runner, "recover"
+        ), mock.patch.object(
+            runner, "check_regressions", return_value=False
+        ), mock.patch.object(
+            runner, "run_due_job", return_value=None
+        ) as job, mock.patch(
+            "sys.stderr", new=io.StringIO()
+        ) as err:
+            self.assertEqual(runner._tick_locked(), 4)
+        job.assert_called_once_with()
+        self.assertIn("retro state refused", err.getvalue())
+        self.assertTrue(self.paths.state.exists())
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_custody_faulted_tick_refuses_only_affected_intake(self):
+        """Fails if: a faulty intake suppresses its healthy sibling or does work."""
+        cases = (
+            ("primary", self.request_seed(42), ["tick"], ["nightly"]),
+            (
+                "primary", self.request_seed(42),
+                ["tick", "--dry-run"], ["nightly"],
+            ),
+            ("nightly", self.nightly_seed(), ["tick"], ["primary"]),
+        )
+        for store, seed, argv, expected_calls in cases:
+            with self.subTest(store=store, argv=argv):
+                for path in (
+                    self.paths.state,
+                    ht.Paths(self.cfg, self.home, "nightly-").state,
+                ):
+                    path.unlink(missing_ok=True)
+                aggregate = seed.aggregate()
+                self._leaf(aggregate, seed)["phase"] = "invalid"
+                path = self._write_custody(store, aggregate)
+                before = path.read_bytes()
+                calls = []
+                with mock.patch.object(
+                    ht, "load_config", return_value=self.cfg
+                ), mock.patch.object(
+                    ht, "GitHub", return_value=FakeGitHub([])
+                ), mock.patch.object(
+                    ht.Runner, "_tick_locked", autospec=True,
+                    side_effect=lambda runner, _max: calls.append(
+                        "nightly" if runner.intake else "primary"
+                    ) or 0,
+                ), mock.patch("sys.stderr", new=io.StringIO()) as err:
+                    code = ht.main(argv, home=self.home)
+                self.assertEqual(code, 4)
+                self.assertEqual(calls, expected_calls)
+                self.assertIn(
+                    f"state store refused: phase for {path.name}",
+                    err.getvalue(),
+                )
+                self.assertEqual(path.read_bytes(), before)
+
+    def test_custody_command_precedence_and_exemptions_remain_pinned(self):
+        """Fails if: malformed custody changes busy, pause, preview or ack precedence."""
+        seed = self.request_seed(42)
+        aggregate = seed.aggregate()
+        self._leaf(aggregate, seed)["phase"] = "invalid"
+        self._write_custody("primary", aggregate)
+        cfg = dict(self.cfg)
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            result, _out, _err = self.main_with(["run-issue", "42"], cfg)
+            self.assertEqual(result, 1)
+        self.paths.paused.parent.mkdir(parents=True, exist_ok=True)
+        self.paths.paused.write_text("paused\n")
+        result, out, _err = self.main_with(["run-job", "steward"], cfg)
+        self.assertEqual((result, out), (0, "paused\n"))
+        self.paths.paused.unlink()
+        with mock.patch.object(
+            ht.Runner, "refresh_clone",
+            side_effect=AssertionError("refresh after custody refusal"),
+        ):
+            result, _out, _err = self.main_with(["run-issue", "42"], cfg)
+        self.assertEqual(result, 4)
+        with mock.patch.object(
+            ht, "render_prompt", return_value="fixed preview"
+        ) as render, mock.patch.object(
+            ht.Runner, "refresh_clone",
+            side_effect=AssertionError("preview refreshed"),
+        ):
+            result, out, err = self.main_with(
+                ["run-issue", "42", "--dry-run"],
+                cfg,
+                FakeGitHub([t.issue(42)]),
+            )
+        self.assertEqual((result, out, err), (0, "fixed preview\n", ""))
+        render.assert_called_once()
+        verified = {
+            "ok": True, "reason": "", "head": "a" * 40, "prs": [1],
+        }
+        with mock.patch.object(
+            ht.Runner, "ack_base", return_value="a" * 40
+        ), mock.patch.object(
+            ht.Runner, "ack_verified", return_value=verified
+        ), mock.patch.dict(os.environ, {}, clear=True), mock.patch(
+            "sys.stdin.isatty", return_value=True
+        ):
+            base, _out, _err = self.main_with(
+                ["ack-base", "a" * 40], cfg
+            )
+            checked, _out, _err = self.main_with(["ack-verified"], cfg)
+        self.assertEqual((base, checked), (0, 0))
 
 
 class AdmissionTests(StoreTestBase):
@@ -1316,13 +2486,13 @@ class ContainmentTests(StoreTestBase):
     def test_seeded_classic_reviewer_save_failure_preserves_custody(self):
         """Fails if: a staged valid job seed changes classic reviewer containment or failure propagation."""
         self.assert_reviewer_save_failure_propagates_through_job(
-            False, self.job_seed()
+            False, self.custody_fixture("classic reviewer")
         )
 
     def test_seeded_callback_reviewer_save_failure_preserves_custody(self):
         """Fails if: a staged valid job seed changes worker callback containment or error propagation."""
         self.assert_reviewer_save_failure_propagates_through_job(
-            True, self.job_seed()
+            True, self.custody_fixture("worker reviewer callback")
         )
 
     def test_t3_reviewer_override_dispatches_to_the_classic_launcher(self):
@@ -3210,154 +4380,8 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_every_seed_fixture_is_coherent_under_the_wire_contract(self):
         """Fails if: R221-1, R221-2, R221-3 or R221-4 leaves an incoherent seed fixture."""
-        scenarios = (
-            ("quiet request", "primary", self.request_seed(42), (), ()),
-            (
-                "priority request",
-                "primary",
-                self.request_seed(42),
-                (),
-                (),
-            ),
-            (
-                "priority nightly",
-                "nightly",
-                self.nightly_seed(),
-                (),
-                (),
-            ),
-            (
-                "drained request",
-                "primary",
-                self.request_seed(42),
-                (),
-                (),
-            ),
-            (
-                "drained nightly",
-                "nightly",
-                self.nightly_seed(),
-                (),
-                (),
-            ),
-            (
-                "self-change pause",
-                "primary",
-                self.request_seed(42),
-                (),
-                (),
-            ),
-            (
-                "valid acknowledgement",
-                "primary",
-                self.request_seed(42),
-                (),
-                (),
-            ),
-            (
-                "maintenance",
-                "primary",
-                self.maintenance_seeds(),
-                (),
-                ("request-64-fixed",),
-            ),
-            (
-                "integrated job and retro",
-                "primary",
-                self.integrated_job_seeds(),
-                ((
-                    "job-researcher-2026-11-23",
-                    "job-researcher-2026-11-23",
-                    "2026-11-23T12:00:00Z",
-                ),),
-                (
-                    "job-researcher-897aded5543e",
-                    "retro-job-researcher-2026-11-23-e6789b1f72f7",
-                ),
-            ),
-            (
-                "tamper 71",
-                "primary",
-                self.request_seed(71, outcome="done"),
-                (),
-                ("request-71-a2d9ced85f6f",),
-            ),
-            (
-                "ordinary request 70",
-                "primary",
-                self.request_seed(70, outcome="no_changes"),
-                (),
-                (),
-            ),
-            (
-                "manual controls 72",
-                "primary",
-                self.request_seed(72),
-                (),
-                (),
-            ),
-            (
-                "locked status 72",
-                "primary",
-                self.request_seed(72),
-                (),
-                (),
-            ),
-            (
-                "post-launch request 81",
-                "primary",
-                self.request_seed(81, outcome="done"),
-                (),
-                ("request-81-10cf3364c1d1",),
-            ),
-            (
-                "classic reviewer",
-                "primary",
-                self.job_seed(),
-                (),
-                (),
-            ),
-            (
-                "worker reviewer callback",
-                "primary",
-                self.job_seed(),
-                (),
-                (),
-            ),
-            (
-                "identified stopped retro pair",
-                "primary",
-                self.stopped_retro_seed(),
-                ((
-                    "held-retro",
-                    "held-input",
-                    "2026-11-22T12:00:00Z",
-                ),),
-                (),
-            ),
-            (
-                "request 63 path absent",
-                "primary",
-                self.request_seed(63),
-                (),
-                ("request-63-installed",),
-            ),
-            (
-                "old retro pre-drop",
-                "primary",
-                self.old_retro_seed(),
-                ((
-                    "old-retro",
-                    "old-input",
-                    "2026-11-22T12:00:00Z",
-                ),),
-                (
-                    "retro-old-input-prior",
-                    "retro-old-retro-bc9b9b0ea1cf",
-                ),
-            ),
-        )
-        for scenario, store, seed, queue_sources, other_sessions in scenarios:
+        for scenario, fixture in self.custody_fixtures().items():
+            store, seed, queue_sources, other_sessions = fixture
             aggregate = seed.aggregate()
             self.assertEqual(aggregate["version"], 1)
             for repository, intakes in aggregate["records"].items():
@@ -3471,66 +4495,123 @@ class StatusAndGoldenTests(StoreTestBase):
                                     target["archive_session"],
                                     other_sessions,
                                 )
+            path = self.logical_path(store)
+            self.write_raw(path, self.legacy(custody=aggregate))
+            loaded = ht.State(path)
+            self.assertTrue(
+                loaded.writable,
+                (scenario, loaded.load_faults),
+            )
+            self.assertEqual(
+                loaded.vetted_custody_records[0][0][0],
+                self.cfg["product_repo"].lower(),
+            )
+
+    def test_custody_seeded_phase_and_notice_variants_are_inert(self):
+        """Fails if: a valid phase or notice state changes a full decision golden."""
+        scenarios = (
+            (
+                "quiet",
+                self.request_seed(42),
+                self.test_recordless_quiet_tick_has_fixed_ordered_transcript_and_opaque_bytes,
+            ),
+            (
+                "ordinary",
+                self.request_seed(70, outcome="no_changes"),
+                self.test_recordless_ordinary_request_finishes_successfully,
+            ),
+            (
+                "self-change",
+                self.request_seed(42),
+                self.test_recordless_tick_self_change_pause_stops_retro_dispatch,
+            ),
+        )
+        for scenario, seed, golden in scenarios:
+            for label, variant in self.custody_variants(seed):
+                with self.subTest(scenario=scenario, case=label):
+                    shutil.rmtree(self.home, ignore_errors=True)
+                    self.home.mkdir()
+                    ht._PRINTED.clear()
+                    with self.seeded_golden(variant):
+                        golden()
+        for label, variant in self.custody_variants(self.request_seed(42)):
+            with self.subTest(scenario="acknowledgement", case=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                ht._PRINTED.clear()
+                self.assert_valid_acknowledgement_pair(variant)
 
     def test_seeded_quiet_tick_preserves_fixed_legacy_transcript_and_bytes(self):
         """Fails if: a valid installed request seed changes quiet selection, saves or bytes."""
-        with self.seeded_golden(self.request_seed(42)):
+        with self.seeded_golden(self.custody_fixture("quiet request")):
             self.test_recordless_quiet_tick_has_fixed_ordered_transcript_and_opaque_bytes()
 
     def test_seeded_priority_admission_preserves_both_intake_goldens(self):
         """Fails if: valid request and nightly seeds change dry priority, siblings or order."""
         with self.seeded_golden(
-            self.request_seed(42), self.nightly_seed()
+            self.custody_fixture("priority request"),
+            self.custody_fixture("priority nightly"),
         ):
             self.test_recordless_both_admissions_choose_priority_and_keep_fixed_bytes()
 
     def test_seeded_drained_intakes_preserve_nightly_idle_callback(self):
         """Fails if: valid seeds change the drained request or nightly idle transcript."""
         with self.seeded_golden(
-            self.request_seed(42), self.nightly_seed()
+            self.custody_fixture("drained request"),
+            self.custody_fixture("drained nightly"),
         ):
             self.test_recordless_idle_primary_reads_nightly_queue_before_job_work()
 
     def test_seeded_self_change_pause_preserves_stopped_retro_dispatch(self):
         """Fails if: an installed historical request seed changes the self-change stop or pause."""
-        with self.seeded_golden(self.request_seed(42)):
+        with self.seeded_golden(
+            self.custody_fixture("self-change pause")
+        ):
             self.test_recordless_tick_self_change_pause_stops_retro_dispatch()
 
     def test_seeded_maintenance_preserves_all_reached_request_paths(self):
         """Fails if: valid request 62-67 seeds change a maintenance branch or byte."""
-        with self.seeded_golden(self.maintenance_seeds()):
+        with self.seeded_golden(self.custody_fixture("maintenance")):
             self.test_recordless_tick_routes_merging_parked_recovery_and_stored_finish()
 
     def test_seeded_job_retro_and_regression_preserve_the_integrated_golden(self):
         """Fails if: valid job and retro seeds change any integrated legacy effect."""
-        with self.seeded_golden(self.integrated_job_seeds()):
+        with self.seeded_golden(
+            self.custody_fixture("integrated job and retro")
+        ):
             self.test_recordless_scheduled_manual_job_and_retro_reach_both_saves_and_enqueue()
 
     def test_seeded_tamper_preserves_block_and_disarm_effects(self):
         """Fails if: a valid request 71 seed changes tamper classification or effects."""
-        with self.seeded_golden(self.request_seed(71, outcome="done")):
+        with self.seeded_golden(self.custody_fixture("tamper 71")):
             self.test_recordless_run_issue_tamper_routes_block_and_disarms_pull()
 
     def test_seeded_ordinary_request_preserves_positive_empty_cleanup(self):
         """Fails if: a valid request 70 seed changes no-changes cleanup or bytes."""
         with self.seeded_golden(
-            self.request_seed(70, outcome="no_changes")
+            self.custody_fixture("ordinary request 70")
         ):
             self.test_recordless_ordinary_request_finishes_successfully()
 
     def test_seeded_manual_controls_preserve_precedence_and_preview(self):
         """Fails if: a valid request 72 seed adds work to busy, paused or preview paths."""
-        with self.seeded_golden(self.request_seed(72)):
+        with self.seeded_golden(
+            self.custody_fixture("manual controls 72")
+        ):
             self.test_recordless_manual_busy_paused_and_asymmetric_preview_modes()
 
     def test_seeded_locked_status_preserves_both_read_only_formats(self):
         """Fails if: a valid primary seed changes status or the retained malformed sibling."""
-        with self.seeded_golden(self.request_seed(72)):
+        with self.seeded_golden(
+            self.custody_fixture("locked status 72")
+        ):
             self.test_recordless_status_formats_under_real_lock_with_independent_queue_error()
 
     def test_seeded_post_launch_save_failure_preserves_last_committed_bytes(self):
         """Fails if: a valid request 81 seed changes save failure authority or output."""
-        with self.seeded_golden(self.request_seed(81, outcome="done")):
+        with self.seeded_golden(
+            self.custody_fixture("post-launch request 81")
+        ):
             self.test_recordless_request_post_launch_save_failure_preserves_disk_authority()
 
     def assert_valid_acknowledgement_pair(self, seed):
@@ -3615,7 +4696,10 @@ class StatusAndGoldenTests(StoreTestBase):
         """Fails if: a valid seeded primary changes either acknowledgement's base or audit effects."""
         for label, seed in (
             ("recordless", None),
-            ("seeded", self.request_seed(42)),
+            (
+                "seeded",
+                self.custody_fixture("valid acknowledgement"),
+            ),
         ):
             with self.subTest(case=label):
                 for name in ("ack.lock", "ack-log.jsonl"):
@@ -3669,7 +4753,9 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_identified_stopped_retro_seeded_pair(self):
         """Fails if: a valid stopped-retro seed changes stop, pause or suppressed dispatch."""
-        self.assert_identified_stopped_retro_pair(self.stopped_retro_seed())
+        self.assert_identified_stopped_retro_pair(
+            self.custody_fixture("identified stopped retro pair")
+        )
 
     def assert_request_63_path_absent_no_drop(self, seed):
         tree = self.paths.worktrees / "63"
@@ -3717,7 +4803,9 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_request_63_path_absent_reaches_no_drop_seeded(self):
         """Fails if: a valid request 63 seed causes an absent-tree cleanup to drop."""
-        self.assert_request_63_path_absent_no_drop(self.request_seed(63))
+        self.assert_request_63_path_absent_no_drop(
+            self.custody_fixture("request 63 path absent")
+        )
 
     def assert_old_retro_tree_pre_drop_pair(self, seed):
         cfg = dict(self.cfg)
@@ -3878,7 +4966,9 @@ class StatusAndGoldenTests(StoreTestBase):
 
     def test_old_retro_tree_reaches_pre_drop_seeded_pair(self):
         """Fails if: a valid identified retro seed changes old-tree pre-drop or final-drop effects."""
-        self.assert_old_retro_tree_pre_drop_pair(self.old_retro_seed())
+        self.assert_old_retro_tree_pre_drop_pair(
+            self.custody_fixture("old retro pre-drop")
+        )
 
 
 if __name__ == "__main__":
