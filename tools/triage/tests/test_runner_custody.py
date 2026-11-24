@@ -282,6 +282,329 @@ _PA_INVALID_42_CUSTODY = {
     "records": [],
     "faults": [_PA_REQUEST_42_PHASE_FAULT],
 }
+_PB_SIGNED_OUTCOME = {
+    "trust": "untrusted",
+    "exit_code": -7,
+}
+_PB_RETRY_AT = {
+    "kind": "retry",
+    "at": "2026-11-23T13:00:00Z",
+}
+_PB_RETRY = {
+    "kind": "retry",
+}
+_PB_HUMAN_NEXT = {
+    "kind": "human",
+}
+_PB_ALPHA_BINDING = {
+    "lane": "agents/alpha",
+    "branch": "refs/heads/agents/alpha",
+    "disposition": "owner_wait",
+    "tip": "a" * 40,
+    "pull": 7,
+    "reviewed_head": "b" * 40,
+    "reason": "non_owner_stall",
+    "since": "2026-11-23T11:58:00Z",
+    "age_seconds": 120,
+    "attempts": 2,
+    "next": _PB_RETRY_AT,
+}
+_PB_BETA_BINDING = {
+    "lane": "agents/beta",
+    "branch": "refs/heads/agents/beta",
+    "disposition": "needs_pr",
+    "tip": "absent",
+    "pull": None,
+    "reviewed_head": None,
+    "reason": "ai_review_failed",
+    "since": "2026-11-23T11:59:00Z",
+    "age_seconds": 60,
+    "attempts": None,
+    "next": _PB_RETRY,
+}
+_PB_REVIEW_BINDING = {
+    "lane": "agents/review",
+    "branch": "refs/heads/agents/review",
+    "disposition": "awaiting_review_wiring",
+    "tip": "unreadable",
+    "pull": None,
+    "reviewed_head": None,
+    "reason": "pr_checks_failed",
+    "since": "2026-11-23T11:58:00Z",
+    "age_seconds": 120,
+    "attempts": 0,
+    "next": _PA_UNKNOWN_NEXT,
+}
+_PB_UNCERTAIN_NOTICE = {
+    "repository": "sfenton/native-home",
+    "lane": "agents/review",
+    "head": "b" * 40,
+    "fault_class": "needs_pr",
+    "state": "uncertain",
+    "since": "2026-11-23T11:59:00Z",
+    "age_seconds": 60,
+    "remote_identity": None,
+}
+_PB_CONFIRMED_NOTICE = {
+    "repository": "sfenton/native-home",
+    "lane": "agents/review",
+    "head": "b" * 40,
+    "fault_class": "non_owner_stall",
+    "state": "confirmed",
+    "since": "2026-11-23T11:57:00Z",
+    "age_seconds": 180,
+    "remote_identity": {
+        "repository": "private/issues",
+        "number": 17,
+    },
+}
+_PB_TWO_BINDINGS_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:42",
+    "generation": "request-42-g1",
+    "phase": "pending",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": 0,
+    "reason": "reserved",
+    "next": _PB_HUMAN_NEXT,
+    "tree_exists": None,
+    "bindings": [
+        _PB_ALPHA_BINDING,
+        _PB_BETA_BINDING,
+    ],
+    "notices": [],
+}
+_PB_TWO_NOTICE_CLASSES_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:42",
+    "generation": "request-42-g1",
+    "phase": "pending",
+    "original_outcome": _PB_SIGNED_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [_PB_REVIEW_BINDING],
+    "notices": [
+        _PB_UNCERTAIN_NOTICE,
+        _PB_CONFIRMED_NOTICE,
+    ],
+}
+_PB_TWO_BINDINGS_CUSTODY = {
+    "version": 1,
+    "records": [_PB_TWO_BINDINGS_RECORD],
+    "faults": [],
+}
+_PB_TWO_NOTICE_CLASSES_CUSTODY = {
+    "version": 1,
+    "records": [_PB_TWO_NOTICE_CLASSES_RECORD],
+    "faults": [],
+}
+_PB_SAFE_JAN_NOTICE = {
+    "repository": "sfenton/native-home",
+    "lane": "agents/safe",
+    "head": "a" * 40,
+    "fault_class": "needs_pr",
+    "state": "intent",
+    "since": "2026-01-01T00:00:00Z",
+    "age_seconds": 28209600,
+    "remote_identity": None,
+}
+_PB_REQUEST_43_PHASE_FAULT = {
+    "store": "request",
+    "kind": "phase",
+    "scope": "record",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:43",
+        "generation": "request-43-g1",
+    },
+    "exists": "yes",
+}
+_PB_NIGHTLY_53_PHASE_FAULT = {
+    "store": "nightly",
+    "kind": "phase",
+    "scope": "record",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "nightly",
+        "producer": "nightly:53",
+        "generation": "nightly-53-g1",
+    },
+    "exists": "yes",
+}
+_PB_REQUEST_NOTICE_FAULT = {
+    "store": "request",
+    "kind": "type",
+    "scope": "notice",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-g1",
+        "lane": "agents/bad",
+        "head": "b" * 40,
+        "fault_class": "needs_pr",
+    },
+    "exists": "yes",
+}
+_PB_NIGHTLY_NOTICE_FAULT = {
+    "store": "nightly",
+    "kind": "type",
+    "scope": "notice",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "nightly",
+        "producer": "nightly:52",
+        "generation": "nightly-52-g1",
+        "lane": "agents/bad",
+        "head": "b" * 40,
+        "fault_class": "needs_pr",
+    },
+    "exists": "yes",
+}
+_PB_RETRO_NAMESPACE_FAULT = {
+    "store": "retro",
+    "kind": "namespace",
+    "scope": "store",
+    "version": None,
+    "key": None,
+    "exists": "yes",
+}
+_PB_BAD_REQUEST_PHASE_CUSTODY = {
+    "version": 1,
+    "records": [_PA_REQUEST_42_RECORD],
+    "faults": [_PB_REQUEST_43_PHASE_FAULT],
+}
+_PB_BAD_NIGHTLY_PHASE_CUSTODY = {
+    "version": 1,
+    "records": [_PA_NIGHTLY_52_RECORD],
+    "faults": [_PB_NIGHTLY_53_PHASE_FAULT],
+}
+_PB_REQUEST_NOTICE_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:42",
+    "generation": "request-42-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [_PB_SAFE_JAN_NOTICE],
+}
+_PB_NIGHTLY_NOTICE_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "nightly",
+    "producer": "nightly:52",
+    "generation": "nightly-52-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [_PB_SAFE_JAN_NOTICE],
+}
+_PB_BAD_REQUEST_NOTICE_CUSTODY = {
+    "version": 1,
+    "records": [_PB_REQUEST_NOTICE_RECORD],
+    "faults": [_PB_REQUEST_NOTICE_FAULT],
+}
+_PB_BAD_NIGHTLY_NOTICE_CUSTODY = {
+    "version": 1,
+    "records": [_PB_NIGHTLY_NOTICE_RECORD],
+    "faults": [_PB_NIGHTLY_NOTICE_FAULT],
+}
+_PB_PRIMARY_RETRO_CUSTODY = {
+    "version": 1,
+    "records": [
+        _PA_JOB_RECORD,
+        _PA_RETRO_RECORD,
+    ],
+    "faults": [_PB_RETRO_NAMESPACE_FAULT],
+}
+_PB_BAD_REQUEST_PHASE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:43","generation":"request-43-g1"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_BAD_NIGHTLY_PHASE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store nightly: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:53","generation":"nightly-53-g1"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_BAD_REQUEST_NOTICE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: type (exists yes, scope notice, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1",'
+    '"lane":"agents/bad","head":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
+    '"fault_class":"needs_pr"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_BAD_NIGHTLY_NOTICE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store nightly: type (exists yes, scope notice, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:52","generation":"nightly-52-g1",'
+    '"lane":"agents/bad","head":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
+    '"fault_class":"needs_pr"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_RETRO_NAMESPACE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store retro: namespace (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
 
 @dataclass(frozen=True)
 class CustodySeed:
@@ -823,8 +1146,14 @@ class StoreTestBase(t.Base):
             self.assertEqual(actual, expected)
 
     def assert_pa_custody_loader(
-        self, cfg, expected_custody, expected_state_loads
+        self, cfg, expected_custody, expected_state_loads,
+        storage_facts=_PA_ABSENT,
     ):
+        if storage_facts is not _PA_ABSENT:
+            self.assertLessEqual(
+                set(storage_facts),
+                {"without_target", "stored_unknown_next"},
+            )
         encoded = json.dumps(expected_custody)
         round_trip = json.loads(encoded)
         self.assertEqual(round_trip, expected_custody)
@@ -839,15 +1168,69 @@ class StoreTestBase(t.Base):
                 "original_outcome", "since", "age_seconds", "attempts",
                 "reason", "next", "tree_exists", "bindings", "notices",
             })
-            self.assertEqual(
-                set(record["original_outcome"]),
-                {"trust", "exit_code", "state"},
+            if record["original_outcome"] is not None:
+                self.assertIn("trust", record["original_outcome"])
+                self.assertLessEqual(
+                    set(record["original_outcome"]),
+                    {"trust", "exit_code", "state"},
+                )
+            self.assertIn("kind", record["next"])
+            self.assertIn(
+                set(record["next"]),
+                ({"kind"}, {"kind", "at"}),
             )
-            self.assertEqual(set(record["next"]), {"kind"})
+            if "at" in record["next"]:
+                self.assertEqual(record["next"]["kind"], "retry")
             self.assert_pa_json_value(record["tree_exists"], None)
-            self.assert_pa_json_value(record["age_seconds"], 0)
-            self.assert_pa_json_value(record["bindings"], [])
-            self.assert_pa_json_value(record["notices"], [])
+            self.assertIs(type(record["age_seconds"]), int)
+            if storage_facts is _PA_ABSENT:
+                self.assertIs(
+                    type(record["age_seconds"]), int,
+                    "custody record age_seconds type",
+                )
+                self.assertEqual(
+                    record["age_seconds"],
+                    0,
+                    "custody record age_seconds",
+                )
+                self.assertEqual(
+                    set(record["original_outcome"]),
+                    {"trust", "exit_code", "state"},
+                )
+                self.assertEqual(set(record["next"]), {"kind"})
+                self.assert_pa_json_value(record["bindings"], [])
+                self.assert_pa_json_value(record["notices"], [])
+            else:
+                for binding in record["bindings"]:
+                    self.assertEqual(set(binding), {
+                        "lane", "branch", "disposition", "tip", "pull",
+                        "reviewed_head", "reason", "since", "age_seconds",
+                        "attempts", "next",
+                    })
+                    self.assertIs(type(binding["age_seconds"]), int)
+                    self.assertIn("kind", binding["next"])
+                    self.assertIn(
+                        set(binding["next"]),
+                        ({"kind"}, {"kind", "at"}),
+                    )
+                    if "at" in binding["next"]:
+                        self.assertEqual(binding["next"]["kind"], "retry")
+                for notice in record["notices"]:
+                    self.assertEqual(set(notice), {
+                        "repository", "lane", "head", "fault_class",
+                        "state", "since", "age_seconds", "remote_identity",
+                    })
+                    self.assertEqual(
+                        notice["repository"], record["repository"]
+                    )
+                    self.assertIs(type(notice["age_seconds"]), int)
+                    if notice["state"] == "confirmed":
+                        self.assertEqual(
+                            set(notice["remote_identity"]),
+                            {"repository", "number"},
+                        )
+                    else:
+                        self.assertIsNone(notice["remote_identity"])
             self.assertNotIn("target", record)
         for fault in expected_custody["faults"]:
             self.assertEqual(
@@ -886,52 +1269,231 @@ class StoreTestBase(t.Base):
             ]
             for store in expected_by_store
         }
+        if storage_facts is not _PA_ABSENT:
+            sampled_stores = {store for store, _state in sampled}
+            expected_stores = {
+                record["intake"]
+                for record in expected_custody["records"]
+            }
+            expected_stores.update(
+                fault["store"]
+                for fault in expected_custody["faults"]
+            )
+            self.assertLessEqual(expected_stores, sampled_stores)
         for store, state in sampled:
             projection = state.load_projection(store)
             scoped = [fault for fault in projection if "scope" in fault]
             self.assert_pa_json_value(scoped, expected_faults[store])
             expected_records = expected_by_store[store]
-            self.assertEqual(
-                [item[0] for item in state.vetted_custody_records],
-                [
-                    (
-                        record["repository"],
-                        record["intake"],
-                        record["producer"],
-                        record["generation"],
+            if storage_facts is _PA_ABSENT:
+                self.assertEqual(
+                    [item[0] for item in state.vetted_custody_records],
+                    [
+                        (
+                            record["repository"],
+                            record["intake"],
+                            record["producer"],
+                            record["generation"],
+                        )
+                        for record in expected_records
+                    ],
+                )
+                self.assertEqual(
+                    len(state.vetted_custody_records),
+                    len(expected_records),
+                )
+                for (_key, body, notices), expected in zip(
+                    state.vetted_custody_records, expected_records
+                ):
+                    self.assertEqual(set(body), {
+                        "phase", "since", "bindings", "original_outcome",
+                        "target",
+                    })
+                    self.assert_pa_json_value(
+                        body["phase"], expected["phase"]
                     )
-                    for record in expected_records
-                ],
+                    self.assert_pa_json_value(
+                        body["since"], expected["since"]
+                    )
+                    self.assert_pa_json_value(
+                        dict(body["original_outcome"]),
+                        expected["original_outcome"],
+                    )
+                    self.assertEqual(dict(body["bindings"]), {})
+                    self.assertEqual(len(expected["bindings"]), 0)
+                    self.assertEqual(
+                        len(notices), len(expected["notices"])
+                    )
+                    self.assert_pa_json_value(tuple(notices), ())
+                    self.assertNotIn("attempts", body)
+                    self.assertNotIn("reason", body)
+                    self.assertNotIn("next", body)
+                    self.assertIn("target", body)
+                continue
+
+            expected_by_key = {
+                (
+                    record["repository"],
+                    record["intake"],
+                    record["producer"],
+                    record["generation"],
+                ): record
+                for record in expected_records
+            }
+            actual_keys = [
+                item[0] for item in state.vetted_custody_records
+            ]
+            self.assertCountEqual(actual_keys, expected_by_key)
+            self.assertEqual(len(actual_keys), len(set(actual_keys)))
+            self.assertEqual(len(expected_by_key), len(expected_records))
+            without_target = set(storage_facts.get("without_target", ()))
+            stored_unknown_next = set(
+                storage_facts.get("stored_unknown_next", ())
             )
-            self.assertEqual(
-                len(state.vetted_custody_records),
-                len(expected_records),
-            )
-            for (_key, body, notices), expected in zip(
-                state.vetted_custody_records, expected_records
-            ):
-                self.assertEqual(set(body), {
-                    "phase", "since", "bindings", "original_outcome",
-                    "target",
-                })
-                self.assert_pa_json_value(
-                    body["phase"], expected["phase"]
+            actual_by_key = {
+                key: (body, notices)
+                for key, body, notices in state.vetted_custody_records
+            }
+            for key, expected in expected_by_key.items():
+                body, notices = actual_by_key[key]
+                expected_body_keys = {"phase", "since", "bindings"}
+                if key not in without_target:
+                    expected_body_keys.add("target")
+                    self.assertIn("target", body)
+                else:
+                    self.assertNotIn("target", body)
+                for name in ("original_outcome", "attempts", "reason"):
+                    if expected[name] is None:
+                        self.assertNotIn(name, body)
+                    else:
+                        expected_body_keys.add(name)
+                        self.assertIn(name, body)
+                expected_next = expected["next"]
+                next_is_stored = (
+                    expected_next["kind"] != "unknown"
+                    or key in stored_unknown_next
                 )
-                self.assert_pa_json_value(
-                    body["since"], expected["since"]
+                if next_is_stored:
+                    expected_body_keys.add("next")
+                    self.assertIn("next", body)
+                    self.assert_pa_json_value(
+                        dict(body["next"]), expected_next
+                    )
+                else:
+                    self.assertNotIn("next", body)
+                self.assertEqual(set(body), expected_body_keys)
+                self.assert_pa_json_value(body["phase"], expected["phase"])
+                self.assert_pa_json_value(body["since"], expected["since"])
+                if expected["original_outcome"] is not None:
+                    self.assert_pa_json_value(
+                        dict(body["original_outcome"]),
+                        expected["original_outcome"],
+                    )
+                if expected["attempts"] is not None:
+                    self.assert_pa_json_value(
+                        body["attempts"], expected["attempts"]
+                    )
+                if expected["reason"] is not None:
+                    self.assert_pa_json_value(
+                        body["reason"], expected["reason"]
+                    )
+
+                expected_bindings = {
+                    binding["lane"]: binding
+                    for binding in expected["bindings"]
+                }
+                actual_bindings = dict(body["bindings"])
+                self.assertCountEqual(
+                    actual_bindings, expected_bindings
                 )
-                self.assert_pa_json_value(
-                    dict(body["original_outcome"]),
-                    expected["original_outcome"],
+                self.assertEqual(
+                    len(actual_bindings), len(expected["bindings"])
                 )
-                self.assertEqual(dict(body["bindings"]), {})
-                self.assertEqual(len(expected["bindings"]), 0)
-                self.assertEqual(len(notices), len(expected["notices"]))
-                self.assert_pa_json_value(tuple(notices), ())
-                self.assertNotIn("attempts", body)
-                self.assertNotIn("reason", body)
-                self.assertNotIn("next", body)
-                self.assertIn("target", body)
+                for lane, binding in expected_bindings.items():
+                    payload = actual_bindings[lane]
+                    expected_payload_keys = {
+                        "disposition", "tip", "since",
+                    }
+                    for name in (
+                        "pull", "reviewed_head", "reason", "attempts",
+                    ):
+                        if binding[name] is None:
+                            self.assertNotIn(name, payload)
+                        else:
+                            expected_payload_keys.add(name)
+                            self.assertIn(name, payload)
+                            self.assert_pa_json_value(
+                                payload[name], binding[name]
+                            )
+                    binding_next = binding["next"]
+                    binding_next_is_stored = (
+                        binding_next["kind"] != "unknown"
+                        or (key, lane) in stored_unknown_next
+                    )
+                    if binding_next_is_stored:
+                        expected_payload_keys.add("next")
+                        self.assertIn("next", payload)
+                        self.assert_pa_json_value(
+                            dict(payload["next"]), binding_next
+                        )
+                    else:
+                        self.assertNotIn("next", payload)
+                    self.assertEqual(set(payload), expected_payload_keys)
+                    self.assert_pa_json_value(
+                        payload["disposition"],
+                        binding["disposition"],
+                    )
+                    self.assert_pa_json_value(
+                        payload["tip"], binding["tip"]
+                    )
+                    self.assert_pa_json_value(
+                        payload["since"], binding["since"]
+                    )
+
+                expected_notices = {
+                    (
+                        notice["lane"],
+                        notice["head"],
+                        notice["fault_class"],
+                    ): notice
+                    for notice in expected["notices"]
+                }
+                actual_notices = {
+                    identity: payload
+                    for identity, payload in notices
+                }
+                self.assertCountEqual(
+                    [identity for identity, _payload in notices],
+                    expected_notices,
+                )
+                self.assertEqual(
+                    len(notices), len(expected["notices"])
+                )
+                for identity, notice in expected_notices.items():
+                    payload = actual_notices[identity]
+                    self.assertEqual(
+                        notice["repository"], expected["repository"]
+                    )
+                    if notice["state"] == "confirmed":
+                        self.assertEqual(
+                            set(payload),
+                            {"state", "since", "remote_identity"},
+                        )
+                        self.assert_pa_json_value(
+                            dict(payload["remote_identity"]),
+                            notice["remote_identity"],
+                        )
+                    else:
+                        self.assertEqual(
+                            set(payload), {"state", "since"}
+                        )
+                        self.assertNotIn("remote_identity", payload)
+                    self.assert_pa_json_value(
+                        payload["state"], notice["state"]
+                    )
+                    self.assert_pa_json_value(
+                        payload["since"], notice["since"]
+                    )
 
     def assert_pa_locked_status(
         self,
@@ -953,6 +1515,11 @@ class StoreTestBase(t.Base):
         expected_custody=_PA_ABSENT,
         expected_custody_text=_PA_ABSENT,
     ):
+        self.assertEqual(
+            expected_remote_events is None,
+            not hasattr(gh, "events"),
+            "expected remote events must match the fake event log",
+        )
         state_paths = (
             self.paths.state,
             ht.Paths(self.cfg, self.home, "nightly-").state,
@@ -1048,7 +1615,24 @@ class StoreTestBase(t.Base):
             after_inventory = self.file_inventory()
         after_lock_bytes = self.file_bytes()
 
-        self.assertEqual(text, expected_text)
+        if expected_custody_text is _PA_ABSENT:
+            self.assertEqual(text, expected_text)
+        else:
+            offset = 0
+            for line in expected_custody_text.splitlines(True):
+                position = expected_text[1].find(line, offset)
+                self.assertNotEqual(
+                    position,
+                    -1,
+                    "custody text comparison: supplied line is missing "
+                    "from expected text",
+                )
+                offset = position + len(line)
+            self.assertEqual(
+                text,
+                expected_text,
+                "custody text stdout comparison",
+            )
         self.assertEqual((encoded[0], encoded[2]), (0, ""))
         report = json.loads(encoded[1])
         for field, expected in expected_json_fields.items():
@@ -1074,17 +1658,6 @@ class StoreTestBase(t.Base):
             self.assertNotIn(
                 "custody", text[1], "custody text comparison"
             )
-        else:
-            offset = 0
-            for line in expected_custody_text.splitlines(True):
-                position = expected_text[1].find(line, offset)
-                self.assertNotEqual(
-                    position,
-                    -1,
-                    "custody text comparison: supplied line is missing "
-                    "from expected text",
-                )
-                offset = position + len(line)
         self.assertEqual(
             tuple(boundaries.git_events), expected_git_events
         )
@@ -5486,8 +6059,14 @@ class StatusAndGoldenTests(StoreTestBase):
                     with self.subTest(
                         expectation="supplied custody text"
                     ), self.assertRaisesRegex(
-                        AssertionError, "custody text comparison"
+                        AssertionError, "custody text stdout comparison"
                     ):
+                        expected_text_with_custody = (
+                            expected_text[0],
+                            expected_text[1]
+                            + "custody record request:42\n",
+                            expected_text[2],
+                        )
                         self.assert_pa_locked_status(
                             cfg,
                             RecordlessTraceGitHub({
@@ -5495,7 +6074,7 @@ class StatusAndGoldenTests(StoreTestBase):
                                 cfg["nightly"]["repo"]: [],
                             }),
                             RecordlessBoundaries(self.home),
-                            expected_text,
+                            expected_text_with_custody,
                             expected_json,
                             expected_json["state_loads"],
                             expected_json["queue"],
@@ -5508,6 +6087,434 @@ class StatusAndGoldenTests(StoreTestBase):
                                 "custody record request:42\n"
                             ),
                         )
+
+    def test_pa_locked_status_rejects_remote_log_mismatches_before_call(self):
+        """Fails if: a fake and its expected remote log disagree silently or reach status."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        queue_events = ((), ())
+        cases = (
+            (
+                "log absent with expectations",
+                FakeGitHub([]),
+                queue_events,
+            ),
+            (
+                "log present without expectations",
+                RecordlessTraceGitHub({
+                    cfg["request_repo"]: [],
+                    cfg["nightly"]["repo"]: [],
+                }),
+                None,
+            ),
+        )
+        with mock.patch.object(self, "main_golden") as status:
+            for label, gh, remote_events in cases:
+                with self.subTest(case=label), self.assertRaisesRegex(
+                    AssertionError,
+                    "expected remote events must match the fake event log",
+                ):
+                    self.assert_pa_locked_status(
+                        cfg,
+                        gh,
+                        RecordlessBoundaries(self.home),
+                        _PA_HEALTHY_STATUS_TEXT,
+                        _PA_HEALTHY_JSON_FIELDS,
+                        [],
+                        [],
+                        [],
+                        [],
+                        queue_events,
+                        remote_events,
+                        {},
+                    )
+            status.assert_not_called()
+
+    def test_pa_loader_rejects_age_change_before_storage_or_clock(self):
+        """Fails if: a P-a age change passes the legacy empty-shape guard."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        self.write_raw(
+            self.paths.state,
+            self.legacy(
+                custody=self.request_seed(42).aggregate()
+            ),
+        )
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, self.legacy())
+        changed = json.loads(json.dumps(_PA_REQUEST_42_CUSTODY))
+        changed["records"][0]["age_seconds"] = 1
+        with mock.patch.object(ht, "State") as state, \
+                mock.patch.object(ht, "now") as clock, \
+                mock.patch.object(ht, "main") as status_main, \
+                mock.patch.object(
+                    self, "assert_pa_locked_status"
+                ) as status:
+            with self.assertRaisesRegex(
+                AssertionError, "custody record age_seconds"
+            ):
+                self.assert_pa_custody_loader(cfg, changed, [])
+        state.assert_not_called()
+        clock.assert_not_called()
+        status_main.assert_not_called()
+        status.assert_not_called()
+
+    def test_custody_pb_locked_status_rows_6_7(self):
+        """Fails if: binding or same-head notice inputs change P's old status."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        queue_events = (
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+        )
+        alpha_payload = {
+            "disposition": "owner_wait",
+            "tip": "a" * 40,
+            "pull": 7,
+            "reviewed_head": "b" * 40,
+            "reason": "non_owner_stall",
+            "since": "2026-11-23T11:58:00Z",
+            "attempts": 2,
+            "next": {
+                "kind": "retry",
+                "at": "2026-11-23T13:00:00Z",
+            },
+        }
+        beta_payload = {
+            "disposition": "needs_pr",
+            "tip": "absent",
+            "reason": "ai_review_failed",
+            "since": "2026-11-23T11:59:00Z",
+            "next": {"kind": "retry"},
+        }
+        uncertain_payload = {
+            "state": "uncertain",
+            "since": "2026-11-23T11:59:00Z",
+        }
+        confirmed_payload = {
+            "state": "confirmed",
+            "since": "2026-11-23T11:57:00Z",
+            "remote_identity": {
+                "repository": "private/issues",
+                "number": 17,
+            },
+        }
+        profiles = []
+        seed = self.request_seed(42)
+        for binding_lanes in (
+            ("agents/alpha", "agents/beta"),
+            ("agents/beta", "agents/alpha"),
+        ):
+            aggregate = seed.aggregate()
+            record = self.fixture_record(aggregate, seed)
+            record.update({
+                "phase": "pending",
+                "original_outcome": {
+                    "trust": "clean_end",
+                    "exit_code": 0,
+                    "state": "done",
+                },
+                "attempts": 0,
+                "reason": "reserved",
+                "next": {"kind": "human"},
+            })
+            record.pop("release_proof")
+            bindings = {
+                "agents/alpha": alpha_payload,
+                "agents/beta": beta_payload,
+            }
+            record["bindings"] = {
+                lane: json.loads(json.dumps(bindings[lane]))
+                for lane in binding_lanes
+            }
+            profiles.append((
+                f"two bindings {' then '.join(binding_lanes)}",
+                aggregate,
+                _PB_TWO_BINDINGS_CUSTODY,
+            ))
+        for notice_classes in (
+            ("needs_pr", "non_owner_stall"),
+            ("non_owner_stall", "needs_pr"),
+        ):
+            aggregate = seed.aggregate()
+            record = self.fixture_record(aggregate, seed)
+            record.update({
+                "phase": "pending",
+                "original_outcome": {
+                    "trust": "untrusted",
+                    "exit_code": -7,
+                },
+                "bindings": {
+                    "agents/review": {
+                        "disposition": "awaiting_review_wiring",
+                        "tip": "unreadable",
+                        "reason": "pr_checks_failed",
+                        "since": "2026-11-23T11:58:00Z",
+                        "attempts": 0,
+                    },
+                },
+            })
+            record.pop("release_proof")
+            payloads = {
+                "needs_pr": uncertain_payload,
+                "non_owner_stall": confirmed_payload,
+            }
+            record["notices"] = {
+                "agents/review": {
+                    "b" * 40: {
+                        fault_class: json.loads(
+                            json.dumps(payloads[fault_class])
+                        )
+                        for fault_class in notice_classes
+                    },
+                },
+            }
+            profiles.append((
+                f"two notice classes {' then '.join(notice_classes)}",
+                aggregate,
+                _PB_TWO_NOTICE_CLASSES_CUSTODY,
+            ))
+
+        for label, aggregate, expected_custody in profiles:
+            with self.subTest(profile=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                primary = self.legacy(custody=aggregate)
+                nightly = self.legacy()
+                self.write_raw(self.paths.state, primary)
+                self.write_raw(nightly_path, nightly)
+                self.assert_pa_custody_loader(
+                    cfg,
+                    expected_custody,
+                    [],
+                    storage_facts={},
+                )
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
+                self.assert_pa_locked_status(
+                    cfg,
+                    RecordlessTraceGitHub({
+                        cfg["request_repo"]: [],
+                        cfg["nightly"]["repo"]: [],
+                    }),
+                    RecordlessBoundaries(self.home),
+                    _PA_HEALTHY_STATUS_TEXT,
+                    _PA_HEALTHY_JSON_FIELDS,
+                    [],
+                    [],
+                    [],
+                    [],
+                    queue_events,
+                    queue_events,
+                    expected_files,
+                )
+
+    def test_custody_pb_locked_status_rows_12_14(self):
+        """Fails if: a bad sibling, bad notice or retro store changes P's old status."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        retro_path = ht.Paths(cfg, self.home, "retro-").state
+        queue_events = (
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+        )
+        safe_notice = {
+            "state": "intent",
+            "since": "2026-01-01T00:00:00Z",
+        }
+        bad_notice = {
+            "state": "unknown",
+            "since": "2026-01-01T00:00:00Z",
+        }
+        profiles = []
+        request_42 = self.request_seed(42)
+        request_43 = self.request_seed(43)
+        for order in (
+            (request_42, request_43),
+            (request_43, request_42),
+        ):
+            aggregate = CustodySeeds(order).aggregate()
+            self.fixture_record(aggregate, request_43)["phase"] = "invalid"
+            profiles.append((
+                f"bad request phase {[item.producer for item in order]}",
+                self.legacy(custody=aggregate),
+                self.legacy(),
+                None,
+                _PB_BAD_REQUEST_PHASE_CUSTODY,
+                _PB_BAD_REQUEST_PHASE_STATUS_TEXT,
+                [_PB_REQUEST_43_PHASE_FAULT],
+            ))
+        nightly_52 = self.nightly_seed(52)
+        nightly_53 = self.nightly_seed(53)
+        for order in (
+            (nightly_52, nightly_53),
+            (nightly_53, nightly_52),
+        ):
+            aggregate = CustodySeeds(order).aggregate()
+            self.fixture_record(aggregate, nightly_53)["phase"] = "invalid"
+            profiles.append((
+                f"bad nightly phase {[item.producer for item in order]}",
+                self.legacy(),
+                self.legacy(custody=aggregate),
+                None,
+                _PB_BAD_NIGHTLY_PHASE_CUSTODY,
+                _PB_BAD_NIGHTLY_PHASE_STATUS_TEXT,
+                [_PB_NIGHTLY_53_PHASE_FAULT],
+            ))
+        for notice_order in (
+            ("agents/safe", "agents/bad"),
+            ("agents/bad", "agents/safe"),
+        ):
+            aggregate = request_42.aggregate()
+            payloads = {
+                "agents/safe": (
+                    "a" * 40,
+                    safe_notice,
+                ),
+                "agents/bad": (
+                    "b" * 40,
+                    bad_notice,
+                ),
+            }
+            self.fixture_record(aggregate, request_42)["notices"] = {
+                lane: {
+                    payloads[lane][0]: {
+                        "needs_pr": json.loads(
+                            json.dumps(payloads[lane][1])
+                        ),
+                    },
+                }
+                for lane in notice_order
+            }
+            profiles.append((
+                f"bad request notice {notice_order}",
+                self.legacy(custody=aggregate),
+                self.legacy(),
+                None,
+                _PB_BAD_REQUEST_NOTICE_CUSTODY,
+                _PB_BAD_REQUEST_NOTICE_STATUS_TEXT,
+                [_PB_REQUEST_NOTICE_FAULT],
+            ))
+        for notice_order in (
+            ("agents/safe", "agents/bad"),
+            ("agents/bad", "agents/safe"),
+        ):
+            aggregate = nightly_52.aggregate()
+            payloads = {
+                "agents/safe": (
+                    "a" * 40,
+                    safe_notice,
+                ),
+                "agents/bad": (
+                    "b" * 40,
+                    bad_notice,
+                ),
+            }
+            self.fixture_record(aggregate, nightly_52)["notices"] = {
+                lane: {
+                    payloads[lane][0]: {
+                        "needs_pr": json.loads(
+                            json.dumps(payloads[lane][1])
+                        ),
+                    },
+                }
+                for lane in notice_order
+            }
+            profiles.append((
+                f"bad nightly notice {notice_order}",
+                self.legacy(),
+                self.legacy(custody=aggregate),
+                None,
+                _PB_BAD_NIGHTLY_NOTICE_CUSTODY,
+                _PB_BAD_NIGHTLY_NOTICE_STATUS_TEXT,
+                [_PB_NIGHTLY_NOTICE_FAULT],
+            ))
+        profiles.append((
+            "primary job and retro beside forbidden retro custody",
+            self.legacy(
+                custody=self.integrated_job_seeds().aggregate()
+            ),
+            self.legacy(),
+            self.legacy(
+                queue=[],
+                done=[],
+                custody={"version": 1, "records": {}},
+            ),
+            _PB_PRIMARY_RETRO_CUSTODY,
+            _PB_RETRO_NAMESPACE_STATUS_TEXT,
+            [_PB_RETRO_NAMESPACE_FAULT],
+        ))
+
+        for (
+            label, primary, nightly, retro, expected_custody,
+            expected_text, expected_state_loads,
+        ) in profiles:
+            with self.subTest(profile=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                self.write_raw(self.paths.state, primary)
+                self.write_raw(nightly_path, nightly)
+                if retro is not None:
+                    self.write_raw(retro_path, retro)
+                self.assert_pa_custody_loader(
+                    cfg,
+                    expected_custody,
+                    expected_state_loads,
+                    storage_facts={},
+                )
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
+                if retro is not None:
+                    expected_files[
+                        ".local/state/hass-triage/state-retro.json"
+                    ] = json.dumps(retro).encode()
+                expected_json = {
+                    "queue": [],
+                    "nightly_queue": [],
+                    "state_loads": expected_state_loads,
+                    "retro_queue": [],
+                }
+                self.assert_pa_locked_status(
+                    cfg,
+                    RecordlessTraceGitHub({
+                        cfg["request_repo"]: [],
+                        cfg["nightly"]["repo"]: [],
+                    }),
+                    RecordlessBoundaries(self.home),
+                    expected_text,
+                    expected_json,
+                    expected_state_loads,
+                    [],
+                    [],
+                    [],
+                    queue_events,
+                    queue_events,
+                    expected_files,
+                )
 
     def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
         """Fails if: request 81 save failure changes containment, prompt normalization or last committed bytes."""
