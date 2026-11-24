@@ -32,6 +32,256 @@ ELIDED_PROMPT_ARGUMENTS = {
     "request 81": mock.ANY,
 }
 
+_PA_ABSENT = object()
+_PA_HEALTHY_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PA_QUEUE_ERROR_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "queue: #None \n",
+    "",
+)
+_PA_MALFORMED_NIGHTLY_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store nightly: parse (exists yes)\n"
+    "queue: #None \n",
+    "",
+)
+_PA_INVALID_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1"})\n'
+    "state store nightly: type (exists yes)\n"
+    "queue: empty\n",
+    "",
+)
+_PA_HEALTHY_JSON_FIELDS = {
+    "queue": [],
+    "nightly_queue": [],
+    "state_loads": [],
+    "retro_queue": [],
+}
+_PA_QUEUE_ERROR_JSON_FIELDS = {
+    "queue": [{"error": "synthetic queue failure"}],
+    "nightly_queue": [],
+    "state_loads": [],
+    "retro_queue": [],
+}
+_PA_MALFORMED_NIGHTLY_JSON_FIELDS = {
+    "queue": [{"error": "synthetic queue failure"}],
+    "nightly_queue": [],
+    "state_loads": [{
+        "store": "nightly",
+        "kind": "parse",
+        "exists": "yes",
+    }],
+    "retro_queue": [],
+}
+_PA_INVALID_JSON_FIELDS = {
+    "queue": [],
+    "nightly_queue": [],
+    "state_loads": [
+        {
+            "store": "request",
+            "kind": "phase",
+            "exists": "yes",
+            "scope": "record",
+            "version": 1,
+            "key": {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "request:42",
+                "generation": "request-42-g1",
+            },
+        },
+        {
+            "store": "nightly",
+            "kind": "type",
+            "exists": "yes",
+        },
+    ],
+    "retro_queue": [],
+}
+_PA_DONE_OUTCOME = {
+    "trust": "clean_end",
+    "exit_code": 0,
+    "state": "done",
+}
+_PA_UNKNOWN_NEXT = {"kind": "unknown"}
+_PA_REQUEST_42_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:42",
+    "generation": "request-42-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_NIGHTLY_52_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "nightly",
+    "producer": "nightly:52",
+    "generation": "nightly-52-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_REQUEST_72_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:72",
+    "generation": "request-72-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_NIGHTLY_72_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "nightly",
+    "producer": "nightly:72",
+    "generation": "nightly-72-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_JOB_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "job:researcher",
+    "generation": "job-researcher-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_RETRO_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "retro:job-researcher-2026-11-23",
+    "generation": "retro-job-researcher-2026-11-23-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [],
+}
+_PA_REQUEST_42_PHASE_FAULT = {
+    "store": "request",
+    "kind": "phase",
+    "scope": "record",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-g1",
+    },
+    "exists": "yes",
+}
+_PA_EMPTY_CUSTODY = {
+    "version": 1,
+    "records": [],
+    "faults": [],
+}
+_PA_REQUEST_42_CUSTODY = {
+    "version": 1,
+    "records": [_PA_REQUEST_42_RECORD],
+    "faults": [],
+}
+_PA_NIGHTLY_52_CUSTODY = {
+    "version": 1,
+    "records": [_PA_NIGHTLY_52_RECORD],
+    "faults": [],
+}
+_PA_SAME_NUMBER_72_CUSTODY = {
+    "version": 1,
+    "records": [
+        _PA_NIGHTLY_72_RECORD,
+        _PA_REQUEST_72_RECORD,
+    ],
+    "faults": [],
+}
+_PA_INTEGRATED_CUSTODY = {
+    "version": 1,
+    "records": [
+        _PA_JOB_RECORD,
+        _PA_RETRO_RECORD,
+    ],
+    "faults": [],
+}
+_PA_RETAINED_NIGHTLY_CUSTODY = {
+    "version": 1,
+    "records": [
+        _PA_NIGHTLY_52_RECORD,
+        _PA_REQUEST_42_RECORD,
+    ],
+    "faults": [],
+}
+_PA_REQUEST_72_CUSTODY = {
+    "version": 1,
+    "records": [_PA_REQUEST_72_RECORD],
+    "faults": [],
+}
+_PA_INVALID_42_CUSTODY = {
+    "version": 1,
+    "records": [],
+    "faults": [_PA_REQUEST_42_PHASE_FAULT],
+}
 
 @dataclass(frozen=True)
 class CustodySeed:
@@ -559,12 +809,323 @@ class StoreTestBase(t.Base):
             result = ht.main(argv, home=self.home)
         return result, out.getvalue(), err.getvalue()
 
+    def assert_pa_json_value(self, actual, expected):
+        self.assertIs(type(actual), type(expected))
+        if isinstance(expected, dict):
+            self.assertEqual(set(actual), set(expected))
+            for key, value in expected.items():
+                self.assert_pa_json_value(actual[key], value)
+        elif isinstance(expected, list):
+            self.assertEqual(len(actual), len(expected))
+            for item, value in zip(actual, expected):
+                self.assert_pa_json_value(item, value)
+        else:
+            self.assertEqual(actual, expected)
+
+    def assert_pa_custody_loader(
+        self, cfg, expected_custody, expected_state_loads
+    ):
+        encoded = json.dumps(expected_custody)
+        round_trip = json.loads(encoded)
+        self.assertEqual(round_trip, expected_custody)
+        self.assert_pa_json_value(round_trip, expected_custody)
+        self.assertEqual(
+            set(expected_custody), {"version", "records", "faults"}
+        )
+        self.assert_pa_json_value(expected_custody["version"], 1)
+        for record in expected_custody["records"]:
+            self.assertEqual(set(record), {
+                "repository", "intake", "producer", "generation", "phase",
+                "original_outcome", "since", "age_seconds", "attempts",
+                "reason", "next", "tree_exists", "bindings", "notices",
+            })
+            self.assertEqual(
+                set(record["original_outcome"]),
+                {"trust", "exit_code", "state"},
+            )
+            self.assertEqual(set(record["next"]), {"kind"})
+            self.assert_pa_json_value(record["tree_exists"], None)
+            self.assert_pa_json_value(record["age_seconds"], 0)
+            self.assert_pa_json_value(record["bindings"], [])
+            self.assert_pa_json_value(record["notices"], [])
+            self.assertNotIn("target", record)
+        for fault in expected_custody["faults"]:
+            self.assertEqual(
+                set(fault),
+                {"store", "kind", "scope", "version", "key", "exists"},
+            )
+
+        primary = ht.State(self.paths.state)
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        nightly = ht.State(nightly_path)
+        retro_path = ht.Paths(cfg, self.home, "retro-").state
+        retro = ht.State(retro_path)
+        sampled = [("request", primary)]
+        if cfg.get("nightly") or nightly_path.exists():
+            sampled.append(("nightly", nightly))
+        if retro_path.exists():
+            sampled.append(("retro", retro))
+        actual_state_loads = [
+            result
+            for store, state in sampled
+            for result in state.load_projection(store)
+        ]
+        self.assertEqual(actual_state_loads, expected_state_loads)
+
+        expected_by_store = {
+            "request": [],
+            "nightly": [],
+            "retro": [],
+        }
+        for record in expected_custody["records"]:
+            expected_by_store[record["intake"]].append(record)
+        expected_faults = {
+            store: [
+                fault for fault in expected_custody["faults"]
+                if fault["store"] == store
+            ]
+            for store in expected_by_store
+        }
+        for store, state in sampled:
+            projection = state.load_projection(store)
+            scoped = [fault for fault in projection if "scope" in fault]
+            self.assert_pa_json_value(scoped, expected_faults[store])
+            expected_records = expected_by_store[store]
+            self.assertEqual(
+                [item[0] for item in state.vetted_custody_records],
+                [
+                    (
+                        record["repository"],
+                        record["intake"],
+                        record["producer"],
+                        record["generation"],
+                    )
+                    for record in expected_records
+                ],
+            )
+            self.assertEqual(
+                len(state.vetted_custody_records),
+                len(expected_records),
+            )
+            for (_key, body, notices), expected in zip(
+                state.vetted_custody_records, expected_records
+            ):
+                self.assertEqual(set(body), {
+                    "phase", "since", "bindings", "original_outcome",
+                    "target",
+                })
+                self.assert_pa_json_value(
+                    body["phase"], expected["phase"]
+                )
+                self.assert_pa_json_value(
+                    body["since"], expected["since"]
+                )
+                self.assert_pa_json_value(
+                    dict(body["original_outcome"]),
+                    expected["original_outcome"],
+                )
+                self.assertEqual(dict(body["bindings"]), {})
+                self.assertEqual(len(expected["bindings"]), 0)
+                self.assertEqual(len(notices), len(expected["notices"]))
+                self.assert_pa_json_value(tuple(notices), ())
+                self.assertNotIn("attempts", body)
+                self.assertNotIn("reason", body)
+                self.assertNotIn("next", body)
+                self.assertIn("target", body)
+
+    def assert_pa_locked_status(
+        self,
+        cfg,
+        gh,
+        boundaries,
+        expected_text,
+        expected_json_fields,
+        expected_state_loads,
+        expected_queue,
+        expected_nightly_queue,
+        expected_retro_queue,
+        expected_queue_events,
+        expected_remote_events,
+        expected_files,
+        expected_git_events=(),
+        expected_launch_events=(),
+        expected_forget_events=(),
+        expected_custody=_PA_ABSENT,
+        expected_custody_text=_PA_ABSENT,
+    ):
+        state_paths = (
+            self.paths.state,
+            ht.Paths(self.cfg, self.home, "nightly-").state,
+            ht.Paths(self.cfg, self.home, "retro-").state,
+        )
+        queue_events, remote_events = expected_queue_events, expected_remote_events
+        text_queue_events, encoded_queue_events = queue_events
+        if remote_events is None:
+            text_remote_events = encoded_remote_events = None
+        else:
+            text_remote_events, encoded_remote_events = remote_events
+
+        def invoke(
+            argv, call_queue_events, call_remote_events
+        ):
+            constructors = []
+            reads = []
+            original_init = ht.State.__init__
+            original_read_text = Path.read_text
+            remote_start = (
+                len(gh.events) if hasattr(gh, "events") else None
+            )
+
+            def observed_init(state, path):
+                constructors.append(Path(path))
+                return original_init(state, path)
+
+            def observed_read_text(path, *args, **kwargs):
+                if Path(path) in state_paths:
+                    reads.append(Path(path))
+                return original_read_text(path, *args, **kwargs)
+
+            with mock.patch.object(
+                ht.State, "__init__", new=observed_init
+            ), mock.patch.object(
+                Path, "read_text", new=observed_read_text
+            ), mock.patch.object(
+                gh, "open_issues", wraps=gh.open_issues
+            ) as queue_open, mock.patch.object(
+                ht, "writer_lock",
+                side_effect=AssertionError("status acquired writer lock"),
+            ) as writer, mock.patch.object(
+                ht, "admitted_tick",
+                side_effect=AssertionError("status entered admission"),
+            ) as admission, mock.patch.object(
+                ht.State, "save",
+                side_effect=AssertionError("status saved state"),
+            ) as save, mock.patch.object(
+                ht, "durable_mkdir",
+                side_effect=AssertionError("status created a directory"),
+            ) as mkdir:
+                result = self.main_golden(
+                    argv, cfg, gh, boundaries
+                )
+            self.assertEqual(constructors, list(state_paths))
+            self.assertEqual(reads, list(state_paths))
+            writer.assert_not_called()
+            admission.assert_not_called()
+            save.assert_not_called()
+            mkdir.assert_not_called()
+            self.assertEqual(
+                list(
+                    ("open", call.args[0])
+                    for call in queue_open.call_args_list
+                ),
+                list(call_queue_events),
+                f"queue events for {' '.join(argv)}",
+            )
+            if remote_start is not None:
+                self.assertEqual(
+                    list(gh.events[remote_start:]),
+                    list(call_remote_events),
+                    f"complete remote events for {' '.join(argv)}",
+                )
+            return result
+
+        with ht.writer_lock(self.paths) as admitted:
+            self.assertTrue(admitted)
+            self.paths.lock.write_text("4242")
+            before_bytes = self.file_bytes()
+            before_inventory = self.file_inventory()
+            text = invoke(
+                ["status"],
+                text_queue_events,
+                text_remote_events,
+            )
+            encoded = invoke(
+                ["status", "--json"],
+                encoded_queue_events,
+                encoded_remote_events,
+            )
+            after_bytes = self.file_bytes()
+            after_inventory = self.file_inventory()
+        after_lock_bytes = self.file_bytes()
+
+        self.assertEqual(text, expected_text)
+        self.assertEqual((encoded[0], encoded[2]), (0, ""))
+        report = json.loads(encoded[1])
+        for field, expected in expected_json_fields.items():
+            self.assertIn(field, report)
+            self.assertEqual(report[field], expected)
+        self.assertEqual(report["queue"], expected_queue)
+        self.assertEqual(report["nightly_queue"], expected_nightly_queue)
+        self.assertEqual(report["state_loads"], expected_state_loads)
+        self.assertEqual(report["retro_queue"], expected_retro_queue)
+        if expected_custody is _PA_ABSENT:
+            self.assertNotIn("custody", report)
+            self.assertNotIn("custody", encoded[1])
+        else:
+            self.assertIn(
+                "custody", report, "custody JSON comparison"
+            )
+            self.assertEqual(
+                report["custody"],
+                expected_custody,
+                "custody JSON comparison",
+            )
+        if expected_custody_text is _PA_ABSENT:
+            self.assertNotIn(
+                "custody", text[1], "custody text comparison"
+            )
+        else:
+            offset = 0
+            for line in expected_custody_text.splitlines(True):
+                position = expected_text[1].find(line, offset)
+                self.assertNotEqual(
+                    position,
+                    -1,
+                    "custody text comparison: supplied line is missing "
+                    "from expected text",
+                )
+                offset = position + len(line)
+        self.assertEqual(
+            tuple(boundaries.git_events), expected_git_events
+        )
+        self.assertEqual(
+            tuple(boundaries.launch_events), expected_launch_events
+        )
+        self.assertEqual(
+            tuple(boundaries.forget_events), expected_forget_events
+        )
+        self.assertEqual(before_bytes, expected_files)
+        self.assertEqual(after_bytes, before_bytes)
+        self.assertEqual(after_lock_bytes, expected_files)
+        self.assertEqual(after_inventory, before_inventory)
+
     def file_bytes(self):
         return {
             str(path.relative_to(self.home)): path.read_bytes()
             for path in sorted(self.home.rglob("*"))
             if path.is_file()
         }
+
+    def file_inventory(self):
+        inventory = {}
+        pending = [self.home]
+        while pending:
+            parent = pending.pop()
+            with os.scandir(parent) as entries:
+                for entry in sorted(entries, key=lambda item: item.name):
+                    path = Path(entry.path)
+                    relative = str(path.relative_to(self.home))
+                    info = entry.stat(follow_symlinks=False)
+                    if stat.S_ISLNK(info.st_mode):
+                        inventory[relative] = ("link", os.readlink(path))
+                    elif stat.S_ISDIR(info.st_mode):
+                        inventory[relative] = ("directory",)
+                        pending.append(path)
+                    elif stat.S_ISREG(info.st_mode):
+                        inventory[relative] = ("file", info.st_size)
+                    else:
+                        inventory[relative] = ("other", info.st_mode)
+        return inventory
 
     @staticmethod
     def saved_bytes(value):
@@ -1150,6 +1711,24 @@ class CustodySchemaTests(StoreTestBase):
                  record["release_proof"].__setitem__(
                      "archive_disposition", "missing"
                  ), "phase"),
+                ("inventory type", lambda record:
+                 record["release_proof"].__setitem__("inventory", 1),
+                 "type"),
+                ("unlanded type", lambda record:
+                 record["release_proof"].__setitem__("unlanded", 1),
+                 "type"),
+                ("archive name type", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_name", "bad/name"
+                 ), "type"),
+                ("archive session type", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_session", ""
+                 ), "type"),
+                ("archive disposition type", lambda record:
+                 record["release_proof"].__setitem__(
+                     "archive_disposition", 1
+                 ), "type"),
                 ("bindings", lambda record:
                  record.__setitem__("bindings", {
                      "agents/test": {
@@ -1177,9 +1756,20 @@ class CustodySchemaTests(StoreTestBase):
                 with self.subTest(store=store, field=label):
                     aggregate = seed.aggregate()
                     mutate(self._leaf(aggregate, seed))
-                    self._assert_custody_fault(
+                    state = self._assert_custody_fault(
                         store, aggregate, kind, key=self._key(seed)
                     )
+                    if label.endswith(" type"):
+                        self.assertEqual(state.load_faults, [{
+                            "kind": "type",
+                            "exists": "yes",
+                            "scope": "record",
+                            "version": 1,
+                            "key": self._key(seed),
+                        }])
+                        self.assertEqual(
+                            state.vetted_custody_records, ()
+                        )
 
     def test_custody_wire_key_binding_and_optional_matrix(self):
         """Fails if: a hierarchy, copy, binding or optional field is coerced."""
@@ -2093,67 +2683,45 @@ class CustodySchemaTests(StoreTestBase):
         seed = self.request_seed(42)
         aggregate = seed.aggregate()
         self._leaf(aggregate, seed)["phase"] = "invalid"
-        self._write_custody("primary", aggregate)
+        primary = self.legacy(custody=aggregate)
+        self.write_raw(self.paths.state, primary)
         nightly_path = ht.Paths(
             self.cfg, self.home, "nightly-"
         ).state
-        self.write_raw(nightly_path, self.legacy(jobs=[]))
+        nightly = self.legacy(jobs=[])
+        self.write_raw(nightly_path, nightly)
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         cfg["schedules"] = {}
-
-        def run_status(args):
-            with mock.patch.object(
-                ht, "load_config", return_value=cfg
-            ), mock.patch.object(
-                ht, "GitHub", return_value=FakeGitHub([])
-            ), mock.patch.object(
-                ht, "claude_logged_in", return_value=True
-            ), mock.patch.object(
-                ht, "durable_mkdir",
-                side_effect=AssertionError("status repaired state"),
-            ), mock.patch.object(
-                ht.State, "save",
-                side_effect=AssertionError("status saved state"),
-            ), mock.patch.object(
-                ht, "writer_lock",
-                side_effect=AssertionError("status acquired writer lock"),
-            ), mock.patch("sys.stdout", new=io.StringIO()) as out:
-                self.assertEqual(ht.main(args, home=self.home), 0)
-            return out.getvalue()
-
-        with ht.writer_lock(self.paths) as admitted:
-            self.assertTrue(admitted)
-            before = self.file_bytes()
-            text = run_status(["status"])
-            encoded = run_status(["status", "--json"])
-            after = self.file_bytes()
-        report = json.loads(encoded)
-        self.assertNotIn("custody", text)
-        self.assertNotIn("custody", report)
-        self.assertNotIn("custody", encoded)
-        self.assertEqual(report["state_loads"], [
-            {
-                "store": "request",
-                "kind": "phase",
-                "exists": "yes",
-                "scope": "record",
-                "version": 1,
-                "key": self._key(seed),
-            },
-            {
-                "store": "nightly",
-                "kind": "type",
-                "exists": "yes",
-            },
-        ])
-        self.assertIn(
-            "state store request: phase (exists yes, scope record, "
-            f"version 1, key {json.dumps(self._key(seed), separators=(',', ':'))})",
-            text,
+        boundaries = RecordlessBoundaries(self.home)
+        self.assert_pa_custody_loader(
+            cfg,
+            _PA_INVALID_42_CUSTODY,
+            _PA_INVALID_JSON_FIELDS["state_loads"],
         )
-        self.assertIn("state store nightly: type (exists yes)", text)
-        self.assertEqual(after, before)
+        self.assert_pa_locked_status(
+            cfg,
+            FakeGitHub([]),
+            boundaries,
+            _PA_INVALID_STATUS_TEXT,
+            _PA_INVALID_JSON_FIELDS,
+            _PA_INVALID_JSON_FIELDS["state_loads"],
+            _PA_INVALID_JSON_FIELDS["queue"],
+            _PA_INVALID_JSON_FIELDS["nightly_queue"],
+            _PA_INVALID_JSON_FIELDS["retro_queue"],
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
+            None,
+            {
+                ".local/state/hass-triage/state.json":
+                    json.dumps(primary).encode(),
+                ".local/state/hass-triage/state-nightly.json":
+                    json.dumps(nightly).encode(),
+                ".local/state/hass-triage/tick.lock": b"4242",
+            },
+        )
 
     def test_custody_retro_presence_refuses_all_retro_effects(self):
         """Fails if: even an empty aggregate in the shared retro store reaches an effect."""
@@ -4677,7 +5245,9 @@ class StatusAndGoldenTests(StoreTestBase):
         })
         self.assertEqual(boundaries.forget_events, [])
 
-    def test_recordless_status_formats_under_real_lock_with_independent_queue_error(self):
+    def test_recordless_status_formats_under_real_lock_with_independent_queue_error(
+        self, expected_custody=_PA_EMPTY_CUSTODY
+    ):
         """Fails if: locked status stops being read-only, bounded or byte-identical."""
         cfg = dict(self.cfg)
         cfg["nightly"] = None
@@ -4692,48 +5262,252 @@ class StatusAndGoldenTests(StoreTestBase):
         self.write_raw(retro, self.legacy(queue=[], done=[]))
         gh = RecordlessQueueErrorGitHub({cfg["request_repo"]: []})
         boundaries = RecordlessBoundaries(self.home)
+        self.assert_pa_custody_loader(
+            cfg,
+            expected_custody,
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS["state_loads"],
+        )
+        self.assert_pa_locked_status(
+            cfg,
+            gh,
+            boundaries,
+            _PA_MALFORMED_NIGHTLY_STATUS_TEXT,
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS,
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS["state_loads"],
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS["queue"],
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS["nightly_queue"],
+            _PA_MALFORMED_NIGHTLY_JSON_FIELDS["retro_queue"],
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
+            (
+                (("open", cfg["request_repo"]),),
+                (("open", cfg["request_repo"]),),
+            ),
+            {
+                ".local/state/hass-triage/state-nightly.json": b"{",
+                ".local/state/hass-triage/state-retro.json":
+                    json.dumps(self.legacy(queue=[], done=[])).encode(),
+                ".local/state/hass-triage/state.json":
+                    json.dumps(primary).encode(),
+                ".local/state/hass-triage/tick.lock": b"4242",
+            },
+        )
+        self.assertEqual(
+            gh.events,
+            [("open", cfg["request_repo"])] * 2,
+        )
 
-        with ht.writer_lock(self.paths) as admitted:
-            self.assertTrue(admitted)
-            self.paths.lock.write_text("4242")
-            text = self.main_golden(["status"], cfg, gh, boundaries)
-            encoded = self.main_golden(["status", "--json"], cfg, gh, boundaries)
+    def test_custody_pa_locked_status_profiles(self):
+        """Fails if: a P-a fixture changes legacy status or its read-only seams."""
+        integrated = self.integrated_job_seeds()
+        profiles = [
+            (
+                "healthy readable recordless",
+                self.legacy(),
+                self.legacy(),
+                False,
+                _PA_EMPTY_CUSTODY,
+            ),
+            (
+                "healthy empty-v1",
+                self.legacy(
+                    custody={"version": 1, "records": {}}
+                ),
+                self.legacy(
+                    custody={"version": 1, "records": {}}
+                ),
+                False,
+                _PA_EMPTY_CUSTODY,
+            ),
+            (
+                "valid request 42",
+                self.legacy(custody=self.request_seed(42).aggregate()),
+                self.legacy(),
+                False,
+                _PA_REQUEST_42_CUSTODY,
+            ),
+            (
+                "valid nightly 52",
+                self.legacy(),
+                self.legacy(custody=self.nightly_seed(52).aggregate()),
+                False,
+                _PA_NIGHTLY_52_CUSTODY,
+            ),
+            (
+                "request 72 and nightly 72",
+                self.legacy(custody=self.request_seed(72).aggregate()),
+                self.legacy(custody=self.nightly_seed(72).aggregate()),
+                False,
+                _PA_SAME_NUMBER_72_CUSTODY,
+            ),
+            (
+                "integrated job then retro",
+                self.legacy(custody=integrated.aggregate()),
+                self.legacy(),
+                False,
+                _PA_INTEGRATED_CUSTODY,
+            ),
+            (
+                "integrated retro then job",
+                self.legacy(custody=CustodySeeds(
+                    tuple(reversed(integrated.items))
+                ).aggregate()),
+                self.legacy(),
+                False,
+                _PA_INTEGRATED_CUSTODY,
+            ),
+            (
+                "retained nightly and failing request queue",
+                self.legacy(custody=self.request_seed(42).aggregate()),
+                self.legacy(custody=self.nightly_seed(52).aggregate()),
+                True,
+                _PA_RETAINED_NIGHTLY_CUSTODY,
+            ),
+        ]
 
-        self.assertEqual(text, (
-            0,
-            "paused: False   installed: False   running: no\n"
-            "self-changes: running\n"
-            "auth: claude logged in\n"
-            "state store nightly: parse (exists yes)\n"
-            "queue: #None \n",
-            "",
-        ))
-        self.assertEqual((encoded[0], encoded[2]), (0, ""))
-        report = json.loads(encoded[1])
-        self.assertEqual(report["queue"], [{
-            "error": "synthetic queue failure"
-        }])
-        self.assertEqual(report["nightly_queue"], [])
-        self.assertEqual(report["state_loads"], [{
-            "store": "nightly",
-            "kind": "parse",
-            "exists": "yes",
-        }])
-        self.assertEqual(report["retro_queue"], [])
-        self.assertEqual(gh.events, [
-            ("open", cfg["request_repo"]),
-            ("open", cfg["request_repo"]),
-        ])
-        self.assertEqual(boundaries.git_events, [])
-        self.assertEqual(boundaries.launch_events, [])
-        self.assertEqual(self.file_bytes(), {
-            ".local/state/hass-triage/state-nightly.json": b"{",
-            ".local/state/hass-triage/state-retro.json":
-                json.dumps(self.legacy(queue=[], done=[])).encode(),
-            ".local/state/hass-triage/state.json": json.dumps(primary).encode(),
-            ".local/state/hass-triage/tick.lock": b"4242",
-        })
-        self.assertEqual(boundaries.forget_events, [])
+        def reset():
+            shutil.rmtree(self.home, ignore_errors=True)
+            self.home.mkdir()
+
+        for (
+            label, primary, nightly, queue_error, expected_custody
+        ) in profiles:
+            with self.subTest(profile=label):
+                reset()
+                cfg = dict(self.cfg)
+                cfg["schedules"] = {}
+                self.write_raw(self.paths.state, primary)
+                nightly_path = ht.Paths(
+                    self.cfg, self.home, "nightly-"
+                ).state
+                self.write_raw(nightly_path, nightly)
+                if label == "healthy readable recordless":
+                    self.assertNotIn("custody", ht.State(self.paths.state).data)
+                    self.assertNotIn("custody", ht.State(nightly_path).data)
+                elif label == "healthy empty-v1":
+                    self.assertIn("custody", ht.State(self.paths.state).data)
+                    self.assertIn("custody", ht.State(nightly_path).data)
+                if queue_error:
+                    cfg["nightly"] = None
+                    gh = RecordlessQueueErrorGitHub({
+                        cfg["request_repo"]: [],
+                    })
+                    expected_text = _PA_QUEUE_ERROR_STATUS_TEXT
+                    expected_json = _PA_QUEUE_ERROR_JSON_FIELDS
+                    expected_queue_events = (
+                        (("open", cfg["request_repo"]),),
+                        (("open", cfg["request_repo"]),),
+                    )
+                    expected_remote_events = (
+                        (("open", cfg["request_repo"]),),
+                        (("open", cfg["request_repo"]),),
+                    )
+                else:
+                    gh = RecordlessTraceGitHub({
+                        cfg["request_repo"]: [],
+                        cfg["nightly"]["repo"]: [],
+                    })
+                    expected_text = _PA_HEALTHY_STATUS_TEXT
+                    expected_json = _PA_HEALTHY_JSON_FIELDS
+                    expected_queue_events = (
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                    )
+                    expected_remote_events = (
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                        (
+                            ("open", cfg["request_repo"]),
+                            ("open", cfg["nightly"]["repo"]),
+                        ),
+                    )
+                self.assert_pa_custody_loader(
+                    cfg, expected_custody, expected_json["state_loads"]
+                )
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
+                self.assert_pa_locked_status(
+                    cfg,
+                    gh,
+                    RecordlessBoundaries(self.home),
+                    expected_text,
+                    expected_json,
+                    expected_json["state_loads"],
+                    expected_json["queue"],
+                    expected_json["nightly_queue"],
+                    expected_json["retro_queue"],
+                    expected_queue_events,
+                    expected_remote_events,
+                    expected_files,
+                )
+                if label == "healthy readable recordless":
+                    with self.subTest(
+                        expectation="supplied custody JSON"
+                    ), self.assertRaisesRegex(
+                        AssertionError, "custody JSON comparison"
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody={
+                                "version": 1,
+                                "records": [],
+                                "faults": [],
+                            },
+                        )
+                    with self.subTest(
+                        expectation="supplied custody text"
+                    ), self.assertRaisesRegex(
+                        AssertionError, "custody text comparison"
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody_text=(
+                                "custody record request:42\n"
+                            ),
+                        )
 
     def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
         """Fails if: request 81 save failure changes containment, prompt normalization or last committed bytes."""
@@ -5186,7 +5960,9 @@ class StatusAndGoldenTests(StoreTestBase):
         with self.seeded_golden(
             self.custody_fixture("locked status 72")
         ):
-            self.test_recordless_status_formats_under_real_lock_with_independent_queue_error()
+            self.test_recordless_status_formats_under_real_lock_with_independent_queue_error(
+                _PA_REQUEST_72_CUSTODY
+            )
 
     def test_seeded_post_launch_save_failure_preserves_last_committed_bytes(self):
         """Fails if: a valid request 81 seed changes save failure authority or output."""
