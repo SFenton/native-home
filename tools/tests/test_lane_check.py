@@ -873,5 +873,234 @@ class CiCheckTests(unittest.TestCase):
             self.assertNotIn("probe.sh", why)
 
 
+def load_lane_check():
+    """``lane_check.py`` as a module."""
+    spec = importlib.util.spec_from_file_location("lane_check_sep", LANE_CHECK)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def lane_base_path(clone):
+    """Where ``start`` writes the lane base in ``clone``."""
+    return Path(git(clone, "rev-parse", "--absolute-git-dir")) / "lane-base"
+
+
+class SeparationAndTestsCheckTests(unittest.TestCase):
+    """``check --only separation`` and ``--only tests``, and the separation rule at ``start`` (A1 of the merge-route retro)."""
+
+    CONFIG = "tools/triage/config.json"
+    HOOK_FILE = "tools/hooks/x.py"
+    REVIEWER = ".claude/agents/reviewer.md"
+
+    def policy_lane(self, tmp, stub=None):
+        """A lane on agents/x whose base holds the real lander and policy modules (and a stub ``run_tool_tests.sh`` when given)."""
+        clone, _ = make_repo(tmp)
+        (clone / "tools").mkdir(exist_ok=True)
+        for name in ("lane_land.py", "pr_policy.py"):
+            (clone / "tools" / name).write_text((TOOLS / name).read_text())
+        if stub is not None:
+            runner = clone / "tools" / "run_tool_tests.sh"
+            runner.write_text(stub)
+            runner.chmod(stat.S_IRWXU)
+        git(clone, "add", "-A")
+        git(clone, "commit", "-q", "-m", "policy tools")
+        git(clone, "push", "-q", "origin", "main")
+        git(clone, "switch", "-q", "-c", "agents/x")
+        return clone
+
+    def test_a_behaviour_path_with_an_evaluation_path_fails_and_names_both(self):
+        """Fails if: the #214 shape (triage config plus a hook) passes locally, or the failure names neither file."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp)
+            commit(clone, self.CONFIG, "{}\n", "config")
+            commit(clone, self.HOOK_FILE, "x\n", "hook")
+            done = lane(clone, "check", "--only", "separation")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("trusted_separation", done.stderr)
+            self.assertIn(self.HOOK_FILE, done.stderr)
+            self.assertIn(self.CONFIG, done.stderr)
+
+    def test_an_evaluation_path_alone_passes_and_an_uncommitted_pair_fails(self):
+        """Fails if: the config file alone is refused, or an uncommitted pair escapes the check."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp)
+            commit(clone, self.CONFIG, "{}\n", "config")
+            self.assertEqual(lane(clone, "check", "--only", "separation").returncode, 0)
+            (clone / self.HOOK_FILE).parent.mkdir(parents=True, exist_ok=True)
+            (clone / self.HOOK_FILE).write_text("x\n")
+            self.assertEqual(lane(clone, "check", "--only", "separation").returncode, 1)
+
+    def test_start_refuses_declared_paths_that_cannot_travel_together(self):
+        """Fails if: a brief that declares the config file and a reviewer file starts, or the refusal leaves a recorded lane base."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp)
+            done = start(clone, fake_gh(tmp, []), self.CONFIG, self.REVIEWER)
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn(self.CONFIG, done.stderr)
+            self.assertIn(self.REVIEWER, done.stderr)
+            self.assertFalse(lane_base_path(clone).exists())
+
+    def test_start_expands_a_glob_against_the_tree_and_accepts_one_side_alone(self):
+        """Fails if: a glob that covers both kinds passes unexpanded, or one side alone is refused."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp)
+            commit(clone, self.CONFIG, "{}\n", "config")
+            commit(clone, self.HOOK_FILE, "x\n", "hook")
+            git(clone, "push", "-q", "origin", "agents/x")
+            env = fake_gh(tmp, [])
+            self.assertEqual(start(clone, env, "tools/*/*.json", "tools/hooks/*").returncode, 1)
+            self.assertEqual(start(clone, env, "tools/triage/*", "tools/hooks/*").returncode, 1)
+            self.assertEqual(start(clone, env, self.CONFIG).returncode, 0)
+
+    def test_a_failing_tool_test_run_reports_its_exit_and_names_the_module(self):
+        """Fails if: a failing run passes, `tests exit=N` is missing, or the failing module is not named."""
+        stub = "#!/bin/sh\necho 'FAIL: test_pin (test_hass_triage.Pins.test_pin)' >&2\nexit 3\n"
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp, stub)
+            commit(clone, "tools/x.py", "x\n", "tool change")
+            done = lane(clone, "check", "--only", "tests")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("tests exit=3", done.stdout)
+            self.assertIn("test_hass_triage", done.stderr)
+
+    def test_a_green_run_passes_with_its_exit_printed(self):
+        """Fails if: a passing run fails, or `tests exit=0` is not printed."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp, "#!/bin/sh\necho ran\nexit 0\n")
+            commit(clone, "tools/x.py", "x\n", "tool change")
+            done = lane(clone, "check", "--only", "tests")
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn("tests exit=0", done.stdout)
+
+    def test_only_tests_runs_the_suite_and_reports_its_exit(self):
+        """Fails if: `--only tests` does not run the suite."""
+        with TemporaryDirectory() as tmp:
+            clone = self.policy_lane(tmp, "#!/bin/sh\necho RAN\nexit 9\n")
+            opted = lane(clone, "check", "--only", "tests")
+            self.assertIn("tests exit=9", opted.stdout)
+            self.assertEqual(opted.returncode, 1)
+
+    def test_check_tests_flag_alone_adds_the_suite_to_the_default_set(self):
+        """Fails if: `check --tests` does not run the suite (read from the parsed default set)."""
+        module = load_lane_check()
+        ran = []
+        module.cmd_check.__globals__["check_tests"] = lambda *a, **k: ran.append(1) or "tests failed"
+        for name in ("check_hooks", "check_scan", "check_revert", "check_jev", "check_overlap", "check_scope", "check_ci", "check_separation"):
+            module.cmd_check.__globals__[name] = lambda *a, **k: None
+        module.cmd_check.__globals__["shape_notes"] = lambda *a, **k: []
+        args = type("A", (), {"only": None, "tests": False, "base": "main", "no_repair": True, "ack_scope": None})()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(module.cmd_check(args), 0)
+            self.assertEqual(ran, [])
+            args.tests = True
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(module.cmd_check(args), 1)
+        self.assertEqual(ran, [1])
+
+    def test_a_hung_test_run_is_killed_with_its_children_and_reports_124(self):
+        """Fails if: a grandchild that holds the output pipe outlives the timeout, or the exit is not 124."""
+        import time as clock
+        module = load_lane_check()
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "tools").mkdir()
+            runner = Path(tmp) / "tools" / "run_tool_tests.sh"
+            runner.write_text("#!/bin/sh\nsleep 60 &\nsleep 60\n")
+            runner.chmod(stat.S_IRWXU)
+            out = io.StringIO()
+            began = clock.time()
+            with contextlib.redirect_stdout(out):
+                why = module.check_tests(Path(tmp), timeout=1.0)
+            self.assertLess(clock.time() - began, 20)
+            self.assertIn("tests exit=124", out.getvalue())
+            self.assertIn("exit=124", why)
+
+    def fake_tools(self, tmp, lander, policy):
+        """A ``tools`` folder holding a copy of ``lane_check.py`` and the given lander and policy sources (None leaves the file out)."""
+        tools = Path(tmp) / "faketools"
+        tools.mkdir()
+        (tools / "lane_check.py").write_text(LANE_CHECK.read_text())
+        for name, text in (("lane_land.py", lander), ("pr_policy.py", policy)):
+            if text is not None:
+                (tools / name).write_text(text)
+        return tools / "lane_check.py"
+
+    def test_the_separation_check_fails_closed_when_the_policy_is_missing_broken_or_raises(self):
+        """Fails if: a missing module, a module that fails to load or one that raises on the call passes or prints a traceback."""
+        real_lander = (TOOLS / "lane_land.py").read_text()
+        real_policy = (TOOLS / "pr_policy.py").read_text()
+        cases = {
+            "no policy": (real_lander, None),
+            "no lander": (None, real_policy),
+            "load error": (real_lander, "raise ImportError('gone')\n"),
+            "renamed rule": (real_lander, real_policy.replace("def _check_separation(", "def _check_split(")),
+            "raises": (real_lander, real_policy.replace("def _check_separation(lander: Any, rows: Sequence[Change]) -> None:\n",
+                                                        "def _check_separation(lander: Any, rows: Sequence[Change]) -> None:\n    raise RuntimeError('boom')\n")),
+        }
+        for label, (lander, policy) in cases.items():
+            with self.subTest(label), TemporaryDirectory() as tmp:
+                clone = self.policy_lane(tmp)
+                tool = self.fake_tools(tmp, lander, policy)
+                commit(clone, "docs/a.md", "x\n", "change")
+                done = subprocess.run([sys.executable, str(tool), "check", "--only", "separation"], cwd=clone, env=ENV, capture_output=True, text=True)
+                self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+                self.assertIn("separation: policy unavailable", done.stderr)
+                self.assertNotIn("Traceback", done.stderr)
+                begun = subprocess.run([sys.executable, str(tool), "start", "--task", "T-x", "--branch", "agents/x", "--paths", "docs/a.md"],
+                                       cwd=clone, env=fake_gh(tmp, []), capture_output=True, text=True)
+                self.assertEqual(begun.returncode, 1, begun.stdout + begun.stderr)
+                self.assertIn("separation: policy unavailable", begun.stderr)
+                self.assertNotIn("Traceback", begun.stderr)
+                self.assertFalse(lane_base_path(clone).exists())
+
+    def test_a_rename_out_of_an_evaluation_path_counts_with_a_behaviour_path(self):
+        """Fails if: moving evals/x.json away while touching a hook passes, as CI's --no-renames diff would refuse it."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            (clone / "evals").mkdir()
+            (clone / "evals/x.json").write_text('{"k": "a long enough body so git detects the rename"}\n' * 5)
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "eval file")
+            git(clone, "push", "-q", "origin", "main")
+            git(clone, "switch", "-q", "-c", "agents/x")
+            (clone / "docs").mkdir()
+            git(clone, "mv", "evals/x.json", "docs/x.json")
+            commit(clone, self.HOOK_FILE, "x\n", "hook and rename")
+            done = lane(clone, "check", "--only", "separation")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("evals/x.json", done.stderr)
+
+    def test_a_dropped_reviewer_phrase_fails_a_pin_in_a_test_named_for_another_file(self):
+        """Fails if: the #215 class (an edit that drops a phrase another module pins) passes `tests`."""
+        stub = '#!/bin/sh\ncd "$(dirname "$0")/.." && python3 -m unittest discover -s pins\n'
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            (clone / "tools").mkdir()
+            (clone / "pins").mkdir()
+            (clone / ".claude/agents").mkdir(parents=True)
+            (clone / self.REVIEWER).write_text("The System API check.\n")
+            (clone / "pins/test_other_file.py").write_text(
+                "import unittest\nfrom pathlib import Path\n\n\nclass Pin(unittest.TestCase):\n    def test_definition(self):\n"
+                "        self.assertIn('System API', Path('.claude/agents/reviewer.md').read_text())\n")
+            runner = clone / "tools" / "run_tool_tests.sh"
+            runner.write_text(stub)
+            runner.chmod(stat.S_IRWXU)
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "base")
+            git(clone, "push", "-q", "origin", "main")
+            git(clone, "switch", "-q", "-c", "agents/x")
+            self.assertEqual(lane(clone, "check", "--only", "tests").returncode, 0)
+            commit(clone, self.REVIEWER, "The check.\n", "reword")
+            done = lane(clone, "check", "--only", "tests")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("test_other_file", done.stderr)
+
+    def test_failing_modules_reads_unittest_ids(self):
+        """Fails if: a FAIL or ERROR line does not yield its module, or a loader failure names `unittest`."""
+        out = ("FAIL: test_a (test_pr_land.Reviewer.test_a)\nERROR: test_b (tools.release.tests.test_x.Cls.test_b) (i=1)\n"
+               "ERROR: test_broken (unittest.loader._FailedTest.test_broken)\nFAIL: test_old (test_older.Cls)\nok\n")
+        self.assertEqual(load_lane_check().failing_modules(out), ["test_broken", "test_older", "test_pr_land", "tools.release.tests.test_x"])
+
+
 if __name__ == "__main__":
     unittest.main()
