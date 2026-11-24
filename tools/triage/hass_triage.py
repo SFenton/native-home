@@ -96,6 +96,15 @@ DEFAULT_WORKFLOW_BASE = "main"
 REVERT_FLOWS, REVERT_DAYS, REVERT_MIN_FLOWS, REVERT_MARGIN, REVERT_NEEDS = 10, 14, 3, 0.2, 2
 #: Most lanes the runner lands from one session's status file.
 LANE_LIMIT = 5
+#: Custody disposition and reason vocabularies are shared by records and bindings.
+CUSTODY_DISPOSITIONS = frozenset((
+    "needs_pr", "closed_unmerged", "owner_wait", "actionable",
+    "read_fault", "awaiting_review_wiring", "merged_pending_accounting",
+))
+CUSTODY_REASONS = CUSTODY_DISPOSITIONS | frozenset((
+    "reserved", "untrusted_exit", "positive_empty", "merge_conflict",
+    "pr_checks_failed", "ai_review_failed", "non_owner_stall",
+))
 #: Finished retro queue entries kept in ``state-retro.json``.
 RETRO_HISTORY = 100
 #: The acceptance checks every ledger entry starts with (shadow: reported, not gated).
@@ -400,6 +409,7 @@ class State:
     def __init__(self, path: Path):
         self.path = path
         self.load_faults: List[Dict[str, Any]] = []
+        self.vetted_custody_records: Tuple[Any, ...] = ()
         self.data = self._empty_data()
         self.read_result: Dict[str, Any]
         try:
@@ -451,6 +461,18 @@ class State:
     def _fault(self, kind: str, exists: str) -> None:
         self.load_faults.append({"kind": kind, "exists": exists})
 
+    def _custody_fault(
+            self, kind: str, scope: str, version: Optional[int],
+            key: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.load_faults.append({
+            "kind": kind,
+            "exists": "yes",
+            "scope": scope,
+            "version": version,
+            "key": key,
+        })
+
     def _validate_types(self) -> None:
         expected = {
             "attempts": dict,
@@ -474,6 +496,706 @@ class State:
                         not isinstance(items, list)
                         or any(not isinstance(item, dict) for item in items)):
                     self._fault("type", "yes")
+        self._validate_custody()
+
+    @staticmethod
+    def _readonly_custody(value: Any) -> Any:
+        from types import MappingProxyType
+
+        if isinstance(value, dict):
+            return MappingProxyType({
+                key: State._readonly_custody(item)
+                for key, item in value.items()
+            })
+        if isinstance(value, list):
+            return tuple(State._readonly_custody(item) for item in value)
+        return value
+
+    @staticmethod
+    def _custody_id(value: Any) -> bool:
+        return (
+            isinstance(value, str)
+            and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", value) is not None
+            and not value.endswith(".")
+            and ".." not in value
+        )
+
+    @classmethod
+    def _custody_repo(cls, value: Any) -> bool:
+        if not isinstance(value, str) or value != value.lower():
+            return False
+        parts = value.split("/")
+        return len(parts) == 2 and all(cls._custody_id(part) for part in parts)
+
+    @classmethod
+    def _custody_ref(cls, value: Any) -> bool:
+        if not isinstance(value, str) or not value.startswith("refs/heads/"):
+            return False
+        short = value[len("refs/heads/"):]
+        return (
+            re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*", short) is not None
+            and ".." not in short
+            and "//" not in short
+            and not short.endswith(("/", ".", ".lock"))
+            and not any(
+                component.startswith(".") or component.endswith(".lock")
+                for component in short.split("/")
+            )
+        )
+
+    @classmethod
+    def _custody_lane(cls, value: Any) -> bool:
+        return (
+            isinstance(value, str)
+            and re.fullmatch(
+                r"agents/[A-Za-z0-9][A-Za-z0-9._/-]*", value
+            ) is not None
+            and cls._custody_ref(f"refs/heads/{value}")
+        )
+
+    @staticmethod
+    def _custody_sha(value: Any) -> bool:
+        return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{40}", value) is not None
+
+    @staticmethod
+    def _custody_time(value: Any) -> bool:
+        if not isinstance(value, str) or re.fullmatch(
+                r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", value
+        ) is None:
+            return False
+        try:
+            parsed = datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+        except ValueError:
+            return False
+        return parsed.strftime("%Y-%m-%dT%H:%M:%SZ") == value
+
+    @staticmethod
+    def _custody_int(value: Any, minimum: int) -> bool:
+        return type(value) is int and value >= minimum
+
+    @staticmethod
+    def _custody_key(
+            repository: Optional[str] = None, intake: Optional[str] = None,
+            producer: Optional[str] = None, generation: Optional[str] = None,
+    ) -> Dict[str, str]:
+        result = {}
+        for name, value in (
+            ("repository", repository), ("intake", intake),
+            ("producer", producer), ("generation", generation),
+        ):
+            if value is None:
+                break
+            result[name] = value
+        return result
+
+    def _custody_closed(
+            self, value: Any, names: Iterable[str], key: Dict[str, str],
+            scope: str = "record",
+    ) -> bool:
+        if not isinstance(value, dict) or any(name not in names for name in value):
+            self._custody_fault("type", scope, 1, key)
+            return False
+        return True
+
+    def _custody_next(
+            self, holder: Dict[str, Any], key: Dict[str, str],
+            scope: str = "record",
+    ) -> Optional[Dict[str, Any]]:
+        if "next" not in holder:
+            return None
+        value = holder["next"]
+        if not self._custody_closed(value, ("kind", "at"), key, scope):
+            return {}
+        kind = value.get("kind")
+        if not isinstance(kind, str) or kind not in ("unknown", "human", "retry"):
+            self._custody_fault("type", scope, 1, key)
+            return {}
+        if "at" in value and (
+            kind != "retry" or not self._custody_time(value["at"])
+        ):
+            self._custody_fault("type", scope, 1, key)
+            return {}
+        return dict(value)
+
+    def _custody_notices(
+            self, record: Dict[str, Any], key: Dict[str, str],
+    ) -> Tuple[Tuple[Any, ...], ...]:
+        if "notices" not in record:
+            return ()
+        notices = record["notices"]
+        if not isinstance(notices, dict):
+            self._custody_fault("type", "notice", 1, key)
+            return ()
+        safe = []
+        classes = {
+            "needs_pr", "closed_unmerged", "non_owner_stall", "read_fault",
+            "merge_conflict", "pr_checks_failed", "ai_review_failed",
+        }
+        for lane, heads in sorted(notices.items()):
+            lane_key = dict(key)
+            if not self._custody_lane(lane):
+                self._custody_fault("key", "notice", 1, lane_key)
+                continue
+            lane_key["lane"] = lane
+            if not isinstance(heads, dict):
+                self._custody_fault("type", "notice", 1, lane_key)
+                continue
+            for head, fault_classes in sorted(heads.items()):
+                head_key = dict(lane_key)
+                aliases = [
+                    other for other in heads
+                    if isinstance(other, str) and other.lower() == str(head).lower()
+                    and re.fullmatch(r"[0-9A-Fa-f]{40}", other)
+                ]
+                if len(aliases) > 1 or not self._custody_sha(head):
+                    self._custody_fault("key", "notice", 1, head_key)
+                    continue
+                head_key["head"] = head
+                if not isinstance(fault_classes, dict):
+                    self._custody_fault("type", "notice", 1, head_key)
+                    continue
+                class_aliases: Dict[str, List[str]] = {}
+                for spelling in fault_classes:
+                    if (
+                        isinstance(spelling, str)
+                        and spelling.lower() in classes
+                    ):
+                        class_aliases.setdefault(
+                            spelling.lower(), []
+                        ).append(spelling)
+                collided_classes = {
+                    spelling
+                    for spellings in class_aliases.values()
+                    if len(spellings) > 1
+                    for spelling in spellings
+                }
+                if collided_classes:
+                    self._custody_fault("key", "notice", 1, head_key)
+                for fault_class, payload in sorted(fault_classes.items()):
+                    if fault_class in collided_classes:
+                        continue
+                    notice_key = dict(head_key)
+                    if not isinstance(fault_class, str) or fault_class not in classes:
+                        self._custody_fault("key", "notice", 1, notice_key)
+                        continue
+                    notice_key["fault_class"] = fault_class
+                    if not isinstance(payload, dict):
+                        self._custody_fault("type", "notice", 1, notice_key)
+                        continue
+                    if "delivery" in payload:
+                        self._custody_fault("key", "notice", 1, notice_key)
+                        continue
+                    identity = {
+                        "repository": key["repository"],
+                        "lane": lane,
+                        "head": head,
+                        "fault_class": fault_class,
+                    }
+                    if any(
+                        name in payload and (
+                            not isinstance(payload[name], str)
+                            or payload[name] != expected
+                        )
+                        for name, expected in identity.items()
+                    ):
+                        self._custody_fault("key", "notice", 1, notice_key)
+                        continue
+                    state = payload.get("state")
+                    if (
+                        not isinstance(state, str)
+                        or state not in ("unsent", "intent", "confirmed", "uncertain")
+                        or not self._custody_time(payload.get("since"))
+                    ):
+                        self._custody_fault("type", "notice", 1, notice_key)
+                        continue
+                    remote = payload.get("remote_identity")
+                    if state == "confirmed":
+                        if not self._custody_closed(
+                            remote, ("repository", "number"),
+                            notice_key, "notice",
+                        ):
+                            continue
+                        if (
+                            not self._custody_repo(remote.get("repository"))
+                            or not self._custody_int(remote.get("number"), 1)
+                        ):
+                            self._custody_fault(
+                                "type", "notice", 1, notice_key
+                            )
+                            continue
+                    elif "remote_identity" in payload:
+                        self._custody_fault("type", "notice", 1, notice_key)
+                        continue
+                    clean = {"state": state, "since": payload["since"]}
+                    if remote is not None:
+                        clean["remote_identity"] = {
+                            "repository": remote["repository"],
+                            "number": remote["number"],
+                        }
+                    safe.append(((lane, head, fault_class),
+                                 self._readonly_custody(clean)))
+        return tuple(safe)
+
+    def _custody_binding(
+            self, lane: Any, binding: Any, record_key: Dict[str, str],
+    ) -> Optional[Dict[str, Any]]:
+        if not self._custody_lane(lane):
+            self._custody_fault("key", "record", 1, record_key)
+            return None
+        if not isinstance(binding, dict):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        if "notices" in binding or "delivery" in binding:
+            self._custody_fault("key", "record", 1, record_key)
+            return None
+        branch = f"refs/heads/{lane}"
+        if any(
+            field in binding and binding[field] != expected
+            for field, expected in (("lane", lane), ("branch", branch))
+        ):
+            self._custody_fault("key", "record", 1, record_key)
+            return None
+        disposition = binding.get("disposition")
+        tip = binding.get("tip")
+        if (
+            not isinstance(disposition, str)
+            or disposition not in CUSTODY_DISPOSITIONS
+        ):
+            self._custody_fault("disposition", "record", 1, record_key)
+            return None
+        if (
+            not isinstance(tip, str)
+            or (
+                tip not in ("absent", "unreadable")
+                and not self._custody_sha(tip)
+            )
+            or not self._custody_time(binding.get("since"))
+        ):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        if "pull" in binding and not self._custody_int(binding["pull"], 1):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        if "reviewed_head" in binding and not self._custody_sha(
+                binding["reviewed_head"]
+        ):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        if "attempts" in binding and not self._custody_int(
+                binding["attempts"], 0
+        ):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        if "reason" in binding and (
+            not isinstance(binding["reason"], str)
+            or binding["reason"] not in CUSTODY_REASONS
+        ):
+            self._custody_fault("type", "record", 1, record_key)
+            return None
+        next_value = self._custody_next(binding, record_key)
+        if next_value == {}:
+            return None
+        clean = {
+            "disposition": disposition,
+            "tip": tip,
+            "since": binding["since"],
+        }
+        for name in ("pull", "reviewed_head", "reason", "attempts"):
+            if name in binding:
+                clean[name] = binding[name]
+        if next_value is not None:
+            clean["next"] = next_value
+        return clean
+
+    def _custody_record(
+            self, repository: str, intake: str, producer: str,
+            generation: str, record: Any,
+    ) -> Optional[Tuple[Any, ...]]:
+        body_faults = len(self.load_faults)
+        key = self._custody_key(repository, intake, producer, generation)
+        if not isinstance(record, dict):
+            self._custody_fault("type", "record", 1, key)
+            return None
+        if any(
+            name in record and (
+                not isinstance(record[name], str) or record[name] != expected
+            )
+            for name, expected in (
+                ("repository", repository), ("intake", intake),
+                ("producer", producer), ("generation", generation),
+            )
+        ):
+            self._custody_fault("key", "record", 1, key)
+            return None
+        phase = record.get("phase")
+        if (
+            not isinstance(phase, str)
+            or phase not in ("unknown", "pending", "release_authorized")
+            or not self._custody_time(record.get("since"))
+        ):
+            self._custody_fault(
+                "phase" if not isinstance(phase, str)
+                or phase not in ("unknown", "pending", "release_authorized")
+                else "type",
+                "record", 1, key,
+            )
+            return None
+        if "delivery" in record or "notice" in record:
+            self._custody_fault("key", "record", 1, key)
+            return None
+        outcome = record.get("original_outcome")
+        clean_outcome = None
+        if "original_outcome" in record:
+            if not self._custody_closed(
+                outcome, ("trust", "exit_code", "state"), key
+            ):
+                return None
+            trust = outcome.get("trust")
+            exit_code = outcome.get("exit_code")
+            if (
+                not isinstance(trust, str)
+                or trust not in ("clean_end", "untrusted")
+                or ("exit_code" in outcome and not type(exit_code) is int)
+                or (trust == "clean_end" and exit_code != 0)
+                or ("state" in outcome and (
+                    trust != "clean_end"
+                    or outcome["state"] not in (
+                        "done", "no_changes", "split", "blocked",
+                        "needs_decision",
+                    )
+                ))
+            ):
+                self._custody_fault("type", "record", 1, key)
+                return None
+            clean_outcome = dict(outcome)
+        target = record.get("target")
+        clean_target = None
+        if "target" in record:
+            if not isinstance(target, dict):
+                self._custody_fault("type", "record", 1, key)
+                return None
+            branch = target.get("branch")
+            archive_name = target.get("archive_name")
+            archive_session = target.get("archive_session")
+            if (
+                not self._custody_ref(branch)
+                or not self._custody_id(archive_name)
+                or not self._custody_id(archive_session)
+            ):
+                self._custody_fault("type", "record", 1, key)
+                return None
+            issue_intake = producer.startswith(("request:", "nightly:"))
+            if issue_intake:
+                if not self._custody_repo(target.get("source_repository")):
+                    self._custody_fault("namespace", "record", 1, key)
+                    return None
+            elif "source_repository" in target:
+                self._custody_fault("namespace", "record", 1, key)
+                return None
+            retro_target = producer.startswith("retro:")
+            if retro_target:
+                if (
+                    not self._custody_id(target.get("source_archive"))
+                    or not self._custody_time(target.get("source_queued"))
+                ):
+                    self._custody_fault("type", "record", 1, key)
+                    return None
+            elif "source_archive" in target or "source_queued" in target:
+                self._custody_fault("namespace", "record", 1, key)
+                return None
+            clean_target = {
+                name: target[name]
+                for name in (
+                    "branch", "source_repository", "archive_name",
+                    "archive_session", "source_archive", "source_queued",
+                )
+                if name in target
+            }
+        elif phase != "unknown":
+            self._custody_fault(
+                "phase" if phase == "release_authorized" else "type",
+                "record", 1, key,
+            )
+            return None
+        pre_refs = record.get("pre_refs")
+        if "pre_refs" in record:
+            if (
+                not isinstance(pre_refs, dict)
+                or any(
+                    not self._custody_ref(ref)
+                    for ref in pre_refs
+                )
+            ):
+                self._custody_fault(
+                    "key" if isinstance(pre_refs, dict) else "type",
+                    "record", 1, key,
+                )
+                return None
+            if any(
+                value not in ("absent", "unreadable")
+                and not self._custody_sha(value)
+                for value in pre_refs.values()
+            ):
+                self._custody_fault("type", "record", 1, key)
+                return None
+        bindings = record.get("bindings")
+        if not isinstance(bindings, dict):
+            self._custody_fault("type", "record", 1, key)
+            return None
+        clean_bindings = {}
+        for lane, binding in sorted(bindings.items()):
+            clean = self._custody_binding(lane, binding, key)
+            if clean is not None:
+                clean_bindings[lane] = clean
+        if len(self.load_faults) != body_faults:
+            return None
+        if "attempts" in record and not self._custody_int(record["attempts"], 0):
+            self._custody_fault("type", "record", 1, key)
+            return None
+        if "reason" in record and (
+            not isinstance(record["reason"], str)
+            or record["reason"] not in CUSTODY_REASONS
+        ):
+            self._custody_fault("type", "record", 1, key)
+            return None
+        clean_next = self._custody_next(record, key)
+        if clean_next == {}:
+            return None
+        proof = record.get("release_proof")
+        if "release_proof" in record and not isinstance(proof, dict):
+            self._custody_fault("type", "record", 1, key)
+            return None
+        if phase == "release_authorized":
+            if (
+                target is None
+                or not outcome
+                or outcome.get("state") not in ("done", "no_changes")
+                or bindings
+                or not isinstance(proof, dict)
+            ):
+                self._custody_fault("phase", "record", 1, key)
+                return None
+            if not self._custody_closed(
+                proof, (
+                    "inventory", "unlanded", "archive_name",
+                    "archive_session", "archive_disposition",
+                ), key
+            ):
+                return None
+            if any(
+                name not in proof
+                for name in (
+                    "inventory", "unlanded", "archive_name",
+                    "archive_session", "archive_disposition",
+                )
+            ):
+                self._custody_fault("phase", "record", 1, key)
+                return None
+            proof_types = (
+                isinstance(proof.get("inventory"), str),
+                isinstance(proof.get("unlanded"), str),
+                self._custody_id(proof.get("archive_name")),
+                self._custody_id(proof.get("archive_session")),
+                isinstance(proof.get("archive_disposition"), str),
+            )
+            if not all(proof_types):
+                self._custody_fault("type", "record", 1, key)
+                return None
+            if (
+                proof.get("inventory") != "positive_empty"
+                or proof.get("unlanded") != "verified_none"
+                or proof.get("archive_name") != target.get("archive_name")
+                or proof.get("archive_session") != target.get("archive_session")
+                or proof.get("archive_disposition") != "archived"
+                and proof.get("archive_disposition") != "confirmed_absent"
+            ):
+                self._custody_fault("phase", "record", 1, key)
+                return None
+        elif proof is not None:
+            self._custody_fault("phase", "record", 1, key)
+            return None
+        body = {
+            "phase": phase,
+            "since": record["since"],
+            "bindings": clean_bindings,
+        }
+        for name, value in (
+            ("original_outcome", clean_outcome), ("target", clean_target),
+            ("attempts", record.get("attempts")),
+            ("reason", record.get("reason")), ("next", clean_next),
+        ):
+            if value is not None:
+                body[name] = value
+        notices = self._custody_notices(record, key)
+        return (
+            (repository, intake, producer, generation),
+            self._readonly_custody(body),
+            notices,
+        )
+
+    def _custody_producer(self, intake: str, value: Any) -> bool:
+        if not isinstance(value, str):
+            return False
+        if intake == "request":
+            if value.startswith(("job:", "retro:")):
+                return self._custody_id(value.split(":", 1)[1])
+            return re.fullmatch(r"request:[1-9][0-9]*", value) is not None
+        return re.fullmatch(r"nightly:[1-9][0-9]*", value) is not None
+
+    def _validate_custody(self) -> None:
+        if "custody" not in self.data:
+            return
+        custody = self.data["custody"]
+        if self.path.name == "state-retro.json":
+            self._custody_fault("namespace", "store", None)
+            return
+        intake = {
+            "state.json": "request",
+            "state-nightly.json": "nightly",
+        }.get(self.path.name)
+        if intake is None:
+            self._custody_fault("namespace", "store", None)
+            return
+        if not isinstance(custody, dict):
+            self._custody_fault("type", "store", None)
+            return
+        version = custody.get("version")
+        if type(version) is not int or version != 1:
+            self._custody_fault("version", "store", None)
+            return
+        records = custody.get("records")
+        if not isinstance(records, dict):
+            self._custody_fault("type", "store", 1)
+            return
+        views = []
+        repository_aliases: Dict[str, List[str]] = {}
+        for spelling in records:
+            if isinstance(spelling, str) and self._custody_repo(spelling.lower()):
+                repository_aliases.setdefault(spelling.lower(), []).append(spelling)
+        collided = {
+            spelling
+            for spellings in repository_aliases.values()
+            if len(spellings) > 1
+            for spelling in spellings
+        }
+        for canonical, spellings in sorted(repository_aliases.items()):
+            if len(spellings) > 1:
+                if canonical in spellings:
+                    self._custody_fault(
+                        "key", "record", 1,
+                        self._custody_key(canonical),
+                    )
+                else:
+                    self._custody_fault("namespace", "store", 1)
+        for repository, intakes in sorted(records.items()):
+            if repository in collided:
+                continue
+            if not self._custody_repo(repository):
+                self._custody_fault("namespace", "store", 1)
+                continue
+            if not isinstance(intakes, dict):
+                self._custody_fault(
+                    "type", "record", 1, self._custody_key(repository)
+                )
+                continue
+            for wire_intake, producers in sorted(intakes.items()):
+                if wire_intake != intake:
+                    self._custody_fault(
+                        "namespace", "record", 1,
+                        self._custody_key(repository),
+                    )
+                    continue
+                if not isinstance(producers, dict):
+                    self._custody_fault(
+                        "type", "record", 1,
+                        self._custody_key(repository, wire_intake),
+                    )
+                    continue
+                producer_aliases: Dict[str, List[str]] = {}
+                for spelling in producers:
+                    match = (
+                        re.fullmatch(
+                            r"(request|nightly):0*([1-9][0-9]*)",
+                            spelling,
+                        )
+                        if isinstance(spelling, str) else None
+                    )
+                    if match:
+                        canonical = f"{match.group(1)}:{match.group(2)}"
+                        producer_aliases.setdefault(
+                            canonical, []
+                        ).append(spelling)
+                collided_producers = {
+                    spelling
+                    for spellings in producer_aliases.values()
+                    if len(spellings) > 1
+                    for spelling in spellings
+                }
+                if collided_producers:
+                    self._custody_fault(
+                        "key", "record", 1,
+                        self._custody_key(repository, wire_intake),
+                    )
+                for producer, generations in sorted(producers.items()):
+                    if producer in collided_producers:
+                        continue
+                    producer_key = self._custody_key(
+                        repository, wire_intake, producer
+                    )
+                    if not self._custody_producer(wire_intake, producer):
+                        self._custody_fault(
+                            "namespace", "record", 1,
+                            self._custody_key(repository, wire_intake),
+                        )
+                        continue
+                    if not isinstance(generations, dict):
+                        self._custody_fault(
+                            "type", "record", 1, producer_key
+                        )
+                        continue
+                    for generation, record in sorted(generations.items()):
+                        record_key = self._custody_key(
+                            repository, wire_intake, producer, generation
+                        )
+                        if not self._custody_id(generation):
+                            self._custody_fault(
+                                "key", "record", 1, producer_key
+                            )
+                            continue
+                        view = self._custody_record(
+                            repository, wire_intake, producer,
+                            generation, record,
+                        )
+                        if view is not None:
+                            views.append(view)
+        custody_faults = [
+            index for index, fault in enumerate(self.load_faults)
+            if "scope" in fault
+        ]
+        if custody_faults:
+            first = custody_faults[0]
+            ordered = sorted(
+                self.load_faults[first:],
+                key=lambda fault: (
+                    tuple(
+                        (fault.get("key") or {}).get(name, "")
+                        for name in (
+                            "repository", "intake", "producer", "generation",
+                            "lane", "head", "fault_class",
+                        )
+                    ),
+                    fault["kind"],
+                ),
+            )
+            unique = []
+            seen = set()
+            for fault in ordered:
+                identity = json.dumps(fault, sort_keys=True)
+                if identity not in seen:
+                    seen.add(identity)
+                    unique.append(fault)
+            self.load_faults[first:] = unique
+        self.vetted_custody_records = tuple(views)
 
     @property
     def writable(self) -> bool:
@@ -3986,10 +4708,24 @@ def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
                 "(exists no, installation unknown)"
             )
         else:
-            lines.append(
+            prefix = (
                 f"state store {result.get('store')}: {result.get('kind')} "
-                f"(exists {result.get('exists', 'unknown')})"
+                f"(exists {result.get('exists', 'unknown')}"
             )
+            if "scope" in result:
+                version = result.get("version")
+                key = result.get("key")
+                rendered = (
+                    json.dumps(key, separators=(",", ":"))
+                    if key is not None else "unknown"
+                )
+                lines.append(
+                    f"{prefix}, scope {result.get('scope')}, "
+                    f"version {version if version is not None else 'unknown'}, "
+                    f"key {rendered})"
+                )
+            else:
+                lines.append(f"{prefix})")
     return lines
 
 
