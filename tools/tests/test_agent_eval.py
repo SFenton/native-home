@@ -137,7 +137,7 @@ class HarnessIntegrityTests(unittest.TestCase):
         code, out, _ = run_main("--tier", "0", "--target", str(target))
         self.assertEqual(code, 1, out)
         self.assertRegex(out, r"(?m)^FAIL: impossible \(routing-replay\)$")
-        self.assertIn("Ran 43 tests", out)  # the lane's added case counts on top of the 41 trusted active cases and the 1 retired report case
+        self.assertIn("Ran 49 tests", out)  # the lane's added case counts on top of the 47 trusted active cases and the 1 retired report case
 
     def test_a_hook_that_patches_compare_still_fails_the_impossible_case(self):
         target = make_target(self)
@@ -165,7 +165,7 @@ class HarnessIntegrityTests(unittest.TestCase):
         patch_file(target, "tools/hooks/stop_continue_guard.py", "def _never():\n    pass\n", append=True)
         code, out, _ = run_main("--tier", "0", "--target", str(target))
         self.assertEqual(code, 0, out)
-        self.assertIn("suite routing-replay: 41 cases", out)  # not 42: the lane's namesake is ignored
+        self.assertIn("suite routing-replay: 47 cases", out)  # not 48: the lane's namesake is ignored
 
     def test_a_case_the_lane_retired_runs_as_a_report_and_keeps_the_total(self):
         target = make_target(self)
@@ -174,10 +174,10 @@ class HarnessIntegrityTests(unittest.TestCase):
         (folder / "stop-nightly-ill-wait.json").write_text((REPLAY / "cases" / "stop-nightly-ill-wait.json").read_text())
         suites = ae.evaluate(REPO, target=target, tier=0)
         names = {s["name"]: s for s in suites}
-        self.assertEqual(names[ae.SUITE]["cases"], 40)
+        self.assertEqual(names[ae.SUITE]["cases"], 46)
         # the lane's retired copy plus the one trusted retired case (gate-no-jev-stays-silent, retired in 7889cda9)
         self.assertEqual(names[ae.RETIRED_SUITE]["cases"], 2)
-        self.assertEqual(names[ae.SUITE]["cases"] + names[ae.RETIRED_SUITE]["cases"], 42)
+        self.assertEqual(names[ae.SUITE]["cases"] + names[ae.RETIRED_SUITE]["cases"], 48)
 
     def test_code_under_test_cannot_rewrite_a_later_case_after_the_children_start(self):
         root = Path(tempfile.mkdtemp(prefix="eval-root-"))
