@@ -171,6 +171,43 @@ class SessionScopeTests(unittest.TestCase):
         run_git(self.root, "commit", "-qam", "edit")
         self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
 
+    def test_fallback_ignores_a_mockup_commit_that_arrived_by_fast_forward(self):
+        # A land checkout sits at origin/main: main's own mockup commits that arrive after the transcript began are not session work.
+        run_git(self.root, "checkout", "-q", "main")
+        since = time.time() - 5
+        self.page.write_text("edited upstream")
+        run_git(self.root, "commit", "-qam", "upstream mockup")
+        run_git(self.root, "update-ref", "refs/remotes/origin/main", "HEAD")  # the fast-forward: base and HEAD now agree
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [])
+        self.assertIsNone(mockup_hub_guard.stale_reason(self.root, None, since))
+
+    def test_fallback_still_counts_a_lane_commit_ahead_of_the_base(self):
+        since = time.time() - 5
+        self.page.write_text("lane edit")
+        run_git(self.root, "commit", "-qam", "lane mockup")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
+        self.assertIn("rebuilt", mockup_hub_guard.stale_reason(self.root, None, since))
+
+    def test_fallback_ignores_a_lane_commit_from_before_the_transcript(self):
+        self.page.write_text("earlier session")
+        run_git(self.root, "commit", "-qam", "earlier lane mockup")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, time.time() + 60), [])
+
+    def test_fallback_on_a_detached_head_uses_the_remote_default_as_base(self):
+        run_git(self.root, "config", "--unset", "branch.lane.sh-base")
+        since = time.time() - 5
+        self.page.write_text("detached edit")
+        run_git(self.root, "commit", "-qam", "detached mockup")
+        run_git(self.root, "checkout", "-q", "--detach")
+        self.assertEqual(mockup_hub_guard.lane_base(self.root), "origin/main")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
+
+    def test_fallback_still_blocks_a_dirty_file_edited_after_the_transcript_began(self):
+        since = time.time() - 5
+        self.page.write_text("edited, not committed")
+        self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, since), [self.page])
+        self.assertIn("rebuilt", mockup_hub_guard.stale_reason(self.root, None, since))
+
     def test_unknown_start_and_no_snapshot_still_checks_dirty_files(self):
         self.page.write_text("edited")
         self.assertEqual(mockup_hub_guard.changed_mockups(self.root, None, None), [self.page])
