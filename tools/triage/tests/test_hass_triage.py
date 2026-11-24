@@ -3468,8 +3468,7 @@ class T3LauncherTests(Base):
     argv = AgentFlagTests.argv  # captures the argv `_launch` gives Popen
 
     GOLDEN_HEAD = ["claude", "-p", "--model", "claude-fable-5-2", "--effort", "medium", "--permission-mode", "auto", "--output-format",
-                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools", "Bash(tools/pr_land.sh*),Bash(tools/ship.sh*)",
-                   "--disallowedTools"]
+                   "stream-json", "--verbose", "--agent", "orchestrator", "--allowedTools"]
 
     def worktree(self, settings=True):
         tree = self.home / "tree"
@@ -3485,8 +3484,13 @@ class T3LauncherTests(Base):
     def test_the_default_launcher_is_claude_and_its_argv_is_the_golden_one(self):
         self.assertEqual(ht.load_config(self.home)["agent"]["launcher"], "claude")
         argv = self.argv({})
-        self.assertEqual(argv[:-1], self.GOLDEN_HEAD)
+        allow = self.cfg["agent"]["allowed_tools"]
+        self.assertEqual(argv[:-3], self.GOLDEN_HEAD)
+        self.assertEqual(argv[-3], ",".join(allow))
+        self.assertEqual(argv[-2], "--disallowedTools")
         self.assertEqual(argv[-1], ",".join(self.cfg["agent"]["disallowed_tools"]))
+        for entry in allow:  # `Bash(tools/x.sh*)` today, the bounded `Bash(tools/x.sh *)` after F2
+            self.assertRegex(entry, r"^Bash\([A-Za-z0-9_./-]+ ?\*\)$")
         self.assertEqual(argv, self.argv({"launcher": "claude"}))
         base = {k: v for k, v in self.launch_env.items() if k in ("HOME", "USER", "LOGNAME", "LANG", "TMPDIR", "SHELL")}
         expected = {"PATH": self.runner_for()._path(), "HASS_TRIAGE_ISSUE": "1", "HASS_TRIAGE_PAUSED_FILE": str(self.paths.paused),
