@@ -973,23 +973,102 @@ class SeparationAndTestsCheckTests(unittest.TestCase):
             self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
             self.assertIn("tests exit=0", done.stdout)
 
-    def test_a_docs_only_diff_skips_the_tests_and_says_so(self):
-        """Fails if: a docs-only default run starts the suite, or hides that it skipped it."""
+    def test_only_tests_runs_the_suite_and_reports_its_exit(self):
+        """Fails if: `--only tests` does not run the suite."""
         with TemporaryDirectory() as tmp:
             clone = self.policy_lane(tmp, "#!/bin/sh\necho RAN\nexit 9\n")
-            commit(clone, "docs/a.md", "x\n", "docs only")
-            module = load_lane_check()
+            opted = lane(clone, "check", "--only", "tests")
+            self.assertIn("tests exit=9", opted.stdout)
+            self.assertEqual(opted.returncode, 1)
+
+    def test_check_tests_flag_alone_adds_the_suite_to_the_default_set(self):
+        """Fails if: `check --tests` does not run the suite (read from the parsed default set)."""
+        module = load_lane_check()
+        ran = []
+        module.cmd_check.__globals__["check_tests"] = lambda *a, **k: ran.append(1) or "tests failed"
+        for name in ("check_hooks", "check_scan", "check_revert", "check_jev", "check_overlap", "check_scope", "check_ci", "check_separation"):
+            module.cmd_check.__globals__[name] = lambda *a, **k: None
+        module.cmd_check.__globals__["shape_notes"] = lambda *a, **k: []
+        args = type("A", (), {"only": None, "tests": False, "base": "main", "no_repair": True, "ack_scope": None})()
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(module.cmd_check(args), 0)
+            self.assertEqual(ran, [])
+            args.tests = True
+            with contextlib.redirect_stderr(io.StringIO()):
+                self.assertEqual(module.cmd_check(args), 1)
+        self.assertEqual(ran, [1])
+
+    def test_a_hung_test_run_is_killed_with_its_children_and_reports_124(self):
+        """Fails if: a grandchild that holds the output pipe outlives the timeout, or the exit is not 124."""
+        import time as clock
+        module = load_lane_check()
+        with TemporaryDirectory() as tmp:
+            (Path(tmp) / "tools").mkdir()
+            runner = Path(tmp) / "tools" / "run_tool_tests.sh"
+            runner.write_text("#!/bin/sh\nsleep 60 &\nsleep 60\n")
+            runner.chmod(stat.S_IRWXU)
             out = io.StringIO()
-            cwd = os.getcwd()
-            os.chdir(clone)
-            try:
-                with contextlib.redirect_stdout(out):
-                    why = module.check_tests("main")
-            finally:
-                os.chdir(cwd)
-            self.assertIsNone(why)
-            self.assertIn("tests skipped", out.getvalue())
-            self.assertNotIn("RAN", out.getvalue())
+            began = clock.time()
+            with contextlib.redirect_stdout(out):
+                why = module.check_tests(Path(tmp), timeout=1.0)
+            self.assertLess(clock.time() - began, 20)
+            self.assertIn("tests exit=124", out.getvalue())
+            self.assertIn("exit=124", why)
+
+    def fake_tools(self, tmp, lander, policy):
+        """A ``tools`` folder holding a copy of ``lane_check.py`` and the given lander and policy sources (None leaves the file out)."""
+        tools = Path(tmp) / "faketools"
+        tools.mkdir()
+        (tools / "lane_check.py").write_text(LANE_CHECK.read_text())
+        for name, text in (("lane_land.py", lander), ("pr_policy.py", policy)):
+            if text is not None:
+                (tools / name).write_text(text)
+        return tools / "lane_check.py"
+
+    def test_the_separation_check_fails_closed_when_the_policy_is_missing_broken_or_raises(self):
+        """Fails if: a missing module, a module that fails to load or one that raises on the call passes or prints a traceback."""
+        real_lander = (TOOLS / "lane_land.py").read_text()
+        real_policy = (TOOLS / "pr_policy.py").read_text()
+        cases = {
+            "no policy": (real_lander, None),
+            "no lander": (None, real_policy),
+            "load error": (real_lander, "raise ImportError('gone')\n"),
+            "renamed rule": (real_lander, real_policy.replace("def _check_separation(", "def _check_split(")),
+            "raises": (real_lander, real_policy.replace("def _check_separation(lander: Any, rows: Sequence[Change]) -> None:\n",
+                                                        "def _check_separation(lander: Any, rows: Sequence[Change]) -> None:\n    raise RuntimeError('boom')\n")),
+        }
+        for label, (lander, policy) in cases.items():
+            with self.subTest(label), TemporaryDirectory() as tmp:
+                clone = self.policy_lane(tmp)
+                tool = self.fake_tools(tmp, lander, policy)
+                commit(clone, "docs/a.md", "x\n", "change")
+                done = subprocess.run([sys.executable, str(tool), "check", "--only", "separation"], cwd=clone, env=ENV, capture_output=True, text=True)
+                self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+                self.assertIn("separation: policy unavailable", done.stderr)
+                self.assertNotIn("Traceback", done.stderr)
+                begun = subprocess.run([sys.executable, str(tool), "start", "--task", "T-x", "--branch", "agents/x", "--paths", "docs/a.md"],
+                                       cwd=clone, env=fake_gh(tmp, []), capture_output=True, text=True)
+                self.assertEqual(begun.returncode, 1, begun.stdout + begun.stderr)
+                self.assertIn("separation: policy unavailable", begun.stderr)
+                self.assertNotIn("Traceback", begun.stderr)
+                self.assertFalse(lane_base_path(clone).exists())
+
+    def test_a_rename_out_of_an_evaluation_path_counts_with_a_behaviour_path(self):
+        """Fails if: moving evals/x.json away while touching a hook passes, as CI's --no-renames diff would refuse it."""
+        with TemporaryDirectory() as tmp:
+            clone, _ = make_repo(tmp)
+            (clone / "evals").mkdir()
+            (clone / "evals/x.json").write_text('{"k": "a long enough body so git detects the rename"}\n' * 5)
+            git(clone, "add", "-A")
+            git(clone, "commit", "-q", "-m", "eval file")
+            git(clone, "push", "-q", "origin", "main")
+            git(clone, "switch", "-q", "-c", "agents/x")
+            (clone / "docs").mkdir()
+            git(clone, "mv", "evals/x.json", "docs/x.json")
+            commit(clone, self.HOOK_FILE, "x\n", "hook and rename")
+            done = lane(clone, "check", "--only", "separation")
+            self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+            self.assertIn("evals/x.json", done.stderr)
 
     def test_a_dropped_reviewer_phrase_fails_a_pin_in_a_test_named_for_another_file(self):
         """Fails if: the #215 class (an edit that drops a phrase another module pins) passes `tests`."""
