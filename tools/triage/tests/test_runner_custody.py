@@ -2007,16 +2007,16 @@ class StoreTestBase(t.Base):
             self.assertIn(
                 "custody", report, "custody JSON comparison"
             )
-            self.assert_pa_json_value(
-                report["custody"],
-                expected_custody,
-            )
             for record in report["custody"]["records"]:
                 self.assertNotIn(
                     "target_branch",
                     record,
                     "custody JSON actual target branch leakage",
                 )
+            self.assert_pa_json_value(
+                report["custody"],
+                expected_custody,
+            )
         if expected_custody_text is _PA_ABSENT:
             self.assertNotIn(
                 "custody", text[1], "custody text comparison"
@@ -6673,6 +6673,70 @@ class StatusAndGoldenTests(StoreTestBase):
                 ]
                 self.assertEqual(actual, expected)
                 self.assertEqual(projected["faults"], [])
+
+    def test_custody_status_orders_within_parent_at_projection_boundary(self):
+        """Fails if: loader-sorted bindings or notices mask display insertion order."""
+        state = mock.Mock()
+        state.load_faults = []
+        state.vetted_custody_records = ((
+            (
+                "sfenton/native-home",
+                "request",
+                "request:42",
+                "request-42-g1",
+            ),
+            {
+                "phase": "pending",
+                "since": "2026-11-23T12:00:00Z",
+                "bindings": {
+                    "agents/beta": {
+                        "disposition": "needs_pr",
+                        "tip": "absent",
+                        "since": "2026-11-23T11:59:00Z",
+                    },
+                    "agents/alpha": {
+                        "disposition": "owner_wait",
+                        "tip": "a" * 40,
+                        "since": "2026-11-23T11:58:00Z",
+                    },
+                },
+            },
+            (
+                (
+                    ("agents/review", "b" * 40, "non_owner_stall"),
+                    {
+                        "state": "confirmed",
+                        "since": "2026-11-23T11:57:00Z",
+                        "remote_identity": {
+                            "repository": "private/issues",
+                            "number": 17,
+                        },
+                    },
+                ),
+                (
+                    ("agents/review", "b" * 40, "needs_pr"),
+                    {
+                        "state": "uncertain",
+                        "since": "2026-11-23T11:59:00Z",
+                    },
+                ),
+            ),
+        ),)
+        projected = ht.custody_status(
+            (("request", state),),
+            datetime(
+                2026, 11, 23, 13, 0, tzinfo=timezone.utc
+            ),
+        )
+        record = projected["records"][0]
+        self.assertEqual(
+            [binding["lane"] for binding in record["bindings"]],
+            ["agents/alpha", "agents/beta"],
+        )
+        self.assertEqual(
+            [notice["fault_class"] for notice in record["notices"]],
+            ["needs_pr", "non_owner_stall"],
+        )
 
     def test_custody_status_orders_faults_and_preserves_load_order(self):
         """Fails if: custody faults concatenate stores or reorder legacy loads."""
