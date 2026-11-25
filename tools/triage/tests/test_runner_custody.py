@@ -605,6 +605,232 @@ _PB_RETRO_NAMESPACE_STATUS_TEXT = (
     "nightly queue: empty\n",
     "",
 )
+_PB_REQUEST_43_TYPE_FAULT = {
+    "store": "request",
+    "kind": "type",
+    "scope": "record",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:43",
+        "generation": "request-43-g1",
+    },
+    "exists": "yes",
+}
+_PB_BAD_BINDING_CUSTODY = {
+    "version": 1,
+    "records": [_PA_REQUEST_42_RECORD],
+    "faults": [_PB_REQUEST_43_TYPE_FAULT],
+}
+_PB_SAFE_NOON_NOTICE = {
+    "repository": "sfenton/native-home",
+    "lane": "agents/safe",
+    "head": "a" * 40,
+    "fault_class": "needs_pr",
+    "state": "intent",
+    "since": "2026-11-23T11:59:00Z",
+    "age_seconds": 60,
+    "remote_identity": None,
+}
+_PB_SAFE_NOON_RECORD = {
+    "repository": "sfenton/native-home",
+    "intake": "request",
+    "producer": "request:42",
+    "generation": "request-42-g1",
+    "phase": "release_authorized",
+    "original_outcome": _PA_DONE_OUTCOME,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 0,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [_PB_SAFE_NOON_NOTICE],
+}
+_PB_BAD_NOON_NOTICE_CUSTODY = {
+    "version": 1,
+    "records": [_PB_SAFE_NOON_RECORD],
+    "faults": [_PB_REQUEST_NOTICE_FAULT],
+}
+_PB_SCOPED_STORE_TYPE_FAULT = {
+    "store": "request",
+    "kind": "type",
+    "scope": "store",
+    "version": 1,
+    "key": None,
+    "exists": "yes",
+}
+_PB_MIXED_TYPE_CUSTODY = {
+    "version": 1,
+    "records": [],
+    "faults": [_PB_SCOPED_STORE_TYPE_FAULT],
+}
+_PB_UNSUPPORTED_VERSION_FAULT = {
+    "store": "request",
+    "kind": "version",
+    "scope": "store",
+    "version": None,
+    "key": None,
+    "exists": "yes",
+}
+_PB_UNSUPPORTED_VERSION_CUSTODY = {
+    "version": 1,
+    "records": [],
+    "faults": [_PB_UNSUPPORTED_VERSION_FAULT],
+}
+_PB_UNBOUND_SAFE_NOTICE = {
+    "repository": "example/product",
+    "lane": "agents/safe",
+    "head": "a" * 40,
+    "fault_class": "needs_pr",
+    "state": "intent",
+    "since": "2026-11-23T12:59:00Z",
+    "age_seconds": 60,
+    "remote_identity": None,
+}
+_PB_UNBOUND_NOTICE_FAULT = {
+    "store": "request",
+    "kind": "type",
+    "scope": "notice",
+    "version": 1,
+    "key": {
+        "repository": "example/product",
+        "intake": "request",
+        "producer": "request:7",
+        "generation": "g1",
+        "lane": "agents/bad",
+    },
+    "exists": "yes",
+}
+_PB_UNBOUND_RECORD = {
+    "repository": "example/product",
+    "intake": "request",
+    "producer": "request:7",
+    "generation": "g1",
+    "phase": "unknown",
+    "original_outcome": None,
+    "since": "2026-11-23T12:00:00Z",
+    "age_seconds": 3600,
+    "attempts": None,
+    "reason": None,
+    "next": _PA_UNKNOWN_NEXT,
+    "tree_exists": None,
+    "bindings": [],
+    "notices": [_PB_UNBOUND_SAFE_NOTICE],
+}
+_PB_UNBOUND_CUSTODY = {
+    "version": 1,
+    "records": [_PB_UNBOUND_RECORD],
+    "faults": [_PB_UNBOUND_NOTICE_FAULT],
+}
+_PB_REPOSITORY_NAMESPACE_FAULT = {
+    "store": "request",
+    "kind": "namespace",
+    "scope": "store",
+    "version": 1,
+    "key": None,
+    "exists": "yes",
+}
+_PB_GENERATION_KEY_FAULT = {
+    "store": "request",
+    "kind": "key",
+    "scope": "record",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+    },
+    "exists": "yes",
+}
+_PB_UNBOUNDED_CUSTODY = {
+    "version": 1,
+    "records": [_PA_REQUEST_42_RECORD],
+    "faults": [
+        _PB_REPOSITORY_NAMESPACE_FAULT,
+        _PB_GENERATION_KEY_FAULT,
+    ],
+}
+_PB_BAD_BINDING_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: type (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:43","generation":"request-43-g1"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_MIXED_TYPE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: type (exists yes)\n"
+    "state store request: type (exists yes, scope store, version 1, "
+    "key unknown)\n"
+    "queue: empty\n",
+    "",
+)
+_PB_UNSUPPORTED_VERSION_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: version (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+    "queue: empty\n",
+    "",
+)
+_PB_UNBOUND_NOTICE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: type (exists yes, scope notice, version 1, "
+    'key {"repository":"example/product","intake":"request",'
+    '"producer":"request:7","generation":"g1","lane":"agents/bad"})\n'
+    "queue: empty\n",
+    "",
+)
+_PB_REQUEST_PARSE_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: parse (exists yes)\n"
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_MISSING_NIGHTLY_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store nightly: not found (exists no, installation unknown)\n"
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+_PB_UNBOUNDED_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store request: namespace (exists yes, scope store, "
+    "version 1, key unknown)\n"
+    "state store request: key (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42"})\n'
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
 
 @dataclass(frozen=True)
 class CustodySeed:
@@ -1671,6 +1897,7 @@ class StoreTestBase(t.Base):
         self.assertEqual(after_bytes, before_bytes)
         self.assertEqual(after_lock_bytes, expected_files)
         self.assertEqual(after_inventory, before_inventory)
+        return text[1], encoded[1]
 
     def file_bytes(self):
         return {
@@ -6515,6 +6742,379 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                 )
+
+    def test_custody_pb_locked_status_row_16(self):
+        """Fails if: a record, binding or notice canary leaks into P's loader or streams."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        queue_events = (
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+            (
+                ("open", cfg["request_repo"]),
+                ("open", cfg["nightly"]["repo"]),
+            ),
+        )
+        profiles = []
+        request_42 = self.request_seed(42)
+        aggregate = request_42.aggregate()
+        record = self.fixture_record(aggregate, request_42)
+        record["opaque"] = {"token": "record-canary-token"}
+        record["target"]["future"] = {"token": "target-canary-token"}
+        profiles.append((
+            "opaque record and target extras",
+            aggregate,
+            _PA_REQUEST_42_CUSTODY,
+            [],
+            _PA_HEALTHY_STATUS_TEXT,
+            _PA_HEALTHY_JSON_FIELDS,
+            ("record-canary-token", "target-canary-token"),
+        ))
+
+        request_43 = self.request_seed(43)
+        for order in (
+            (request_42, request_43),
+            (request_43, request_42),
+        ):
+            aggregate = CustodySeeds(order).aggregate()
+            bad = self.fixture_record(aggregate, request_43)
+            bad.update({
+                "phase": "pending",
+                "bindings": {
+                    "agents/canary": {
+                        "disposition": "owner_wait",
+                        "tip": "unreadable",
+                        "reason": "binding-canary-exception",
+                        "since": "2026-11-23T11:59:00Z",
+                    },
+                },
+            })
+            bad.pop("release_proof")
+            profiles.append((
+                f"rejected binding reason {[item.producer for item in order]}",
+                aggregate,
+                _PB_BAD_BINDING_CUSTODY,
+                [_PB_REQUEST_43_TYPE_FAULT],
+                _PB_BAD_BINDING_STATUS_TEXT,
+                {
+                    "queue": [],
+                    "nightly_queue": [],
+                    "state_loads": [_PB_REQUEST_43_TYPE_FAULT],
+                    "retro_queue": [],
+                },
+                ("binding-canary-exception",),
+            ))
+
+        for notice_order in (
+            ("agents/safe", "agents/bad"),
+            ("agents/bad", "agents/safe"),
+        ):
+            aggregate = request_42.aggregate()
+            payloads = {
+                "agents/safe": {
+                    "state": "intent",
+                    "since": "2026-11-23T11:59:00Z",
+                },
+                "agents/bad": {
+                    "state": "RuntimeError: notice-canary-exception",
+                    "since": "2026-11-23T11:59:00Z",
+                },
+            }
+            self.fixture_record(aggregate, request_42)["notices"] = {
+                lane: {
+                    ("a" if lane == "agents/safe" else "b") * 40: {
+                        "needs_pr": json.loads(json.dumps(payloads[lane])),
+                    },
+                }
+                for lane in notice_order
+            }
+            profiles.append((
+                f"exception-like notice {notice_order}",
+                aggregate,
+                _PB_BAD_NOON_NOTICE_CUSTODY,
+                [_PB_REQUEST_NOTICE_FAULT],
+                _PB_BAD_REQUEST_NOTICE_STATUS_TEXT,
+                {
+                    "queue": [],
+                    "nightly_queue": [],
+                    "state_loads": [_PB_REQUEST_NOTICE_FAULT],
+                    "retro_queue": [],
+                },
+                ("RuntimeError: notice-canary-exception",),
+            ))
+
+        for (
+            label, aggregate, expected_custody, expected_state_loads,
+            expected_text, expected_json, canaries,
+        ) in profiles:
+            with self.subTest(profile=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                primary = self.legacy(custody=aggregate)
+                nightly = self.legacy()
+                self.write_raw(self.paths.state, primary)
+                self.write_raw(nightly_path, nightly)
+                self.assert_pa_custody_loader(
+                    cfg,
+                    expected_custody,
+                    expected_state_loads,
+                    storage_facts={"stored_unknown_next": ()},
+                )
+                loaded = ht.State(self.paths.state)
+                handoff = repr(loaded.vetted_custody_records)
+                diagnostics = repr(loaded.load_projection("request"))
+                for canary in canaries:
+                    self.assertNotIn(canary, handoff)
+                    self.assertNotIn(canary, diagnostics)
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
+                stdout = self.assert_pa_locked_status(
+                    cfg,
+                    RecordlessTraceGitHub({
+                        cfg["request_repo"]: [],
+                        cfg["nightly"]["repo"]: [],
+                    }),
+                    RecordlessBoundaries(self.home),
+                    expected_text,
+                    expected_json,
+                    expected_state_loads,
+                    [],
+                    [],
+                    [],
+                    queue_events,
+                    queue_events,
+                    expected_files,
+                )
+                for canary in canaries:
+                    self.assertNotIn(canary, stdout[0])
+                    self.assertNotIn(canary, stdout[1])
+
+    def test_custody_pb_locked_status_supplements(self):
+        """Fails if: a P-b2 supplement changes P's legacy loader or status output."""
+        configured = dict(self.cfg)
+        configured["schedules"] = {}
+        unconfigured = dict(configured)
+        unconfigured["nightly"] = None
+        nightly_path = ht.Paths(configured, self.home, "nightly-").state
+        profiles = []
+        profiles.append((
+            "mixed legacy and scoped type",
+            unconfigured,
+            self.legacy(
+                jobs=[],
+                custody={"version": 1, "records": []},
+            ),
+            None,
+            _PB_MIXED_TYPE_CUSTODY,
+            [
+                {"store": "request", "kind": "type", "exists": "yes"},
+                _PB_SCOPED_STORE_TYPE_FAULT,
+            ],
+            _PB_MIXED_TYPE_STATUS_TEXT,
+            {"stored_unknown_next": ()},
+        ))
+        profiles.append((
+            "unsupported custody header",
+            unconfigured,
+            self.legacy(custody={"version": 2, "records": {}}),
+            None,
+            _PB_UNSUPPORTED_VERSION_CUSTODY,
+            [_PB_UNSUPPORTED_VERSION_FAULT],
+            _PB_UNSUPPORTED_VERSION_STATUS_TEXT,
+            {"stored_unknown_next": ()},
+        ))
+        unbound = {
+            "version": 1,
+            "records": {
+                "example/product": {
+                    "request": {
+                        "request:7": {
+                            "g1": {
+                                "phase": "unknown",
+                                "since": "2026-11-23T12:00:00Z",
+                                "bindings": {},
+                                "notices": {
+                                    "agents/bad": [],
+                                    "agents/safe": {
+                                        "a" * 40: {
+                                            "needs_pr": {
+                                                "state": "intent",
+                                                "since":
+                                                    "2026-11-23T12:59:00Z",
+                                            },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        profiles.append((
+            "unbound notice prefix",
+            unconfigured,
+            self.legacy(custody=unbound),
+            None,
+            _PB_UNBOUND_CUSTODY,
+            [_PB_UNBOUND_NOTICE_FAULT],
+            _PB_UNBOUND_NOTICE_STATUS_TEXT,
+            {
+                "without_target": (
+                    ("example/product", "request", "request:7", "g1"),
+                ),
+                "stored_unknown_next": (),
+            },
+        ))
+        nightly_seed = self.nightly_seed(52)
+        profiles.append((
+            "duplicate request JSON with valid nightly",
+            configured,
+            '{"history":[],"history":[]}',
+            self.legacy(custody=nightly_seed.aggregate()),
+            _PA_NIGHTLY_52_CUSTODY,
+            [{"store": "request", "kind": "parse", "exists": "yes"}],
+            _PB_REQUEST_PARSE_STATUS_TEXT,
+            {"stored_unknown_next": ()},
+        ))
+        request_seed = self.request_seed(42)
+        profiles.append((
+            "configured missing nightly",
+            configured,
+            self.legacy(custody=request_seed.aggregate()),
+            None,
+            _PA_REQUEST_42_CUSTODY,
+            [{
+                "store": "nightly",
+                "kind": "not_found",
+                "exists": "no",
+                "installation": "unknown",
+            }],
+            _PB_MISSING_NIGHTLY_STATUS_TEXT,
+            {"stored_unknown_next": ()},
+        ))
+        for reverse in (False, True):
+            aggregate = request_seed.aggregate()
+            good_record = self.fixture_record(aggregate, request_seed)
+            generations = {
+                "../generation": {"phase": "release_authorized"},
+                "request-42-g1": good_record,
+            }
+            repositories = {
+                "../outside": {"request": {}},
+                "sfenton/native-home": {
+                    "request": {
+                        "request:42": generations,
+                    },
+                },
+            }
+            if reverse:
+                generations = dict(reversed(list(generations.items())))
+                repositories = {
+                    "sfenton/native-home": {
+                        "request": {
+                            "request:42": generations,
+                        },
+                    },
+                    "../outside": {"request": {}},
+                }
+            profiles.append((
+                f"unbounded keys {'reversed' if reverse else 'forward'}",
+                configured,
+                self.legacy(custody={
+                    "version": 1,
+                    "records": repositories,
+                }),
+                self.legacy(),
+                _PB_UNBOUNDED_CUSTODY,
+                [
+                    _PB_REPOSITORY_NAMESPACE_FAULT,
+                    _PB_GENERATION_KEY_FAULT,
+                ],
+                _PB_UNBOUNDED_STATUS_TEXT,
+                {"stored_unknown_next": ()},
+            ))
+
+        for (
+            label, cfg, primary, nightly, expected_custody,
+            expected_state_loads, expected_text, storage_facts,
+        ) in profiles:
+            with self.subTest(profile=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                self.write_raw(self.paths.state, primary)
+                if nightly is not None:
+                    self.write_raw(nightly_path, nightly)
+                self.assert_pa_custody_loader(
+                    cfg,
+                    expected_custody,
+                    expected_state_loads,
+                    storage_facts=storage_facts,
+                )
+                expected_files = {
+                    ".local/state/hass-triage/state.json": (
+                        primary.encode()
+                        if isinstance(primary, str)
+                        else json.dumps(primary).encode()
+                    ),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
+                if nightly is not None:
+                    expected_files[
+                        ".local/state/hass-triage/state-nightly.json"
+                    ] = json.dumps(nightly).encode()
+                repositories = (cfg["request_repo"],)
+                if cfg["nightly"]:
+                    repositories += (cfg["nightly"]["repo"],)
+                opens = tuple(("open", repo) for repo in repositories)
+                queue_events = (
+                    opens,
+                    opens,
+                )
+                expected_json = {
+                    "queue": [],
+                    "nightly_queue": [],
+                    "state_loads": expected_state_loads,
+                    "retro_queue": [],
+                }
+                self.assert_pa_locked_status(
+                    cfg,
+                    RecordlessTraceGitHub({
+                        repo: [] for repo in repositories
+                    }),
+                    RecordlessBoundaries(self.home),
+                    expected_text,
+                    expected_json,
+                    expected_state_loads,
+                    [],
+                    [],
+                    [],
+                    queue_events,
+                    queue_events,
+                    expected_files,
+                )
+                if label == "configured missing nightly":
+                    inventory = self.file_inventory()
+                    missing = (
+                        ".local/state/hass-triage/state-nightly.json"
+                    )
+                    self.assertNotIn(missing, inventory)
+                    control_cfg = dict(cfg)
+                    control_cfg["nightly"] = None
+                    self.assert_pa_custody_loader(
+                        control_cfg,
+                        _PA_REQUEST_42_CUSTODY,
+                        [],
+                        storage_facts={"stored_unknown_next": ()},
+                    )
 
     def test_recordless_request_post_launch_save_failure_preserves_disk_authority(self):
         """Fails if: request 81 save failure changes containment, prompt normalization or last committed bytes."""
