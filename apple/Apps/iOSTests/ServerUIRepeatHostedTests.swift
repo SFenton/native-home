@@ -1,5 +1,6 @@
 @testable import HassCore
 import HassDesign
+import HassTelemetry
 import UIKit
 import XCTest
 @testable import HassUI
@@ -237,6 +238,48 @@ final class ServerUIRepeatHostedTests: XCTestCase {
         shown.settle()
         XCTAssertFalse(hasArc(), "selecting a tab in the open sheet does not replay the reveal")
         XCTAssertEqual(shown.page.contentView.alpha, 1)
+    }
+
+    /// Measures presentation-to-reveal on the mounted sheet, without including the system slide or fixture setup.
+    func testGroupedSheetContentReadyTimingWithAndWithoutReduceMotion() async throws {
+        for reduceMotion in [false, true] {
+            try await measureGroupedReveal(loading: false, reduceMotion: reduceMotion)
+            try await measureGroupedReveal(loading: true, reduceMotion: reduceMotion)
+        }
+    }
+
+    private func measureGroupedReveal(loading: Bool, reduceMotion: Bool) async throws {
+        let start = Date()
+        let rows = ServerUIRepeatFixture.records(12)
+        let shown = try ServerUIRepeatFixture.show("repeat-paging-full", width: 390, phase: loading ? .loading : .ready,
+                                                   records: loading ? nil : rows, reduceMotion: reduceMotion,
+                                                   inSheet: true, groupedReveal: true)
+        defer { shown.window.isHidden = true }
+        if loading {
+            let arcShown = await FeatureHost.settleAsync(until: {
+                shown.page.view.subviews.contains { $0.accessibilityIdentifier == "contentGate.spinner" }
+            }, timeout: 2)
+            XCTAssertTrue(arcShown)
+            try shown.collection.apply(records: rows, phase: .ready)
+        }
+        func samples() -> [TelemetryRecord] {
+            Telemetry.log.records.filter {
+                $0.date >= start && $0.kind == "\(Telemetry.Name.contentReady)" && $0.page == "AuthoredSheet" && $0.detail == "cold"
+            }
+        }
+        let finished = await FeatureHost.settleAsync(until: { !samples().isEmpty }, timeout: 3)
+        XCTAssertTrue(finished, "the reveal's ContentReady interval must end")
+        let intervals = samples()
+        XCTAssertEqual(intervals.count, 1)
+        let milliseconds = try XCTUnwrap(intervals.first?.durationMs)
+        let scenario = "\(loading ? "loading" : "ready"), Reduce Motion \(reduceMotion)"
+        let evidence = XCTAttachment(string: "ContentReady: \(milliseconds) ms")
+        evidence.name = scenario
+        evidence.lifetime = .keepAlways
+        add(evidence)
+        // One 200 ms fade when ready; grace, minimum arc hold and two fades when loading. Allow simulator scheduling overhead.
+        XCTAssertGreaterThanOrEqual(milliseconds, loading ? 1_040 : 190, scenario)
+        XCTAssertLessThan(milliseconds, loading ? 3_000 : 1_000, scenario)
     }
 
     private static let widths: [CGFloat] = [390, 744, 1024]

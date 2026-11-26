@@ -25,8 +25,6 @@ final class UKContentGateView: UIView {
         get { driver.isReady }
         set { driver.isReady = newValue }
     }
-    /// Lets the host start work when the gate joins a window, not when UIKit prepares it.
-    var onWindowAttachment: (() -> Void)?
     private let driver: UKContentGateDriver
 
     /// - Parameters:
@@ -52,11 +50,6 @@ final class UKContentGateView: UIView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        if window != nil { onWindowAttachment?() }
-    }
 }
 
 // MARK: - Shared phase drawing

@@ -7,15 +7,12 @@ import UIKit
 @MainActor
 protocol UKSheetFitting: UIViewController {
     var sheetFitScrollView: UIScrollView? { get }
-    /// The resting viewport if the page shortens its scroller for the keyboard.
-    var sheetFitViewportHeight: CGFloat? { get }
     /// Whether the page has the standard inline header and nothing pinned above or below its content. A page with a bar of its own
     /// (`modalTabBar`, ``View/hasCustomSheetHeader()``) says false, so its taller chrome never teaches ``SheetChromeMemory``.
     var sheetHeaderIsStandard: Bool { get }
 }
 
 extension UKSheetFitting {
-    var sheetFitViewportHeight: CGFloat? { nil }
     var sheetHeaderIsStandard: Bool { true }
 }
 
@@ -451,9 +448,8 @@ final class UKHassModalController: UKNativeExitNavigationController, UISheetPres
                 MainActor.assumeIsolated { self?.reportFit() }
             }
         }
-        let viewport = (page as? UKSheetFitting)?.sheetFitViewportHeight ?? scroller.bounds.height
         fit.report(SheetFit.Reading(
-            content: scroller.contentSize.height.rounded(), viewport: viewport.rounded(),
+            content: scroller.contentSize.height.rounded(), viewport: scroller.bounds.height.rounded(),
             topInset: scroller.adjustedContentInset.top.rounded(), bottomInset: scroller.adjustedContentInset.bottom.rounded(),
             width: scroller.bounds.width.rounded()), from: id(for: page))
         syncFitIfMoved()
