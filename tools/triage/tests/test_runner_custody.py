@@ -3315,13 +3315,16 @@ class CustodyTreeObserverTests(StoreTestBase):
         trace.assert_fired(self)
         trace.assert_owned_once(self)
         self.assertEqual(trace.closed, ["fd0", "fd1"])
+        first_component = os.fspath(
+            layout.paths.root
+        ).split(os.sep)[1]
         self.assertEqual(trace.events, [
             (
                 "open", "/", CustodyTreeTrace._FLAGS,
                 None, "ok", "fd0",
             ),
             (
-                "open", "private", CustodyTreeTrace._FLAGS,
+                "open", first_component, CustodyTreeTrace._FLAGS,
                 "fd0", "ok", "fd1",
             ),
             (
