@@ -4729,6 +4729,87 @@ def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
     return lines
 
 
+def _custody_nullable_text(value: Any) -> str:
+    return "unknown" if value is None else str(value)
+
+
+def _custody_outcome_text(outcome: Any) -> str:
+    if outcome is None:
+        return "unknown"
+    return "/".join(
+        str(outcome[name]) if name in outcome else "unknown"
+        for name in ("trust", "exit_code", "state")
+    )
+
+
+def _custody_next_text(value: Dict[str, Any]) -> str:
+    kind = value["kind"]
+    return f"{kind} at {value['at']}" if "at" in value else kind
+
+
+def custody_text(custody: Dict[str, Any]) -> List[str]:
+    lines = []
+    for record in custody["records"]:
+        repository = record["repository"]
+        intake = record["intake"]
+        producer = record["producer"]
+        generation = record["generation"]
+        lines.append(
+            f"custody record {repository} {intake} {producer} {generation}: "
+            f"phase {record['phase']}; original outcome "
+            f"{_custody_outcome_text(record['original_outcome'])}; "
+            f"since {record['since']}; age {record['age_seconds']}s; "
+            f"attempts {_custody_nullable_text(record['attempts'])}; "
+            f"reason {_custody_nullable_text(record['reason'])}; "
+            f"next {_custody_next_text(record['next'])}; tree exists unknown"
+        )
+        for binding in record["bindings"]:
+            lines.append(
+                f"custody binding {repository} {intake} {producer} "
+                f"{generation} {binding['lane']} [{binding['branch']}]: "
+                f"disposition {binding['disposition']}; "
+                f"tip {binding['tip']}; "
+                f"pull {_custody_nullable_text(binding['pull'])}; "
+                "reviewed head "
+                f"{_custody_nullable_text(binding['reviewed_head'])}; "
+                f"reason {_custody_nullable_text(binding['reason'])}; "
+                f"since {binding['since']}; age {binding['age_seconds']}s; "
+                f"attempts {_custody_nullable_text(binding['attempts'])}; "
+                f"next {_custody_next_text(binding['next'])}"
+            )
+        for notice in record["notices"]:
+            remote = notice["remote_identity"]
+            if remote is None:
+                identity = "unknown"
+            else:
+                identity = f"{remote['repository']}#{remote['number']}"
+            suffix = (
+                " (delivery uncertain)"
+                if notice["state"] == "uncertain"
+                else ""
+            )
+            lines.append(
+                f"custody notice {notice['repository']} {notice['lane']} "
+                f"{notice['head']} {notice['fault_class']}: "
+                f"state {notice['state']}; since {notice['since']}; "
+                f"age {notice['age_seconds']}s; remote identity "
+                f"{identity}{suffix}"
+            )
+    for fault in custody["faults"]:
+        key = fault["key"]
+        rendered_key = (
+            json.dumps(key, separators=(",", ":"))
+            if key is not None else "unknown"
+        )
+        version = _custody_nullable_text(fault["version"])
+        lines.append(
+            f"custody fault {fault['store']}: {fault['kind']} "
+            f"(exists {fault['exists']}, scope {fault['scope']}, "
+            f"version {version}, key {rendered_key})"
+        )
+    return lines
+
+
 def _custody_next_display(value: Any) -> Dict[str, Any]:
     if value is None:
         return {"kind": "unknown"}
@@ -5134,6 +5215,8 @@ def main(argv: Optional[List[str]] = None, home: Optional[Path] = None) -> int:
                 for hold in report["archive_holds"]:
                     print(f"archive hold: {hold['name']} ({hold['reason']}, since {hold['since']})")
                 for line in state_load_text(report["state_loads"]):
+                    print(line)
+                for line in custody_text(report["custody"]):
                     print(line)
                 if report["retro_queue"]:
                     print("post-mortems queued: " + ", ".join(str(t) for t in report["retro_queue"]))

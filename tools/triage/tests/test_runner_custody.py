@@ -304,6 +304,389 @@ _PA_INVALID_42_CUSTODY = {
     "records": [],
     "faults": [_PA_REQUEST_42_PHASE_FAULT],
 }
+
+_CT_REQUEST_42 = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_NIGHTLY_52 = (
+    "custody record sfenton/native-home nightly nightly:52 "
+    "nightly-52-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_REQUEST_72 = (
+    "custody record sfenton/native-home request request:72 "
+    "request-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_NIGHTLY_72 = (
+    "custody record sfenton/native-home nightly nightly:72 "
+    "nightly-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_JOB = (
+    "custody record sfenton/native-home request job:researcher "
+    "job-researcher-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_RETRO = (
+    "custody record sfenton/native-home request "
+    "retro:job-researcher-2026-11-23 "
+    "retro-job-researcher-2026-11-23-g1: phase release_authorized; "
+    "original outcome clean_end/0/done; since 2026-11-23T12:00:00Z; "
+    "age 0s; attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_TWO_BINDINGS_RECORD = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome clean_end/0/done; "
+    "since 2026-11-23T12:00:00Z; age 0s; attempts 0; reason reserved; "
+    "next human; tree exists unknown\n"
+)
+_CT_ALPHA_BINDING = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-g1 agents/alpha [refs/heads/agents/alpha]: disposition "
+    "owner_wait; tip aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; pull 7; "
+    "reviewed head bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; reason "
+    "non_owner_stall; since 2026-11-23T11:58:00Z; age 120s; attempts 2; "
+    "next retry at 2026-11-23T13:00:00Z\n"
+)
+_CT_BETA_BINDING = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-g1 agents/beta [refs/heads/agents/beta]: disposition "
+    "needs_pr; tip absent; pull unknown; reviewed head unknown; reason "
+    "ai_review_failed; since 2026-11-23T11:59:00Z; age 60s; attempts "
+    "unknown; next retry\n"
+)
+_CT_SIGNED_RECORD_0 = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome "
+    "untrusted/-7/unknown; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_SIGNED_RECORD_3600 = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome "
+    "untrusted/-7/unknown; since 2026-11-23T12:00:00Z; age 3600s; "
+    "attempts unknown; reason unknown; next unknown; "
+    "tree exists unknown\n"
+)
+_CT_REVIEW_BINDING_90 = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-g1 agents/review [refs/heads/agents/review]: "
+    "disposition awaiting_review_wiring; tip unreadable; pull unknown; "
+    "reviewed head unknown; reason pr_checks_failed; since "
+    "2026-11-23T11:58:00Z; age 90s; attempts 0; next unknown\n"
+)
+_CT_REVIEW_BINDING_120 = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-g1 agents/review [refs/heads/agents/review]: "
+    "disposition awaiting_review_wiring; tip unreadable; pull unknown; "
+    "reviewed head unknown; reason pr_checks_failed; since "
+    "2026-11-23T11:58:00Z; age 120s; attempts 0; next unknown\n"
+)
+_CT_REVIEW_BINDING_3720 = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-g1 agents/review [refs/heads/agents/review]: "
+    "disposition awaiting_review_wiring; tip unreadable; pull unknown; "
+    "reviewed head unknown; reason pr_checks_failed; since "
+    "2026-11-23T11:58:00Z; age 3720s; attempts 0; next unknown\n"
+)
+_CT_UNCERTAIN_NOTICE_30 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb needs_pr: state uncertain; "
+    "since 2026-11-23T11:59:00Z; age 30s; remote identity unknown "
+    "(delivery uncertain)\n"
+)
+_CT_UNCERTAIN_NOTICE_60 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb needs_pr: state uncertain; "
+    "since 2026-11-23T11:59:00Z; age 60s; remote identity unknown "
+    "(delivery uncertain)\n"
+)
+_CT_UNCERTAIN_NOTICE_3660 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb needs_pr: state uncertain; "
+    "since 2026-11-23T11:59:00Z; age 3660s; remote identity unknown "
+    "(delivery uncertain)\n"
+)
+_CT_CONFIRMED_NOTICE_150 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb non_owner_stall: state "
+    "confirmed; since 2026-11-23T11:57:00Z; age 150s; remote identity "
+    "private/issues#17\n"
+)
+_CT_CONFIRMED_NOTICE_180 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb non_owner_stall: state "
+    "confirmed; since 2026-11-23T11:57:00Z; age 180s; remote identity "
+    "private/issues#17\n"
+)
+_CT_CONFIRMED_NOTICE_3780 = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb non_owner_stall: state "
+    "confirmed; since 2026-11-23T11:57:00Z; age 3780s; remote identity "
+    "private/issues#17\n"
+)
+_CT_SAFE_JAN_NOTICE = (
+    "custody notice sfenton/native-home agents/safe "
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa needs_pr: state intent; "
+    "since 2026-01-01T00:00:00Z; age 28209600s; remote identity unknown\n"
+)
+_CT_SAFE_NOON_NOTICE = (
+    "custody notice sfenton/native-home agents/safe "
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa needs_pr: state intent; "
+    "since 2026-11-23T11:59:00Z; age 60s; remote identity unknown\n"
+)
+_CT_UNBOUND_RECORD = (
+    "custody record example/product request request:7 g1: phase unknown; "
+    "original outcome unknown; since 2026-11-23T12:00:00Z; age 3600s; "
+    "attempts unknown; reason unknown; next unknown; tree exists unknown\n"
+)
+_CT_UNBOUND_SAFE_NOTICE = (
+    "custody notice example/product agents/safe "
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa needs_pr: state intent; "
+    "since 2026-11-23T12:59:00Z; age 60s; remote identity unknown\n"
+)
+_CT_REQUEST_42_PHASE_FAULT = (
+    "custody fault request: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1"})\n'
+)
+_CT_REQUEST_43_PHASE_FAULT = (
+    "custody fault request: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:43","generation":"request-43-g1"})\n'
+)
+_CT_NIGHTLY_53_PHASE_FAULT = (
+    "custody fault nightly: phase (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:53","generation":"nightly-53-g1"})\n'
+)
+_CT_REQUEST_NOTICE_FAULT = (
+    "custody fault request: type (exists yes, scope notice, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1",'
+    '"lane":"agents/bad",'
+    '"head":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
+    '"fault_class":"needs_pr"})\n'
+)
+_CT_NIGHTLY_NOTICE_FAULT = (
+    "custody fault nightly: type (exists yes, scope notice, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:52","generation":"nightly-52-g1",'
+    '"lane":"agents/bad",'
+    '"head":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
+    '"fault_class":"needs_pr"})\n'
+)
+_CT_RETRO_NAMESPACE_FAULT = (
+    "custody fault retro: namespace (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+)
+_CT_REQUEST_43_TYPE_FAULT = (
+    "custody fault request: type (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:43","generation":"request-43-g1"})\n'
+)
+_CT_SCOPED_STORE_TYPE_FAULT = (
+    "custody fault request: type (exists yes, scope store, version 1, "
+    "key unknown)\n"
+)
+_CT_UNSUPPORTED_REQUEST_VERSION_FAULT = (
+    "custody fault request: version (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+)
+_CT_UNBOUND_NOTICE_FAULT = (
+    "custody fault request: type (exists yes, scope notice, version 1, "
+    'key {"repository":"example/product","intake":"request",'
+    '"producer":"request:7","generation":"g1","lane":"agents/bad"})\n'
+)
+_CT_REPOSITORY_NAMESPACE_FAULT = (
+    "custody fault request: namespace (exists yes, scope store, "
+    "version 1, key unknown)\n"
+)
+_CT_GENERATION_KEY_FAULT = (
+    "custody fault request: key (exists yes, scope record, version 1, "
+    'key {"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42"})\n'
+)
+_CT_L3_RECORD_1 = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-l3-g1: phase pending; original outcome "
+    "untrusted/unknown/unknown; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts 0; reason reserved; next human; tree exists unknown\n"
+)
+_CT_L3_BINDING_1 = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-l3-g1 agents/review [refs/heads/agents/review]: "
+    "disposition owner_wait; tip "
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; pull 7; reviewed head "
+    "unknown; reason unknown; since 2026-11-23T11:59:00Z; age 60s; "
+    "attempts 0; next retry at 2026-11-23T13:00:00Z\n"
+)
+_CT_L3_UNSENT_NOTICE = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb needs_pr: state unsent; "
+    "since 2026-11-23T11:59:00Z; age 60s; remote identity unknown\n"
+)
+_CT_L3_RECORD_2 = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-l3-g2: phase pending; original outcome unknown; since "
+    "2026-11-23T12:00:00Z; age 0s; attempts unknown; reason unknown; "
+    "next unknown; tree exists unknown\n"
+)
+_CT_L3_BINDING_2 = (
+    "custody binding sfenton/native-home request request:42 "
+    "request-42-l3-g2 agents/review [refs/heads/agents/review]: "
+    "disposition needs_pr; tip "
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa; pull unknown; reviewed "
+    "head unknown; reason ai_review_failed; since "
+    "2026-11-23T11:59:00Z; age 60s; attempts unknown; next retry\n"
+)
+_CT_L3_INTENT_NOTICE = (
+    "custody notice sfenton/native-home agents/review "
+    "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb needs_pr: state intent; "
+    "since 2026-11-23T11:59:00Z; age 60s; remote identity unknown\n"
+)
+_CT_L3_NIGHTLY_VERSION_FAULT = (
+    "custody fault nightly: version (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+)
+_L3_CUSTODY = {
+    "version": 1,
+    "records": [
+        {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "request:42",
+            "generation": "request-42-l3-g1",
+            "phase": "pending",
+            "original_outcome": {"trust": "untrusted"},
+            "since": "2026-11-23T12:00:00Z",
+            "age_seconds": 0,
+            "attempts": 0,
+            "reason": "reserved",
+            "next": {"kind": "human"},
+            "tree_exists": None,
+            "bindings": [{
+                "lane": "agents/review",
+                "branch": "refs/heads/agents/review",
+                "disposition": "owner_wait",
+                "tip": "a" * 40,
+                "pull": 7,
+                "reviewed_head": None,
+                "reason": None,
+                "since": "2026-11-23T11:59:00Z",
+                "age_seconds": 60,
+                "attempts": 0,
+                "next": {
+                    "kind": "retry",
+                    "at": "2026-11-23T13:00:00Z",
+                },
+            }],
+            "notices": [{
+                "repository": "sfenton/native-home",
+                "lane": "agents/review",
+                "head": "b" * 40,
+                "fault_class": "needs_pr",
+                "state": "unsent",
+                "since": "2026-11-23T11:59:00Z",
+                "age_seconds": 60,
+                "remote_identity": None,
+            }],
+        },
+        {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "request:42",
+            "generation": "request-42-l3-g2",
+            "phase": "pending",
+            "original_outcome": None,
+            "since": "2026-11-23T12:00:00Z",
+            "age_seconds": 0,
+            "attempts": None,
+            "reason": None,
+            "next": {"kind": "unknown"},
+            "tree_exists": None,
+            "bindings": [{
+                "lane": "agents/review",
+                "branch": "refs/heads/agents/review",
+                "disposition": "needs_pr",
+                "tip": "a" * 40,
+                "pull": None,
+                "reviewed_head": None,
+                "reason": "ai_review_failed",
+                "since": "2026-11-23T11:59:00Z",
+                "age_seconds": 60,
+                "attempts": None,
+                "next": {"kind": "retry"},
+            }],
+            "notices": [{
+                "repository": "sfenton/native-home",
+                "lane": "agents/review",
+                "head": "b" * 40,
+                "fault_class": "needs_pr",
+                "state": "intent",
+                "since": "2026-11-23T11:59:00Z",
+                "age_seconds": 60,
+                "remote_identity": None,
+            }],
+        },
+    ],
+    "faults": [{
+        "store": "nightly",
+        "kind": "version",
+        "scope": "store",
+        "version": None,
+        "key": None,
+        "exists": "yes",
+    }],
+}
+_L3_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "state store nightly: version (exists yes, scope store, "
+    "version unknown, key unknown)\n"
+    "post-mortems queued: R-60\n"
+    "queue: empty\n"
+    "nightly queue: empty\n",
+    "",
+)
+
+
+def with_custody_text(expected_text, custody_text):
+    stdout = expected_text[1]
+    lines = stdout.splitlines(True)
+    marker = "post-mortems queued:"
+    if not any(line.startswith(marker) for line in lines):
+        marker = "queue: "
+    positions = [
+        index for index, line in enumerate(lines)
+        if line.startswith(marker)
+    ]
+    if len(positions) != 1:
+        raise AssertionError("custody text insertion marker is not unique")
+    position = sum(len(line) for line in lines[:positions[0]])
+    return (
+        expected_text[0],
+        stdout[:position] + custody_text + stdout[position:],
+        expected_text[2],
+    )
+
 _PB_SIGNED_OUTCOME = {
     "trust": "untrusted",
     "exit_code": -7,
@@ -1831,7 +2214,10 @@ class StoreTestBase(t.Base):
             def in_custody_path():
                 frame = sys._getframe(1)
                 while frame is not None:
-                    if frame.f_code is ht.custody_status.__code__:
+                    if frame.f_code in (
+                        ht.custody_status.__code__,
+                        ht.custody_text.__code__,
+                    ):
                         return True
                     frame = frame.f_back
                 return False
@@ -3616,7 +4002,7 @@ class CustodySchemaTests(StoreTestBase):
             state.save()
 
     def test_custody_status_has_only_existing_fault_channel(self):
-        """Fails if: status gains a custody section or performs a writer repair."""
+        """Fails if: the scoped phase fault misses custody.faults or its text is not printed exactly once, state_loads or existing state-store lines change, file bytes change, or a writer repair occurs."""
         seed = self.request_seed(42)
         aggregate = seed.aggregate()
         self._leaf(aggregate, seed)["phase"] = "invalid"
@@ -3640,7 +4026,9 @@ class CustodySchemaTests(StoreTestBase):
             cfg,
             FakeGitHub([]),
             boundaries,
-            _PA_INVALID_STATUS_TEXT,
+            with_custody_text(
+                _PA_INVALID_STATUS_TEXT, _CT_REQUEST_42_PHASE_FAULT
+            ),
             _PA_INVALID_JSON_FIELDS,
             _PA_INVALID_JSON_FIELDS["state_loads"],
             _PA_INVALID_JSON_FIELDS["queue"],
@@ -3659,6 +4047,7 @@ class CustodySchemaTests(StoreTestBase):
                 ".local/state/hass-triage/tick.lock": b"4242",
             },
             expected_custody=_PA_INVALID_42_CUSTODY,
+            expected_custody_text=_CT_REQUEST_42_PHASE_FAULT,
         )
 
     def test_custody_retro_presence_refuses_all_retro_effects(self):
@@ -6209,7 +6598,13 @@ class StatusAndGoldenTests(StoreTestBase):
             cfg,
             gh,
             boundaries,
-            _PA_MALFORMED_NIGHTLY_STATUS_TEXT,
+            (
+                with_custody_text(
+                    _PA_MALFORMED_NIGHTLY_STATUS_TEXT, _CT_REQUEST_72
+                )
+                if expected_custody is _PA_REQUEST_72_CUSTODY
+                else _PA_MALFORMED_NIGHTLY_STATUS_TEXT
+            ),
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS,
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["state_loads"],
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["queue"],
@@ -6232,6 +6627,11 @@ class StatusAndGoldenTests(StoreTestBase):
                 ".local/state/hass-triage/tick.lock": b"4242",
             },
             expected_custody=expected_custody,
+            expected_custody_text=(
+                _CT_REQUEST_72
+                if expected_custody is _PA_REQUEST_72_CUSTODY
+                else _PA_ABSENT
+            ),
         )
         self.assertEqual(
             gh.events,
@@ -6380,6 +6780,22 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
+                expected_custody_text = {
+                    "valid request 42": _CT_REQUEST_42,
+                    "valid nightly 52": _CT_NIGHTLY_52,
+                    "request 72 and nightly 72": (
+                        _CT_NIGHTLY_72 + _CT_REQUEST_72
+                    ),
+                    "integrated job then retro": _CT_JOB + _CT_RETRO,
+                    "integrated retro then job": _CT_JOB + _CT_RETRO,
+                    "retained nightly and failing request queue": (
+                        _CT_NIGHTLY_52 + _CT_REQUEST_42
+                    ),
+                }.get(label, _PA_ABSENT)
+                if expected_custody_text is not _PA_ABSENT:
+                    expected_text = with_custody_text(
+                        expected_text, expected_custody_text
+                    )
                 self.assert_pa_locked_status(
                     cfg,
                     gh,
@@ -6394,6 +6810,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_remote_events,
                     expected_files,
                     expected_custody=expected_custody,
+                    expected_custody_text=expected_custody_text,
                 )
                 if label == "healthy readable recordless":
                     with self.subTest(
@@ -6503,6 +6920,87 @@ class StatusAndGoldenTests(StoreTestBase):
                                 "custody record request:42\n"
                             ),
                         )
+                if label == "valid request 42":
+                    wrong_line = _CT_REQUEST_42.replace(
+                        "age 0s;", "age 1s;"
+                    )
+                    self.assertNotEqual(wrong_line, _CT_REQUEST_42)
+                    with self.subTest(
+                        expectation="supplied custody text line only"
+                    ), self.assertRaisesRegex(
+                        AssertionError,
+                        "supplied line is missing from expected text",
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody=expected_custody,
+                            expected_custody_text=wrong_line,
+                        )
+                    with self.subTest(
+                        expectation="custody text equality operands"
+                    ), self.assertRaisesRegex(
+                        AssertionError,
+                        "custody text stdout comparison",
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            with_custody_text(
+                                _PA_HEALTHY_STATUS_TEXT, wrong_line
+                            ),
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody=expected_custody,
+                            expected_custody_text=wrong_line,
+                        )
+                    with self.subTest(
+                        expectation="omitted custody text operand"
+                    ), self.assertRaisesRegex(
+                        AssertionError,
+                        "custody text comparison",
+                    ):
+                        self.assert_pa_locked_status(
+                            cfg,
+                            RecordlessTraceGitHub({
+                                cfg["request_repo"]: [],
+                                cfg["nightly"]["repo"]: [],
+                            }),
+                            RecordlessBoundaries(self.home),
+                            expected_text,
+                            expected_json,
+                            expected_json["state_loads"],
+                            expected_json["queue"],
+                            expected_json["nightly_queue"],
+                            expected_json["retro_queue"],
+                            expected_queue_events,
+                            expected_remote_events,
+                            expected_files,
+                            expected_custody=expected_custody,
+                        )
 
     def test_custody_status_samples_clock_once_and_clamps_ages(self):
         """Fails if: one report sample or floor/clamp age arithmetic is skipped."""
@@ -6564,6 +7062,12 @@ class StatusAndGoldenTests(StoreTestBase):
                     tzinfo=timezone.utc,
                 ),
                 (0, 90, 30, 150),
+                (
+                    _CT_SIGNED_RECORD_0
+                    + _CT_REVIEW_BINDING_90
+                    + _CT_UNCERTAIN_NOTICE_30
+                    + _CT_CONFIRMED_NOTICE_150
+                ),
             ),
             (
                 datetime(
@@ -6571,9 +7075,15 @@ class StatusAndGoldenTests(StoreTestBase):
                     tzinfo=timezone.utc,
                 ),
                 (3600, 3720, 3660, 3780),
+                (
+                    _CT_SIGNED_RECORD_3600
+                    + _CT_REVIEW_BINDING_3720
+                    + _CT_UNCERTAIN_NOTICE_3660
+                    + _CT_CONFIRMED_NOTICE_3780
+                ),
             ),
         )
-        for sample, ages in cases:
+        for sample, ages, custody_text in cases:
             with self.subTest(sample=sample.isoformat()):
                 shutil.rmtree(self.home, ignore_errors=True)
                 self.home.mkdir()
@@ -6603,7 +7113,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         cfg["nightly"]["repo"]: [],
                     }),
                     RecordlessBoundaries(self.home),
-                    _PA_HEALTHY_STATUS_TEXT,
+                    with_custody_text(
+                        _PA_HEALTHY_STATUS_TEXT, custody_text
+                    ),
                     _PA_HEALTHY_JSON_FIELDS,
                     [],
                     [],
@@ -6613,6 +7125,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected,
+                    expected_custody_text=custody_text,
                     test_clock=sample,
                 )
 
@@ -6838,13 +7351,18 @@ class StatusAndGoldenTests(StoreTestBase):
                 json.dumps(nightly_value).encode(),
             ".local/state/hass-triage/tick.lock": b"4242",
         }
+        custody_text = (
+            _CT_NIGHTLY_53_PHASE_FAULT
+            + _CT_REPOSITORY_NAMESPACE_FAULT
+            + _CT_GENERATION_KEY_FAULT
+        )
         self.assert_pa_locked_status(
             cfg,
             RecordlessTraceGitHub({
                 repository: [] for repository in repositories
             }),
             RecordlessBoundaries(self.home),
-            expected_text,
+            with_custody_text(expected_text, custody_text),
             {
                 "queue": [],
                 "nightly_queue": [],
@@ -6859,6 +7377,7 @@ class StatusAndGoldenTests(StoreTestBase):
             queue_events,
             expected_files,
             expected_custody=expected_custody,
+            expected_custody_text=custody_text,
         )
 
     def test_pa_locked_status_rejects_remote_log_mismatches_before_call(self):
@@ -7076,6 +7595,18 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
+                custody_text = (
+                    _CT_TWO_BINDINGS_RECORD
+                    + _CT_ALPHA_BINDING
+                    + _CT_BETA_BINDING
+                    if expected_custody is _PB_TWO_BINDINGS_CUSTODY
+                    else (
+                        _CT_SIGNED_RECORD_0
+                        + _CT_REVIEW_BINDING_120
+                        + _CT_UNCERTAIN_NOTICE_60
+                        + _CT_CONFIRMED_NOTICE_180
+                    )
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -7083,7 +7614,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         cfg["nightly"]["repo"]: [],
                     }),
                     RecordlessBoundaries(self.home),
-                    _PA_HEALTHY_STATUS_TEXT,
+                    with_custody_text(
+                        _PA_HEALTHY_STATUS_TEXT, custody_text
+                    ),
                     _PA_HEALTHY_JSON_FIELDS,
                     [],
                     [],
@@ -7093,6 +7626,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
+                    expected_custody_text=custody_text,
                 )
 
     def test_custody_pb_locked_status_rows_12_14(self):
@@ -7272,6 +7806,37 @@ class StatusAndGoldenTests(StoreTestBase):
                     "state_loads": expected_state_loads,
                     "retro_queue": [],
                 }
+                custody_text = (
+                    _CT_REQUEST_42
+                    + _CT_REQUEST_43_PHASE_FAULT
+                    if expected_custody
+                    is _PB_BAD_REQUEST_PHASE_CUSTODY
+                    else (
+                        _CT_NIGHTLY_52
+                        + _CT_NIGHTLY_53_PHASE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_NIGHTLY_PHASE_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_SAFE_JAN_NOTICE
+                        + _CT_REQUEST_NOTICE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_REQUEST_NOTICE_CUSTODY
+                    else (
+                        _CT_NIGHTLY_52
+                        + _CT_SAFE_JAN_NOTICE
+                        + _CT_NIGHTLY_NOTICE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_NIGHTLY_NOTICE_CUSTODY
+                    else (
+                        _CT_JOB
+                        + _CT_RETRO
+                        + _CT_RETRO_NAMESPACE_FAULT
+                    )
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -7279,7 +7844,10 @@ class StatusAndGoldenTests(StoreTestBase):
                         cfg["nightly"]["repo"]: [],
                     }),
                     RecordlessBoundaries(self.home),
-                    expected_text,
+                    with_custody_text(
+                        expected_text,
+                        custody_text,
+                    ),
                     expected_json,
                     expected_state_loads,
                     [],
@@ -7289,6 +7857,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
+                    expected_custody_text=custody_text,
                 )
 
     def test_custody_pb_locked_status_row_16(self):
@@ -7424,6 +7993,18 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
+                custody_text = (
+                    _CT_REQUEST_42
+                    if expected_custody is _PA_REQUEST_42_CUSTODY
+                    else _CT_REQUEST_42
+                    + _CT_REQUEST_43_TYPE_FAULT
+                    if expected_custody is _PB_BAD_BINDING_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_SAFE_NOON_NOTICE
+                        + _CT_REQUEST_NOTICE_FAULT
+                    )
+                )
                 stdout = self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -7431,7 +8012,10 @@ class StatusAndGoldenTests(StoreTestBase):
                         cfg["nightly"]["repo"]: [],
                     }),
                     RecordlessBoundaries(self.home),
-                    expected_text,
+                    with_custody_text(
+                        expected_text,
+                        custody_text,
+                    ),
                     expected_json,
                     expected_state_loads,
                     [],
@@ -7441,10 +8025,153 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
+                    expected_custody_text=custody_text,
                 )
                 for canary in canaries:
                     self.assertNotIn(canary, stdout[0])
                     self.assertNotIn(canary, stdout[1])
+
+    def test_custody_text_groups_children_before_later_legacy_output(self):
+        """Fails if: parent groups, past heads or fault order cross post-mortem output."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        seed = self.request_seed(42)
+        template = self.fixture_record(seed.aggregate(), seed)
+        first = json.loads(json.dumps(template))
+        first.update({
+            "phase": "pending",
+            "original_outcome": {"trust": "untrusted"},
+            "attempts": 0,
+            "reason": "reserved",
+            "next": {"kind": "human"},
+            "bindings": {
+                "agents/review": {
+                    "disposition": "owner_wait",
+                    "tip": "a" * 40,
+                    "pull": 7,
+                    "since": "2026-11-23T11:59:00Z",
+                    "attempts": 0,
+                    "next": {
+                        "kind": "retry",
+                        "at": "2026-11-23T13:00:00Z",
+                    },
+                },
+            },
+            "notices": {
+                "agents/review": {
+                    "b" * 40: {
+                        "needs_pr": {
+                            "state": "unsent",
+                            "since": "2026-11-23T11:59:00Z",
+                        },
+                    },
+                },
+            },
+        })
+        first.pop("release_proof")
+        second = json.loads(json.dumps(template))
+        second.update({
+            "phase": "pending",
+            "bindings": {
+                "agents/review": {
+                    "disposition": "needs_pr",
+                    "tip": "a" * 40,
+                    "reason": "ai_review_failed",
+                    "since": "2026-11-23T11:59:00Z",
+                    "next": {"kind": "retry"},
+                },
+            },
+            "notices": {
+                "agents/review": {
+                    "b" * 40: {
+                        "needs_pr": {
+                            "state": "intent",
+                            "since": "2026-11-23T11:59:00Z",
+                        },
+                    },
+                },
+            },
+        })
+        second.pop("release_proof")
+        second.pop("original_outcome")
+        aggregate = {
+            "version": 1,
+            "records": {
+                seed.repository: {
+                    "request": {
+                        "request:42": {
+                            "request-42-l3-g1": first,
+                            "request-42-l3-g2": second,
+                        },
+                    },
+                },
+            },
+        }
+        primary = self.legacy(custody=aggregate)
+        nightly = self.legacy(
+            custody={"version": 2, "records": {}}
+        )
+        retro = self.legacy(
+            queue=[{"task": "R-60"}],
+            done=[],
+        )
+        self.write_raw(self.paths.state, primary)
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, nightly)
+        retro_path = ht.Paths(cfg, self.home, "retro-").state
+        self.write_raw(retro_path, retro)
+        expected_loads = [_L3_CUSTODY["faults"][0]]
+        self.assert_pa_custody_loader(
+            cfg,
+            _L3_CUSTODY,
+            expected_loads,
+            storage_facts={},
+        )
+        custody_text = (
+            _CT_L3_RECORD_1
+            + _CT_L3_BINDING_1
+            + _CT_L3_UNSENT_NOTICE
+            + _CT_L3_RECORD_2
+            + _CT_L3_BINDING_2
+            + _CT_L3_INTENT_NOTICE
+            + _CT_L3_NIGHTLY_VERSION_FAULT
+        )
+        expected_text = with_custody_text(_L3_STATUS_TEXT, custody_text)
+        repositories = (cfg["request_repo"], cfg["nightly"]["repo"])
+        opens = tuple(("open", repository) for repository in repositories)
+        expected_files = {
+            ".local/state/hass-triage/state.json":
+                json.dumps(primary).encode(),
+            ".local/state/hass-triage/state-nightly.json":
+                json.dumps(nightly).encode(),
+            ".local/state/hass-triage/state-retro.json":
+                json.dumps(retro).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        }
+        text, _encoded = self.assert_pa_locked_status(
+            cfg,
+            RecordlessTraceGitHub({
+                repository: [] for repository in repositories
+            }),
+            RecordlessBoundaries(self.home),
+            expected_text,
+            {
+                "queue": [],
+                "nightly_queue": [],
+                "state_loads": expected_loads,
+                "retro_queue": ["R-60"],
+            },
+            expected_loads,
+            [],
+            [],
+            ["R-60"],
+            (opens, opens),
+            (opens, opens),
+            expected_files,
+            expected_custody=_L3_CUSTODY,
+            expected_custody_text=custody_text,
+        )
+        self.assertNotIn("custody:\n", text)
 
     def test_custody_pb_locked_status_supplements(self):
         """Fails if: a P-b2 supplement changes P's legacy loader or status output."""
@@ -7634,13 +8361,40 @@ class StatusAndGoldenTests(StoreTestBase):
                     "state_loads": expected_state_loads,
                     "retro_queue": [],
                 }
+                custody_text = (
+                    _CT_SCOPED_STORE_TYPE_FAULT
+                    if expected_custody is _PB_MIXED_TYPE_CUSTODY
+                    else _CT_UNSUPPORTED_REQUEST_VERSION_FAULT
+                    if expected_custody
+                    is _PB_UNSUPPORTED_VERSION_CUSTODY
+                    else (
+                        _CT_UNBOUND_RECORD
+                        + _CT_UNBOUND_SAFE_NOTICE
+                        + _CT_UNBOUND_NOTICE_FAULT
+                    )
+                    if expected_custody is _PB_UNBOUND_CUSTODY
+                    else _CT_NIGHTLY_52
+                    if expected_custody
+                    is _PA_NIGHTLY_52_CUSTODY
+                    else _CT_REQUEST_42
+                    if expected_custody
+                    is _PA_REQUEST_42_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_REPOSITORY_NAMESPACE_FAULT
+                        + _CT_GENERATION_KEY_FAULT
+                    )
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
                         repo: [] for repo in repositories
                     }),
                     RecordlessBoundaries(self.home),
-                    expected_text,
+                    with_custody_text(
+                        expected_text,
+                        custody_text,
+                    ),
                     expected_json,
                     expected_state_loads,
                     [],
@@ -7650,6 +8404,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
+                    expected_custody_text=custody_text,
                     test_clock=(
                         datetime(
                             2026, 11, 23, 13, 0,
