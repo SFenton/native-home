@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import contextlib
 import errno
+import gc
 import io
 import json
 import os
@@ -3030,6 +3031,10 @@ class LoadAndMissingTests(StoreTestBase):
 
 
 class CustodyTreeObserverTests(StoreTestBase):
+    def tearDown(self):
+        gc.collect()
+        super().tearDown()
+
     def expected_walk(self, layout, basename, stat_result="ok"):
         names = ["/"] + [
             item
