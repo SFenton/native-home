@@ -1314,11 +1314,12 @@ class CustodyTreeTrace:
         os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
     )
 
-    def __init__(self, inject=None, close_failure=False):
+    def __init__(self, inject=None, close_failure=None):
         self.inject = inject
         self.close_failure = close_failure
         self.events = []
         self.injections = 0
+        self.open_ordinal = 0
         self.live = {}
         self.acquired = []
         self.closed = []
@@ -1348,9 +1349,15 @@ class CustodyTreeTrace:
             (Path, (
                 "resolve", "readlink", "stat", "lstat", "exists",
                 "is_dir", "is_file", "open", "read_bytes", "iterdir",
-                "glob", "rglob",
+                "glob", "rglob", "cwd", "absolute",
             )),
-            (os, ("lstat", "scandir", "listdir")),
+            (
+                os,
+                (
+                    "lstat", "scandir", "listdir", "readlink", "access",
+                    "fstat", "getcwd",
+                ),
+            ),
         ):
             for name in names:
                 if hasattr(owner, name):
@@ -1388,11 +1395,16 @@ class CustodyTreeTrace:
             raise AssertionError("observer used an fd outside its live set")
         return self.live[fd]
 
-    def _should_inject(self, operation, path):
+    def _should_inject(self, operation, path, ordinal=None):
         if self.injections or self.inject is None:
             return None
-        expected_operation, expected_path, error = self.inject
-        if operation == expected_operation and path == expected_path:
+        expected_operation, expected_target, error = self.inject
+        matches_target = (
+            ordinal == expected_target
+            if isinstance(expected_target, int)
+            else path == expected_target
+        )
+        if operation == expected_operation and matches_target:
             self.injections += 1
             return error
         return None
@@ -1403,7 +1415,9 @@ class CustodyTreeTrace:
         dir_fd = kwargs.get("dir_fd")
         parent = self._parent(dir_fd)
         self.assert_supported_open(path, flags, args)
-        injected = self._should_inject("open", path)
+        ordinal = self.open_ordinal
+        self.open_ordinal += 1
+        injected = self._should_inject("open", path, ordinal)
         if injected is not None:
             self.events.append((
                 "open", path, flags, parent, "error", injected
@@ -1470,7 +1484,17 @@ class CustodyTreeTrace:
         self._original_close(fd)
         del self.live[fd]
         self.closed.append(symbol)
-        if self.close_failure and len(self.closed) == 1:
+        close_ordinal = len(self.closed)
+        failure_target = self.close_failure
+        should_fail = (
+            failure_target is True and close_ordinal == 1
+            or isinstance(failure_target, str)
+            and symbol == failure_target
+            or isinstance(failure_target, int)
+            and not isinstance(failure_target, bool)
+            and close_ordinal == failure_target
+        )
+        if should_fail:
             self.injections += 1
             self.events.append((
                 "close", symbol, "ok", "injected-error", errno.EIO
@@ -3069,6 +3093,19 @@ class CustodyTreeObserverTests(StoreTestBase):
         events.append(("close", parent, "ok"))
         return events
 
+    def expected_open_ordinal(self, layout, component):
+        names = ["/"] + [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        if component == "worktrees":
+            names.append("worktrees")
+        return max(
+            index for index, name in enumerate(names)
+            if name == component
+        )
+
     def expected_open_cutoff(self, layout, component, error):
         names = ["/"] + [
             item
@@ -3077,9 +3114,8 @@ class CustodyTreeObserverTests(StoreTestBase):
         ]
         if component == "worktrees":
             names.append("worktrees")
-        failure_index = max(
-            index for index, name in enumerate(names)
-            if name == component
+        failure_index = self.expected_open_ordinal(
+            layout, component
         )
         events = []
         for index in range(failure_index):
@@ -3224,6 +3260,7 @@ class CustodyTreeObserverTests(StoreTestBase):
                     self, name, root=root_kind,
                     worktrees=worktrees_kind,
                 )
+                layout.leaf("42")
                 with CustodyTreeTrace() as trace:
                     observed = ht._observe_custody_tree(
                         layout.paths, "request:42"
@@ -3270,6 +3307,11 @@ class CustodyTreeObserverTests(StoreTestBase):
             with self.subTest(case=name):
                 layout = CustodyTreeLayout(self, name)
                 layout.leaf("42")
+                injection_target = (
+                    self.expected_open_ordinal(layout, target)
+                    if operation == "open"
+                    else target
+                )
                 with CustodyTreeTrace() as control:
                     self.assertEqual(
                         ht._observe_custody_tree(
@@ -3279,7 +3321,7 @@ class CustodyTreeObserverTests(StoreTestBase):
                     )
                 control.assert_owned_once(self)
                 with CustodyTreeTrace(
-                    inject=(operation, target, error)
+                    inject=(operation, injection_target, error)
                 ) as trace:
                     observed = ht._observe_custody_tree(
                         layout.paths, "request:42"
@@ -3338,6 +3380,84 @@ class CustodyTreeObserverTests(StoreTestBase):
             ),
             ("close", "fd1", "ok"),
         ])
+
+    def test_observer_final_close_failure_overrides_missing_leaf(self):
+        """Fails if: final cleanup failure lets a missing leaf remain positively absent."""
+        layout = CustodyTreeLayout(self, "cleanup-final-missing")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        worktrees_symbol = f"fd{len(root_components) + 1}"
+        with CustodyTreeTrace(
+            close_failure=worktrees_symbol
+        ) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42", "missing")
+        expected[-1] = (
+            "close", worktrees_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        self.assertEqual(trace.events, expected)
+
+    def test_observer_final_close_failure_overrides_positive_leaf(self):
+        """Fails if: final cleanup failure lets a positive result survive."""
+        layout = CustodyTreeLayout(self, "cleanup-final-positive")
+        layout.leaf("42")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        worktrees_symbol = f"fd{len(root_components) + 1}"
+        with CustodyTreeTrace(
+            close_failure=worktrees_symbol
+        ) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42")
+        expected[-1] = (
+            "close", worktrees_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        self.assertEqual(trace.events, expected)
+
+    def test_observer_worktrees_transition_close_failure_cleans_new_fd(self):
+        """Fails if: transition cleanup failure skips the new worktrees fd or reaches the leaf."""
+        layout = CustodyTreeLayout(self, "cleanup-transition")
+        layout.leaf("42")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        root_symbol = f"fd{len(root_components)}"
+        with CustodyTreeTrace(close_failure=root_symbol) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42")[:-2]
+        expected[-1] = (
+            "close", root_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        expected.append((
+            "close", f"fd{len(root_components) + 1}", "ok"
+        ))
+        self.assertEqual(trace.events, expected)
 
     def test_observer_unsafe_roots_and_names_short_circuit_without_io(self):
         """Fails if: a private unsafe operand reaches cwd, a directory open or a stat."""
