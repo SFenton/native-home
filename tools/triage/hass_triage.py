@@ -4754,11 +4754,6 @@ def custody_text(custody: Dict[str, Any]) -> List[str]:
         intake = record["intake"]
         producer = record["producer"]
         generation = record["generation"]
-        tree = (
-            "unknown"
-            if record["tree_exists"] is None
-            else "yes" if record["tree_exists"] else "no"
-        )
         lines.append(
             f"custody record {repository} {intake} {producer} {generation}: "
             f"phase {record['phase']}; original outcome "
@@ -4766,7 +4761,7 @@ def custody_text(custody: Dict[str, Any]) -> List[str]:
             f"since {record['since']}; age {record['age_seconds']}s; "
             f"attempts {_custody_nullable_text(record['attempts'])}; "
             f"reason {_custody_nullable_text(record['reason'])}; "
-            f"next {_custody_next_text(record['next'])}; tree exists {tree}"
+            f"next {_custody_next_text(record['next'])}; tree exists unknown"
         )
         for binding in record["bindings"]:
             lines.append(

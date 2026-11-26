@@ -4002,7 +4002,7 @@ class CustodySchemaTests(StoreTestBase):
             state.save()
 
     def test_custody_status_has_only_existing_fault_channel(self):
-        """Fails if: the exact scoped phase fault, legacy lines, bytes or no-repair proof changes."""
+        """Fails if: the scoped phase fault misses custody.faults or its text is not printed exactly once, state_loads or existing state-store lines change, file bytes change, or a writer repair occurs."""
         seed = self.request_seed(42)
         aggregate = seed.aggregate()
         self._leaf(aggregate, seed)["phase"] = "invalid"
@@ -7806,6 +7806,37 @@ class StatusAndGoldenTests(StoreTestBase):
                     "state_loads": expected_state_loads,
                     "retro_queue": [],
                 }
+                custody_text = (
+                    _CT_REQUEST_42
+                    + _CT_REQUEST_43_PHASE_FAULT
+                    if expected_custody
+                    is _PB_BAD_REQUEST_PHASE_CUSTODY
+                    else (
+                        _CT_NIGHTLY_52
+                        + _CT_NIGHTLY_53_PHASE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_NIGHTLY_PHASE_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_SAFE_JAN_NOTICE
+                        + _CT_REQUEST_NOTICE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_REQUEST_NOTICE_CUSTODY
+                    else (
+                        _CT_NIGHTLY_52
+                        + _CT_SAFE_JAN_NOTICE
+                        + _CT_NIGHTLY_NOTICE_FAULT
+                    )
+                    if expected_custody
+                    is _PB_BAD_NIGHTLY_NOTICE_CUSTODY
+                    else (
+                        _CT_JOB
+                        + _CT_RETRO
+                        + _CT_RETRO_NAMESPACE_FAULT
+                    )
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -7815,37 +7846,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     RecordlessBoundaries(self.home),
                     with_custody_text(
                         expected_text,
-                        (
-                            _CT_REQUEST_42
-                            + _CT_REQUEST_43_PHASE_FAULT
-                            if expected_custody
-                            is _PB_BAD_REQUEST_PHASE_CUSTODY
-                            else (
-                                _CT_NIGHTLY_52
-                                + _CT_NIGHTLY_53_PHASE_FAULT
-                            )
-                            if expected_custody
-                            is _PB_BAD_NIGHTLY_PHASE_CUSTODY
-                            else (
-                                _CT_REQUEST_42
-                                + _CT_SAFE_JAN_NOTICE
-                                + _CT_REQUEST_NOTICE_FAULT
-                            )
-                            if expected_custody
-                            is _PB_BAD_REQUEST_NOTICE_CUSTODY
-                            else (
-                                _CT_NIGHTLY_52
-                                + _CT_SAFE_JAN_NOTICE
-                                + _CT_NIGHTLY_NOTICE_FAULT
-                            )
-                            if expected_custody
-                            is _PB_BAD_NIGHTLY_NOTICE_CUSTODY
-                            else (
-                                _CT_JOB
-                                + _CT_RETRO
-                                + _CT_RETRO_NAMESPACE_FAULT
-                            )
-                        ),
+                        custody_text,
                     ),
                     expected_json,
                     expected_state_loads,
@@ -7856,36 +7857,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
-                    expected_custody_text=(
-                        _CT_REQUEST_42 + _CT_REQUEST_43_PHASE_FAULT
-                        if expected_custody
-                        is _PB_BAD_REQUEST_PHASE_CUSTODY
-                        else (
-                            _CT_NIGHTLY_52
-                            + _CT_NIGHTLY_53_PHASE_FAULT
-                        )
-                        if expected_custody
-                        is _PB_BAD_NIGHTLY_PHASE_CUSTODY
-                        else (
-                            _CT_REQUEST_42
-                            + _CT_SAFE_JAN_NOTICE
-                            + _CT_REQUEST_NOTICE_FAULT
-                        )
-                        if expected_custody
-                        is _PB_BAD_REQUEST_NOTICE_CUSTODY
-                        else (
-                            _CT_NIGHTLY_52
-                            + _CT_SAFE_JAN_NOTICE
-                            + _CT_NIGHTLY_NOTICE_FAULT
-                        )
-                        if expected_custody
-                        is _PB_BAD_NIGHTLY_NOTICE_CUSTODY
-                        else (
-                            _CT_JOB
-                            + _CT_RETRO
-                            + _CT_RETRO_NAMESPACE_FAULT
-                        )
-                    ),
+                    expected_custody_text=custody_text,
                 )
 
     def test_custody_pb_locked_status_row_16(self):
@@ -8021,6 +7993,18 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
+                custody_text = (
+                    _CT_REQUEST_42
+                    if expected_custody is _PA_REQUEST_42_CUSTODY
+                    else _CT_REQUEST_42
+                    + _CT_REQUEST_43_TYPE_FAULT
+                    if expected_custody is _PB_BAD_BINDING_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_SAFE_NOON_NOTICE
+                        + _CT_REQUEST_NOTICE_FAULT
+                    )
+                )
                 stdout = self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -8030,18 +8014,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     RecordlessBoundaries(self.home),
                     with_custody_text(
                         expected_text,
-                        (
-                            _CT_REQUEST_42
-                            if expected_custody is _PA_REQUEST_42_CUSTODY
-                            else _CT_REQUEST_42
-                            + _CT_REQUEST_43_TYPE_FAULT
-                            if expected_custody is _PB_BAD_BINDING_CUSTODY
-                            else (
-                                _CT_REQUEST_42
-                                + _CT_SAFE_NOON_NOTICE
-                                + _CT_REQUEST_NOTICE_FAULT
-                            )
-                        ),
+                        custody_text,
                     ),
                     expected_json,
                     expected_state_loads,
@@ -8052,17 +8025,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
-                    expected_custody_text=(
-                        _CT_REQUEST_42
-                        if expected_custody is _PA_REQUEST_42_CUSTODY
-                        else _CT_REQUEST_42 + _CT_REQUEST_43_TYPE_FAULT
-                        if expected_custody is _PB_BAD_BINDING_CUSTODY
-                        else (
-                            _CT_REQUEST_42
-                            + _CT_SAFE_NOON_NOTICE
-                            + _CT_REQUEST_NOTICE_FAULT
-                        )
-                    ),
+                    expected_custody_text=custody_text,
                 )
                 for canary in canaries:
                     self.assertNotIn(canary, stdout[0])
@@ -8398,6 +8361,30 @@ class StatusAndGoldenTests(StoreTestBase):
                     "state_loads": expected_state_loads,
                     "retro_queue": [],
                 }
+                custody_text = (
+                    _CT_SCOPED_STORE_TYPE_FAULT
+                    if expected_custody is _PB_MIXED_TYPE_CUSTODY
+                    else _CT_UNSUPPORTED_REQUEST_VERSION_FAULT
+                    if expected_custody
+                    is _PB_UNSUPPORTED_VERSION_CUSTODY
+                    else (
+                        _CT_UNBOUND_RECORD
+                        + _CT_UNBOUND_SAFE_NOTICE
+                        + _CT_UNBOUND_NOTICE_FAULT
+                    )
+                    if expected_custody is _PB_UNBOUND_CUSTODY
+                    else _CT_NIGHTLY_52
+                    if expected_custody
+                    is _PA_NIGHTLY_52_CUSTODY
+                    else _CT_REQUEST_42
+                    if expected_custody
+                    is _PA_REQUEST_42_CUSTODY
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_REPOSITORY_NAMESPACE_FAULT
+                        + _CT_GENERATION_KEY_FAULT
+                    )
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -8406,30 +8393,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     RecordlessBoundaries(self.home),
                     with_custody_text(
                         expected_text,
-                        (
-                            _CT_SCOPED_STORE_TYPE_FAULT
-                            if expected_custody is _PB_MIXED_TYPE_CUSTODY
-                            else _CT_UNSUPPORTED_REQUEST_VERSION_FAULT
-                            if expected_custody
-                            is _PB_UNSUPPORTED_VERSION_CUSTODY
-                            else (
-                                _CT_UNBOUND_RECORD
-                                + _CT_UNBOUND_SAFE_NOTICE
-                                + _CT_UNBOUND_NOTICE_FAULT
-                            )
-                            if expected_custody is _PB_UNBOUND_CUSTODY
-                            else _CT_NIGHTLY_52
-                            if expected_custody
-                            is _PA_NIGHTLY_52_CUSTODY
-                            else _CT_REQUEST_42
-                            if expected_custody
-                            is _PA_REQUEST_42_CUSTODY
-                            else (
-                                _CT_REQUEST_42
-                                + _CT_REPOSITORY_NAMESPACE_FAULT
-                                + _CT_GENERATION_KEY_FAULT
-                            )
-                        ),
+                        custody_text,
                     ),
                     expected_json,
                     expected_state_loads,
@@ -8440,28 +8404,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     expected_files,
                     expected_custody=expected_custody,
-                    expected_custody_text=(
-                        _CT_SCOPED_STORE_TYPE_FAULT
-                        if expected_custody is _PB_MIXED_TYPE_CUSTODY
-                        else _CT_UNSUPPORTED_REQUEST_VERSION_FAULT
-                        if expected_custody
-                        is _PB_UNSUPPORTED_VERSION_CUSTODY
-                        else (
-                            _CT_UNBOUND_RECORD
-                            + _CT_UNBOUND_SAFE_NOTICE
-                            + _CT_UNBOUND_NOTICE_FAULT
-                        )
-                        if expected_custody is _PB_UNBOUND_CUSTODY
-                        else _CT_NIGHTLY_52
-                        if expected_custody is _PA_NIGHTLY_52_CUSTODY
-                        else _CT_REQUEST_42
-                        if expected_custody is _PA_REQUEST_42_CUSTODY
-                        else (
-                            _CT_REQUEST_42
-                            + _CT_REPOSITORY_NAMESPACE_FAULT
-                            + _CT_GENERATION_KEY_FAULT
-                        )
-                    ),
+                    expected_custody_text=custody_text,
                     test_clock=(
                         datetime(
                             2026, 11, 23, 13, 0,
