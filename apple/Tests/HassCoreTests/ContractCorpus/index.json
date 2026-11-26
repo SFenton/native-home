@@ -14322,6 +14322,62 @@
         "code": "limit_exceeded",
         "pointer": "/document/stateStyles/styles/0/rules/0/glyphTint/red"
       }
+    },
+    {
+      "file": "reject/pending-sheet-reveal-grouped.json",
+      "outcome": "reject",
+      "note": "A full-height sheet asks for one reveal of its root content.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.sheet-reveal@1"
+      },
+      "pending": true
+    },
+    {
+      "file": "reject/sheet-reveal-fitted.json",
+      "outcome": "reject",
+      "note": "A fitted sheet does not reserve enough height for an arc.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.sheet-reveal@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_combination",
+        "pointer": "/document/modals/0/presentation/reveal"
+      }
+    },
+    {
+      "file": "reject/sheet-reveal-adaptive.json",
+      "outcome": "reject",
+      "note": "A sheet that can become a pane cannot request a grouped reveal.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.sheet-reveal@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_combination",
+        "pointer": "/document/modals/0/presentation/reveal"
+      }
+    },
+    {
+      "file": "reject/sheet-reveal-fullscreen.json",
+      "outcome": "reject",
+      "note": "A full-screen modal cannot request a sheet reveal.",
+      "issue": {
+        "code": "unsupported_capability",
+        "pointer": "/capabilities/10",
+        "capability": "sh.sheet-reveal@1"
+      },
+      "pending": true,
+      "studioIssue": {
+        "code": "invalid_combination",
+        "pointer": "/document/modals/0/presentation/reveal"
+      }
     }
   ]
 }

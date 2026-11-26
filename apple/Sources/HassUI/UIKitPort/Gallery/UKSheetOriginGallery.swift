@@ -17,7 +17,7 @@ extension UKGallery {
 ///
 /// The document is the app's own corpus' two-level sheet (`GlobalChromeCorpus/accept/global-chrome-levels-two-levels.json`) with the app's header in place of its Alerts button:
 /// demo ids only, fixtures only, no sign-in. In the sheet "Inspect Here" is a page link (`page-echo`), "Level" opens `level-one`, and `level-one` opens
-/// `level-two`; the tab pages have a tile that opens a page too.
+/// `level-two`; the tab pages have a tile that opens a page too. `FENTON_GALLERY_GROUPED_REVEAL=1` opts the sheet into the grouped root reveal.
 @MainActor
 enum UKSheetOriginGallery {
     /// The renderer for the sheet-origin fixture, or a note when the wallpaper or the document is unavailable.
@@ -29,11 +29,29 @@ enum UKSheetOriginGallery {
             .init(profileName: "Example Person", attentionCount: 0, isOffline: false, reconnectingPresent: false, reconnectingLit: false)
         })
         do {
-            let publication = try ServerUICompositionPublication.decode(Data(document.utf8))
+            let publication = try ServerUICompositionPublication.decode(fixture())
             return try UKServerUIRenderer(publication: publication, context: UKContext(store: store), backdrop: backdrop, shellHeader: source)
         } catch {
             return UKGalleryNoteViewController(title: "Sheet origin: the fixture does not decode")
         }
+    }
+
+    /// The authored fixture's bytes, with grouped reveal only when the journey requests it.
+    private static func fixture() throws -> Data {
+        let bytes = Data(document.utf8)
+        guard ProcessInfo.processInfo.environment["FENTON_GALLERY_GROUPED_REVEAL"] == "1" else { return bytes }
+        guard var envelope = try JSONSerialization.jsonObject(with: bytes) as? [String: Any],
+              var capabilities = envelope["capabilities"] as? [String],
+              var document = envelope["document"] as? [String: Any],
+              var modals = document["modals"] as? [[String: Any]], modals.count == 1,
+              var presentation = modals[0]["presentation"] as? [String: Any] else { throw CocoaError(.coderReadCorrupt) }
+        presentation["reveal"] = "grouped"
+        modals[0]["presentation"] = presentation
+        document["modals"] = modals
+        capabilities.append("sh.sheet-reveal@1")
+        envelope["document"] = document
+        envelope["capabilities"] = capabilities.sorted()
+        return try JSONSerialization.data(withJSONObject: envelope)
     }
 
     private static let document = #"""

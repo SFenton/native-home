@@ -4,6 +4,24 @@ import HassDesign
 import Observation
 import UIKit
 
+// MARK: - Grouped sheet readiness
+
+/// Only Repeat views mounted in the sheet root can hold its one-time reveal.
+@MainActor
+@Observable
+final class UKServerUISheetReadiness {
+    private var waiting: Set<ObjectIdentifier> = []
+
+    var isReady: Bool { waiting.isEmpty }
+
+    func setWaiting(_ value: Bool, for view: UKRepeatView) {
+        let id = ObjectIdentifier(view)
+        guard waiting.contains(id) != value else { return }
+        if value { waiting.insert(id) }
+        else { waiting.remove(id) }
+    }
+}
+
 // MARK: - The cell a repeat draws
 
 /// The record and position one cell of a `repeat` reads (`item` and `index`, `sh.repeat@1`).
@@ -92,6 +110,8 @@ final class UKRepeatView: UIView, UKGridMeasuring {
 
     private var definition: ServerUIRepeat?
     private var cells: [UKServerUICellHost] = []
+    private weak var sheetReadiness: UKServerUISheetReadiness?
+    private var awaitsFirstRows = false
     private let pager = UKServerUIPagedRow()
     private let flow = UIScrollView()
     private let wordLabel = UILabel()
@@ -100,6 +120,19 @@ final class UKRepeatView: UIView, UKGridMeasuring {
     private let previousButton = UIButton(type: .custom)
     private let nextButton = UIButton(type: .custom)
     private var pagerKey: String?
+
+    /// Reports the readiness of the rows this view laid out, only while mounted.
+    func reportSheetWait(_ waiting: Bool, to readiness: UKServerUISheetReadiness?) {
+        guard let readiness else { return }
+        sheetReadiness = readiness
+        awaitsFirstRows = waiting
+        readiness.setWaiting(waiting && window != nil, for: self)
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        sheetReadiness?.setWaiting(awaitsFirstRows && window != nil, for: self)
+    }
 
     override init(frame: CGRect) {
         super.init(frame: frame)

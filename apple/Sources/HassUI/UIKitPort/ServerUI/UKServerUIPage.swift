@@ -42,6 +42,8 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
     /// The id of the collection hosted as the page's scroller, or nil while the column is.
     private var scrollerCollectionID: String?
     private(set) var nodes: [String: UKServerUINode] = [:]
+    /// Present only for a modal root with the grouped reveal.
+    var sheetReadiness: UKServerUISheetReadiness?
     /// The scope of each repeat cell, kept across publications so a cell keeps its record and its views.
     private var cellScopes: [String: UKServerUICellScope] = [:]
     private var inheritedGroups: [D.ChromeGroup]
@@ -767,7 +769,9 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
             case .repeatNode(let value):
                 if let view = entry.view as? UKRepeatView, let template = value.template {
                     let collection = renderer.collections[value.providerId]
-                    let plan = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                    let phase = collection?.phase
+                    let recordCount = collection?.recordCount ?? 0
+                    let plan = ServerUIRepeatPlan.make(phase: phase, recordCount: recordCount,
                                                        limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
                     var hosts: [UKServerUICellHost] = []
                     var scopes: [UKServerUICellScope] = []
@@ -796,22 +800,25 @@ final class UKServerUIPage: UKPageViewController, UKSheetFitting, UKColumnExitRe
                                      ?? UKServerUICellHost(scope: scope, content: content))
                     }
                     view.apply(value, cells: hosts, word: word, footnote: plan.isStale ? value.words.stale : nil)
+                    view.reportSheetWait(phase == .loading && recordCount == 0, to: sheetReadiness)
                     let drawn = plan
                     var last = collection?.records ?? []
                     layoutBindings.append { [weak view, weak renderer, weak self] in
-                        entry.bag.observe { [weak self, weak renderer] in
+                        entry.bag.observe { [weak self, weak renderer, weak view] in
                             // One write for each record that differs, to that cell's own scope; a different count or state re-arranges once.
-                            guard let renderer else { return }
+                            guard let renderer, let view else { return }
                             let collection = renderer.collections[value.providerId]
-                            let now = ServerUIRepeatPlan.make(phase: collection?.phase, recordCount: collection?.recordCount ?? 0,
+                            let phase = collection?.phase
+                            let recordCount = collection?.recordCount ?? 0
+                            let now = ServerUIRepeatPlan.make(phase: phase, recordCount: recordCount,
                                                               limit: value.limit, placeholderCount: value.placeholder == nil ? nil : value.placeholderCount)
                             if now != drawn { DispatchQueue.main.async { [weak self] in self?.render() }; return }
+                            view.reportSheetWait(phase == .loading && recordCount == 0, to: self?.sheetReadiness)
                             guard case .cells = now.body, let records = collection?.records else { return }
                             for index in ServerUIRepeatDiff.between(last, records, limit: value.limit).changed {
                                 scopes[safe: index]?.set(records[index])
                             }
                             last = records
-                            _ = view
                         }
                     }
                 }

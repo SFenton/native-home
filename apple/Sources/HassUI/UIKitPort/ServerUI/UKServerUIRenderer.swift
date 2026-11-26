@@ -1658,6 +1658,13 @@ final class UKServerUIRenderer: UIViewController, UITabBarControllerDelegate, UI
         options.appearance = definition.presentation.appearance == .dark ? .dark : .system
         options.isFullScreen = definition.presentation.fullScreen
         options.closeStaysInBar = definition.presentation.close.rail == .keepHorizontalWhenAllowed
+        if definition.presentation.groupedReveal, pages.count == 1 {
+            let readiness = UKServerUISheetReadiness()
+            root.sheetReadiness = readiness
+            options.reveal = .init(label: "Loading \(definition.surface.title)", isReady: { [weak readiness] in
+                readiness?.isReady ?? true
+            })
+        }
         options.onClose = { [weak self] in
             guard let self else { return }
             guard let page = self.modal?.topViewController as? UKServerUIPage else {

@@ -69,7 +69,9 @@
     var n = h('div', { style: { display: 'flex', flexDirection: 'column', gap: '14px', width: '100%' } },
       bar('.results (search, sort, filter; Food results)', [['wait 150', 150, G], ['in 200', 200, A], ['loading, data at 900', 550, '#3a3f48'], ['out 140', 140, B], ['content 170', 170, Y]]),
       bar('.page (first cold load; Food hub, Recipes, inventory pages)', [['in 200', 200, A], ['held to 1000 (min)', 800, '#3a3f48'], ['out 500', 500, B], ['content 170', 170, Y]]),
-      h('p', { style: { margin: 0, font: '12px var(--font)', opacity: .8 } }, 'Widths are proportional to milliseconds (the .page bar is 1670 ms, the .results bar 1210 ms with data at 900 ms). Child timeout: 1500 ms after the data is ready. Load timeout (.page only): 10 s, then the content shows anyway.'));
+      bar('.sheet (ready when the slide ends)', [['content 200', 200, Y]]),
+      bar('.sheet (arc needed, ready just after grace)', [['grace 150', 150, G], ['in 200', 200, A], ['hold 300', 300, '#3a3f48'], ['out 200', 200, B], ['content 200', 200, Y]]),
+      h('p', { style: { margin: 0, font: '12px var(--font)', opacity: .8 } }, 'Widths are proportional to milliseconds. A sheet starts at the end of the native transition, uses opacity only, and reveals its root once. Load timeout (.page and .sheet): 10 s, then the content shows its own state.'));
     var tbl = h('table.cm-tbl', h('thead', h('tr', ['Value', '.results', '.page'].map(function (t) { return h('th', t); }))), h('tbody', [
       ['spinnerDelay', '150 ms', '0'], ['spinnerEnter', '200 ms', '200 ms'], ['spinnerExit', '140 ms', '500 ms'], ['contentEnter', '170 ms (+ 4 pt rise)', '170 ms (+ 4 pt rise)'], ['contentExit (reload)', '170 ms', '170 ms'], ['childTimeout', '1500 ms', '1500 ms'], ['minimumLoading', '0', '1000 ms'], ['loadTimeout', 'none', '10 s']].map(function (r) { return h('tr', h('th', { scope: 'row' }, h('code', r[0])), h('td', r[1]), h('td', r[2])); })));
     return CM.grid(ctx, [{ label: 'Timing profiles (ContentGateModel.Profile)', node: n, w: 620 }, { label: 'Constants', node: tbl, w: 420 }], { surfaces: ['sheet'] });
@@ -85,9 +87,35 @@
       h('div.ui-hdr', h('h2', 'Suggested Recipes')), K.ContentGate({ content: content(4), phase: 'ready', minHeight: 260 }));
     return CM.grid(ctx, [{ label: 'Food hub results region, waiting', node: recipes, w: 402 }, { label: 'Ready (images reported as drawn)', node: ready, w: 402 }], { surfaces: ['page'] });
   }
+  function sheetReveal(ctx) {
+    var device = ctx.device, w = device.w + 2 * device.bezel, hgt = device.h + 2 * device.bezel;
+    function sample(phase, title) {
+      var tiles = CM.cards([
+        K.GlassTile({ title: 'Studio', subtitle: '21°', icon: 'thermometer', kind: 'navigate' }),
+        K.GlassTile({ title: 'Guest room', subtitle: '20°', icon: 'thermometer', kind: 'navigate' }),
+      ], 150, 2);
+      if (phase !== 'ready') {
+        tiles.style.visibility = 'hidden';
+        tiles.setAttribute('inert', '');
+      }
+      var sheet = Mock.sheet(ctx, { title: 'Climate', detent: 'large', size: 'page', trailing: 'close', content: tiles });
+      if (phase === 'spinner') {
+        var viewport = sheet.querySelector('.ui-mscroll');
+        viewport.appendChild(h('div', { style: { position: 'absolute', inset: 0, display: 'grid', placeItems: 'center' } },
+          K.ArcSpinner({ size: 'page', label: 'Loading Climate' })));
+      }
+      var node = h('div.k-gz', { style: { '--gz': Math.min(1, 244 / w), width: w + 'px', height: hgt + 'px' } }, Mock.frame(ctx, sheet));
+      return { label: title, node: node, min: 280 };
+    }
+    return CM.grid(ctx, [
+      sample('loading', 'During the slide: only sheet chrome'),
+      sample('ready', 'Ready: the root fades in together'),
+      sample('spinner', 'If still waiting: centred arc, then content'),
+    ], { surfaces: ['sheet'] });
+  }
   Mock.mount({
     kind: 'component', id: 'content-gate', title: 'ContentGate (loading gate)', area: 'design', status: 'shipped', frame: false,
-    summary: 'How a network-backed page or sheet with nothing saved waits: the content is laid out but hidden, an arc spinner fades in after 150 ms, and when the data and every reported image are ready the spinner fades out and the content fades in and rises 4 pt. Two timing profiles (.results for regions that reload, .page for a page\'s first cold load).',
+    summary: 'A network-backed region or page holds hidden content while it waits. An opted-in sheet keeps its chrome visible, then fades the root in together after presentation. Only a real wait shows a centred arc.',
     source: ['apple/Sources/HassUI/UIKitPort/Design/UKContentGate.swift', 'apple/Sources/HassDesign/Loading/ContentGateModel.swift', 'apple/Sources/HassDesign/Loading/ReadinessTracker.swift', 'apple/Sources/HassUI/UIKitPort/Design/UKImageViews.swift', 'apple/Sources/HassDesign/ArcSpinner.swift'],
     spec: ['.agents/patterns/content-gate.md', '.agents/design/motion.md'],
     patterns: ['content-gate', 'image-cache', 'motion'],
@@ -99,6 +127,7 @@
       'default': { title: 'The three phases', render: sequence },
       'loading': { title: 'Both profiles, playable (with Reduce Motion variants)', note: 'Play shows a millisecond readout per step', render: plays },
       'timeline': { title: 'Timing profiles', render: timeline },
+      'sheet': { title: 'Grouped sheet reveal', render: sheetReveal },
       'snapshot': { title: 'Reopen: starts ready', render: snapshot },
       'in-context': { title: 'In the Food hub (Suggested Recipes)', render: inContext },
       'ax5': { title: 'Accessibility 5 text size', override: { ts: 'ax5' }, note: 'the spinner label wraps; the gated cards become rows with thumbnails', render: function (ctx) { return CM.grid(ctx, [{ label: 'phase: spinner', node: gate('spinner', 'Loading recipes', 2), min: 340 }, { label: 'phase: ready', node: gate('ready', null, 2), min: 340 }]); } },
@@ -142,7 +171,7 @@
       ],
     },
     notes: [
-      'Used by the Food hub, Recipes, the six inventory pages and the recipe results; never by Home, Security, Climate or any page reading EntityStore.',
+      'A store-backed sheet can opt in to the one-time fade but is already ready; missing entity values do not show the arc.',
       'The phases here are the kit\'s data-phase attribute (loading, spinner, ready); the model\'s fuller set (loading, exiting, spinnerExiting, entering, idle) is what the timeline shows.',
       'Docs versus code: none found; patterns/content-gate.md and ContentGateModel agree. The gate\'s own .transition(.opacity) on the spinner is an in-place swap listed in the lint allowlist.',
       'Component mockup: no device frame; Device selects the size class. The recipe photos are kit stand-ins.',

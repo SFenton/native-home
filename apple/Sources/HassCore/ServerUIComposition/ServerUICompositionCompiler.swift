@@ -492,6 +492,8 @@ struct ServerUICompositionCompiler {
         if adaptive { require("adaptive-presentation") }
         let fullScreen = c.value["fullScreen"]?.bool ?? false
         if fullScreen { require("full-screen-modal") }
+        let groupedReveal = c.value["reveal"] != nil
+        if groupedReveal { require("sheet-reveal") }
         let close = try c.field("close")
         let selection = try c.field("height")
         let height: D.SheetHeight
@@ -502,11 +504,13 @@ struct ServerUICompositionCompiler {
             height = try .fitted(follows: selection.e("follows"), firstOpen: selection.e("firstOpen"))
         }
         if fullScreen && (adaptive || height != .full) { add(.invalidCombination, c.path("fullScreen")) }
+        if groupedReveal && (adaptive || fullScreen || height != .full) { add(.invalidCombination, c.path("reveal")) }
         return try .init(
             width: c.e("width"), height: height, appearance: c.e("appearance"),
             placement: c.e("placement"), grabber: c.e("grabber"), navigation: c.e("navigation"),
             close: .init(visibility: close.e("visibility"), placement: close.e("placement"),
-                         rail: close.e("rail"), guardPolicy: close.field("guard").e("type")), adaptive: adaptive, fullScreen: fullScreen
+                         rail: close.e("rail"), guardPolicy: close.field("guard").e("type")), adaptive: adaptive, fullScreen: fullScreen,
+            groupedReveal: groupedReveal
         )
     }
 

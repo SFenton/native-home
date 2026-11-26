@@ -773,7 +773,7 @@
   ".agents/design/motion.md": {
    "forbidden": 20,
    "long_lines": 8,
-   "over_words": 2168
+   "over_words": 2160
   },
   ".agents/design/profile-badge.md": {
    "forbidden": 14,

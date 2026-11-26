@@ -96,7 +96,7 @@ Exceptions must be written into this file with the owner's say-so. None exist to
 
 ### 4.4 Modals
 - **Presentation:** always through `hassSheet` and its detents. A full-screen viewer that a tile opens may use the zoom with `fullScreenCover`. Everything else is a sheet.
-- **Content:** sheet content is present on arrival. A sheet that loads from the network uses the loading gate inside the sheet, never a spinner sheet.
+- **Content:** present on arrival except for the opt-in [grouped root reveal](../patterns/content-gate.md#grouped-sheet-reveal). Network-backed regions load inside the sheet.
 - **Inner motion:** no entrance animations inside sheets (no tiles rising, no tabs sliding). Switching a sheet's own tabs (`modalTabBar`) is a cut, like the app's tab bar.
 
 ## 5. Loading and waiting

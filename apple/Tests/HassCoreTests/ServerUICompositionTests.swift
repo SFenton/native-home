@@ -65,6 +65,22 @@ import Testing
         return try changing(root, "/assetManifestSha256", .string(digest))
     }
 
+    @Test func groupedSheetRevealRequiresAnExplicitCapability() throws {
+        #expect(try decode(fixture()).document.modals.first?.presentation.groupedReveal == false)
+        let url = ServerUIContractCorpusTests.directory.appendingPathComponent("reject/pending-sheet-reveal-grouped.json")
+        let root = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        #expect(try decode(root).document.modals.first?.presentation.groupedReveal == true)
+        let capabilities = try #require(root["capabilities"]?.array).filter { $0.string != "sh.sheet-reveal@1" }
+        try expect(changing(root, "/capabilities", .array(capabilities)), .capabilityManifestMismatch, "/capabilities")
+    }
+
+    @Test(arguments: ["fitted", "adaptive", "fullscreen"])
+    func groupedRevealRejectsLayoutsOtherThanNonadaptiveFullHeightSheets(_ layout: String) throws {
+        let url = ServerUIContractCorpusTests.directory.appendingPathComponent("reject/sheet-reveal-\(layout).json")
+        let root = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url))
+        try expect(root, .invalidCombination, "\(presentation)/reveal")
+    }
+
     @Test func supportingTextStylesRequireTheirCapabilityWithoutChangingOriginalStyles() throws {
         for style in ["subheadline", "footnote", "section-title"] {
             var root = try changing(fixture(), "/document/pages/2/components/0/props/style", .string(style))
