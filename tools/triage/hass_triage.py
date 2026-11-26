@@ -4729,6 +4729,156 @@ def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
     return lines
 
 
+def _custody_next_display(value: Any) -> Dict[str, Any]:
+    if value is None:
+        return {"kind": "unknown"}
+    result = {"kind": value["kind"]}
+    if "at" in value:
+        result["at"] = value["at"]
+    return result
+
+
+def _custody_age_seconds(sample: datetime, since: str) -> int:
+    return max(0, int((sample - parse_time(since)).total_seconds() // 1))
+
+
+def _custody_binding_display(
+        sample: datetime, lane: str, binding: Any,
+) -> Dict[str, Any]:
+    return {
+        "lane": lane,
+        "branch": f"refs/heads/{lane}",
+        "disposition": binding["disposition"],
+        "tip": binding["tip"],
+        "pull": binding.get("pull"),
+        "reviewed_head": binding.get("reviewed_head"),
+        "reason": binding.get("reason"),
+        "since": binding["since"],
+        "age_seconds": _custody_age_seconds(sample, binding["since"]),
+        "attempts": binding.get("attempts"),
+        "next": _custody_next_display(binding.get("next")),
+    }
+
+
+def _custody_notice_display(
+        sample: datetime, repository: str,
+        identity: Tuple[str, str, str], notice: Any,
+) -> Dict[str, Any]:
+    lane, head, fault_class = identity
+    remote = notice.get("remote_identity")
+    return {
+        "repository": repository,
+        "lane": lane,
+        "head": head,
+        "fault_class": fault_class,
+        "state": notice["state"],
+        "since": notice["since"],
+        "age_seconds": _custody_age_seconds(sample, notice["since"]),
+        "remote_identity": (
+            dict(remote) if remote is not None else None
+        ),
+    }
+
+
+def _custody_fault_display(
+        store: str, fault: Dict[str, Any],
+) -> Dict[str, Any]:
+    key = fault.get("key")
+    return {
+        "store": store,
+        "kind": fault["kind"],
+        "scope": fault["scope"],
+        "version": fault.get("version"),
+        "key": dict(key) if key is not None else None,
+        "exists": fault["exists"],
+    }
+
+
+def _custody_fault_order(fault: Dict[str, Any]) -> Tuple[Any, ...]:
+    key = fault["key"] or {}
+
+    def identity(name: str) -> Tuple[bool, str]:
+        value = key.get(name)
+        return value is not None, value or ""
+
+    version = fault["version"]
+    return (
+        fault["store"],
+        *(identity(name) for name in (
+            "repository", "intake", "producer", "generation",
+            "lane", "head", "fault_class",
+        )),
+        fault["scope"],
+        fault["kind"],
+        (version is not None, version if version is not None else 0),
+        fault["exists"],
+    )
+
+
+def custody_status(
+        states: Iterable[Tuple[str, State]], sample: datetime,
+) -> Dict[str, Any]:
+    selected = list(states)
+    records = []
+    for _store, state in selected:
+        for key, body, notices in state.vetted_custody_records:
+            repository, intake, producer, generation = key
+            outcome = body.get("original_outcome")
+            records.append({
+                "repository": repository,
+                "intake": intake,
+                "producer": producer,
+                "generation": generation,
+                "phase": body["phase"],
+                "original_outcome": (
+                    {
+                        name: outcome[name]
+                        for name in ("trust", "exit_code", "state")
+                        if name in outcome
+                    }
+                    if outcome is not None else None
+                ),
+                "since": body["since"],
+                "age_seconds": _custody_age_seconds(
+                    sample, body["since"]
+                ),
+                "attempts": body.get("attempts"),
+                "reason": body.get("reason"),
+                "next": _custody_next_display(body.get("next")),
+                "tree_exists": None,
+                "bindings": [
+                    _custody_binding_display(sample, lane, binding)
+                    for lane, binding in sorted(body["bindings"].items())
+                ],
+                "notices": [
+                    _custody_notice_display(
+                        sample, repository, identity, notice
+                    )
+                    for identity, notice in sorted(
+                        notices, key=lambda item: item[0]
+                    )
+                ],
+            })
+    records.sort(key=lambda record: (
+        record["repository"],
+        record["intake"],
+        record["producer"],
+        record["generation"],
+    ))
+    faults = [
+        _custody_fault_display(store, fault)
+        for store, state in selected
+        for fault in state.load_faults
+        if "scope" in fault
+    ]
+    faults.sort(key=_custody_fault_order)
+    return {
+        "version": 1,
+        "records": records,
+        "faults": faults,
+    }
+
+
 def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Optional[bool] = None,
                   t3_ready: Optional[bool] = None) -> Dict[str, Any]:
     state = State(paths.state)
@@ -4783,6 +4933,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         states.append(("nightly", nightly_state))
     if retro_paths.state.exists():
         states.append(("retro", retro_state))
+    custody = custody_status(states, now())
     archive_states = [(state, paths, "request-")]
     if nightly or nightly_paths.state.exists():
         archive_states.append((nightly_state, nightly_paths, "nightly-"))
@@ -4827,6 +4978,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
             for namespace, loaded in states
             for result in loaded.load_projection(namespace)
         ],
+        "custody": custody,
     }
 
 
