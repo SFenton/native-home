@@ -4867,6 +4867,12 @@ def _custody_nullable_text(value: Any) -> str:
     return "unknown" if value is None else str(value)
 
 
+def _custody_tree_text(value: Optional[bool]) -> str:
+    if value is None:
+        return "unknown"
+    return "yes" if value else "no"
+
+
 def _custody_outcome_text(outcome: Any) -> str:
     if outcome is None:
         return "unknown"
@@ -4895,7 +4901,8 @@ def custody_text(custody: Dict[str, Any]) -> List[str]:
             f"since {record['since']}; age {record['age_seconds']}s; "
             f"attempts {_custody_nullable_text(record['attempts'])}; "
             f"reason {_custody_nullable_text(record['reason'])}; "
-            f"next {_custody_next_text(record['next'])}; tree exists unknown"
+            f"next {_custody_next_text(record['next'])}; tree exists "
+            f"{_custody_tree_text(record['tree_exists'])}"
         )
         for binding in record["bindings"]:
             lines.append(
@@ -5032,13 +5039,38 @@ def _custody_fault_order(fault: Dict[str, Any]) -> Tuple[Any, ...]:
 
 def custody_status(
         states: Iterable[Tuple[str, State]], sample: datetime,
+        paths: Paths,
 ) -> Dict[str, Any]:
     selected = list(states)
     records = []
-    for _store, state in selected:
+    tree_faults = []
+    for store, state in selected:
         for key, body, notices in state.vetted_custody_records:
             repository, intake, producer, generation = key
             outcome = body.get("original_outcome")
+            tree_exists: Optional[bool] = None
+            if "target" in body:
+                tree_exists, tree_kind = _observe_custody_tree(
+                    paths, producer
+                )
+                if tree_kind is not None:
+                    tree_faults.append({
+                        "store": store,
+                        "kind": tree_kind,
+                        "scope": "tree",
+                        "version": 1,
+                        "key": {
+                            "repository": repository,
+                            "intake": intake,
+                            "producer": producer,
+                            "generation": generation,
+                        },
+                        "exists": (
+                            "no"
+                            if tree_kind == "missing_tree"
+                            else "unknown"
+                        ),
+                    })
             records.append({
                 "repository": repository,
                 "intake": intake,
@@ -5060,7 +5092,7 @@ def custody_status(
                 "attempts": body.get("attempts"),
                 "reason": body.get("reason"),
                 "next": _custody_next_display(body.get("next")),
-                "tree_exists": None,
+                "tree_exists": tree_exists,
                 "bindings": [
                     _custody_binding_display(sample, lane, binding)
                     for lane, binding in sorted(body["bindings"].items())
@@ -5085,7 +5117,7 @@ def custody_status(
         for store, state in selected
         for fault in state.load_faults
         if "scope" in fault
-    ]
+    ] + tree_faults
     faults.sort(key=_custody_fault_order)
     return {
         "version": 1,
@@ -5148,7 +5180,7 @@ def status_report(cfg: Dict[str, Any], paths: Paths, gh: GitHub, logged_in: Opti
         states.append(("nightly", nightly_state))
     if retro_paths.state.exists():
         states.append(("retro", retro_state))
-    custody = custody_status(states, now())
+    custody = custody_status(states, now(), paths)
     archive_states = [(state, paths, "request-")]
     if nightly or nightly_paths.state.exists():
         archive_states.append((nightly_state, nightly_paths, "nightly-"))
