@@ -19,7 +19,7 @@
   - `CachedImage` (and so `RemoteImage` and `ImageCard`) reports itself, so a gated grid waits for its visible images.
   - Anything else can report with `.contentReadiness(id, isReady:)`.
   - The gate stops waiting after `ContentGateModel.Timing.childTimeout` (1.5 s), so one slow image never holds the page.
-- **No reload on reopen:** a gate created with `isReady == true` shows content immediately, with no spinner and no fade. Pass the cached or snapshot state as ready. Never gate a page that reads `EntityStore`: the store is always ready from the disk snapshot.
+- **No reload on reopen:** `.page` and `.results` show ready content immediately, without a spinner or fade. Pass cached or snapshot state as ready. Never gate a page that reads `EntityStore`.
 - **Telemetry:** each cold load is a `ContentReady` interval named by `page`. Instant shows are counted (`gate.instant`).
 - **Tests:**
   - `Tests/HassDesignTests/ContentGateTests.swift` (the phase machine with an injected sleeper and clock, including the page profile: minimum, timeout, reload).

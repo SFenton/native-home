@@ -6,12 +6,12 @@ Owner decision, 2026-10-18. Design: the canvas **S+H Launch and sign-in motion**
 
 ## 1. The idea in one paragraph
 
-S+H is a control panel people open many times a day for a few seconds, so motion has to get out of the way. The **system's own transitions are the motion**: a tab switch is a cut, a page pushes, a modal is a sheet. They behave exactly as they do in Apple's apps, interactive gestures included. On top of that there are only two kinds of animation:
+S+H is a control panel people open many times a day for a few seconds, so motion has to get out of the way. The **system's own transitions are the motion**: a tab switch is a cut, a page pushes, a modal is a sheet. They behave exactly as they do in Apple's apps, interactive gestures included. Other motion marks moments or changes:
 
 1. **Moments.** A handful of one-time events: the first-launch intro, and the arrival into Home after signing in. A moment plays once and then never again for that session.
 2. **Change.** When something actually changes, because you did something or the house did, the changed thing animates briefly in place: a number rolls, a colour cross-fades, a completed row leaves.
 
-Things that merely *appear* do not animate: a tab you return to, a page whose content is already known, a reopened app, data from the saved snapshot. **Animate change, not presence.**
+Returning tabs, ready pages, app reopens and saved snapshots do not animate. **Animate change, not presence.** For sheet roots, see [Modals](#44-modals).
 
 ## 2. What iOS does as standard (and we keep)
 
@@ -43,7 +43,7 @@ Sources:
 | **Push to a page** | System push | System push, every time | The push is how you know where you went; it is cheap and interactive |
 | **Pushed page's content** | Already there | Already there | Presence |
 | **Tile → its own page or viewer** (room, camera, recipe) | Zoom (iOS 18+) | Zoom, every time | It is navigation feedback, like the push |
-| **Modal sheet** | System sheet; the content is there on arrival | Same | Standard |
+| **Modal sheet** | System sheet; see [Modals](#44-modals) for content | Same | Standard presentation |
 | **Network-backed page or sheet with nothing saved** | Loading gate: spinner after 150 ms (`.page` profile per the owner: ≥1 s, then 500 ms out), content fades in and rises 4 pt | Saved results show at once; fresh data swaps in quietly | Animate only what had nothing to show |
 | **Live value change** | Numbers roll (0.2 s); background and tint colours cross-fade (`state`, 0.6 s) | Same | Change |
 | **User action** (toggle, complete, delete, reorder) | Optimistic change at once; rows insert or remove with the standard list animation | Same | Change the user caused |
@@ -51,14 +51,12 @@ Sources:
 
 ### What "again later" means
 
-The rule for a screen's first visit versus a revisit is not "first visit animates". It is this: **a screen animates in only when it had nothing to show.** In practice:
+First visits and revisits follow the same rules:
 
 - **Tab roots** never animate in. Their content is always there, from the snapshot or live data, and the tab switch itself is a cut.
 - **Navigation transitions** (push, pop, sheet, zoom) run every time. They are the system's feedback for a move the person made, they are short, and they can be interrupted. Suppressing them on revisits would feel broken.
-- **Content entrances** (fade-ins, rises, staggers) run only when there was a wait. A page whose content is in memory or the saved snapshot shows it at once, on any visit.
+- **Content entrances** follow a wait, except for the [grouped sheet root](#44-modals). Ready content otherwise shows at once on any visit.
 - **Moments** play once per session. `MotionPolicy` remembers what has played. "Session" means from signing in (or a cold launch while signed in) until the process ends or you sign out.
-
-Exceptions must be written into this file with the owner's say-so. None exist today.
 
 ## 4. Navigation details
 
@@ -96,8 +94,8 @@ Exceptions must be written into this file with the owner's say-so. None exist to
 
 ### 4.4 Modals
 - **Presentation:** always through `hassSheet` and its detents. A full-screen viewer that a tile opens may use the zoom with `fullScreenCover`. Everything else is a sheet.
-- **Content:** present on arrival except for the opt-in [grouped root reveal](../patterns/content-gate.md#grouped-sheet-reveal). Network-backed regions load inside the sheet.
-- **Inner motion:** no entrance animations inside sheets (no tiles rising, no tabs sliding). Switching a sheet's own tabs (`modalTabBar`) is a cut, like the app's tab bar.
+- **Content:** ready content arrives with the sheet unless it opts into the [grouped root reveal](../patterns/content-gate.md#grouped-sheet-reveal). Network-backed regions load inside the sheet.
+- **Inner motion:** no per-item entrances or tab transitions. Only the opted-in root fades as a group after presentation.
 
 ## 5. Loading and waiting
 - **One spinner design:** the `ArcSpinner`. It only appears where something is genuinely pending:
@@ -151,7 +149,7 @@ Read `accessibilityReduceMotion`, through `motionSafeAnimation` or `MotionPolicy
 | Moments (intro, arrival) | Cross-fade only, ≈0.35 s total; no rise, scale, spring or stagger |
 | Zoom | The system already turns it into a cross-fade; nothing to add |
 | Push (single-page layouts of the UIKit port) | A 0.2 s cross-fade in place, no slide; the swipe back still pops and scrubs the fade ([single-page-motion](single-page-motion.md) S4). The columns do the same |
-| Sheet | The system handles it |
+| Sheet | The system handles presentation; the [grouped root reveal](../patterns/content-gate.md#grouped-sheet-reveal) keeps its opacity-only fade |
 | Numbers | The numeric transition is allowed (it is a content change). Under Reduce Motion it can become a plain cross-fade |
 | Colour changes | Still cross-fade (colour is not motion), at 0.2 s |
 | Pulses and spinners | Spinners keep turning (they carry meaning). Placeholder pulses become static |
@@ -160,7 +158,7 @@ Read `accessibilityReduceMotion`, through `motionSafeAnimation` or `MotionPolicy
 
 1. **Animating tab switches** (slides, fades, page curls), or animating tab content on every visit.
 2. **Cascades everywhere:** staggered tiles on every page, sheet or tab. The stagger happens once per session, on arrival into Home.
-3. **Entrance animations for content that was already there:** cached pages, snapshot loads, resume, reconnect.
+3. **Replaying entrances** on snapshot load, resume or reconnect. For cached content on navigation, see [What "again later" means](#what-again-later-means).
 4. **Bouncy springs on content:** tiles that overshoot, cards that wobble.
 5. **Decorating the system transitions:** custom push curves, parallax headers on push, 3D flips, hero animations on things that aren't thumbnails. (The one owner-approved replacement is the single-page push of §4.2: the columns' motion, nothing added to it.)
 6. **Long durations:** anything that moves for over 0.4 s outside the two moments, and any chained sequence that makes you wait to tap. *Exception: the label ticker* (below).
