@@ -45,6 +45,14 @@ _PA_HEALTHY_STATUS_TEXT = (
     "nightly queue: empty\n",
     "",
 )
+_PA_REQUEST_ONLY_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "queue: empty\n",
+    "",
+)
 _PA_QUEUE_ERROR_STATUS_TEXT = (
     0,
     "paused: False   installed: False   running: no\n"
@@ -281,6 +289,19 @@ _PA_REQUEST_42_MISSING_TREE = {
     },
     "exists": "no",
 }
+_PA_REQUEST_42_UNREADABLE_TREE = {
+    "store": "request",
+    "kind": "unreadable_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-g1",
+    },
+    "exists": "unknown",
+}
 _PA_NIGHTLY_52_MISSING_TREE = {
     "store": "nightly",
     "kind": "missing_tree",
@@ -388,6 +409,14 @@ _PA_RETAINED_NIGHTLY_CUSTODY = {
     ],
     "faults": [],
 }
+_PA_MIXED_JOB_RECORD = dict(
+    _PA_JOB_RECORD, producer="job:Researcher.X",
+    generation="job-Researcher.X-g1",
+)
+_PA_MIXED_RETRO_RECORD = dict(
+    _PA_RETRO_RECORD, producer="retro:Task-X",
+    generation="retro-Task-X-g1",
+)
 _PA_REQUEST_72_CUSTODY = {
     "version": 1,
     "records": [_PA_REQUEST_72_RECORD],
@@ -418,8 +447,26 @@ _CT_REQUEST_42_MISSING = (
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; tree exists no\n"
 )
+_CT_REQUEST_42_YES = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_REQUEST_42_UNKNOWN = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists unknown\n"
+)
 _CT_REQUEST_42_MISSING_FAULT = (
     "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1"})\n'
+)
+_CT_REQUEST_42_UNREADABLE_FAULT = (
+    "custody fault request: unreadable_tree (exists unknown, scope tree, "
     "version 1, key {"
     '"repository":"sfenton/native-home","intake":"request",'
     '"producer":"request:42","generation":"request-42-g1"})\n'
@@ -442,6 +489,12 @@ _CT_NIGHTLY_52_MISSING = (
     "nightly-52-g1: phase release_authorized; original outcome "
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_NIGHTLY_52_YES = (
+    "custody record sfenton/native-home nightly nightly:52 "
+    "nightly-52-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
 )
 _CT_NIGHTLY_52_MISSING_FAULT = (
     "custody fault nightly: missing_tree (exists no, scope tree, "
@@ -467,6 +520,12 @@ _CT_REQUEST_72_MISSING = (
     "request-72-g1: phase release_authorized; original outcome "
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_REQUEST_72_YES = (
+    "custody record sfenton/native-home request request:72 "
+    "request-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
 )
 _CT_REQUEST_72_MISSING_FAULT = (
     "custody fault request: missing_tree (exists no, scope tree, "
@@ -506,6 +565,12 @@ _CT_JOB_MISSING = (
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; tree exists no\n"
 )
+_CT_MIXED_JOB_YES = (
+    "custody record sfenton/native-home request job:Researcher.X "
+    "job-Researcher.X-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
 _CT_JOB_MISSING_FAULT = (
     "custody fault request: missing_tree (exists no, scope tree, "
     "version 1, key {"
@@ -527,6 +592,12 @@ _CT_RETRO_MISSING = (
     "original outcome clean_end/0/done; since 2026-11-23T12:00:00Z; "
     "age 0s; attempts unknown; reason unknown; next unknown; "
     "tree exists no\n"
+)
+_CT_MIXED_RETRO_YES = (
+    "custody record sfenton/native-home request retro:Task-X "
+    "retro-Task-X-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
 )
 _CT_RETRO_MISSING_FAULT = (
     "custody fault request: missing_tree (exists no, scope tree, "
@@ -1498,19 +1569,29 @@ class CustodyTreeLayout:
     def __init__(self, owner, name, root="directory",
                  worktrees="directory"):
         physical_home = Path(owner.home).resolve()
+        self.home = physical_home
         self.area = physical_home / "tree-observer" / name
         self.area.mkdir(parents=True)
+        self.files = {}
+        self.root_kind = root
+        self.worktrees_kind = worktrees
         runner_parent = self.area / "runner-parent"
         runner_parent.mkdir()
         configured_root = runner_parent / "runner"
         if root == "directory":
             configured_root.mkdir()
+            self.physical_root = configured_root
         elif root == "file":
             configured_root.write_text("not a directory")
+            self.files[str(configured_root.relative_to(self.home))] = (
+                b"not a directory"
+            )
+            self.physical_root = configured_root
         elif root == "link":
             target = self.area / "linked-root-target"
             target.mkdir()
             configured_root.symlink_to(target, target_is_directory=True)
+            self.physical_root = target
         elif root == "linked_parent":
             target_parent = self.area / "linked-parent-target"
             target_parent.mkdir()
@@ -1518,8 +1599,11 @@ class CustodyTreeLayout:
             linked_parent = self.area / "linked-parent"
             linked_parent.symlink_to(target_parent, target_is_directory=True)
             configured_root = linked_parent / "runner"
+            self.physical_root = target_parent / "runner"
         elif root != "absent":
             raise AssertionError(f"unknown root kind {root}")
+        else:
+            self.physical_root = configured_root
         cfg = dict(owner.cfg)
         cfg["root"] = str(configured_root)
         self.paths = ht.Paths(cfg, owner.home)
@@ -1529,14 +1613,56 @@ class CustodyTreeLayout:
             self.paths.worktrees.mkdir()
         elif worktrees == "file":
             self.paths.worktrees.write_text("not a directory")
+            self.files[str(
+                (self.physical_root / "worktrees").relative_to(self.home)
+            )] = b"not a directory"
         elif worktrees == "link":
             target = self.area / "linked-worktrees-target"
             target.mkdir()
             self.paths.worktrees.symlink_to(
                 target, target_is_directory=True
             )
+            self.physical_worktrees_target = target
         elif worktrees != "absent":
             raise AssertionError(f"unknown worktrees kind {worktrees}")
+
+    def assert_shape(self, testcase):
+        if self.root_kind in ("file", "link", "directory"):
+            root_mode = os.lstat(self.paths.root).st_mode
+            testcase.assertEqual(
+                stat.S_ISREG(root_mode)
+                if self.root_kind == "file"
+                else stat.S_ISLNK(root_mode)
+                if self.root_kind == "link"
+                else stat.S_ISDIR(root_mode),
+                True,
+            )
+        elif self.root_kind == "linked_parent":
+            testcase.assertTrue(
+                stat.S_ISLNK(os.lstat(self.paths.root.parent).st_mode)
+            )
+        else:
+            with testcase.assertRaises(FileNotFoundError):
+                os.lstat(self.paths.root)
+        if self.root_kind not in ("directory", "link", "linked_parent"):
+            return
+        path = self.physical_root / "worktrees"
+        if self.worktrees_kind == "absent":
+            with testcase.assertRaises(FileNotFoundError):
+                os.lstat(path)
+            return
+        mode = os.lstat(path).st_mode
+        testcase.assertTrue(
+            stat.S_ISREG(mode)
+            if self.worktrees_kind == "file"
+            else stat.S_ISLNK(mode)
+            if self.worktrees_kind == "link"
+            else stat.S_ISDIR(mode)
+        )
+        if self.worktrees_kind == "link":
+            testcase.assertTrue(stat.S_ISDIR(
+                os.lstat(self.physical_worktrees_target).st_mode
+            ))
 
     def leaf(self, basename, kind="directory"):
         path = self.paths.worktrees / basename
@@ -1544,6 +1670,11 @@ class CustodyTreeLayout:
             path.mkdir()
         elif kind == "file":
             path.write_text("leaf")
+            self.files[str(
+                (self.physical_root / "worktrees" / basename).relative_to(
+                    self.home
+                )
+            )] = b"leaf"
         elif kind == "inside_link":
             target = self.paths.worktrees / "inside-target"
             target.mkdir()
@@ -1789,36 +1920,83 @@ class CustodyTreeTrace:
 def expected_custody_tree_walks(layout, observations):
     events = []
     next_symbol = 0
+    open_ordinal = 0
+    names = ["/"] + [
+        item
+        for item in os.fspath(layout.paths.root).split(os.sep)
+        if item
+    ] + ["worktrees"]
     for basename, result in observations:
-        names = ["/"] + [
-            item
-            for item in os.fspath(layout.paths.root).split(os.sep)
-            if item
-        ] + ["worktrees"]
+        current = None
+        stopped = False
+        failed_open = (
+            result[1:]
+            if isinstance(result, tuple) and result[0] == "open"
+            else None
+        )
+        failed_close = (
+            result[1:]
+            if isinstance(result, tuple) and result[0] == "close"
+            else None
+        )
         for index, name in enumerate(names):
+            parent = current
+            ordinal = open_ordinal
+            open_ordinal += 1
+            if failed_open is not None and ordinal == failed_open[0]:
+                events.append((
+                    "open", name, CustodyTreeTrace._FLAGS,
+                    parent, "error", failed_open[1],
+                ))
+                if current is not None:
+                    events.append(("close", current, "ok"))
+                stopped = True
+                break
             symbol = f"fd{next_symbol}"
-            parent = (
-                None
-                if index == 0
-                else f"fd{next_symbol - 1}"
-            )
+            next_symbol += 1
             events.append((
                 "open", name, CustodyTreeTrace._FLAGS,
                 parent, "ok", symbol,
             ))
-            next_symbol += 1
             if index:
+                if failed_close is not None and parent == failed_close[0]:
+                    events.extend((
+                        (
+                            "close", parent, "ok", "injected-error",
+                            failed_close[1],
+                        ),
+                        ("close", symbol, "ok"),
+                    ))
+                    stopped = True
+                    break
                 events.append(("close", parent, "ok"))
-        worktrees = f"fd{next_symbol - 1}"
+            current = symbol
+        if stopped:
+            continue
         if result == "ok":
-            events.append(("stat", basename, worktrees, False, "ok"))
+            events.append(("stat", basename, current, False, "ok"))
         else:
             events.append((
-                "stat", basename, worktrees, False, "error",
+                "stat", basename, current, False, "error",
                 result,
             ))
-        events.append(("close", worktrees, "ok"))
+        if failed_close is not None and current == failed_close[0]:
+            events.append((
+                "close", current, "ok", "injected-error",
+                failed_close[1],
+            ))
+        else:
+            events.append(("close", current, "ok"))
     return events
+
+
+def expected_custody_open_ordinal(layout, component, preceding=0):
+    names = ["/"] + [
+        item
+        for item in os.fspath(layout.paths.root).split(os.sep)
+        if item
+    ] + ["worktrees"]
+    return preceding * len(names) + names.index(component)
 
 
 def expected_custody_tree_probes(layout, *producers):
@@ -2760,6 +2938,8 @@ class StoreTestBase(t.Base):
         expected_projection_trace=None,
         expected_renderer_trace=None,
         tree_layout=None,
+        tree_injection=None,
+        tree_close_failure=None,
     ):
         expected_projection_probes = list(
             expected_projection_probes or ()
@@ -2789,7 +2969,12 @@ class StoreTestBase(t.Base):
             self.assertEqual(
                 configured_paths.lock, self.paths.lock
             )
-            self.assertTrue(configured_paths.worktrees.is_dir())
+            tree_layout.assert_shape(self)
+            if (
+                tree_layout.root_kind == "directory"
+                and tree_layout.worktrees_kind == "directory"
+            ):
+                self.assertTrue(configured_paths.worktrees.is_dir())
         queue_events, remote_events = expected_queue_events, expected_remote_events
         text_queue_events, encoded_queue_events = queue_events
         if remote_events is None:
@@ -2936,12 +3121,20 @@ class StoreTestBase(t.Base):
                         "status created a directory"
                     ),
                 ))
-                with CustodyTreeTrace() as projection_trace:
+                with CustodyTreeTrace(
+                    inject=tree_injection,
+                    close_failure=tree_close_failure,
+                ) as projection_trace:
                     result = self.main_golden(
                         argv, cfg, gh, boundaries,
                         custody_clock=test_clock,
                         clock_calls=clock_calls,
                     )
+            if (
+                tree_injection is not None
+                or tree_close_failure is not None
+            ):
+                projection_trace.assert_fired(self)
             self.assertEqual(
                 {
                     "probes": projection_trace.probes,
@@ -3076,6 +3269,66 @@ class StoreTestBase(t.Base):
         self.assertEqual(after_lock_bytes, expected_files)
         self.assertEqual(after_inventory, before_inventory)
         return text[1], encoded[1]
+
+    def assert_public_tree_status(
+        self, primary, nightly, expected_custody, custody_text,
+        tree_layout, observations, probes, *,
+        cfg=None, tree_injection=None, tree_close_failure=None,
+    ):
+        cfg = dict(cfg or self.cfg)
+        cfg["schedules"] = {}
+        primary_value = self.legacy(custody=primary)
+        nightly_value = self.legacy(custody=nightly)
+        self.write_raw(self.paths.state, primary_value)
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, nightly_value)
+        expected_files = {
+            ".local/state/hass-triage/state.json":
+                json.dumps(primary_value).encode(),
+            ".local/state/hass-triage/state-nightly.json":
+                json.dumps(nightly_value).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        }
+        expected_files.update(tree_layout.files)
+        repositories = [cfg["request_repo"]]
+        if cfg.get("nightly"):
+            repositories.append(cfg["nightly"]["repo"])
+        by_repo = {repository: [] for repository in repositories}
+        opens = tuple(
+            ("open", repository) for repository in repositories
+        )
+        return self.assert_pa_locked_status(
+            cfg,
+            RecordlessTraceGitHub(by_repo),
+            RecordlessBoundaries(self.home),
+            with_custody_text(
+                (
+                    _PA_HEALTHY_STATUS_TEXT
+                    if cfg.get("nightly")
+                    else _PA_REQUEST_ONLY_STATUS_TEXT
+                ),
+                custody_text,
+            ),
+            _PA_HEALTHY_JSON_FIELDS,
+            [],
+            [],
+            [],
+            [],
+            (opens, opens),
+            (opens, opens),
+            expected_files,
+            expected_custody=expected_custody,
+            expected_custody_text=custody_text,
+            tree_layout=tree_layout,
+            expected_projection_probes=expected_custody_tree_probes(
+                tree_layout, *probes
+            ),
+            expected_projection_trace=expected_custody_tree_walks(
+                tree_layout, observations
+            ),
+            tree_injection=tree_injection,
+            tree_close_failure=tree_close_failure,
+        )
 
     def file_bytes(self):
         return {
@@ -8295,7 +8548,10 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_remote_events,
                             expected_files,
                             expected_custody=status_custody,
-                            expected_custody_text=wrong_line,
+                            expected_custody_text=(
+                                wrong_line
+                                + _CT_REQUEST_42_MISSING_FAULT
+                            ),
                             tree_layout=line_only_layout,
                             expected_projection_probes=expected_custody_tree_probes(
                                 line_only_layout, "request:42"
@@ -8387,6 +8643,189 @@ class StatusAndGoldenTests(StoreTestBase):
                                 )
                             ),
                         )
+
+    def test_custody_status_publishes_discriminating_tree_names(self):
+        """Fails if: public formats lose prefix, case, binding or sibling distinctions."""
+
+        shutil.rmtree(self.home, ignore_errors=True)
+        self.home.mkdir()
+        job = self.custody_seed(
+            "request", "job:Researcher.X", "job-Researcher.X-g1",
+            "refs/heads/agents/researcher-x",
+            "job-Researcher.X", "job-Researcher.X-seed",
+        )
+        retro = self.retro_seed(
+            "Task-X",
+            "refs/heads/agents/task-x",
+            "Task-X",
+            "2026-11-23T12:00:00Z",
+            "retro-Task-X",
+            "retro-Task-X-seed",
+        )
+        primary = CustodySeeds((
+            job, self.request_seed(42), retro,
+        )).aggregate()
+        nightly = self.nightly_seed(52).aggregate()
+        base = {
+            "version": 1,
+            "records": [
+                _PA_NIGHTLY_52_RECORD,
+                _PA_MIXED_JOB_RECORD,
+                _PA_REQUEST_42_RECORD,
+                _PA_MIXED_RETRO_RECORD,
+            ],
+            "faults": [],
+        }
+        observed = [
+            (
+                index,
+                {
+                    "repository": "sfenton/native-home",
+                    "intake": record["intake"],
+                    "producer": record["producer"],
+                    "generation": record["generation"],
+                },
+                True,
+            )
+            for index, record in enumerate(base["records"])
+        ]
+        expected = with_custody_tree(base, observed, [])
+        layout = CustodyTreeLayout(self, "all-four-positive-names")
+        for basename in (
+            "job-Researcher.X", "42", "retro-Task-X", "nightly-52",
+        ):
+            layout.leaf(basename)
+        self.assert_public_tree_status(
+            primary, nightly, expected,
+            (
+                _CT_NIGHTLY_52_YES
+                + _CT_MIXED_JOB_YES
+                + _CT_REQUEST_42_YES
+                + _CT_MIXED_RETRO_YES
+            ),
+            layout,
+            [
+                ("job-Researcher.X", "ok"),
+                ("42", "ok"),
+                ("retro-Task-X", "ok"),
+                ("nightly-52", "ok"),
+            ],
+            (
+                "job:Researcher.X", "request:42",
+                "retro:Task-X", "nightly:52",
+            ),
+        )
+
+        shutil.rmtree(self.home, ignore_errors=True)
+        self.home.mkdir()
+        same_primary = self.request_seed(72).aggregate()
+        same_nightly = self.nightly_seed(72).aggregate()
+        same = with_custody_tree(
+            _PA_SAME_NUMBER_72_CUSTODY,
+            [
+                (
+                    0, _PA_NIGHTLY_72_MISSING_TREE["key"], False
+                ),
+                (
+                    1, _PA_REQUEST_72_MISSING_TREE["key"], True
+                ),
+            ],
+            [_PA_NIGHTLY_72_MISSING_TREE],
+        )
+        layout = CustodyTreeLayout(self, "same-number-request-only")
+        layout.leaf("72")
+        self.assert_public_tree_status(
+            same_primary, same_nightly, same,
+            (
+                _CT_NIGHTLY_72_MISSING
+                + _CT_REQUEST_72_YES
+                + _CT_NIGHTLY_72_MISSING_FAULT
+            ),
+            layout,
+            [("72", "ok"), ("nightly-72", errno.ENOENT)],
+            ("request:72", "nightly:72"),
+        )
+
+        shutil.rmtree(self.home, ignore_errors=True)
+        self.home.mkdir()
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        retained = with_custody_tree(
+            _PA_RETAINED_NIGHTLY_CUSTODY,
+            [
+                (
+                    0, _PA_NIGHTLY_52_MISSING_TREE["key"], False
+                ),
+                (
+                    1, _PA_REQUEST_42_MISSING_TREE["key"], True
+                ),
+            ],
+            [_PA_NIGHTLY_52_MISSING_TREE],
+        )
+        layout = CustodyTreeLayout(self, "retained-nightly-distinct")
+        layout.leaf("42")
+        self.assert_public_tree_status(
+            self.request_seed(42).aggregate(),
+            self.nightly_seed(52).aggregate(),
+            retained,
+            (
+                _CT_NIGHTLY_52_MISSING
+                + _CT_REQUEST_42_YES
+                + _CT_NIGHTLY_52_MISSING_FAULT
+            ),
+            layout,
+            [("42", "ok"), ("nightly-52", errno.ENOENT)],
+            ("request:42", "nightly:52"),
+            cfg=cfg,
+        )
+
+        shutil.rmtree(self.home, ignore_errors=True)
+        self.home.mkdir()
+        mixed = self.request_seed(42).aggregate()
+        mixed["records"]["sfenton/native-home"]["request"]["request:7"] = {
+            "g1": {
+                "phase": "unknown",
+                "since": "2026-11-23T12:00:00Z",
+                "bindings": {},
+            },
+        }
+        unbound_record = dict(
+            _PA_REQUEST_42_RECORD,
+            producer="request:7",
+            generation="g1",
+            phase="unknown",
+            original_outcome=None,
+        )
+        unbound_text = (
+            "custody record sfenton/native-home request request:7 "
+            "g1: phase unknown; original outcome unknown; "
+            "since 2026-11-23T12:00:00Z; age 0s; "
+            "attempts unknown; reason unknown; next unknown; "
+            "tree exists unknown\n"
+        )
+        expected = with_custody_tree(
+            {
+                "version": 1,
+                "records": [_PA_REQUEST_42_RECORD, unbound_record],
+                "faults": [],
+            },
+            [(
+                0, _PA_REQUEST_42_MISSING_TREE["key"], True
+            )],
+            [],
+        )
+        layout = CustodyTreeLayout(self, "unbound-beside-positive")
+        layout.leaf("42")
+        layout.leaf("7")
+        self.assert_public_tree_status(
+            mixed,
+            {"version": 1, "records": {}},
+            expected,
+            _CT_REQUEST_42_YES + unbound_text,
+            layout,
+            [("42", "ok")],
+            ("request:42",),
+        )
 
     def test_custody_status_samples_clock_once_and_clamps_ages(self):
         """Fails if: one report sample or floor/clamp age arithmetic is skipped."""
