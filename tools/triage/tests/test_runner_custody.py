@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import contextlib
+import errno
+import gc
 import io
 import json
 import os
@@ -1236,6 +1238,277 @@ _PB_UNBOUNDED_STATUS_TEXT = (
     "nightly queue: empty\n",
     "",
 )
+
+
+class CustodyTreeLayout:
+    def __init__(self, owner, name, root="directory",
+                 worktrees="directory"):
+        physical_home = Path(owner.home).resolve()
+        self.area = physical_home / "tree-observer" / name
+        self.area.mkdir(parents=True)
+        runner_parent = self.area / "runner-parent"
+        runner_parent.mkdir()
+        configured_root = runner_parent / "runner"
+        if root == "directory":
+            configured_root.mkdir()
+        elif root == "file":
+            configured_root.write_text("not a directory")
+        elif root == "link":
+            target = self.area / "linked-root-target"
+            target.mkdir()
+            configured_root.symlink_to(target, target_is_directory=True)
+        elif root == "linked_parent":
+            target_parent = self.area / "linked-parent-target"
+            target_parent.mkdir()
+            (target_parent / "runner").mkdir()
+            linked_parent = self.area / "linked-parent"
+            linked_parent.symlink_to(target_parent, target_is_directory=True)
+            configured_root = linked_parent / "runner"
+        elif root != "absent":
+            raise AssertionError(f"unknown root kind {root}")
+        cfg = dict(owner.cfg)
+        cfg["root"] = str(configured_root)
+        self.paths = ht.Paths(cfg, owner.home)
+        if root not in ("directory", "link", "linked_parent"):
+            return
+        if worktrees == "directory":
+            self.paths.worktrees.mkdir()
+        elif worktrees == "file":
+            self.paths.worktrees.write_text("not a directory")
+        elif worktrees == "link":
+            target = self.area / "linked-worktrees-target"
+            target.mkdir()
+            self.paths.worktrees.symlink_to(
+                target, target_is_directory=True
+            )
+        elif worktrees != "absent":
+            raise AssertionError(f"unknown worktrees kind {worktrees}")
+
+    def leaf(self, basename, kind="directory"):
+        path = self.paths.worktrees / basename
+        if kind == "directory":
+            path.mkdir()
+        elif kind == "file":
+            path.write_text("leaf")
+        elif kind == "inside_link":
+            target = self.paths.worktrees / "inside-target"
+            target.mkdir()
+            path.symlink_to(target, target_is_directory=True)
+        elif kind == "outside_link":
+            target = self.area / "outside-target"
+            target.mkdir()
+            path.symlink_to(target, target_is_directory=True)
+        elif kind == "dangling_link":
+            path.symlink_to(
+                self.area / "absent-target", target_is_directory=True
+            )
+        elif kind == "fifo":
+            os.mkfifo(path)
+        else:
+            raise AssertionError(f"unknown leaf kind {kind}")
+        return path
+
+
+class CustodyTreeTrace:
+    _FLAGS = (
+        os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    )
+
+    def __init__(self, inject=None, close_failure=None):
+        self.inject = inject
+        self.close_failure = close_failure
+        self.events = []
+        self.injections = 0
+        self.open_ordinal = 0
+        self.live = {}
+        self.acquired = []
+        self.closed = []
+        self._next_symbol = 0
+        self._observer_code = None
+        self._stack = None
+
+    def __enter__(self):
+        observer = getattr(ht, "_observe_custody_tree", None)
+        if observer is not None:
+            self._observer_code = observer.__code__
+        self._original_open = os.open
+        self._original_stat = os.stat
+        self._original_close = os.close
+        self._stack = contextlib.ExitStack()
+        self._stack.__enter__()
+        self._stack.enter_context(
+            mock.patch.object(os, "open", new=self._open)
+        )
+        self._stack.enter_context(
+            mock.patch.object(os, "stat", new=self._stat)
+        )
+        self._stack.enter_context(
+            mock.patch.object(os, "close", new=self._close)
+        )
+        for owner, names in (
+            (Path, (
+                "resolve", "readlink", "stat", "lstat", "exists",
+                "is_dir", "is_file", "open", "read_bytes", "iterdir",
+                "glob", "rglob", "cwd", "absolute",
+            )),
+            (
+                os,
+                (
+                    "lstat", "scandir", "listdir", "readlink", "access",
+                    "fstat", "getcwd",
+                ),
+            ),
+        ):
+            for name in names:
+                if hasattr(owner, name):
+                    original = getattr(owner, name)
+                    self._stack.enter_context(mock.patch.object(
+                        owner, name,
+                        new=self._reject(name, original),
+                    ))
+        return self
+
+    def __exit__(self, exc_type, exc, traceback):
+        return self._stack.__exit__(exc_type, exc, traceback)
+
+    def _attributed(self):
+        frame = sys._getframe(2)
+        while frame is not None:
+            if frame.f_code is self._observer_code:
+                return True
+            frame = frame.f_back
+        return False
+
+    def _reject(self, label, original):
+        def rejected(*args, **kwargs):
+            if self._attributed():
+                raise AssertionError(
+                    f"unexpected observer access {label}"
+                )
+            return original(*args, **kwargs)
+        return rejected
+
+    def _parent(self, fd):
+        if fd is None:
+            return None
+        if fd not in self.live:
+            raise AssertionError("observer used an fd outside its live set")
+        return self.live[fd]
+
+    def _should_inject(self, operation, path, ordinal=None):
+        if self.injections or self.inject is None:
+            return None
+        expected_operation, expected_target, error = self.inject
+        matches_target = (
+            ordinal == expected_target
+            if isinstance(expected_target, int)
+            else path == expected_target
+        )
+        if operation == expected_operation and matches_target:
+            self.injections += 1
+            return error
+        return None
+
+    def _open(self, path, flags, *args, **kwargs):
+        if not self._attributed():
+            return self._original_open(path, flags, *args, **kwargs)
+        dir_fd = kwargs.get("dir_fd")
+        parent = self._parent(dir_fd)
+        self.assert_supported_open(path, flags, args)
+        ordinal = self.open_ordinal
+        self.open_ordinal += 1
+        injected = self._should_inject("open", path, ordinal)
+        if injected is not None:
+            self.events.append((
+                "open", path, flags, parent, "error", injected
+            ))
+            raise OSError(injected, "trace canary")
+        try:
+            fd = self._original_open(path, flags, *args, **kwargs)
+        except OSError as exc:
+            self.events.append((
+                "open", path, flags, parent, "error", exc.errno
+            ))
+            raise
+        symbol = f"fd{self._next_symbol}"
+        self._next_symbol += 1
+        self.live[fd] = symbol
+        self.acquired.append(symbol)
+        self.events.append((
+            "open", path, flags, parent, "ok", symbol
+        ))
+        return fd
+
+    @staticmethod
+    def assert_supported_open(path, flags, positional):
+        if positional:
+            raise AssertionError("observer supplied an open mode")
+        expected = (
+            os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+        )
+        if flags != expected:
+            raise AssertionError(f"observer open flags changed for {path}")
+
+    def _stat(self, path, *args, **kwargs):
+        if not self._attributed():
+            return self._original_stat(path, *args, **kwargs)
+        if args:
+            raise AssertionError("observer used positional stat arguments")
+        dir_fd = kwargs.get("dir_fd")
+        parent = self._parent(dir_fd)
+        follow = kwargs.get("follow_symlinks")
+        if follow is not False:
+            raise AssertionError("observer followed the leaf link")
+        injected = self._should_inject("stat", path)
+        if injected is not None:
+            self.events.append((
+                "stat", path, parent, False, "error", injected
+            ))
+            raise OSError(injected, "trace canary")
+        try:
+            result = self._original_stat(path, *args, **kwargs)
+        except OSError as exc:
+            self.events.append((
+                "stat", path, parent, False, "error", exc.errno
+            ))
+            raise
+        self.events.append((
+            "stat", path, parent, False, "ok"
+        ))
+        return result
+
+    def _close(self, fd):
+        if not self._attributed():
+            return self._original_close(fd)
+        symbol = self._parent(fd)
+        self._original_close(fd)
+        del self.live[fd]
+        self.closed.append(symbol)
+        close_ordinal = len(self.closed)
+        failure_target = self.close_failure
+        should_fail = (
+            failure_target is True and close_ordinal == 1
+            or isinstance(failure_target, str)
+            and symbol == failure_target
+            or isinstance(failure_target, int)
+            and not isinstance(failure_target, bool)
+            and close_ordinal == failure_target
+        )
+        if should_fail:
+            self.injections += 1
+            self.events.append((
+                "close", symbol, "ok", "injected-error", errno.EIO
+            ))
+            raise OSError(errno.EIO, "trace canary")
+        self.events.append(("close", symbol, "ok"))
+
+    def assert_owned_once(self, testcase):
+        testcase.assertCountEqual(self.acquired, self.closed)
+        testcase.assertEqual(self.live, {})
+
+    def assert_fired(self, testcase):
+        testcase.assertEqual(self.injections, 1)
+
 
 @dataclass(frozen=True)
 class CustodySeed:
@@ -2779,6 +3052,492 @@ class LoadAndMissingTests(StoreTestBase):
                     "kind": "type",
                     "exists": "yes",
                 })
+
+
+class CustodyTreeObserverTests(StoreTestBase):
+    def tearDown(self):
+        gc.collect()
+        super().tearDown()
+
+    def expected_walk(self, layout, basename, stat_result="ok"):
+        names = ["/"] + [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ] + ["worktrees"]
+        events = []
+        for index, name in enumerate(names):
+            if index == 0:
+                parent = None
+            else:
+                parent = f"fd{index - 1}"
+            events.append((
+                "open", name, CustodyTreeTrace._FLAGS,
+                parent, "ok", f"fd{index}",
+            ))
+            if index:
+                events.append(("close", f"fd{index - 1}", "ok"))
+        parent = f"fd{len(names) - 1}"
+        if stat_result == "missing":
+            stat_error = errno.ENOENT
+        elif isinstance(stat_result, int):
+            stat_error = stat_result
+        else:
+            stat_error = None
+        if stat_error is None:
+            events.append(("stat", basename, parent, False, "ok"))
+        else:
+            events.append((
+                "stat", basename, parent, False, "error", stat_error
+            ))
+        events.append(("close", parent, "ok"))
+        return events
+
+    def expected_open_ordinal(self, layout, component):
+        names = ["/"] + [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        if component == "worktrees":
+            names.append("worktrees")
+        return max(
+            index for index, name in enumerate(names)
+            if name == component
+        )
+
+    def expected_open_cutoff(self, layout, component, error):
+        names = ["/"] + [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        if component == "worktrees":
+            names.append("worktrees")
+        failure_index = self.expected_open_ordinal(
+            layout, component
+        )
+        events = []
+        for index in range(failure_index):
+            name = names[index]
+            parent = None if index == 0 else f"fd{index - 1}"
+            events.append((
+                "open", name, CustodyTreeTrace._FLAGS,
+                parent, "ok", f"fd{index}",
+            ))
+            if index:
+                events.append(("close", f"fd{index - 1}", "ok"))
+        parent = None if failure_index == 0 else f"fd{failure_index - 1}"
+        events.append((
+            "open", names[failure_index], CustodyTreeTrace._FLAGS,
+            parent, "error", error,
+        ))
+        if parent is not None:
+            events.append(("close", parent, "ok"))
+        return events
+
+    def assert_open_cutoff(
+            self, trace, layout, component, allowed_errors,
+    ):
+        failures = [
+            event for event in trace.events
+            if event[0] == "open" and event[4] == "error"
+        ]
+        self.assertEqual(len(failures), 1)
+        error = failures[0][-1]
+        self.assertIn(error, allowed_errors)
+        self.assertEqual(
+            trace.events,
+            self.expected_open_cutoff(layout, component, error),
+        )
+        trace.assert_owned_once(self)
+
+    def test_observer_observes_each_exact_positive_name(self):
+        """Fails if: a producer loses its prefix, suffix spelling or final no-follow stat."""
+        cases = (
+            ("request:42", "42"),
+            ("nightly:52", "nightly-52"),
+            ("job:Researcher", "job-Researcher"),
+            ("retro:Task-Mixed", "retro-Task-Mixed"),
+        )
+        for index, (producer, basename) in enumerate(cases):
+            with self.subTest(producer=producer):
+                layout = CustodyTreeLayout(
+                    self, f"positive-{index}"
+                )
+                layout.leaf(basename)
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, producer
+                    )
+                self.assertEqual(observed, (True, None))
+                self.assertEqual(
+                    trace.events,
+                    self.expected_walk(layout, basename),
+                )
+                trace.assert_owned_once(self)
+
+    def test_observer_reports_missing_leaf_after_terminal_stat(self):
+        """Fails if: a leaf ENOENT becomes unknown or triggers another metadata call."""
+        layout = CustodyTreeLayout(self, "missing-leaf")
+        with CustodyTreeTrace() as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (False, "missing_tree"))
+        self.assertEqual(
+            trace.events,
+            self.expected_walk(layout, "42", "missing"),
+        )
+        trace.assert_owned_once(self)
+
+    def test_observer_distinguishes_missing_root_and_worktrees(self):
+        """Fails if: root ENOENT is absence or either walk continues past its cutoff."""
+        cases = (
+            (
+                "root", "root", "absent", "directory", "runner",
+                {errno.ENOENT},
+            ),
+            (
+                "worktrees", "worktrees", "directory", "absent",
+                "worktrees", {errno.ENOENT},
+            ),
+        )
+        for name, _label, root_kind, worktrees_kind, cutoff, errors in cases:
+            with self.subTest(case=name):
+                layout = CustodyTreeLayout(
+                    self, name, root=root_kind,
+                    worktrees=worktrees_kind,
+                )
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, "request:42"
+                    )
+                expected = (
+                    (False, "missing_tree")
+                    if name == "worktrees"
+                    else (None, "unreadable_tree")
+                )
+                self.assertEqual(observed, expected)
+                self.assert_open_cutoff(
+                    trace, layout, cutoff, errors
+                )
+
+    def test_observer_rejects_wrong_kind_parents(self):
+        """Fails if: a regular file at root or worktrees is classified as missing."""
+        cases = (
+            ("file-root", "file", "absent", "runner"),
+            ("file-worktrees", "directory", "file", "worktrees"),
+        )
+        for name, root_kind, worktrees_kind, cutoff in cases:
+            with self.subTest(case=name):
+                layout = CustodyTreeLayout(
+                    self, name, root=root_kind,
+                    worktrees=worktrees_kind,
+                )
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, "request:42"
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assert_open_cutoff(
+                    trace, layout, cutoff, {errno.ENOTDIR}
+                )
+
+    def test_observer_never_follows_directory_links(self):
+        """Fails if: a linked ancestor, root or worktrees is traversed."""
+        cases = (
+            ("linked-parent", "linked_parent", "directory",
+             "linked-parent"),
+            ("linked-root", "link", "directory", "runner"),
+            ("linked-worktrees", "directory", "link", "worktrees"),
+        )
+        for name, root_kind, worktrees_kind, cutoff in cases:
+            with self.subTest(case=name):
+                layout = CustodyTreeLayout(
+                    self, name, root=root_kind,
+                    worktrees=worktrees_kind,
+                )
+                layout.leaf("42")
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, "request:42"
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assert_open_cutoff(
+                    trace, layout, cutoff,
+                    {errno.ELOOP, errno.ENOTDIR},
+                )
+
+    def test_observer_rejects_non_directory_leaf_modes_without_opening(self):
+        """Fails if: a link, file or FIFO is opened or mistaken for absence or a directory."""
+        kinds = (
+            "file", "inside_link", "outside_link",
+            "dangling_link", "fifo",
+        )
+        for index, kind in enumerate(kinds):
+            with self.subTest(kind=kind):
+                layout = CustodyTreeLayout(self, f"leaf-{index}")
+                layout.leaf("42", kind)
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, "request:42"
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assertEqual(
+                    trace.events, self.expected_walk(layout, "42")
+                )
+                trace.assert_owned_once(self)
+
+    def test_observer_maps_one_shot_stage_errors_and_continues_siblings(self):
+        """Fails if: injected metadata errors become missing, leak text or prevent the next observation."""
+        cases = (
+            ("root-access", "open", "runner", errno.EACCES),
+            ("worktrees-loop", "open", "worktrees", errno.ELOOP),
+            ("worktrees-kind", "open", "worktrees", errno.ENOTDIR),
+            ("leaf-io", "stat", "42", errno.EIO),
+        )
+        for name, operation, target, error in cases:
+            with self.subTest(case=name):
+                layout = CustodyTreeLayout(self, name)
+                layout.leaf("42")
+                injection_target = (
+                    self.expected_open_ordinal(layout, target)
+                    if operation == "open"
+                    else target
+                )
+                with CustodyTreeTrace() as control:
+                    self.assertEqual(
+                        ht._observe_custody_tree(
+                            layout.paths, "request:42"
+                        ),
+                        (True, None),
+                    )
+                control.assert_owned_once(self)
+                with CustodyTreeTrace(
+                    inject=(operation, injection_target, error)
+                ) as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, "request:42"
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assertNotIn("trace canary", repr(observed))
+                trace.assert_fired(self)
+                trace.assert_owned_once(self)
+                if operation == "open":
+                    self.assert_open_cutoff(
+                        trace, layout, target, {error}
+                    )
+                else:
+                    self.assertEqual(
+                        trace.events,
+                        self.expected_walk(layout, "42", error),
+                    )
+                with CustodyTreeTrace() as sibling:
+                    self.assertEqual(
+                        ht._observe_custody_tree(
+                            layout.paths, "request:42"
+                        ),
+                        (True, None),
+                    )
+                sibling.assert_owned_once(self)
+
+    def test_observer_cleanup_failure_overrides_result_and_retires_all_fds(self):
+        """Fails if: a consumed close is retried, remaining cleanup is skipped or missing survives."""
+        layout = CustodyTreeLayout(self, "cleanup")
+        layout.leaf("42")
+        with CustodyTreeTrace(close_failure=True) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        self.assertEqual(trace.closed, ["fd0", "fd1"])
+        first_component = os.fspath(
+            layout.paths.root
+        ).split(os.sep)[1]
+        self.assertEqual(trace.events, [
+            (
+                "open", "/", CustodyTreeTrace._FLAGS,
+                None, "ok", "fd0",
+            ),
+            (
+                "open", first_component, CustodyTreeTrace._FLAGS,
+                "fd0", "ok", "fd1",
+            ),
+            (
+                "close", "fd0", "ok", "injected-error",
+                errno.EIO,
+            ),
+            ("close", "fd1", "ok"),
+        ])
+
+    def test_observer_final_close_failure_overrides_missing_leaf(self):
+        """Fails if: final cleanup failure lets a missing leaf remain positively absent."""
+        layout = CustodyTreeLayout(self, "cleanup-final-missing")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        worktrees_symbol = f"fd{len(root_components) + 1}"
+        with CustodyTreeTrace(
+            close_failure=worktrees_symbol
+        ) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42", "missing")
+        expected[-1] = (
+            "close", worktrees_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        self.assertEqual(trace.events, expected)
+
+    def test_observer_final_close_failure_overrides_positive_leaf(self):
+        """Fails if: final cleanup failure lets a positive result survive."""
+        layout = CustodyTreeLayout(self, "cleanup-final-positive")
+        layout.leaf("42")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        worktrees_symbol = f"fd{len(root_components) + 1}"
+        with CustodyTreeTrace(
+            close_failure=worktrees_symbol
+        ) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42")
+        expected[-1] = (
+            "close", worktrees_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        self.assertEqual(trace.events, expected)
+
+    def test_observer_worktrees_transition_close_failure_cleans_new_fd(self):
+        """Fails if: transition cleanup failure skips the new worktrees fd or reaches the leaf."""
+        layout = CustodyTreeLayout(self, "cleanup-transition")
+        layout.leaf("42")
+        root_components = [
+            item
+            for item in os.fspath(layout.paths.root).split(os.sep)
+            if item
+        ]
+        root_symbol = f"fd{len(root_components)}"
+        with CustodyTreeTrace(close_failure=root_symbol) as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        trace.assert_fired(self)
+        trace.assert_owned_once(self)
+        expected = self.expected_walk(layout, "42")[:-2]
+        expected[-1] = (
+            "close", root_symbol, "ok", "injected-error",
+            errno.EIO,
+        )
+        expected.append((
+            "close", f"fd{len(root_components) + 1}", "ok"
+        ))
+        self.assertEqual(trace.events, expected)
+
+    def test_observer_unsafe_roots_and_names_short_circuit_without_io(self):
+        """Fails if: a private unsafe operand reaches cwd, a directory open or a stat."""
+        invalid_roots = (
+            "relative-runner",
+            "//ambiguous-runner",
+            "/private/../relative-runner",
+            "/root\0runner",
+            "/root\ud800",
+        )
+        for index, spelling in enumerate(invalid_roots):
+            with self.subTest(root=index):
+                cfg = dict(self.cfg)
+                cfg["root"] = spelling
+                paths = ht.Paths(cfg, self.home)
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        paths, "request:42"
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assertEqual(trace.events, [])
+        layout = CustodyTreeLayout(self, "unsafe-name")
+        invalid_names = (
+            "other:42",
+            "request:",
+            "request:a/b",
+            "request:a\0b",
+            "request:.",
+            "request:..",
+        )
+        for index, producer in enumerate(invalid_names):
+            with self.subTest(producer=index):
+                with CustodyTreeTrace() as trace:
+                    observed = ht._observe_custody_tree(
+                        layout.paths, producer
+                    )
+                self.assertEqual(
+                    observed, (None, "unreadable_tree")
+                )
+                self.assertEqual(trace.events, [])
+
+    def test_observer_preserves_long_decimal_suffix_at_real_stat_boundary(self):
+        """Fails if: an unbounded decimal spelling is converted or its OS error becomes missing."""
+        layout = CustodyTreeLayout(self, "long-name")
+        basename = "9" * 1000
+        with CustodyTreeTrace() as trace:
+            observed = ht._observe_custody_tree(
+                layout.paths, f"request:{basename}"
+            )
+        self.assertEqual(observed, (None, "unreadable_tree"))
+        self.assertEqual(
+            trace.events,
+            self.expected_walk(layout, basename, errno.ENAMETOOLONG),
+        )
+        trace.assert_owned_once(self)
+
+    def test_observer_walks_afresh_without_cache(self):
+        """Fails if: a second observation reuses a prior absence or descriptor walk."""
+        layout = CustodyTreeLayout(self, "uncached")
+        with CustodyTreeTrace() as first:
+            absent = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(absent, (False, "missing_tree"))
+        self.assertEqual(
+            first.events, self.expected_walk(layout, "42", "missing")
+        )
+        first.assert_owned_once(self)
+        layout.leaf("42")
+        with CustodyTreeTrace() as second:
+            present = ht._observe_custody_tree(
+                layout.paths, "request:42"
+            )
+        self.assertEqual(present, (True, None))
+        self.assertEqual(
+            second.events, self.expected_walk(layout, "42")
+        )
+        second.assert_owned_once(self)
 
 
 class CustodySchemaTests(StoreTestBase):

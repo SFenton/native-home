@@ -38,6 +38,7 @@ import os
 import re
 import shutil
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -4727,6 +4728,139 @@ def state_load_text(state_loads: List[Dict[str, Any]]) -> List[str]:
             else:
                 lines.append(f"{prefix})")
     return lines
+
+
+_CUSTODY_TREE_DIRECTORY_FLAGS = (
+    os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+)
+
+
+def _custody_tree_basename(producer: str) -> Optional[str]:
+    tag, separator, suffix = producer.partition(":")
+    prefixes = {
+        "request": "",
+        "nightly": "nightly-",
+        "job": "job-",
+        "retro": "retro-",
+    }
+    if (
+        not separator
+        or tag not in prefixes
+        or not suffix
+        or suffix in (".", "..")
+        or "/" in suffix
+        or "\0" in suffix
+    ):
+        return None
+    basename = prefixes[tag] + suffix
+    try:
+        os.fsencode(basename)
+    except UnicodeEncodeError:
+        return None
+    return basename
+
+
+def _custody_root_components(paths: Paths) -> Optional[List[str]]:
+    spelling = os.fspath(paths.root)
+    if (
+        not isinstance(spelling, str)
+        or not spelling.startswith("/")
+        or spelling.startswith("//")
+        or "\0" in spelling
+    ):
+        return None
+    components = spelling[1:].split("/") if spelling != "/" else []
+    if any(item in ("", ".", "..") for item in components):
+        return None
+    try:
+        os.fsencode(spelling)
+    except UnicodeEncodeError:
+        return None
+    return components
+
+
+def _observe_custody_tree(
+        paths: Paths, producer: str,
+) -> Tuple[Optional[bool], Optional[str]]:
+    basename = _custody_tree_basename(producer)
+    components = _custody_root_components(paths)
+    if basename is None or components is None:
+        return None, "unreadable_tree"
+
+    result: Tuple[Optional[bool], Optional[str]] = (
+        None, "unreadable_tree"
+    )
+    current_fd: Optional[int] = None
+    cleanup_failed = False
+    stopped = False
+    try:
+        try:
+            current_fd = os.open(
+                "/", _CUSTODY_TREE_DIRECTORY_FLAGS
+            )
+        except OSError:
+            stopped = True
+        if not stopped:
+            for component in components:
+                child_fd: Optional[int] = None
+                try:
+                    child_fd = os.open(
+                        component,
+                        _CUSTODY_TREE_DIRECTORY_FLAGS,
+                        dir_fd=current_fd,
+                    )
+                except OSError:
+                    stopped = True
+                    break
+                predecessor = current_fd
+                current_fd = child_fd
+                try:
+                    os.close(predecessor)
+                except OSError:
+                    cleanup_failed = True
+                    stopped = True
+                    break
+        if not stopped:
+            try:
+                worktrees_fd = os.open(
+                    "worktrees",
+                    _CUSTODY_TREE_DIRECTORY_FLAGS,
+                    dir_fd=current_fd,
+                )
+            except OSError as exc:
+                if exc.errno == errno.ENOENT:
+                    result = False, "missing_tree"
+                stopped = True
+            else:
+                predecessor = current_fd
+                current_fd = worktrees_fd
+                try:
+                    os.close(predecessor)
+                except OSError:
+                    cleanup_failed = True
+                    stopped = True
+        if not stopped:
+            try:
+                observed = os.stat(
+                    basename,
+                    dir_fd=current_fd,
+                    follow_symlinks=False,
+                )
+            except OSError as exc:
+                if exc.errno == errno.ENOENT:
+                    result = False, "missing_tree"
+            else:
+                if stat.S_ISDIR(observed.st_mode):
+                    result = True, None
+    finally:
+        if current_fd is not None:
+            try:
+                os.close(current_fd)
+            except OSError:
+                cleanup_failed = True
+    if cleanup_failed:
+        return None, "unreadable_tree"
+    return result
 
 
 def _custody_nullable_text(value: Any) -> str:
