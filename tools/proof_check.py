@@ -22,7 +22,7 @@ HEADER_NAMES = {
     "assertion that must fail",
     "status",
 }
-PIN = re.compile(r"^\s*manifest-head:\s*(.*?)\s*$", re.MULTILINE)
+PIN = re.compile(r"^[ \t]*manifest-head:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
 SEPARATOR = re.compile(r"^:?-{3,}:?$")
 
 
@@ -79,6 +79,22 @@ def safe_path(value: str) -> bool:
 
 def read_blob(repo: Path, head: str, path: str) -> Optional[str]:
     """Return the UTF-8 blob at ``head:path``, or ``None`` when it is absent."""
+    tree = git(repo, "ls-tree", "-z", head, "--", path)
+    if tree.returncode:
+        return None
+    entries = [entry for entry in tree.stdout.split(b"\0") if entry]
+    if len(entries) != 1:
+        return None
+    metadata, separator, encoded_path = entries[0].partition(b"\t")
+    fields = metadata.split()
+    if (
+        not separator
+        or encoded_path != path.encode("utf-8")
+        or len(fields) != 3
+        or fields[0] not in (b"100644", b"100755")
+        or fields[1] != b"blob"
+    ):
+        return None
     result = git(repo, "show", f"{head}:{path}")
     if result.returncode:
         return None
@@ -223,9 +239,15 @@ def parse_assertion(cell: str) -> Optional[Tuple[str, int]]:
     if len(spans) != 1 or spans[0].count(":") < 1:
         return None
     path, line_text = spans[0].strip().rsplit(":", 1)
-    if not line_text.isdigit() or int(line_text) < 1 or not safe_path(path):
+    if not re.fullmatch(r"[0-9]+", line_text) or not safe_path(path):
         return None
-    return path, int(line_text)
+    try:
+        line = int(line_text)
+    except ValueError:
+        return None
+    if line < 1:
+        return None
+    return path, line
 
 
 def parsed(tree_source: Optional[str], name: str) -> Optional[ast.AST]:
@@ -269,6 +291,18 @@ def is_assertion(tree: Optional[ast.AST], line: int) -> bool:
         if isinstance(node, ast.Assert):
             if node.lineno <= line <= getattr(node, "end_lineno", node.lineno):
                 return True
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            has_assertion_item = any(
+                isinstance(item.context_expr, ast.Call)
+                and (
+                    assertion_name(item.context_expr).startswith("assert")
+                    or assertion_name(item.context_expr) == "fail"
+                )
+                for item in node.items
+            )
+            first_body_line = node.body[0].lineno
+            if has_assertion_item and node.lineno <= line < first_body_line:
+                return True
         elif isinstance(node, ast.Call):
             name = assertion_name(node)
             if (name.startswith("assert") or name == "fail") and node.lineno <= line <= getattr(node, "end_lineno", node.lineno):
@@ -306,7 +340,9 @@ def check(note: Path, repo: Path, head: str) -> Tuple[int, List[str]]:
             if mutant_error:
                 malformed.append(mutant_error)
         if mutant is not None:
+            identity = mutant["replace"] == mutant["find"]
             source = cached_blob(cache, repo, head, mutant["file"])
+            occurrences = 0
             if source is None:
                 statuses.append("absent (no such file at head)")
             else:
@@ -315,12 +351,12 @@ def check(note: Path, repo: Path, head: str) -> Tuple[int, List[str]]:
                     statuses.append("absent")
                 elif occurrences > 1:
                     statuses.append(f"ambiguous {occurrences}")
-                if mutant["replace"] == mutant["find"]:
-                    statuses.append("identity")
-                if occurrences and mutant["file"].endswith(".py"):
-                    replaced = source.replace(mutant["find"], mutant["replace"], 1)
-                    if parsed(replaced, mutant["file"]) is None:
-                        statuses.append("unparseable")
+            if identity:
+                statuses.append("identity")
+            if source is not None and occurrences and mutant["file"].endswith(".py"):
+                replaced = source.replace(mutant["find"], mutant["replace"], 1)
+                if parsed(replaced, mutant["file"]) is None:
+                    statuses.append("unparseable")
         assertion = parse_assertion(row["assertion that must fail"])
         if assertion is None:
             malformed.append("malformed assertion")

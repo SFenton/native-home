@@ -32,6 +32,8 @@ ISOLATED = {
     "GIT_CONFIG_GLOBAL": "/dev/null",
     "GIT_CONFIG_SYSTEM": "/dev/null",
 }
+for inherited_git_path in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR"):
+    ISOLATED.pop(inherited_git_path, None)
 
 
 def git(root, *args):
@@ -95,8 +97,17 @@ class ProofCheckTests(unittest.TestCase):
             "        with self.assertRaises(ValueError):\n"
             '            raise ValueError("expected")\n'
             "\n"
+            "    def test_multicontext(self):\n"
+            "        with self.assertRaises(ValueError), open(\n"
+            '            "ignored"\n'
+            "        ):\n"
+            '            raise ValueError("expected")\n'
+            "\n"
             "    def test_bare(self):\n"
             "        assert True\n"
+            "\n"
+            "    def test_fail(self):\n"
+            '        self.fail("expected")\n'
             "\n"
             "    def test_plain(self):\n"
             "        value = 1\n"
@@ -109,6 +120,10 @@ class ProofCheckTests(unittest.TestCase):
             "tests/test_broken.py",
             "import pathlib\n\nPath = pathlib.Path(__file__).parents[1] / 'import-marker'\nPath.write_text('ran')\n",
         )
+        self.write("tests/unparseable.py", "def broken(:\n")
+        self.write("pkg/a.py", "PKG = True\n")
+        self.write("assertions.py/line.py", "self.assertTrue(True)\n")
+        os.symlink("value.py", self.repo / "src" / "link.py")
         git(self.repo, "add", ".")
         git(self.repo, "commit", "-q", "-m", "fixture")
         git(self.repo, "branch", "fixture-head")
@@ -201,8 +216,13 @@ class ProofCheckTests(unittest.TestCase):
     def test_absent_ambiguous_and_missing_file_report_distinct_rows(self):
         rows = [
             self.row("missing", mutant=self.mutant('MISSING: true', "MISSING: false")),
+            self.row("trailing-colon", mutant=self.mutant('FLAG = "ok":', 'FLAG = "changed":')),
             self.row("twice", mutant=self.mutant('OTHER = "same"', 'OTHER = "changed"')),
             self.row("gone", mutant=self.mutant(file="src/gone.py")),
+            self.row(
+                "gone-identity",
+                mutant=self.mutant(file="src/gone.py", replace='FLAG = "ok"'),
+            ),
         ]
         self.write("src/value.py", (self.repo / "src/value.py").read_text() + 'OTHER = "same"\n')
         git(self.repo, "add", "src/value.py")
@@ -215,9 +235,33 @@ class ProofCheckTests(unittest.TestCase):
             result,
             1,
             "missing: absent",
+            "trailing-colon: absent",
             "twice: ambiguous 2",
             "gone: absent (no such file at head)",
-            "proof_check: 3 rows, 3 not ok",
+            "gone-identity: absent (no such file at head); identity",
+            "proof_check: 5 rows, 5 not ok",
+        )
+
+    def test_non_regular_paths_are_missing_for_every_cell(self):
+        rows = [
+            self.row("directory-mutant", mutant=self.mutant("a.py", "b.py", "pkg")),
+            self.row(
+                "symlink-mutant",
+                mutant=self.mutant("value.py", "changed.py", "src/link.py"),
+            ),
+            self.row("directory-test", test="pkg::test_ok"),
+            self.row("directory-assertion", assertion="assertions.py:1"),
+        ]
+        note = self.write_note(rows=rows)
+        result = self.run_tool(note)
+        self.assert_run(
+            result,
+            1,
+            "directory-mutant: absent (no such file at head)",
+            "symlink-mutant: absent (no such file at head)",
+            "directory-test: leaf_missing pkg::test_ok",
+            "directory-assertion: not_assertion",
+            "proof_check: 4 rows, 4 not ok",
         )
 
     def test_identity_and_unparseable_replacements_are_named(self):
@@ -279,6 +323,49 @@ class ProofCheckTests(unittest.TestCase):
             "proof_check: 6 rows, 2 not ok",
         )
 
+    def test_fail_calls_and_non_assertion_readings_are_distinct(self):
+        file = "tests/test_value.py"
+        rows = [
+            self.row(
+                "fail",
+                assertion=file + ":" + str(self.line(file, "self.fail")),
+            ),
+            self.row("text", assertion="notes/raw.txt:1"),
+            self.row("broken", assertion="tests/unparseable.py:1"),
+            self.row("past-end", assertion=file + ":999"),
+        ]
+        note = self.write_note(rows=rows)
+        self.assert_run(
+            self.run_tool(note),
+            1,
+            "fail: ok",
+            "text: not_assertion",
+            "broken: not_assertion",
+            "past-end: not_assertion",
+            "proof_check: 4 rows, 3 not ok",
+        )
+
+    def test_multicontext_header_continuation_is_an_assertion(self):
+        file = "tests/test_value.py"
+        rows = [
+            self.row(
+                "continuation",
+                assertion=file + ":" + str(self.line(file, '"ignored"')),
+            ),
+            self.row(
+                "body",
+                assertion=file + ":" + str(self.line(file, "raise ValueError", 2)),
+            ),
+        ]
+        note = self.write_note(rows=rows)
+        self.assert_run(
+            self.run_tool(note),
+            1,
+            "continuation: ok",
+            "body: not_assertion",
+            "proof_check: 2 rows, 1 not ok",
+        )
+
     def test_leaf_missing_reports_wrong_class_wrong_name_and_missing_file(self):
         rows = [
             self.row("class", test="tests/test_value.py::OtherTests.test_ok"),
@@ -307,6 +394,14 @@ class ProofCheckTests(unittest.TestCase):
                 "green: head_mismatch",
                 "proof_check: 1 rows, 1 not ok",
             )
+        split_pin = note_body + "\nmanifest-head:\n" + code_span(self.head) + "\n"
+        note = self.write_note(split_pin, heads=[], name="split-head.md")
+        self.assert_run(
+            self.run_tool(note),
+            1,
+            "green: head_mismatch",
+            "proof_check: 1 rows, 1 not ok",
+        )
 
     def test_pinned_short_head_matches_only_after_resolving_commit(self):
         note = self.write_note()
@@ -346,12 +441,20 @@ class ProofCheckTests(unittest.TestCase):
         bad_test[1] = "not an id"
         bad_assertion = self.row("assertion")
         bad_assertion[5] = "not-a-location"
-        rows.extend([bad_test, bad_assertion])
+        unicode_assertion = self.row("unicode-assertion")
+        unicode_assertion[5] = "tests/test_value.py:²"
+        rows.extend([bad_test, bad_assertion, unicode_assertion])
         note = self.write_note(rows=rows)
         result = self.run_tool(note)
         expected = [name + ": " + status for name, _, status in variants]
-        expected.extend(["test: malformed test", "assertion: malformed assertion"])
-        expected.append(f"proof_check: 6 rows, 6 not ok")
+        expected.extend(
+            [
+                "test: malformed test",
+                "assertion: malformed assertion",
+                "unicode-assertion: malformed assertion",
+            ]
+        )
+        expected.append(f"proof_check: 7 rows, 7 not ok")
         self.assert_run(result, 1, *expected)
 
     def test_multiple_faults_keep_the_required_order(self):
