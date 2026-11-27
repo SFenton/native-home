@@ -7452,7 +7452,7 @@ class StatusAndGoldenTests(StoreTestBase):
         self.assertEqual(boundaries.forget_events, [])
 
     def test_recordless_status_formats_under_real_lock_with_independent_queue_error(
-        self, expected_custody=_PA_EMPTY_CUSTODY
+        self, expected_custody=_PA_EMPTY_CUSTODY, tree_layout=None
     ):
         """Fails if: locked status stops being read-only, bounded or byte-identical."""
         cfg = dict(self.cfg)
@@ -7511,6 +7511,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 if expected_custody is _PA_REQUEST_72_CUSTODY
                 else _PA_ABSENT
             ),
+            tree_layout=tree_layout,
         )
         self.assertEqual(
             gh.events,
@@ -9923,7 +9924,8 @@ class StatusAndGoldenTests(StoreTestBase):
             self.custody_fixture("locked status 72")
         ):
             self.test_recordless_status_formats_under_real_lock_with_independent_queue_error(
-                _PA_REQUEST_72_CUSTODY
+                _PA_REQUEST_72_CUSTODY,
+                tree_layout=CustodyTreeLayout(self, "installed-72"),
             )
 
     def test_seeded_post_launch_save_failure_preserves_last_committed_bytes(self):
