@@ -19,7 +19,7 @@
   - `CachedImage` (and so `RemoteImage` and `ImageCard`) reports itself, so a gated grid waits for its visible images.
   - Anything else can report with `.contentReadiness(id, isReady:)`.
   - The gate stops waiting after `ContentGateModel.Timing.childTimeout` (1.5 s), so one slow image never holds the page.
-- **No reload on reopen:** a gate created with `isReady == true` shows content immediately, with no spinner and no fade. Pass the cached or snapshot state as ready. Never gate a page that reads `EntityStore`: the store is always ready from the disk snapshot.
+- **No reload on reopen:** `.page` and `.results` show ready content immediately, without a spinner or fade. Pass cached or snapshot state as ready. Never gate a page that reads `EntityStore`.
 - **Telemetry:** each cold load is a `ContentReady` interval named by `page`. Instant shows are counted (`gate.instant`).
 - **Tests:**
   - `Tests/HassDesignTests/ContentGateTests.swift` (the phase machine with an injected sleeper and clock, including the page profile: minimum, timeout, reload).
@@ -29,3 +29,10 @@
 - **Owned files** (also in `contracts/patterns.json`): `ReadinessTracker.swift`, `PendingValue.swift`.
 
 - **Shared reveal.** `UKContentReveal` (`UKContentGate.swift`) holds and reveals content (hold, 4 pt rise, Reduce Motion fade); `UKContentGateView` uses it. The house-layout gate records `LayoutChange` signposts (page `HouseLayout`) and has `HouseLayoutRevealPerformanceTests`.
+
+## Grouped sheet reveal
+
+- A non-adaptive, full-height native sheet can opt in with `presentation.reveal: "grouped"` (`sh.sheet-reveal@1`). Chrome stays interactive during presentation; the root body is laid out but hidden from sight, touches and VoiceOver.
+- After presentation the body fades in together, without rise. Only a mounted Repeat loading its first records can delay it. Inactive tabs, retained records and terminal states do not block it. Local Back, refresh and pose changes never replay it.
+- After 150 ms of waiting, show one labelled 44 pt arc at the safe area's centre, held at least 500 ms from fade-in start. Fade it out before revealing the body. Each fade takes 200 ms, including with Reduce Motion. At 10 s from presentation, show the body's own state.
+- `UKHassModalController` keeps system presentation; `ContentGateModel` uses `.sheet`. HIG [Loading](https://developer.apple.com/design/human-interface-guidelines/loading): the grouped fade is opt-in; ready content never shows an arc.

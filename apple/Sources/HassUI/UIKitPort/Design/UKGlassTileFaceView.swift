@@ -394,7 +394,7 @@ final class UKGlassTileFaceView: UIView {
         let isRow = layoutKind == .row
         glyphView.isHidden = content.hidesGlyph
         let image = UKFont.symbol(content.symbol, style: isRow ? .title2 : .title3, filled: content.isActive || style.isColored, traits: traits)
-        if symbolTransition, !UKDesign.reduceMotion, let image {
+        if symbolTransition, window != nil, !UKDesign.reduceMotion, let image {
             glyphView.setSymbolImage(image, contentTransition: .replace)
         } else {
             glyphView.image = image

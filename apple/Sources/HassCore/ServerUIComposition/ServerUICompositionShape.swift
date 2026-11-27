@@ -255,6 +255,7 @@ enum ServerUICompositionShape {
             "sheet": object([
                 "type": fixed("sheet"), "width": .choice(["form", "page"]),
                 "adaptive": .optional(.bool), "fullScreen": .optional(.bool),
+                "reveal": .optional(.choice(["grouped"])),
                 "height": .variant("type", [
                     "full": object(["type": fixed("full")]),
                     "fitted": object([

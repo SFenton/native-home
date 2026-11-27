@@ -46,6 +46,13 @@ struct UKHassModalOptions {
     /// (`HassModal(closeStaysInBar:)`, `keepsCloseInSheetBar()`; iOS 27.1). The SwiftUI default is true for a plain `HassModal`; a sheet
     /// with Save, Add or other bar actions says false, and this port's default is false, so a call site says true where `HassModal` does.
     var closeStaysInBar = false
+    /// One grouped root reveal after the native sheet slide, or nil to show the content on arrival.
+    var reveal: Reveal?
+
+    struct Reveal {
+        let label: String
+        let isReady: @MainActor () -> Bool
+    }
     /// Runs instead of dismissing when the presenter owns closing.
     var onClose: (() -> Void)?
     /// Runs once the sheet has gone (closed, swiped down), for the presenter to clear its state.
@@ -101,6 +108,8 @@ final class UKHassModalController: UKNativeExitNavigationController, UISheetPres
     /// The window the modal was presented from, for ``fillsHeight`` before the modal has a window of its own.
     private weak var presentingWindow: UIWindow?
     private var appliedIdentifiers: [String] = []
+    private var revealDriver: UKContentGateDriver?
+    private var attachedReveal = false
     private let fitDetent = UISheetPresentationController.Detent.Identifier("uk.fit")
 
     init(root: UIViewController, options: UKHassModalOptions) {
@@ -267,6 +276,7 @@ final class UKHassModalController: UKNativeExitNavigationController, UISheetPres
     }
 
     func presentationControllerDidDismiss(_ presentationController: UIPresentationController) {
+        cancelReveal()
         options.onDismissed?()
     }
 
@@ -326,9 +336,38 @@ final class UKHassModalController: UKNativeExitNavigationController, UISheetPres
         }
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        guard !attachedReveal, let reveal = options.reveal, let root = viewControllers.first as? UKPageViewController else { return }
+        attachedReveal = true
+        root.loadViewIfNeeded()
+        let ready = reveal.isReady()
+        let model = ContentGateModel(page: "AuthoredSheet", isReady: ready, firstLoad: .sheet)
+        let driver = UKContentGateDriver(model: model, isReady: ready, content: root.contentView,
+                                         arcHost: root.view, arcCenter: root.view.safeAreaLayoutGuide, label: reveal.label)
+        driver.observeReadiness(reveal.isReady)
+        driver.onFinished = { [weak self] in
+            self?.revealDriver?.cancel()
+            self?.revealDriver = nil
+        }
+        revealDriver = driver
+    }
+
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         UKScrollRate.attachAll(in: view)
+        revealDriver?.presentationCompleted()
+    }
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        if isBeingDismissed || presentingViewController == nil { cancelReveal() }
+    }
+
+    private func cancelReveal() {
+        revealDriver?.cancel()
+        revealDriver?.model.presentationDismissed()
+        revealDriver = nil
     }
 
     /// A rotation or a fold changes the window, the sheet's width and so its content's height: the detent and the iPad form width are

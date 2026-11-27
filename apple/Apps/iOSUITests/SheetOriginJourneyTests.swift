@@ -7,10 +7,11 @@ import XCTest
 final class SheetOriginJourneyTests: JourneyTestCase {
     // MARK: - Helpers
 
-    private func launch(arguments: [String] = []) -> XCUIApplication {
+    private func launch(arguments: [String] = [], groupedReveal: Bool = false) -> XCUIApplication {
         let app = FentonHomeApp.makeApp()
         app.launchEnvironment["FENTON_GALLERY"] = "sheet-origin"
         app.launchEnvironment["FENTON_GALLERY_BACKDROP_FIXTURE"] = "1"
+        if groupedReveal { app.launchEnvironment["FENTON_GALLERY_GROUPED_REVEAL"] = "1" }
         app.launchArguments += arguments
         _ = startApp(app)
         XCTAssertTrue(app.buttons["quickLinks.open"].appears(timeout: 20), "No Quick Links button on the root page")
@@ -71,6 +72,25 @@ final class SheetOriginJourneyTests: JourneyTestCase {
     }
 
     // MARK: - Accessibility
+
+    /// A ready grouped sheet has no loading announcement and keeps its actions available after local Back.
+    func testAReadyGroupedSheetKeepsItsAccessibleActionsAfterLocalBackAtAX5() {
+        let app = launch(arguments: FentonHomeApp.ax5, groupedReveal: true)
+        openSheet(app)
+        let tile = app.buttons["node-palette-local"]
+        let level = app.buttons["node-palette-level"]
+        let arc = app.descendants(matching: .any)["contentGate.spinner"].firstMatch
+        XCTAssertFalse(arc.exists)
+        XCTAssertTrue(tile.label.contains("Inspect Here"))
+        XCTAssertTrue(scrollTo(level, in: app))
+        level.tap()
+        XCTAssertTrue(app.buttons["node-level-next"].appears(timeout: 10))
+        backButton(app).tap()
+        XCTAssertTrue(tile.appears(timeout: 10))
+        XCTAssertTrue(scrollTo(tile, in: app))
+        XCTAssertFalse(arc.exists)
+        XCTAssertTrue(tile.isEnabled)
+    }
 
     /// Back is the first button of the landed page's bar, so VoiceOver reaches it first. VoiceOver's own focus is not observable from XCUITest: the order is
     /// the proxy. Whether the system focuses Back after the landing push is for the device check once the Back change (`gc-runtime-back`) has merged.

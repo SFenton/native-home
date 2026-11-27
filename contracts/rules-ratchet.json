@@ -773,7 +773,7 @@
   ".agents/design/motion.md": {
    "forbidden": 20,
    "long_lines": 8,
-   "over_words": 2168
+   "over_words": 2104
   },
   ".agents/design/profile-badge.md": {
    "forbidden": 14,
@@ -969,7 +969,7 @@
   ".agents/patterns/modal-sheet.md": {
    "forbidden": 30,
    "long_lines": 22,
-   "over_words": 4883
+   "over_words": 4866
   },
   ".agents/patterns/module-list.md": {
    "forbidden": 4,

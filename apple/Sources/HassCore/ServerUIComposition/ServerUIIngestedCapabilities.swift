@@ -45,8 +45,8 @@ public enum ServerUIIngestedCapabilities {
     /// A state style rule's icon colour (`glyphTint`), drawn where a tile's own `glyphTint` draws.
     public static let styleGlyphTint: [String] = ["sh.state-style-glyph-tint@1"]
 
-    /// A picture's orientation and the corner button groups on it (lane `ni-mapctl`): a flip, then up to four groups of 44 pt buttons.
-    public static let surface: [String] = ["sh.surface-orientation@1", "sh.surface-controls@1"]
+    /// A picture's orientation and corner buttons, and a sheet's grouped root reveal.
+    public static let surface: [String] = ["sh.surface-orientation@1", "sh.surface-controls@1", "sh.sheet-reveal@1"]
 
     /// The style parts (lane `ni-wgstyle`): a text's font, ink, lines, alignment and ticker with the `rgba` colour, the `stack` and `shape` nodes, the
     /// `symbol` node, and a symbol and a hint on the options of a segmented choice.

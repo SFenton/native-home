@@ -320,6 +320,8 @@ public struct ServerUICompositionDocument: Equatable, Sendable {
         public let close: Close
         public var adaptive = false
         public var fullScreen = false
+        /// Reveal the root content together after the system presents the sheet.
+        public var groupedReveal = false
     }
     /// A sheet's width: form or full page.
     public enum SheetWidth: String, Sendable { case form, page }

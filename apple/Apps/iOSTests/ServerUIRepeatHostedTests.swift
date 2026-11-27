@@ -1,5 +1,6 @@
 @testable import HassCore
 import HassDesign
+import HassTelemetry
 import UIKit
 import XCTest
 @testable import HassUI
@@ -23,7 +24,8 @@ struct ServerUIRepeatFixture {
     /// Opens corpus case `file` with its third page's components on the first page. `props` is merged into the repeat's props.
     static func show(_ file: String, width: CGFloat, height: CGFloat = 1180, dark: Bool = false, props: [String: JSONValue] = [:],
                      phase: ServerUIRowCollection.Phase = .ready, records: [JSONValue]? = nil,
-                     category: UIContentSizeCategory? = nil, reduceMotion: Bool? = nil, confirm: Bool = false, inSheet: Bool = false) throws -> Self {
+                     category: UIContentSizeCategory? = nil, reduceMotion: Bool? = nil, confirm: Bool = false, inSheet: Bool = false,
+                     groupedReveal: Bool = false, repeatOnInactiveTab: Bool = false) throws -> Self {
         UKMotion.reduceMotionOverride = reduceMotion
         let apple = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let url = apple.appendingPathComponent("Tests/HassCoreTests/ContractCorpus/accept/\(file).json")
@@ -42,17 +44,44 @@ struct ServerUIRepeatFixture {
             }
             components[0] = .object(node)
         }
+        var addedCapabilities: [String] = []
+        if repeatOnInactiveTab {
+            addedCapabilities = ["sh.local-tabs@1", "sh.local-state@1"]
+            let state = try JSONDecoder().decode(JSONValue.self, from: Data("""
+            [{"id":"panel","type":"choice","initial":"a","options":[{"id":"a","label":"Overview"},{"id":"b","label":"Records"}]}]
+            """.utf8))
+            json = try ServerUIRendererFixture.changing(json, path: "/document/localState", to: state)
+            components = [.object([
+                "id": .string("panels"), "title": .string("Panels"), "type": .string("local-tabs"), "layout": .object(["span": .number(1)]),
+                "props": .object(["stateId": .string("panel"), "transition": .string("canonical-swap@1")]),
+                "tabs": .array([
+                    .object(["id": .string("a"), "label": .string("Overview"), "children": .array([])]),
+                    .object(["id": .string("b"), "label": .string("Records"), "children": .array(components)]),
+                ]),
+            ])]
+        }
         if inSheet {
             // The repeat goes in the document's sheet (`appearance: system`), which a root page cannot be: pages pin themselves dark.
             json = try ServerUIRendererFixture.changing(json, path: "/document/modals/0/components", to: .array(components))
+            if groupedReveal {
+                json = try ServerUIRendererFixture.changing(json, path: "/document/modals/0/presentation/reveal", to: .string("grouped"))
+                addedCapabilities.append("sh.sheet-reveal@1")
+            }
         } else {
             json = try ServerUIRendererFixture.changing(json, path: "/document/pages/0/components", to: .array(components))
+        }
+        if !addedCapabilities.isEmpty {
+            let capabilities = try XCTUnwrap(json["capabilities"]?.array).compactMap(\.string)
+            json = try ServerUIRendererFixture.changing(json, path: "/capabilities",
+                to: .array(Set(capabilities + addedCapabilities).sorted().map(JSONValue.string)))
         }
         // The third page's components moved to the first page (or the sheet); what stands there now must not repeat their ids.
         json = try ServerUIRendererFixture.changing(json, path: "/document/pages/2/components", to: inSheet ? .array([]) : XCTUnwrap(pages[0]["components"]))
         let publication = try ServerUICompositionPublication.decode(JSONEncoder().encode(json))
         let collection = ServerUIRowCollection()
-        if let records { try collection.apply(records: records, phase: phase) }
+        if records != nil || phase == .failed || phase == .unavailable {
+            try collection.apply(records: records, phase: phase)
+        }
         let caller = HostedCaller()
         let renderer = try UKServerUIRenderer(publication: publication, context: UKContext(store: EntityStore(), caller: caller),
                                               backdrop: ServerUIRendererFixture.backdrop(), collections: ["series": collection])
@@ -144,6 +173,115 @@ struct ServerUIRepeatFixture {
 /// at the simulator's own, so each check reads the width the page really has.
 @MainActor
 final class ServerUIRepeatHostedTests: XCTestCase {
+    // MARK: - Grouped sheet reveal
+
+    func testAGroupedSheetCentresTheArcAndRevealsItsFirstRecordsOnce() async throws {
+        for width in [320.0, 390.0, 744.0] {
+            let shown = try ServerUIRepeatFixture.show("repeat-paging-full", width: width, phase: .loading,
+                                                       category: .accessibilityExtraExtraExtraLarge, inSheet: true, groupedReveal: true)
+            defer { shown.window.isHidden = true }
+            let root = shown.page
+            func arcs() -> [UIView] { root.view.subviews.filter { $0.accessibilityIdentifier == "contentGate.spinner" } }
+            let found = await FeatureHost.settleAsync(until: { !arcs().isEmpty })
+            XCTAssertTrue(found)
+            XCTAssertEqual(arcs().count, 1)
+            let arc = try XCTUnwrap(arcs().first)
+            XCTAssertEqual(arc.accessibilityLabel, "Loading \(root.definition.title)")
+            let safe = root.view.safeAreaLayoutGuide.layoutFrame
+            XCTAssertEqual(arc.frame.midX, safe.midX, accuracy: 1)
+            XCTAssertEqual(arc.frame.midY, safe.midY, accuracy: 1)
+            XCTAssertEqual(arc.frame.width, 44, accuracy: 1)
+            XCTAssertEqual(arc.frame.height, 44, accuracy: 1)
+            XCTAssertEqual(root.contentView.alpha, 0)
+            XCTAssertTrue(root.contentView.accessibilityElementsHidden)
+            XCTAssertFalse(root.contentView.isUserInteractionEnabled)
+            XCTAssertTrue(ServerUIRendererFixture.barItems(root).contains { $0.accessibilityIdentifier == "server-ui.sheet.close" })
+
+            try shown.collection.apply(records: ServerUIRepeatFixture.records(12), phase: .ready)
+            let revealed = await FeatureHost.settleAsync(until: { arcs().isEmpty && root.contentView.alpha == 1 })
+            XCTAssertTrue(revealed)
+            XCTAssertFalse(root.contentView.accessibilityElementsHidden)
+            XCTAssertTrue(root.contentView.isUserInteractionEnabled)
+            XCTAssertEqual(root.contentView.transform, .identity)
+            XCTAssertFalse(try XCTUnwrap(shown.repeatView).drawnCells.isEmpty)
+            try shown.collection.apply(records: nil, phase: .unavailable)
+            shown.settle()
+            XCTAssertTrue(arcs().isEmpty)
+            XCTAssertEqual(root.contentView.alpha, 1)
+        }
+    }
+
+    func testAGroupedSheetWithUnavailableRecordsDoesNotWaitForAnArc() async throws {
+        let shown = try ServerUIRepeatFixture.show("repeat-paging-full", width: 390, phase: .unavailable,
+                                                   reduceMotion: true, inSheet: true, groupedReveal: true)
+        defer { shown.window.isHidden = true }
+        let visible = await FeatureHost.settleAsync(until: { shown.page.contentView.alpha == 1 })
+        XCTAssertTrue(visible)
+        XCTAssertFalse(shown.page.contentView.accessibilityElementsHidden)
+        XCTAssertFalse(shown.page.view.subviews.contains { $0.accessibilityIdentifier == "contentGate.spinner" })
+    }
+
+    func testARepeatOnAnInactiveTabDoesNotHoldOrReplayTheGroupedReveal() async throws {
+        let shown = try ServerUIRepeatFixture.show("repeat-paging-full", width: 390, phase: .loading,
+                                                   inSheet: true, groupedReveal: true, repeatOnInactiveTab: true)
+        defer { shown.window.isHidden = true }
+        let repeatView = try XCTUnwrap(shown.repeatView)
+        XCTAssertNil(repeatView.window, "the Repeat is in a tab that is not on screen")
+        func hasArc() -> Bool { shown.page.view.subviews.contains { $0.accessibilityIdentifier == "contentGate.spinner" } }
+        let visible = await FeatureHost.settleAsync(until: { shown.page.contentView.alpha == 1 || hasArc() })
+        XCTAssertTrue(visible)
+        XCTAssertFalse(hasArc())
+        XCTAssertEqual(shown.page.contentView.alpha, 1)
+        try shown.host.perform(.setLocal(stateId: "panel", value: .string("b")), from: shown.page)
+        let mounted = await FeatureHost.settleAsync(until: { repeatView.window != nil })
+        XCTAssertTrue(mounted)
+        shown.settle()
+        XCTAssertFalse(hasArc(), "selecting a tab in the open sheet does not replay the reveal")
+        XCTAssertEqual(shown.page.contentView.alpha, 1)
+    }
+
+    /// Measures presentation-to-reveal on the mounted sheet, without including the system slide or fixture setup.
+    func testGroupedSheetContentReadyTimingWithAndWithoutReduceMotion() async throws {
+        for reduceMotion in [false, true] {
+            try await measureGroupedReveal(loading: false, reduceMotion: reduceMotion)
+            try await measureGroupedReveal(loading: true, reduceMotion: reduceMotion)
+        }
+    }
+
+    private func measureGroupedReveal(loading: Bool, reduceMotion: Bool) async throws {
+        let start = Date()
+        let rows = ServerUIRepeatFixture.records(12)
+        let shown = try ServerUIRepeatFixture.show("repeat-paging-full", width: 390, phase: loading ? .loading : .ready,
+                                                   records: loading ? nil : rows, reduceMotion: reduceMotion,
+                                                   inSheet: true, groupedReveal: true)
+        defer { shown.window.isHidden = true }
+        if loading {
+            let arcShown = await FeatureHost.settleAsync(until: {
+                shown.page.view.subviews.contains { $0.accessibilityIdentifier == "contentGate.spinner" }
+            }, timeout: 2)
+            XCTAssertTrue(arcShown)
+            try shown.collection.apply(records: rows, phase: .ready)
+        }
+        func samples() -> [TelemetryRecord] {
+            Telemetry.log.records.filter {
+                $0.date >= start && $0.kind == "\(Telemetry.Name.contentReady)" && $0.page == "AuthoredSheet" && $0.detail == "cold"
+            }
+        }
+        let finished = await FeatureHost.settleAsync(until: { !samples().isEmpty }, timeout: 3)
+        XCTAssertTrue(finished, "the reveal's ContentReady interval must end")
+        let intervals = samples()
+        XCTAssertEqual(intervals.count, 1)
+        let milliseconds = try XCTUnwrap(intervals.first?.durationMs)
+        let scenario = "\(loading ? "loading" : "ready"), Reduce Motion \(reduceMotion)"
+        let evidence = XCTAttachment(string: "ContentReady: \(milliseconds) ms")
+        evidence.name = scenario
+        evidence.lifetime = .keepAlways
+        add(evidence)
+        // One 200 ms fade when ready; grace, minimum arc hold and two fades when loading. Allow simulator scheduling overhead.
+        XCTAssertGreaterThanOrEqual(milliseconds, loading ? 1_040 : 190, scenario)
+        XCTAssertLessThan(milliseconds, loading ? 3_000 : 1_000, scenario)
+    }
+
     private static let widths: [CGFloat] = [390, 744, 1024]
     private typealias F = ServerUIRepeatFixture
 
