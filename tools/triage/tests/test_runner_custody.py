@@ -1,6 +1,7 @@
 """Load, admission, durable-save, containment and status tests for runner stores."""
 from __future__ import annotations
 
+import builtins
 import contextlib
 import errno
 import gc
@@ -1373,6 +1374,15 @@ class CustodyTreeTrace:
                         owner, name,
                         new=self._reject(name, original),
                     ))
+        for owner, label in (
+            (builtins, "builtins.open"),
+            (io, "io.open"),
+        ):
+            self._stack.enter_context(mock.patch.object(
+                owner,
+                "open",
+                new=self._reject(label, owner.open),
+            ))
         return self
 
     def __exit__(self, exc_type, exc, traceback):
@@ -2454,6 +2464,7 @@ class StoreTestBase(t.Base):
         expected_projection_probes=None,
         expected_projection_trace=None,
         expected_renderer_trace=None,
+        tree_layout=None,
     ):
         expected_projection_probes = list(
             expected_projection_probes or ()
@@ -2475,21 +2486,10 @@ class StoreTestBase(t.Base):
             ht.Paths(cfg, self.home, "retro-").state,
         )
         cfg = dict(cfg)
-        bound_custody = any(
-            "target" in body
-            for path in state_paths
-            for _key, body, _notices in ht.State(path).vetted_custody_records
-        )
-        if bound_custody:
-            layout_number = getattr(
-                self, "_custody_status_layout_number", 0
-            )
-            self._custody_status_layout_number = layout_number + 1
-            layout = CustodyTreeLayout(
-                self, f"status-{layout_number}"
-            )
-            cfg["root"] = str(layout.paths.root)
+        if tree_layout is not None:
+            cfg["root"] = str(tree_layout.paths.root)
             configured_paths = ht.Paths(cfg, self.home)
+            self.assertEqual(configured_paths.root, tree_layout.paths.root)
             self.assertEqual(configured_paths.state, self.paths.state)
             self.assertEqual(
                 configured_paths.lock, self.paths.lock
@@ -3587,6 +3587,39 @@ class CustodyTreeObserverTests(StoreTestBase):
                     observed, (None, "unreadable_tree")
                 )
                 self.assertEqual(trace.events, [])
+
+    def test_observer_rejects_python_open_in_attributed_region(self):
+        """Fails if: an observer-attributed Python open reaches its real primitive."""
+        layout = CustodyTreeLayout(self, "python-open")
+        for index, label in enumerate(("builtins.open", "io.open")):
+            with self.subTest(access=label):
+                probe = layout.area / f"probe-{index}"
+
+                def observer_with_open(paths, producer):
+                    if label == "builtins.open":
+                        open(probe, "w").close()
+                    else:
+                        io.open(probe, "w").close()
+                    return None
+
+                with mock.patch.object(
+                    ht, "_observe_custody_tree",
+                    new=observer_with_open,
+                ), self.assertRaisesRegex(
+                    AssertionError,
+                    f"unexpected observer access {label}",
+                ):
+                    with CustodyTreeTrace() as trace:
+                        ht._observe_custody_tree(
+                            layout.paths, "request:42"
+                        )
+                self.assertEqual(trace.probes, [(
+                    "observe",
+                    os.fspath(layout.paths.root),
+                    "request:42",
+                )])
+                self.assertEqual(trace.events, [])
+                self.assertFalse(probe.exists())
 
     def test_observer_preserves_long_decimal_suffix_at_real_stat_boundary(self):
         """Fails if: an unbounded decimal spelling is converted or its OS error becomes missing."""
@@ -7494,6 +7527,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(),
                 False,
                 _PA_EMPTY_CUSTODY,
+                None,
             ),
             (
                 "healthy empty-v1",
@@ -7505,6 +7539,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 ),
                 False,
                 _PA_EMPTY_CUSTODY,
+                None,
             ),
             (
                 "valid request 42",
@@ -7512,6 +7547,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(),
                 False,
                 _PA_REQUEST_42_CUSTODY,
+                "valid-request-42",
             ),
             (
                 "valid nightly 52",
@@ -7519,6 +7555,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(custody=self.nightly_seed(52).aggregate()),
                 False,
                 _PA_NIGHTLY_52_CUSTODY,
+                "valid-nightly-52",
             ),
             (
                 "request 72 and nightly 72",
@@ -7526,6 +7563,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(custody=self.nightly_seed(72).aggregate()),
                 False,
                 _PA_SAME_NUMBER_72_CUSTODY,
+                "request-nightly-72",
             ),
             (
                 "integrated job then retro",
@@ -7533,6 +7571,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(),
                 False,
                 _PA_INTEGRATED_CUSTODY,
+                "integrated-job-retro",
             ),
             (
                 "integrated retro then job",
@@ -7542,6 +7581,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(),
                 False,
                 _PA_INTEGRATED_CUSTODY,
+                "integrated-retro-job",
             ),
             (
                 "retained nightly and failing request queue",
@@ -7549,6 +7589,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.legacy(custody=self.nightly_seed(52).aggregate()),
                 True,
                 _PA_RETAINED_NIGHTLY_CUSTODY,
+                "retained-nightly-request",
             ),
         ]
 
@@ -7557,7 +7598,8 @@ class StatusAndGoldenTests(StoreTestBase):
             self.home.mkdir()
 
         for (
-            label, primary, nightly, queue_error, expected_custody
+            label, primary, nightly, queue_error, expected_custody,
+            layout_name,
         ) in profiles:
             with self.subTest(profile=label):
                 reset()
@@ -7642,6 +7684,10 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_text = with_custody_text(
                         expected_text, expected_custody_text
                     )
+                tree_layout = (
+                    CustodyTreeLayout(self, layout_name)
+                    if layout_name is not None else None
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     gh,
@@ -7657,6 +7703,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_files,
                     expected_custody=expected_custody,
                     expected_custody_text=expected_custody_text,
+                    tree_layout=tree_layout,
                 )
                 if label == "healthy readable recordless":
                     with self.subTest(
@@ -7777,6 +7824,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         AssertionError,
                         "supplied line is missing from expected text",
                     ):
+                        line_only_layout = CustodyTreeLayout(
+                            self, "apparatus-line-only"
+                        )
                         self.assert_pa_locked_status(
                             cfg,
                             RecordlessTraceGitHub({
@@ -7795,6 +7845,7 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_files,
                             expected_custody=expected_custody,
                             expected_custody_text=wrong_line,
+                            tree_layout=line_only_layout,
                         )
                     with self.subTest(
                         expectation="custody text equality operands"
@@ -7802,6 +7853,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         AssertionError,
                         "custody text stdout comparison",
                     ):
+                        equality_layout = CustodyTreeLayout(
+                            self, "apparatus-equality"
+                        )
                         self.assert_pa_locked_status(
                             cfg,
                             RecordlessTraceGitHub({
@@ -7822,6 +7876,7 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_files,
                             expected_custody=expected_custody,
                             expected_custody_text=wrong_line,
+                            tree_layout=equality_layout,
                         )
                     with self.subTest(
                         expectation="omitted custody text operand"
@@ -7829,6 +7884,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         AssertionError,
                         "custody text comparison",
                     ):
+                        omission_layout = CustodyTreeLayout(
+                            self, "apparatus-omission"
+                        )
                         self.assert_pa_locked_status(
                             cfg,
                             RecordlessTraceGitHub({
@@ -7846,6 +7904,7 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_remote_events,
                             expected_files,
                             expected_custody=expected_custody,
+                            tree_layout=omission_layout,
                         )
 
     def test_custody_status_samples_clock_once_and_clamps_ages(self):
@@ -7929,7 +7988,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 ),
             ),
         )
-        for sample, ages, custody_text in cases:
+        for index, (sample, ages, custody_text) in enumerate(cases):
             with self.subTest(sample=sample.isoformat()):
                 shutil.rmtree(self.home, ignore_errors=True)
                 self.home.mkdir()
@@ -7952,6 +8011,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
+                tree_layout = CustodyTreeLayout(
+                    self, f"clock-{index}"
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -7973,6 +8035,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_custody=expected,
                     expected_custody_text=custody_text,
                     test_clock=sample,
+                    tree_layout=tree_layout,
                 )
 
     def test_custody_status_orders_records_across_selected_stores(self):
@@ -8313,26 +8376,62 @@ class StatusAndGoldenTests(StoreTestBase):
             "expected_custody": _PA_REQUEST_42_CUSTODY,
             "expected_custody_text": _CT_REQUEST_42,
         }
-        self.assert_pa_locked_status(*arguments, **kwargs)
-
+        control_layout = CustodyTreeLayout(
+            self, "negative-control"
+        )
         real_main_golden = self.main_golden
+        command_roots = []
 
-        def with_observer_call(argv, observed_cfg, *args, **call_kwargs):
-            result = real_main_golden(
+        def record_command_root(
+            argv, observed_cfg, *args, **call_kwargs
+        ):
+            command_roots.append(observed_cfg["root"])
+            return real_main_golden(
                 argv, observed_cfg, *args, **call_kwargs
             )
-            ht._observe_custody_tree(
-                ht.Paths(observed_cfg, self.home), "request:42"
+
+        with mock.patch.object(
+            self, "main_golden", side_effect=record_command_root
+        ):
+            self.assert_pa_locked_status(
+                *arguments,
+                **kwargs,
+                tree_layout=control_layout,
             )
+        self.assertEqual(
+            command_roots,
+            [str(control_layout.paths.root)] * 2,
+        )
+
+        negative_layout = CustodyTreeLayout(
+            self, "negative-observer"
+        )
+        real_age_seconds = ht._custody_age_seconds
+        observer_calls = 0
+
+        def with_observer_call(sample, since):
+            nonlocal observer_calls
+            result = real_age_seconds(sample, since)
+            if observer_calls == 0:
+                ht._observe_custody_tree(
+                    negative_layout.paths, "request:42"
+                )
+                observer_calls += 1
             return result
 
         with mock.patch.object(
-            self, "main_golden", side_effect=with_observer_call
+            ht, "_custody_age_seconds",
+            side_effect=with_observer_call,
         ), self.assertRaisesRegex(
             AssertionError,
             "custody projection trace for status",
         ):
-            self.assert_pa_locked_status(*arguments, **kwargs)
+            self.assert_pa_locked_status(
+                *arguments,
+                **kwargs,
+                tree_layout=negative_layout,
+            )
+        self.assertEqual(observer_calls, 1)
 
     def test_pa_loader_rejects_age_change_before_storage_or_clock(self):
         """Fails if: a P-a age change passes the legacy empty-shape guard."""
@@ -8486,7 +8585,9 @@ class StatusAndGoldenTests(StoreTestBase):
                 _PB_TWO_NOTICE_CLASSES_CUSTODY,
             ))
 
-        for label, aggregate, expected_custody in profiles:
+        for index, (label, aggregate, expected_custody) in enumerate(
+            profiles
+        ):
             with self.subTest(profile=label):
                 shutil.rmtree(self.home, ignore_errors=True)
                 self.home.mkdir()
@@ -8519,6 +8620,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         + _CT_CONFIRMED_NOTICE_180
                     )
                 )
+                tree_layout = CustodyTreeLayout(
+                    self, f"pb-rows-6-7-{index}"
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -8539,6 +8643,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_files,
                     expected_custody=expected_custody,
                     expected_custody_text=custody_text,
+                    tree_layout=tree_layout,
                 )
 
     def test_custody_pb_locked_status_rows_12_14(self):
@@ -8684,10 +8789,10 @@ class StatusAndGoldenTests(StoreTestBase):
             [_PB_RETRO_NAMESPACE_FAULT],
         ))
 
-        for (
+        for index, (
             label, primary, nightly, retro, expected_custody,
             expected_text, expected_state_loads,
-        ) in profiles:
+        ) in enumerate(profiles):
             with self.subTest(profile=label):
                 shutil.rmtree(self.home, ignore_errors=True)
                 self.home.mkdir()
@@ -8749,6 +8854,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         + _CT_RETRO_NAMESPACE_FAULT
                     )
                 )
+                tree_layout = CustodyTreeLayout(
+                    self, f"pb-rows-12-14-{index}"
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -8770,6 +8878,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_files,
                     expected_custody=expected_custody,
                     expected_custody_text=custody_text,
+                    tree_layout=tree_layout,
                 )
 
     def test_custody_pb_locked_status_row_16(self):
@@ -8875,10 +8984,10 @@ class StatusAndGoldenTests(StoreTestBase):
                 ("RuntimeError: notice-canary-exception",),
             ))
 
-        for (
+        for index, (
             label, aggregate, expected_custody, expected_state_loads,
             expected_text, expected_json, canaries,
-        ) in profiles:
+        ) in enumerate(profiles):
             with self.subTest(profile=label):
                 shutil.rmtree(self.home, ignore_errors=True)
                 self.home.mkdir()
@@ -8917,6 +9026,9 @@ class StatusAndGoldenTests(StoreTestBase):
                         + _CT_REQUEST_NOTICE_FAULT
                     )
                 )
+                tree_layout = CustodyTreeLayout(
+                    self, f"pb-row-16-{index}"
+                )
                 stdout = self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -8938,6 +9050,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_files,
                     expected_custody=expected_custody,
                     expected_custody_text=custody_text,
+                    tree_layout=tree_layout,
                 )
                 for canary in canaries:
                     self.assertNotIn(canary, stdout[0])
@@ -9060,6 +9173,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 json.dumps(retro).encode(),
             ".local/state/hass-triage/tick.lock": b"4242",
         }
+        tree_layout = CustodyTreeLayout(self, "l3-grouped-generations")
         text, _encoded = self.assert_pa_locked_status(
             cfg,
             RecordlessTraceGitHub({
@@ -9082,6 +9196,7 @@ class StatusAndGoldenTests(StoreTestBase):
             expected_files,
             expected_custody=_L3_CUSTODY,
             expected_custody_text=custody_text,
+            tree_layout=tree_layout,
         )
         self.assertNotIn("custody:\n", text)
 
@@ -9108,6 +9223,7 @@ class StatusAndGoldenTests(StoreTestBase):
             ],
             _PB_MIXED_TYPE_STATUS_TEXT,
             {"stored_unknown_next": ()},
+            None,
         ))
         profiles.append((
             "unsupported custody header",
@@ -9118,6 +9234,7 @@ class StatusAndGoldenTests(StoreTestBase):
             [_PB_UNSUPPORTED_VERSION_FAULT],
             _PB_UNSUPPORTED_VERSION_STATUS_TEXT,
             {"stored_unknown_next": ()},
+            None,
         ))
         unbound = {
             "version": 1,
@@ -9161,6 +9278,7 @@ class StatusAndGoldenTests(StoreTestBase):
                 ),
                 "stored_unknown_next": (),
             },
+            None,
         ))
         nightly_seed = self.nightly_seed(52)
         profiles.append((
@@ -9172,6 +9290,7 @@ class StatusAndGoldenTests(StoreTestBase):
             [{"store": "request", "kind": "parse", "exists": "yes"}],
             _PB_REQUEST_PARSE_STATUS_TEXT,
             {"stored_unknown_next": ()},
+            "supplement-valid-nightly-52",
         ))
         request_seed = self.request_seed(42)
         profiles.append((
@@ -9188,6 +9307,7 @@ class StatusAndGoldenTests(StoreTestBase):
             }],
             _PB_MISSING_NIGHTLY_STATUS_TEXT,
             {"stored_unknown_next": ()},
+            "supplement-missing-nightly",
         ))
         for reverse in (False, True):
             aggregate = request_seed.aggregate()
@@ -9229,11 +9349,16 @@ class StatusAndGoldenTests(StoreTestBase):
                 ],
                 _PB_UNBOUNDED_STATUS_TEXT,
                 {"stored_unknown_next": ()},
+                (
+                    "supplement-unbounded-reversed"
+                    if reverse else "supplement-unbounded-forward"
+                ),
             ))
 
         for (
             label, cfg, primary, nightly, expected_custody,
             expected_state_loads, expected_text, storage_facts,
+            layout_name,
         ) in profiles:
             with self.subTest(profile=label):
                 shutil.rmtree(self.home, ignore_errors=True)
@@ -9297,6 +9422,10 @@ class StatusAndGoldenTests(StoreTestBase):
                         + _CT_GENERATION_KEY_FAULT
                     )
                 )
+                tree_layout = (
+                    CustodyTreeLayout(self, layout_name)
+                    if layout_name is not None else None
+                )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -9325,6 +9454,7 @@ class StatusAndGoldenTests(StoreTestBase):
                         if label == "unbound notice prefix"
                         else None
                     ),
+                    tree_layout=tree_layout,
                 )
                 if label == "configured missing nightly":
                     inventory = self.file_inventory()
