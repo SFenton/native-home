@@ -118,7 +118,7 @@ class ProofCheckTests(unittest.TestCase):
         )
         self.write(
             "tests/test_broken.py",
-            "import pathlib\n\nPath = pathlib.Path(__file__).parents[1] / 'import-marker'\nPath.write_text('ran')\n",
+            f"import pathlib\n\nPath = pathlib.Path({str(self.repo / 'import-marker')!r})\nPath.write_text('ran')\n",
         )
         self.write("tests/unparseable.py", "def broken(:\n")
         self.write("pkg/a.py", "PKG = True\n")
