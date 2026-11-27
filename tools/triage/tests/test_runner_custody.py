@@ -453,12 +453,6 @@ _CT_REQUEST_42_YES = (
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; tree exists yes\n"
 )
-_CT_REQUEST_42_UNKNOWN = (
-    "custody record sfenton/native-home request request:42 "
-    "request-42-g1: phase release_authorized; original outcome "
-    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
-    "attempts unknown; reason unknown; next unknown; tree exists unknown\n"
-)
 _CT_REQUEST_42_MISSING_FAULT = (
     "custody fault request: missing_tree (exists no, scope tree, "
     "version 1, key {"
@@ -1628,18 +1622,10 @@ class CustodyTreeLayout:
 
     def assert_shape(self, testcase):
         if self.root_kind in ("file", "link", "directory"):
-            root_mode = os.lstat(self.paths.root).st_mode
-            testcase.assertEqual(
-                stat.S_ISREG(root_mode)
-                if self.root_kind == "file"
-                else stat.S_ISLNK(root_mode)
-                if self.root_kind == "link"
-                else stat.S_ISDIR(root_mode),
-                True,
-            )
+            self.assert_kind(testcase, self.paths.root, self.root_kind)
         elif self.root_kind == "linked_parent":
-            testcase.assertTrue(
-                stat.S_ISLNK(os.lstat(self.paths.root.parent).st_mode)
+            self.assert_kind(
+                testcase, self.paths.root.parent, "link"
             )
         else:
             with testcase.assertRaises(FileNotFoundError):
@@ -1651,18 +1637,24 @@ class CustodyTreeLayout:
             with testcase.assertRaises(FileNotFoundError):
                 os.lstat(path)
             return
+        self.assert_kind(testcase, path, self.worktrees_kind)
+        if self.worktrees_kind == "link":
+            self.assert_kind(
+                testcase, self.physical_worktrees_target, "directory"
+            )
+
+    @staticmethod
+    def assert_kind(testcase, path, kind):
+        predicates = {
+            "directory": stat.S_ISDIR,
+            "file": stat.S_ISREG,
+            "link": stat.S_ISLNK,
+        }
         mode = os.lstat(path).st_mode
         testcase.assertTrue(
-            stat.S_ISREG(mode)
-            if self.worktrees_kind == "file"
-            else stat.S_ISLNK(mode)
-            if self.worktrees_kind == "link"
-            else stat.S_ISDIR(mode)
+            predicates[kind](mode),
+            f"unexpected {kind} fixture kind for {path}",
         )
-        if self.worktrees_kind == "link":
-            testcase.assertTrue(stat.S_ISDIR(
-                os.lstat(self.physical_worktrees_target).st_mode
-            ))
 
     def leaf(self, basename, kind="directory"):
         path = self.paths.worktrees / basename
@@ -1939,6 +1931,11 @@ def expected_custody_tree_walks(layout, observations):
             if isinstance(result, tuple) and result[0] == "close"
             else None
         )
+        stat_result = (
+            failed_close[2]
+            if failed_close is not None
+            else result
+        )
         for index, name in enumerate(names):
             parent = current
             ordinal = open_ordinal
@@ -1973,12 +1970,11 @@ def expected_custody_tree_walks(layout, observations):
             current = symbol
         if stopped:
             continue
-        if result == "ok":
+        if stat_result == "ok":
             events.append(("stat", basename, current, False, "ok"))
         else:
             events.append((
-                "stat", basename, current, False, "error",
-                result,
+                "stat", basename, current, False, "error", stat_result,
             ))
         if failed_close is not None and current == failed_close[0]:
             events.append((
@@ -1996,7 +1992,13 @@ def expected_custody_open_ordinal(layout, component, preceding=0):
         for item in os.fspath(layout.paths.root).split(os.sep)
         if item
     ] + ["worktrees"]
-    return preceding * len(names) + names.index(component)
+    positions = [
+        index for index, name in enumerate(names)
+        if name == component
+    ]
+    if not positions:
+        raise AssertionError(f"component not in fixture walk: {component}")
+    return preceding * len(names) + positions[-1]
 
 
 def expected_custody_tree_probes(layout, *producers):
@@ -2004,6 +2006,36 @@ def expected_custody_tree_probes(layout, *producers):
         ("observe", os.fspath(layout.paths.root), producer)
         for producer in producers
     ]
+
+
+def assert_custody_tree_trace(testcase, actual, expected, message):
+    def compare(actual_value, expected_value, event_index):
+        if isinstance(expected_value, (set, frozenset)):
+            testcase.assertIn(actual_value, expected_value, message)
+        elif isinstance(expected_value, (tuple, list)):
+            testcase.assertIsInstance(
+                actual_value, type(expected_value), message
+            )
+            testcase.assertEqual(
+                len(actual_value), len(expected_value), message
+            )
+            for part_index, (left, right) in enumerate(
+                zip(actual_value, expected_value)
+            ):
+                compare(
+                    left, right, (event_index, part_index)
+                )
+        else:
+            testcase.assertEqual(
+                actual_value, expected_value,
+                f"{message} at {event_index}",
+            )
+
+    testcase.assertEqual(len(actual), len(expected), message)
+    for index, (actual_event, expected_event) in enumerate(
+        zip(actual, expected)
+    ):
+        compare(actual_event, expected_event, index)
 
 
 @dataclass(frozen=True)
@@ -3136,14 +3168,14 @@ class StoreTestBase(t.Base):
             ):
                 projection_trace.assert_fired(self)
             self.assertEqual(
-                {
-                    "probes": projection_trace.probes,
-                    "calls": projection_trace.events,
-                },
-                {
-                    "probes": expected_projection_probes,
-                    "calls": expected_projection_trace,
-                },
+                projection_trace.probes,
+                expected_projection_probes,
+                f"custody projection trace for {' '.join(argv)}",
+            )
+            assert_custody_tree_trace(
+                self,
+                projection_trace.events,
+                expected_projection_trace,
                 f"custody projection trace for {' '.join(argv)}",
             )
             self.assertEqual(
@@ -3297,7 +3329,7 @@ class StoreTestBase(t.Base):
         opens = tuple(
             ("open", repository) for repository in repositories
         )
-        return self.assert_pa_locked_status(
+        result = self.assert_pa_locked_status(
             cfg,
             RecordlessTraceGitHub(by_repo),
             RecordlessBoundaries(self.home),
@@ -3329,6 +3361,9 @@ class StoreTestBase(t.Base):
             tree_injection=tree_injection,
             tree_close_failure=tree_close_failure,
         )
+        self.assertNotIn("trace canary", result[0])
+        self.assertNotIn("trace canary", result[1])
+        return result
 
     def file_bytes(self):
         return {
@@ -8647,8 +8682,11 @@ class StatusAndGoldenTests(StoreTestBase):
     def test_custody_status_publishes_discriminating_tree_names(self):
         """Fails if: public formats lose prefix, case, binding or sibling distinctions."""
 
-        shutil.rmtree(self.home, ignore_errors=True)
-        self.home.mkdir()
+        def reset():
+            shutil.rmtree(self.home, ignore_errors=True)
+            self.home.mkdir()
+
+        reset()
         job = self.custody_seed(
             "request", "job:Researcher.X", "job-Researcher.X-g1",
             "refs/heads/agents/researcher-x",
@@ -8716,8 +8754,7 @@ class StatusAndGoldenTests(StoreTestBase):
             ),
         )
 
-        shutil.rmtree(self.home, ignore_errors=True)
-        self.home.mkdir()
+        reset()
         same_primary = self.request_seed(72).aggregate()
         same_nightly = self.nightly_seed(72).aggregate()
         same = with_custody_tree(
@@ -8746,8 +8783,7 @@ class StatusAndGoldenTests(StoreTestBase):
             ("request:72", "nightly:72"),
         )
 
-        shutil.rmtree(self.home, ignore_errors=True)
-        self.home.mkdir()
+        reset()
         cfg = dict(self.cfg)
         cfg["nightly"] = None
         retained = with_custody_tree(
@@ -8779,8 +8815,7 @@ class StatusAndGoldenTests(StoreTestBase):
             cfg=cfg,
         )
 
-        shutil.rmtree(self.home, ignore_errors=True)
-        self.home.mkdir()
+        reset()
         mixed = self.request_seed(42).aggregate()
         mixed["records"]["sfenton/native-home"]["request"]["request:7"] = {
             "g1": {
@@ -8825,6 +8860,411 @@ class StatusAndGoldenTests(StoreTestBase):
             layout,
             [("42", "ok")],
             ("request:42",),
+        )
+
+    def test_custody_status_publishes_request_42_layout_matrix(self):
+        """Fails if: a layout cutoff changes the bound value, fault or text."""
+        primary = self.request_seed(42).aggregate()
+        nightly = {"version": 1, "records": {}}
+        rows = (
+            (
+                "configured root absent", "absent", "directory", None,
+                "open", "runner", errno.ENOENT, None, "unreadable",
+            ),
+            (
+                "worktrees absent", "directory", "absent", None,
+                "open", "worktrees", errno.ENOENT, False, "missing",
+            ),
+            (
+                "configured root file", "file", "directory", None,
+                "open", "runner", errno.ENOTDIR, None, "unreadable",
+            ),
+            (
+                "worktrees file", "directory", "file", None,
+                "open", "worktrees", errno.ENOTDIR, None, "unreadable",
+            ),
+            (
+                "linked ancestor", "linked_parent", "directory", None,
+                "open", "linked-parent", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            (
+                "linked configured root", "link", "directory", None,
+                "open", "runner", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            (
+                "linked worktrees", "directory", "link", None,
+                "open", "worktrees", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            *(
+                (
+                    f"leaf {kind}", "directory", "directory", kind,
+                    "stat", "42", None, None, "unreadable",
+                )
+                for kind in (
+                    "file", "inside_link", "outside_link",
+                    "dangling_link", "fifo",
+                )
+            ),
+        )
+        completed = []
+        for index, (
+            label, root_kind, worktrees_kind, leaf_kind,
+            operation, component, error, exists, fault_kind,
+        ) in enumerate(rows):
+            with self.subTest(layout=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                layout = CustodyTreeLayout(
+                    self, f"public-layout-{index}",
+                    root=root_kind, worktrees=worktrees_kind,
+                )
+                if leaf_kind is not None:
+                    layout.leaf("42", leaf_kind)
+                fault = (
+                    _PA_REQUEST_42_MISSING_TREE
+                    if fault_kind == "missing"
+                    else _PA_REQUEST_42_UNREADABLE_TREE
+                )
+                text = (
+                    _CT_REQUEST_42_MISSING
+                    + _CT_REQUEST_42_MISSING_FAULT
+                    if fault_kind == "missing"
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    )
+                )
+                if operation == "open":
+                    ordinal = expected_custody_open_ordinal(
+                        layout, component
+                    )
+                    observation = (
+                        "open", ordinal, error
+                    )
+                else:
+                    observation = "ok"
+                expected = with_custody_tree(
+                    _PA_REQUEST_42_CUSTODY,
+                    [(0, fault["key"], exists)],
+                    [fault],
+                )
+                self.assert_public_tree_status(
+                    primary, nightly, expected, text,
+                    layout, [("42", observation)], ("request:42",),
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "public layout matrix did not complete",
+        )
+
+    def test_custody_status_publishes_real_long_request_name(self):
+        """Fails if: the decimal producer is changed before the real stat."""
+        basename = "9" * 1000
+        seed = self.request_seed(basename)
+        primary = seed.aggregate()
+        key = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": f"request:{basename}",
+            "generation": f"request-{basename}-g1",
+        }
+        record = dict(
+            _PA_REQUEST_42_RECORD,
+            producer=key["producer"],
+            generation=key["generation"],
+        )
+        fault = dict(
+            _PA_REQUEST_42_UNREADABLE_TREE,
+            key=key,
+        )
+        expected = with_custody_tree(
+            {"version": 1, "records": [record], "faults": []},
+            [(0, key, None)],
+            [fault],
+        )
+        record_text = (
+            "custody record sfenton/native-home request "
+            f"{key['producer']} {key['generation']}: phase "
+            "release_authorized; original outcome clean_end/0/done; "
+            "since 2026-11-23T12:00:00Z; age 0s; attempts unknown; "
+            "reason unknown; next unknown; tree exists unknown\n"
+        )
+        fault_text = (
+            "custody fault request: unreadable_tree (exists unknown, "
+            "scope tree, version 1, key "
+            + json.dumps(key, separators=(",", ":"))
+            + ")\n"
+        )
+        layout = CustodyTreeLayout(self, "public-long-request-name")
+        self.assert_public_tree_status(
+            primary, {"version": 1, "records": {}},
+            expected, record_text + fault_text,
+            layout, [(basename, errno.ENAMETOOLONG)],
+            (key["producer"],),
+        )
+        completed = [basename]
+        self.assertEqual(completed, ["9" * 1000])
+
+    def test_custody_status_continues_after_one_shot_metadata_errors(self):
+        """Fails if: one metadata error removes or changes either sibling."""
+        job = self.custody_seed(
+            "request", "job:Researcher.X", "job-Researcher.X-g1",
+            "refs/heads/agents/researcher-x",
+            "job-Researcher.X", "job-Researcher.X-seed",
+        )
+        request = self.request_seed(42)
+        retro = self.retro_seed(
+            "Task-X",
+            "refs/heads/agents/task-x",
+            "Task-X",
+            "2026-11-23T12:00:00Z",
+            "retro-Task-X",
+            "retro-Task-X-seed",
+        )
+        primary = CustodySeeds((job, request, retro)).aggregate()
+        nightly = {"version": 1, "records": {}}
+        mixed = {
+            "version": 1,
+            "records": [
+                _PA_MIXED_JOB_RECORD,
+                _PA_REQUEST_42_RECORD,
+                _PA_MIXED_RETRO_RECORD,
+            ],
+            "faults": [],
+        }
+        positive = with_custody_tree(
+            mixed,
+            [
+                (
+                    0,
+                    {
+                        key: _PA_MIXED_JOB_RECORD[key]
+                        for key in (
+                            "repository", "intake",
+                            "producer", "generation",
+                        )
+                    },
+                    True,
+                ),
+                (
+                    1,
+                    _PA_REQUEST_42_MISSING_TREE["key"],
+                    True,
+                ),
+                (
+                    2,
+                    {
+                        key: _PA_MIXED_RETRO_RECORD[key]
+                        for key in (
+                            "repository", "intake",
+                            "producer", "generation",
+                        )
+                    },
+                    True,
+                ),
+            ],
+            [],
+        )
+        positive_text = (
+            _CT_MIXED_JOB_YES
+            + _CT_REQUEST_42_YES
+            + _CT_MIXED_RETRO_YES
+        )
+        rows = (
+            ("configured root EACCES", "open", "runner", errno.EACCES),
+            ("worktrees ELOOP", "open", "worktrees", errno.ELOOP),
+            ("worktrees ENOTDIR", "open", "worktrees", errno.ENOTDIR),
+            ("leaf EIO", "stat", "42", errno.EIO),
+        )
+        completed = []
+        for index, (label, operation, target, error) in enumerate(rows):
+            with self.subTest(error=label):
+                control = CustodyTreeLayout(
+                    self, f"public-metadata-{index}-control"
+                )
+                for basename in (
+                    "job-Researcher.X", "42", "retro-Task-X",
+                ):
+                    control.leaf(basename)
+                self.assert_public_tree_status(
+                    primary, nightly, positive, positive_text,
+                    control,
+                    [
+                        ("job-Researcher.X", "ok"),
+                        ("42", "ok"),
+                        ("retro-Task-X", "ok"),
+                    ],
+                    (
+                        "job:Researcher.X", "request:42",
+                        "retro:Task-X",
+                    ),
+                )
+                layout = CustodyTreeLayout(
+                    self, f"public-metadata-{index}-injected"
+                )
+                for basename in (
+                    "job-Researcher.X", "42", "retro-Task-X",
+                ):
+                    layout.leaf(basename)
+                injection_target = (
+                    expected_custody_open_ordinal(
+                        layout, target, preceding=1
+                    )
+                    if operation == "open" else target
+                )
+                injected = (
+                    ("open", injection_target, error)
+                    if operation == "open" else error
+                )
+                expected = with_custody_tree(
+                    mixed,
+                    [
+                        (
+                            0,
+                            {
+                                key: _PA_MIXED_JOB_RECORD[key]
+                                for key in (
+                                    "repository", "intake",
+                                    "producer", "generation",
+                                )
+                            },
+                            True,
+                        ),
+                        (
+                            1, _PA_REQUEST_42_UNREADABLE_TREE["key"],
+                            None,
+                        ),
+                        (
+                            2,
+                            {
+                                key: _PA_MIXED_RETRO_RECORD[key]
+                                for key in (
+                                    "repository", "intake",
+                                    "producer", "generation",
+                                )
+                            },
+                            True,
+                        ),
+                    ],
+                    [_PA_REQUEST_42_UNREADABLE_TREE],
+                )
+                self.assert_public_tree_status(
+                    primary, nightly, expected,
+                    (
+                        _CT_MIXED_JOB_YES
+                        + _CT_REQUEST_42
+                        + _CT_MIXED_RETRO_YES
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    ),
+                    layout,
+                    [
+                        ("job-Researcher.X", "ok"),
+                        ("42", injected),
+                        ("retro-Task-X", "ok"),
+                    ],
+                    (
+                        "job:Researcher.X", "request:42",
+                        "retro:Task-X",
+                    ),
+                    tree_injection=(
+                        operation, injection_target, error
+                    ),
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "metadata error matrix did not complete",
+        )
+
+    def test_custody_status_publishes_one_shot_cleanup_failures(self):
+        """Fails if: a consumed close or its remaining cleanup changes publication."""
+        primary = self.request_seed(42).aggregate()
+        nightly = {"version": 1, "records": {}}
+        rows = (
+            ("component handoff", False, "component"),
+            ("worktrees handoff", True, "worktrees"),
+            ("final close after missing", False, "final"),
+            ("final close after positive", True, "final"),
+        )
+        completed = []
+        for index, (label, positive, position) in enumerate(rows):
+            with self.subTest(cleanup=label):
+                control = CustodyTreeLayout(
+                    self, f"public-close-{index}-control"
+                )
+                if positive:
+                    control.leaf("42")
+                control_result = (
+                    with_custody_tree(
+                        _PA_REQUEST_42_CUSTODY,
+                        [(0, _PA_REQUEST_42_MISSING_TREE["key"], True)],
+                        [],
+                    )
+                    if positive
+                    else with_custody_tree(
+                        _PA_REQUEST_42_CUSTODY,
+                        [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                        [_PA_REQUEST_42_MISSING_TREE],
+                    )
+                )
+                control_text = (
+                    _CT_REQUEST_42_YES
+                    if positive
+                    else (
+                        _CT_REQUEST_42_MISSING
+                        + _CT_REQUEST_42_MISSING_FAULT
+                    )
+                )
+                control_stat = "ok" if positive else errno.ENOENT
+                self.assert_public_tree_status(
+                    primary, nightly, control_result, control_text,
+                    control, [("42", control_stat)], ("request:42",),
+                )
+
+                layout = CustodyTreeLayout(
+                    self, f"public-close-{index}-injected"
+                )
+                if positive:
+                    layout.leaf("42")
+                root_components = [
+                    item
+                    for item in os.fspath(layout.paths.root).split(os.sep)
+                    if item
+                ]
+                if position == "component":
+                    selector = "fd0"
+                elif position == "worktrees":
+                    selector = f"fd{len(root_components)}"
+                else:
+                    selector = f"fd{len(root_components) + 1}"
+                expected = with_custody_tree(
+                    _PA_REQUEST_42_CUSTODY,
+                    [(0, _PA_REQUEST_42_UNREADABLE_TREE["key"], None)],
+                    [_PA_REQUEST_42_UNREADABLE_TREE],
+                )
+                stat_result = "ok" if positive else errno.ENOENT
+                self.assert_public_tree_status(
+                    primary, nightly, expected,
+                    (
+                        _CT_REQUEST_42
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    ),
+                    layout,
+                    [(
+                        "42",
+                        ("close", selector, errno.EIO, stat_result),
+                    )],
+                    ("request:42",),
+                    tree_close_failure=selector,
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "cleanup failure matrix did not complete",
         )
 
     def test_custody_status_samples_clock_once_and_clamps_ages(self):
