@@ -45,6 +45,14 @@ _PA_HEALTHY_STATUS_TEXT = (
     "nightly queue: empty\n",
     "",
 )
+_PA_REQUEST_ONLY_STATUS_TEXT = (
+    0,
+    "paused: False   installed: False   running: no\n"
+    "self-changes: running\n"
+    "auth: claude logged in\n"
+    "queue: empty\n",
+    "",
+)
 _PA_QUEUE_ERROR_STATUS_TEXT = (
     0,
     "paused: False   installed: False   running: no\n"
@@ -268,6 +276,110 @@ _PA_REQUEST_42_CUSTODY = {
     "records": [_PA_REQUEST_42_RECORD],
     "faults": [],
 }
+_PA_REQUEST_42_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-g1",
+    },
+    "exists": "no",
+}
+_PA_REQUEST_42_UNREADABLE_TREE = {
+    "store": "request",
+    "kind": "unreadable_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-g1",
+    },
+    "exists": "unknown",
+}
+_PA_NIGHTLY_52_MISSING_TREE = {
+    "store": "nightly",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "nightly",
+        "producer": "nightly:52",
+        "generation": "nightly-52-g1",
+    },
+    "exists": "no",
+}
+_PA_REQUEST_72_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:72",
+        "generation": "request-72-g1",
+    },
+    "exists": "no",
+}
+_PA_PRODUCT_REQUEST_7_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "example/product",
+        "intake": "request",
+        "producer": "request:7",
+        "generation": "g7",
+    },
+    "exists": "no",
+}
+_PA_NIGHTLY_72_MISSING_TREE = {
+    "store": "nightly",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "nightly",
+        "producer": "nightly:72",
+        "generation": "nightly-72-g1",
+    },
+    "exists": "no",
+}
+_PA_JOB_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "job:researcher",
+        "generation": "job-researcher-g1",
+    },
+    "exists": "no",
+}
+_PA_RETRO_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "retro:job-researcher-2026-11-23",
+        "generation": "retro-job-researcher-2026-11-23-g1",
+    },
+    "exists": "no",
+}
 _PA_NIGHTLY_52_CUSTODY = {
     "version": 1,
     "records": [_PA_NIGHTLY_52_RECORD],
@@ -297,6 +409,14 @@ _PA_RETAINED_NIGHTLY_CUSTODY = {
     ],
     "faults": [],
 }
+_PA_MIXED_JOB_RECORD = dict(
+    _PA_JOB_RECORD, producer="job:Researcher.X",
+    generation="job-Researcher.X-g1",
+)
+_PA_MIXED_RETRO_RECORD = dict(
+    _PA_RETRO_RECORD, producer="retro:Task-X",
+    generation="retro-Task-X-g1",
+)
 _PA_REQUEST_72_CUSTODY = {
     "version": 1,
     "records": [_PA_REQUEST_72_RECORD],
@@ -315,12 +435,66 @@ _CT_REQUEST_42 = (
     "attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
 )
+_CT_TWO_BINDINGS_RECORD_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome clean_end/0/done; "
+    "since 2026-11-23T12:00:00Z; age 0s; attempts 0; reason reserved; "
+    "next human; tree exists no\n"
+)
+_CT_REQUEST_42_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_REQUEST_42_YES = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_REQUEST_42_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1"})\n'
+)
+_CT_REQUEST_42_UNREADABLE_FAULT = (
+    "custody fault request: unreadable_tree (exists unknown, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-g1"})\n'
+)
 _CT_NIGHTLY_52 = (
     "custody record sfenton/native-home nightly nightly:52 "
     "nightly-52-g1: phase release_authorized; original outcome "
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
+)
+_CT_SIGNED_RECORD_0_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome "
+    "untrusted/-7/unknown; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_NIGHTLY_52_MISSING = (
+    "custody record sfenton/native-home nightly nightly:52 "
+    "nightly-52-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_NIGHTLY_52_YES = (
+    "custody record sfenton/native-home nightly nightly:52 "
+    "nightly-52-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_NIGHTLY_52_MISSING_FAULT = (
+    "custody fault nightly: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:52","generation":"nightly-52-g1"})\n'
 )
 _CT_REQUEST_72 = (
     "custody record sfenton/native-home request request:72 "
@@ -329,12 +503,48 @@ _CT_REQUEST_72 = (
     "attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
 )
+_CT_SIGNED_RECORD_3600_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-g1: phase pending; original outcome "
+    "untrusted/-7/unknown; since 2026-11-23T12:00:00Z; age 3600s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_REQUEST_72_MISSING = (
+    "custody record sfenton/native-home request request:72 "
+    "request-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_REQUEST_72_YES = (
+    "custody record sfenton/native-home request request:72 "
+    "request-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_REQUEST_72_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:72","generation":"request-72-g1"})\n'
+)
 _CT_NIGHTLY_72 = (
     "custody record sfenton/native-home nightly nightly:72 "
     "nightly-72-g1: phase release_authorized; original outcome "
     "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
+)
+_CT_NIGHTLY_72_MISSING = (
+    "custody record sfenton/native-home nightly nightly:72 "
+    "nightly-72-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_NIGHTLY_72_MISSING_FAULT = (
+    "custody fault nightly: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"nightly",'
+    '"producer":"nightly:72","generation":"nightly-72-g1"})\n'
 )
 _CT_JOB = (
     "custody record sfenton/native-home request job:researcher "
@@ -343,6 +553,24 @@ _CT_JOB = (
     "attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
 )
+_CT_JOB_MISSING = (
+    "custody record sfenton/native-home request job:researcher "
+    "job-researcher-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists no\n"
+)
+_CT_MIXED_JOB_YES = (
+    "custody record sfenton/native-home request job:Researcher.X "
+    "job-Researcher.X-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_JOB_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"job:researcher","generation":"job-researcher-g1"})\n'
+)
 _CT_RETRO = (
     "custody record sfenton/native-home request "
     "retro:job-researcher-2026-11-23 "
@@ -350,6 +578,27 @@ _CT_RETRO = (
     "original outcome clean_end/0/done; since 2026-11-23T12:00:00Z; "
     "age 0s; attempts unknown; reason unknown; next unknown; "
     "tree exists unknown\n"
+)
+_CT_RETRO_MISSING = (
+    "custody record sfenton/native-home request "
+    "retro:job-researcher-2026-11-23 "
+    "retro-job-researcher-2026-11-23-g1: phase release_authorized; "
+    "original outcome clean_end/0/done; since 2026-11-23T12:00:00Z; "
+    "age 0s; attempts unknown; reason unknown; next unknown; "
+    "tree exists no\n"
+)
+_CT_MIXED_RETRO_YES = (
+    "custody record sfenton/native-home request retro:Task-X "
+    "retro-Task-X-g1: phase release_authorized; original outcome "
+    "clean_end/0/done; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts unknown; reason unknown; next unknown; tree exists yes\n"
+)
+_CT_RETRO_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"retro:job-researcher-2026-11-23",'
+    '"generation":"retro-job-researcher-2026-11-23-g1"})\n'
 )
 _CT_TWO_BINDINGS_RECORD = (
     "custody record sfenton/native-home request request:42 "
@@ -531,6 +780,12 @@ _CT_L3_RECORD_1 = (
     "untrusted/unknown/unknown; since 2026-11-23T12:00:00Z; age 0s; "
     "attempts 0; reason reserved; next human; tree exists unknown\n"
 )
+_CT_L3_RECORD_1_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-l3-g1: phase pending; original outcome "
+    "untrusted/unknown/unknown; since 2026-11-23T12:00:00Z; age 0s; "
+    "attempts 0; reason reserved; next human; tree exists no\n"
+)
 _CT_L3_BINDING_1 = (
     "custody binding sfenton/native-home request request:42 "
     "request-42-l3-g1 agents/review [refs/heads/agents/review]: "
@@ -550,6 +805,12 @@ _CT_L3_RECORD_2 = (
     "2026-11-23T12:00:00Z; age 0s; attempts unknown; reason unknown; "
     "next unknown; tree exists unknown\n"
 )
+_CT_L3_RECORD_2_MISSING = (
+    "custody record sfenton/native-home request request:42 "
+    "request-42-l3-g2: phase pending; original outcome unknown; since "
+    "2026-11-23T12:00:00Z; age 0s; attempts unknown; reason unknown; "
+    "next unknown; tree exists no\n"
+)
 _CT_L3_BINDING_2 = (
     "custody binding sfenton/native-home request request:42 "
     "request-42-l3-g2 agents/review [refs/heads/agents/review]: "
@@ -567,6 +828,44 @@ _CT_L3_NIGHTLY_VERSION_FAULT = (
     "custody fault nightly: version (exists yes, scope store, "
     "version unknown, key unknown)\n"
 )
+_CT_L3_REQUEST_1_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-l3-g1"})\n'
+)
+_CT_L3_REQUEST_2_MISSING_FAULT = (
+    "custody fault request: missing_tree (exists no, scope tree, "
+    "version 1, key {"
+    '"repository":"sfenton/native-home","intake":"request",'
+    '"producer":"request:42","generation":"request-42-l3-g2"})\n'
+)
+_PA_L3_REQUEST_1_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-l3-g1",
+    },
+    "exists": "no",
+}
+_PA_L3_REQUEST_2_MISSING_TREE = {
+    "store": "request",
+    "kind": "missing_tree",
+    "scope": "tree",
+    "version": 1,
+    "key": {
+        "repository": "sfenton/native-home",
+        "intake": "request",
+        "producer": "request:42",
+        "generation": "request-42-l3-g2",
+    },
+    "exists": "no",
+}
 _L3_CUSTODY = {
     "version": 1,
     "records": [
@@ -689,6 +988,25 @@ def with_custody_text(expected_text, custody_text):
         stdout[:position] + custody_text + stdout[position:],
         expected_text[2],
     )
+
+
+def with_custody_tree(expected, observations, faults):
+    result = json.loads(json.dumps(expected))
+    for index, identity, exists in observations:
+        record = result["records"][index]
+        actual = {
+            name: record[name]
+            for name in (
+                "repository", "intake", "producer", "generation",
+            )
+        }
+        if actual != identity:
+            raise AssertionError(
+                f"custody tree record {index} identity changed"
+            )
+        record["tree_exists"] = exists
+    result["faults"] = json.loads(json.dumps(faults))
+    return result
 
 _PB_SIGNED_OUTCOME = {
     "trust": "untrusted",
@@ -1245,19 +1563,29 @@ class CustodyTreeLayout:
     def __init__(self, owner, name, root="directory",
                  worktrees="directory"):
         physical_home = Path(owner.home).resolve()
+        self.home = physical_home
         self.area = physical_home / "tree-observer" / name
         self.area.mkdir(parents=True)
+        self.files = {}
+        self.root_kind = root
+        self.worktrees_kind = worktrees
         runner_parent = self.area / "runner-parent"
         runner_parent.mkdir()
         configured_root = runner_parent / "runner"
         if root == "directory":
             configured_root.mkdir()
+            self.physical_root = configured_root
         elif root == "file":
             configured_root.write_text("not a directory")
+            self.files[str(configured_root.relative_to(self.home))] = (
+                b"not a directory"
+            )
+            self.physical_root = configured_root
         elif root == "link":
             target = self.area / "linked-root-target"
             target.mkdir()
             configured_root.symlink_to(target, target_is_directory=True)
+            self.physical_root = target
         elif root == "linked_parent":
             target_parent = self.area / "linked-parent-target"
             target_parent.mkdir()
@@ -1265,8 +1593,11 @@ class CustodyTreeLayout:
             linked_parent = self.area / "linked-parent"
             linked_parent.symlink_to(target_parent, target_is_directory=True)
             configured_root = linked_parent / "runner"
+            self.physical_root = target_parent / "runner"
         elif root != "absent":
             raise AssertionError(f"unknown root kind {root}")
+        else:
+            self.physical_root = configured_root
         cfg = dict(owner.cfg)
         cfg["root"] = str(configured_root)
         self.paths = ht.Paths(cfg, owner.home)
@@ -1276,14 +1607,54 @@ class CustodyTreeLayout:
             self.paths.worktrees.mkdir()
         elif worktrees == "file":
             self.paths.worktrees.write_text("not a directory")
+            self.files[str(
+                (self.physical_root / "worktrees").relative_to(self.home)
+            )] = b"not a directory"
         elif worktrees == "link":
             target = self.area / "linked-worktrees-target"
             target.mkdir()
             self.paths.worktrees.symlink_to(
                 target, target_is_directory=True
             )
+            self.physical_worktrees_target = target
         elif worktrees != "absent":
             raise AssertionError(f"unknown worktrees kind {worktrees}")
+
+    def assert_shape(self, testcase):
+        if self.root_kind in ("file", "link", "directory"):
+            self.assert_kind(testcase, self.paths.root, self.root_kind)
+        elif self.root_kind == "linked_parent":
+            self.assert_kind(
+                testcase, self.paths.root.parent, "link"
+            )
+        else:
+            with testcase.assertRaises(FileNotFoundError):
+                os.lstat(self.paths.root)
+        if self.root_kind not in ("directory", "link", "linked_parent"):
+            return
+        path = self.physical_root / "worktrees"
+        if self.worktrees_kind == "absent":
+            with testcase.assertRaises(FileNotFoundError):
+                os.lstat(path)
+            return
+        self.assert_kind(testcase, path, self.worktrees_kind)
+        if self.worktrees_kind == "link":
+            self.assert_kind(
+                testcase, self.physical_worktrees_target, "directory"
+            )
+
+    @staticmethod
+    def assert_kind(testcase, path, kind):
+        predicates = {
+            "directory": stat.S_ISDIR,
+            "file": stat.S_ISREG,
+            "link": stat.S_ISLNK,
+        }
+        mode = os.lstat(path).st_mode
+        testcase.assertTrue(
+            predicates[kind](mode),
+            f"unexpected {kind} fixture kind for {path}",
+        )
 
     def leaf(self, basename, kind="directory"):
         path = self.paths.worktrees / basename
@@ -1291,6 +1662,11 @@ class CustodyTreeLayout:
             path.mkdir()
         elif kind == "file":
             path.write_text("leaf")
+            self.files[str(
+                (self.physical_root / "worktrees" / basename).relative_to(
+                    self.home
+                )
+            )] = b"leaf"
         elif kind == "inside_link":
             target = self.paths.worktrees / "inside-target"
             target.mkdir()
@@ -1531,6 +1907,135 @@ class CustodyTreeTrace:
 
     def assert_fired(self, testcase):
         testcase.assertEqual(self.injections, 1)
+
+
+def expected_custody_tree_walks(layout, observations):
+    events = []
+    next_symbol = 0
+    open_ordinal = 0
+    names = ["/"] + [
+        item
+        for item in os.fspath(layout.paths.root).split(os.sep)
+        if item
+    ] + ["worktrees"]
+    for basename, result in observations:
+        current = None
+        stopped = False
+        failed_open = (
+            result[1:]
+            if isinstance(result, tuple) and result[0] == "open"
+            else None
+        )
+        failed_close = (
+            result[1:]
+            if isinstance(result, tuple) and result[0] == "close"
+            else None
+        )
+        stat_result = (
+            failed_close[2]
+            if failed_close is not None
+            else result
+        )
+        for index, name in enumerate(names):
+            parent = current
+            ordinal = open_ordinal
+            open_ordinal += 1
+            if failed_open is not None and ordinal == failed_open[0]:
+                events.append((
+                    "open", name, CustodyTreeTrace._FLAGS,
+                    parent, "error", failed_open[1],
+                ))
+                if current is not None:
+                    events.append(("close", current, "ok"))
+                stopped = True
+                break
+            symbol = f"fd{next_symbol}"
+            next_symbol += 1
+            events.append((
+                "open", name, CustodyTreeTrace._FLAGS,
+                parent, "ok", symbol,
+            ))
+            if index:
+                if failed_close is not None and parent == failed_close[0]:
+                    events.extend((
+                        (
+                            "close", parent, "ok", "injected-error",
+                            failed_close[1],
+                        ),
+                        ("close", symbol, "ok"),
+                    ))
+                    stopped = True
+                    break
+                events.append(("close", parent, "ok"))
+            current = symbol
+        if stopped:
+            continue
+        if stat_result == "ok":
+            events.append(("stat", basename, current, False, "ok"))
+        else:
+            events.append((
+                "stat", basename, current, False, "error", stat_result,
+            ))
+        if failed_close is not None and current == failed_close[0]:
+            events.append((
+                "close", current, "ok", "injected-error",
+                failed_close[1],
+            ))
+        else:
+            events.append(("close", current, "ok"))
+    return events
+
+
+def expected_custody_open_ordinal(layout, component, preceding=0):
+    names = ["/"] + [
+        item
+        for item in os.fspath(layout.paths.root).split(os.sep)
+        if item
+    ] + ["worktrees"]
+    positions = [
+        index for index, name in enumerate(names)
+        if name == component
+    ]
+    if not positions:
+        raise AssertionError(f"component not in fixture walk: {component}")
+    return preceding * len(names) + positions[-1]
+
+
+def expected_custody_tree_probes(layout, *producers):
+    return [
+        ("observe", os.fspath(layout.paths.root), producer)
+        for producer in producers
+    ]
+
+
+def assert_custody_tree_trace(testcase, actual, expected, message):
+    def compare(actual_value, expected_value, event_index):
+        if isinstance(expected_value, (set, frozenset)):
+            testcase.assertIn(actual_value, expected_value, message)
+        elif isinstance(expected_value, (tuple, list)):
+            testcase.assertIsInstance(
+                actual_value, type(expected_value), message
+            )
+            testcase.assertEqual(
+                len(actual_value), len(expected_value), message
+            )
+            for part_index, (left, right) in enumerate(
+                zip(actual_value, expected_value)
+            ):
+                compare(
+                    left, right, (event_index, part_index)
+                )
+        else:
+            testcase.assertEqual(
+                actual_value, expected_value,
+                f"{message} at {event_index}",
+            )
+
+    testcase.assertEqual(len(actual), len(expected), message)
+    for index, (actual_event, expected_event) in enumerate(
+        zip(actual, expected)
+    ):
+        compare(actual_event, expected_event, index)
 
 
 @dataclass(frozen=True)
@@ -2465,6 +2970,8 @@ class StoreTestBase(t.Base):
         expected_projection_trace=None,
         expected_renderer_trace=None,
         tree_layout=None,
+        tree_injection=None,
+        tree_close_failure=None,
     ):
         expected_projection_probes = list(
             expected_projection_probes or ()
@@ -2494,7 +3001,12 @@ class StoreTestBase(t.Base):
             self.assertEqual(
                 configured_paths.lock, self.paths.lock
             )
-            self.assertTrue(configured_paths.worktrees.is_dir())
+            tree_layout.assert_shape(self)
+            if (
+                tree_layout.root_kind == "directory"
+                and tree_layout.worktrees_kind == "directory"
+            ):
+                self.assertTrue(configured_paths.worktrees.is_dir())
         queue_events, remote_events = expected_queue_events, expected_remote_events
         text_queue_events, encoded_queue_events = queue_events
         if remote_events is None:
@@ -2641,21 +3153,29 @@ class StoreTestBase(t.Base):
                         "status created a directory"
                     ),
                 ))
-                with CustodyTreeTrace() as projection_trace:
+                with CustodyTreeTrace(
+                    inject=tree_injection,
+                    close_failure=tree_close_failure,
+                ) as projection_trace:
                     result = self.main_golden(
                         argv, cfg, gh, boundaries,
                         custody_clock=test_clock,
                         clock_calls=clock_calls,
                     )
+            if (
+                tree_injection is not None
+                or tree_close_failure is not None
+            ):
+                projection_trace.assert_fired(self)
             self.assertEqual(
-                {
-                    "probes": projection_trace.probes,
-                    "calls": projection_trace.events,
-                },
-                {
-                    "probes": expected_projection_probes,
-                    "calls": expected_projection_trace,
-                },
+                projection_trace.probes,
+                expected_projection_probes,
+                f"custody projection trace for {' '.join(argv)}",
+            )
+            assert_custody_tree_trace(
+                self,
+                projection_trace.events,
+                expected_projection_trace,
                 f"custody projection trace for {' '.join(argv)}",
             )
             self.assertEqual(
@@ -2781,6 +3301,69 @@ class StoreTestBase(t.Base):
         self.assertEqual(after_lock_bytes, expected_files)
         self.assertEqual(after_inventory, before_inventory)
         return text[1], encoded[1]
+
+    def assert_public_tree_status(
+        self, primary, nightly, expected_custody, custody_text,
+        tree_layout, observations, probes, *,
+        cfg=None, tree_injection=None, tree_close_failure=None,
+    ):
+        cfg = dict(cfg or self.cfg)
+        cfg["schedules"] = {}
+        primary_value = self.legacy(custody=primary)
+        nightly_value = self.legacy(custody=nightly)
+        self.write_raw(self.paths.state, primary_value)
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, nightly_value)
+        expected_files = {
+            ".local/state/hass-triage/state.json":
+                json.dumps(primary_value).encode(),
+            ".local/state/hass-triage/state-nightly.json":
+                json.dumps(nightly_value).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        }
+        expected_files.update(tree_layout.files)
+        repositories = [cfg["request_repo"]]
+        if cfg.get("nightly"):
+            repositories.append(cfg["nightly"]["repo"])
+        by_repo = {repository: [] for repository in repositories}
+        opens = tuple(
+            ("open", repository) for repository in repositories
+        )
+        result = self.assert_pa_locked_status(
+            cfg,
+            RecordlessTraceGitHub(by_repo),
+            RecordlessBoundaries(self.home),
+            with_custody_text(
+                (
+                    _PA_HEALTHY_STATUS_TEXT
+                    if cfg.get("nightly")
+                    else _PA_REQUEST_ONLY_STATUS_TEXT
+                ),
+                custody_text,
+            ),
+            _PA_HEALTHY_JSON_FIELDS,
+            [],
+            [],
+            [],
+            [],
+            (opens, opens),
+            (opens, opens),
+            expected_files,
+            expected_custody=expected_custody,
+            expected_custody_text=custody_text,
+            tree_layout=tree_layout,
+            expected_projection_probes=expected_custody_tree_probes(
+                tree_layout, *probes
+            ),
+            expected_projection_trace=expected_custody_tree_walks(
+                tree_layout, observations
+            ),
+            tree_injection=tree_injection,
+            tree_close_failure=tree_close_failure,
+        )
+        self.assertNotIn("trace canary", result[0])
+        self.assertNotIn("trace canary", result[1])
+        return result
 
     def file_bytes(self):
         return {
@@ -7473,15 +8056,38 @@ class StatusAndGoldenTests(StoreTestBase):
             expected_custody,
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS["state_loads"],
         )
+        status_custody = expected_custody
+        status_custody_text = _PA_ABSENT
+        expected_projection_probes = []
+        expected_projection_trace = []
+        if expected_custody is _PA_REQUEST_72_CUSTODY:
+            status_custody = with_custody_tree(
+                expected_custody,
+                [(0, _PA_REQUEST_72_MISSING_TREE["key"], False)],
+                [_PA_REQUEST_72_MISSING_TREE],
+            )
+            status_custody_text = (
+                _CT_REQUEST_72_MISSING
+                + _CT_REQUEST_72_MISSING_FAULT
+            )
+            expected_projection_probes = (
+                expected_custody_tree_probes(
+                    tree_layout, "request:72"
+                )
+            )
+            expected_projection_trace = expected_custody_tree_walks(
+                tree_layout, [("72", errno.ENOENT)]
+            )
         self.assert_pa_locked_status(
             cfg,
             gh,
             boundaries,
             (
                 with_custody_text(
-                    _PA_MALFORMED_NIGHTLY_STATUS_TEXT, _CT_REQUEST_72
+                    _PA_MALFORMED_NIGHTLY_STATUS_TEXT,
+                    status_custody_text,
                 )
-                if expected_custody is _PA_REQUEST_72_CUSTODY
+                if status_custody_text is not _PA_ABSENT
                 else _PA_MALFORMED_NIGHTLY_STATUS_TEXT
             ),
             _PA_MALFORMED_NIGHTLY_JSON_FIELDS,
@@ -7505,13 +8111,13 @@ class StatusAndGoldenTests(StoreTestBase):
                     json.dumps(primary).encode(),
                 ".local/state/hass-triage/tick.lock": b"4242",
             },
-            expected_custody=expected_custody,
+            expected_custody=status_custody,
             expected_custody_text=(
-                _CT_REQUEST_72
-                if expected_custody is _PA_REQUEST_72_CUSTODY
-                else _PA_ABSENT
+                status_custody_text
             ),
             tree_layout=tree_layout,
+            expected_projection_probes=expected_projection_probes,
+            expected_projection_trace=expected_projection_trace,
         )
         self.assertEqual(
             gh.events,
@@ -7662,13 +8268,108 @@ class StatusAndGoldenTests(StoreTestBase):
                 self.assert_pa_custody_loader(
                     cfg, expected_custody, expected_json["state_loads"]
                 )
-                expected_files = {
-                    ".local/state/hass-triage/state.json":
-                        json.dumps(primary).encode(),
-                    ".local/state/hass-triage/state-nightly.json":
-                        json.dumps(nightly).encode(),
-                    ".local/state/hass-triage/tick.lock": b"4242",
+                observed_profiles = {
+                    "valid request 42": (
+                        [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                        [_PA_REQUEST_42_MISSING_TREE],
+                        (
+                            _CT_REQUEST_42_MISSING
+                            + _CT_REQUEST_42_MISSING_FAULT
+                        ),
+                        [("request:42", "42")],
+                    ),
+                    "valid nightly 52": (
+                        [(0, _PA_NIGHTLY_52_MISSING_TREE["key"], False)],
+                        [_PA_NIGHTLY_52_MISSING_TREE],
+                        (
+                            _CT_NIGHTLY_52_MISSING
+                            + _CT_NIGHTLY_52_MISSING_FAULT
+                        ),
+                        [("nightly:52", "nightly-52")],
+                    ),
+                    "request 72 and nightly 72": (
+                        [
+                            (0, _PA_NIGHTLY_72_MISSING_TREE["key"], False),
+                            (1, _PA_REQUEST_72_MISSING_TREE["key"], False),
+                        ],
+                        [
+                            _PA_NIGHTLY_72_MISSING_TREE,
+                            _PA_REQUEST_72_MISSING_TREE,
+                        ],
+                        (
+                            _CT_NIGHTLY_72_MISSING
+                            + _CT_REQUEST_72_MISSING
+                            + _CT_NIGHTLY_72_MISSING_FAULT
+                            + _CT_REQUEST_72_MISSING_FAULT
+                        ),
+                        [
+                            ("request:72", "72"),
+                            ("nightly:72", "nightly-72"),
+                        ],
+                    ),
+                    "integrated job then retro": (
+                        [
+                            (0, _PA_JOB_MISSING_TREE["key"], False),
+                            (1, _PA_RETRO_MISSING_TREE["key"], False),
+                        ],
+                        [_PA_JOB_MISSING_TREE, _PA_RETRO_MISSING_TREE],
+                        (
+                            _CT_JOB_MISSING
+                            + _CT_RETRO_MISSING
+                            + _CT_JOB_MISSING_FAULT
+                            + _CT_RETRO_MISSING_FAULT
+                        ),
+                        [
+                            ("job:researcher", "job-researcher"),
+                            (
+                                "retro:job-researcher-2026-11-23",
+                                "retro-job-researcher-2026-11-23",
+                            ),
+                        ],
+                    ),
+                    "integrated retro then job": (
+                        [
+                            (0, _PA_JOB_MISSING_TREE["key"], False),
+                            (1, _PA_RETRO_MISSING_TREE["key"], False),
+                        ],
+                        [_PA_JOB_MISSING_TREE, _PA_RETRO_MISSING_TREE],
+                        (
+                            _CT_JOB_MISSING
+                            + _CT_RETRO_MISSING
+                            + _CT_JOB_MISSING_FAULT
+                            + _CT_RETRO_MISSING_FAULT
+                        ),
+                        [
+                            ("job:researcher", "job-researcher"),
+                            (
+                                "retro:job-researcher-2026-11-23",
+                                "retro-job-researcher-2026-11-23",
+                            ),
+                        ],
+                    ),
+                    "retained nightly and failing request queue": (
+                        [
+                            (0, _PA_NIGHTLY_52_MISSING_TREE["key"], False),
+                            (1, _PA_REQUEST_42_MISSING_TREE["key"], False),
+                        ],
+                        [
+                            _PA_NIGHTLY_52_MISSING_TREE,
+                            _PA_REQUEST_42_MISSING_TREE,
+                        ],
+                        (
+                            _CT_NIGHTLY_52_MISSING
+                            + _CT_REQUEST_42_MISSING
+                            + _CT_NIGHTLY_52_MISSING_FAULT
+                            + _CT_REQUEST_42_MISSING_FAULT
+                        ),
+                        [
+                            ("request:42", "42"),
+                            ("nightly:52", "nightly-52"),
+                        ],
+                    ),
                 }
+                observed_profile = observed_profiles.get(label)
+                status_custody = expected_custody
                 expected_custody_text = {
                     "valid request 42": _CT_REQUEST_42,
                     "valid nightly 52": _CT_NIGHTLY_52,
@@ -7681,14 +8382,47 @@ class StatusAndGoldenTests(StoreTestBase):
                         _CT_NIGHTLY_52 + _CT_REQUEST_42
                     ),
                 }.get(label, _PA_ABSENT)
-                if expected_custody_text is not _PA_ABSENT:
-                    expected_text = with_custody_text(
-                        expected_text, expected_custody_text
+                if observed_profile is not None:
+                    observations, faults, expected_custody_text, probes = (
+                        observed_profile
                     )
+                    status_custody = with_custody_tree(
+                        expected_custody,
+                        observations,
+                        faults,
+                    )
+                expected_files = {
+                    ".local/state/hass-triage/state.json":
+                        json.dumps(primary).encode(),
+                    ".local/state/hass-triage/state-nightly.json":
+                        json.dumps(nightly).encode(),
+                    ".local/state/hass-triage/tick.lock": b"4242",
+                }
                 tree_layout = (
                     CustodyTreeLayout(self, layout_name)
                     if layout_name is not None else None
                 )
+                expected_projection_probes = []
+                expected_projection_trace = []
+                if tree_layout is not None and observed_profile is not None:
+                    expected_projection_probes = [(
+                        "observe",
+                        os.fspath(tree_layout.paths.root),
+                        producer,
+                    ) for producer, _basename in probes]
+                    expected_projection_trace = (
+                        expected_custody_tree_walks(
+                            tree_layout,
+                            [
+                                (basename, errno.ENOENT)
+                                for _producer, basename in probes
+                            ],
+                        )
+                    )
+                if expected_custody_text is not _PA_ABSENT:
+                    expected_text = with_custody_text(
+                        expected_text, expected_custody_text
+                    )
                 self.assert_pa_locked_status(
                     cfg,
                     gh,
@@ -7702,9 +8436,11 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_queue_events,
                     expected_remote_events,
                     expected_files,
-                    expected_custody=expected_custody,
+                    expected_custody=status_custody,
                     expected_custody_text=expected_custody_text,
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_projection_probes,
+                    expected_projection_trace=expected_projection_trace,
                 )
                 if label == "healthy readable recordless":
                     with self.subTest(
@@ -7815,10 +8551,12 @@ class StatusAndGoldenTests(StoreTestBase):
                             ),
                         )
                 if label == "valid request 42":
-                    wrong_line = _CT_REQUEST_42.replace(
+                    wrong_line = _CT_REQUEST_42_MISSING.replace(
                         "age 0s;", "age 1s;"
                     )
-                    self.assertNotEqual(wrong_line, _CT_REQUEST_42)
+                    self.assertNotEqual(
+                        wrong_line, _CT_REQUEST_42_MISSING
+                    )
                     with self.subTest(
                         expectation="supplied custody text line only"
                     ), self.assertRaisesRegex(
@@ -7844,9 +8582,21 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_queue_events,
                             expected_remote_events,
                             expected_files,
-                            expected_custody=expected_custody,
-                            expected_custody_text=wrong_line,
+                            expected_custody=status_custody,
+                            expected_custody_text=(
+                                wrong_line
+                                + _CT_REQUEST_42_MISSING_FAULT
+                            ),
                             tree_layout=line_only_layout,
+                            expected_projection_probes=expected_custody_tree_probes(
+                                line_only_layout, "request:42"
+                            ),
+                            expected_projection_trace=(
+                                expected_custody_tree_walks(
+                                    line_only_layout,
+                                    [("42", errno.ENOENT)],
+                                )
+                            ),
                         )
                     with self.subTest(
                         expectation="custody text equality operands"
@@ -7865,7 +8615,8 @@ class StatusAndGoldenTests(StoreTestBase):
                             }),
                             RecordlessBoundaries(self.home),
                             with_custody_text(
-                                _PA_HEALTHY_STATUS_TEXT, wrong_line
+                                _PA_HEALTHY_STATUS_TEXT,
+                                wrong_line + _CT_REQUEST_42_MISSING_FAULT,
                             ),
                             expected_json,
                             expected_json["state_loads"],
@@ -7875,9 +8626,20 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_queue_events,
                             expected_remote_events,
                             expected_files,
-                            expected_custody=expected_custody,
-                            expected_custody_text=wrong_line,
+                            expected_custody=status_custody,
+                            expected_custody_text=(
+                                wrong_line + _CT_REQUEST_42_MISSING_FAULT
+                            ),
                             tree_layout=equality_layout,
+                            expected_projection_probes=expected_custody_tree_probes(
+                                equality_layout, "request:42"
+                            ),
+                            expected_projection_trace=(
+                                expected_custody_tree_walks(
+                                    equality_layout,
+                                    [("42", errno.ENOENT)],
+                                )
+                            ),
                         )
                     with self.subTest(
                         expectation="omitted custody text operand"
@@ -7904,9 +8666,588 @@ class StatusAndGoldenTests(StoreTestBase):
                             expected_queue_events,
                             expected_remote_events,
                             expected_files,
-                            expected_custody=expected_custody,
+                            expected_custody=status_custody,
                             tree_layout=omission_layout,
+                            expected_projection_probes=expected_custody_tree_probes(
+                                omission_layout, "request:42"
+                            ),
+                            expected_projection_trace=(
+                                expected_custody_tree_walks(
+                                    omission_layout,
+                                    [("42", errno.ENOENT)],
+                                )
+                            ),
                         )
+
+    def test_custody_status_publishes_discriminating_tree_names(self):
+        """Fails if: public formats lose prefix, case, binding or sibling distinctions."""
+
+        def reset():
+            shutil.rmtree(self.home, ignore_errors=True)
+            self.home.mkdir()
+
+        reset()
+        job = self.custody_seed(
+            "request", "job:Researcher.X", "job-Researcher.X-g1",
+            "refs/heads/agents/researcher-x",
+            "job-Researcher.X", "job-Researcher.X-seed",
+        )
+        retro = self.retro_seed(
+            "Task-X",
+            "refs/heads/agents/task-x",
+            "Task-X",
+            "2026-11-23T12:00:00Z",
+            "retro-Task-X",
+            "retro-Task-X-seed",
+        )
+        primary = CustodySeeds((
+            job, self.request_seed(42), retro,
+        )).aggregate()
+        nightly = self.nightly_seed(52).aggregate()
+        base = {
+            "version": 1,
+            "records": [
+                _PA_NIGHTLY_52_RECORD,
+                _PA_MIXED_JOB_RECORD,
+                _PA_REQUEST_42_RECORD,
+                _PA_MIXED_RETRO_RECORD,
+            ],
+            "faults": [],
+        }
+        observed = [
+            (0, {
+                "repository": "sfenton/native-home",
+                "intake": "nightly",
+                "producer": "nightly:52",
+                "generation": "nightly-52-g1",
+            }, True),
+            (1, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "job:Researcher.X",
+                "generation": "job-Researcher.X-g1",
+            }, True),
+            (2, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "request:42",
+                "generation": "request-42-g1",
+            }, True),
+            (3, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "retro:Task-X",
+                "generation": "retro-Task-X-g1",
+            }, True),
+        ]
+        expected = with_custody_tree(base, observed, [])
+        layout = CustodyTreeLayout(self, "all-four-positive-names")
+        for basename in (
+            "job-Researcher.X", "42", "retro-Task-X", "nightly-52",
+        ):
+            layout.leaf(basename)
+        self.assert_public_tree_status(
+            primary, nightly, expected,
+            (
+                _CT_NIGHTLY_52_YES
+                + _CT_MIXED_JOB_YES
+                + _CT_REQUEST_42_YES
+                + _CT_MIXED_RETRO_YES
+            ),
+            layout,
+            [
+                ("job-Researcher.X", "ok"),
+                ("42", "ok"),
+                ("retro-Task-X", "ok"),
+                ("nightly-52", "ok"),
+            ],
+            (
+                "job:Researcher.X", "request:42",
+                "retro:Task-X", "nightly:52",
+            ),
+        )
+
+        reset()
+        same_primary = self.request_seed(72).aggregate()
+        same_nightly = self.nightly_seed(72).aggregate()
+        same = with_custody_tree(
+            _PA_SAME_NUMBER_72_CUSTODY,
+            [
+                (
+                    0, _PA_NIGHTLY_72_MISSING_TREE["key"], False
+                ),
+                (
+                    1, _PA_REQUEST_72_MISSING_TREE["key"], True
+                ),
+            ],
+            [_PA_NIGHTLY_72_MISSING_TREE],
+        )
+        layout = CustodyTreeLayout(self, "same-number-request-only")
+        layout.leaf("72")
+        self.assert_public_tree_status(
+            same_primary, same_nightly, same,
+            (
+                _CT_NIGHTLY_72_MISSING
+                + _CT_REQUEST_72_YES
+                + _CT_NIGHTLY_72_MISSING_FAULT
+            ),
+            layout,
+            [("72", "ok"), ("nightly-72", errno.ENOENT)],
+            ("request:72", "nightly:72"),
+        )
+
+        reset()
+        cfg = dict(self.cfg)
+        cfg["nightly"] = None
+        retained = with_custody_tree(
+            _PA_RETAINED_NIGHTLY_CUSTODY,
+            [
+                (
+                    0, _PA_NIGHTLY_52_MISSING_TREE["key"], False
+                ),
+                (
+                    1, _PA_REQUEST_42_MISSING_TREE["key"], True
+                ),
+            ],
+            [_PA_NIGHTLY_52_MISSING_TREE],
+        )
+        layout = CustodyTreeLayout(self, "retained-nightly-distinct")
+        layout.leaf("42")
+        self.assert_public_tree_status(
+            self.request_seed(42).aggregate(),
+            self.nightly_seed(52).aggregate(),
+            retained,
+            (
+                _CT_NIGHTLY_52_MISSING
+                + _CT_REQUEST_42_YES
+                + _CT_NIGHTLY_52_MISSING_FAULT
+            ),
+            layout,
+            [("42", "ok"), ("nightly-52", errno.ENOENT)],
+            ("request:42", "nightly:52"),
+            cfg=cfg,
+        )
+
+        reset()
+        mixed = self.request_seed(42).aggregate()
+        mixed["records"]["sfenton/native-home"]["request"]["request:7"] = {
+            "g1": {
+                "phase": "unknown",
+                "since": "2026-11-23T12:00:00Z",
+                "bindings": {},
+            },
+        }
+        unbound_record = dict(
+            _PA_REQUEST_42_RECORD,
+            producer="request:7",
+            generation="g1",
+            phase="unknown",
+            original_outcome=None,
+        )
+        unbound_text = (
+            "custody record sfenton/native-home request request:7 "
+            "g1: phase unknown; original outcome unknown; "
+            "since 2026-11-23T12:00:00Z; age 0s; "
+            "attempts unknown; reason unknown; next unknown; "
+            "tree exists unknown\n"
+        )
+        expected = with_custody_tree(
+            {
+                "version": 1,
+                "records": [_PA_REQUEST_42_RECORD, unbound_record],
+                "faults": [],
+            },
+            [(
+                0, _PA_REQUEST_42_MISSING_TREE["key"], True
+            )],
+            [],
+        )
+        layout = CustodyTreeLayout(self, "unbound-beside-positive")
+        layout.leaf("42")
+        layout.leaf("7")
+        self.assert_public_tree_status(
+            mixed,
+            {"version": 1, "records": {}},
+            expected,
+            _CT_REQUEST_42_YES + unbound_text,
+            layout,
+            [("42", "ok")],
+            ("request:42",),
+        )
+
+    def test_custody_status_publishes_request_42_layout_matrix(self):
+        """Fails if: a layout cutoff changes the bound value, fault or text."""
+        primary = self.request_seed(42).aggregate()
+        nightly = {"version": 1, "records": {}}
+        rows = (
+            (
+                "configured root absent", "absent", "directory", None,
+                "open", "runner", errno.ENOENT, None, "unreadable",
+            ),
+            (
+                "worktrees absent", "directory", "absent", None,
+                "open", "worktrees", errno.ENOENT, False, "missing",
+            ),
+            (
+                "configured root file", "file", "directory", None,
+                "open", "runner", errno.ENOTDIR, None, "unreadable",
+            ),
+            (
+                "worktrees file", "directory", "file", None,
+                "open", "worktrees", errno.ENOTDIR, None, "unreadable",
+            ),
+            (
+                "linked ancestor", "linked_parent", "directory", None,
+                "open", "linked-parent", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            (
+                "linked configured root", "link", "directory", None,
+                "open", "runner", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            (
+                "linked worktrees", "directory", "link", None,
+                "open", "worktrees", {errno.ELOOP, errno.ENOTDIR},
+                None, "unreadable",
+            ),
+            *(
+                (
+                    f"leaf {kind}", "directory", "directory", kind,
+                    "stat", "42", None, None, "unreadable",
+                )
+                for kind in (
+                    "file", "inside_link", "outside_link",
+                    "dangling_link", "fifo",
+                )
+            ),
+        )
+        completed = []
+        for index, (
+            label, root_kind, worktrees_kind, leaf_kind,
+            operation, component, error, exists, fault_kind,
+        ) in enumerate(rows):
+            with self.subTest(layout=label):
+                shutil.rmtree(self.home, ignore_errors=True)
+                self.home.mkdir()
+                layout = CustodyTreeLayout(
+                    self, f"public-layout-{index}",
+                    root=root_kind, worktrees=worktrees_kind,
+                )
+                if leaf_kind is not None:
+                    layout.leaf("42", leaf_kind)
+                fault = (
+                    _PA_REQUEST_42_MISSING_TREE
+                    if fault_kind == "missing"
+                    else _PA_REQUEST_42_UNREADABLE_TREE
+                )
+                text = (
+                    _CT_REQUEST_42_MISSING
+                    + _CT_REQUEST_42_MISSING_FAULT
+                    if fault_kind == "missing"
+                    else (
+                        _CT_REQUEST_42
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    )
+                )
+                if operation == "open":
+                    ordinal = expected_custody_open_ordinal(
+                        layout, component
+                    )
+                    observation = (
+                        "open", ordinal, error
+                    )
+                else:
+                    observation = "ok"
+                expected = with_custody_tree(
+                    _PA_REQUEST_42_CUSTODY,
+                    [(0, fault["key"], exists)],
+                    [fault],
+                )
+                self.assert_public_tree_status(
+                    primary, nightly, expected, text,
+                    layout, [("42", observation)], ("request:42",),
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "public layout matrix did not complete",
+        )
+
+    def test_custody_status_publishes_real_long_request_name(self):
+        """Fails if: the decimal producer is changed before the real stat."""
+        basename = "9" * 1000
+        seed = self.request_seed(basename)
+        primary = seed.aggregate()
+        key = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": f"request:{basename}",
+            "generation": f"request-{basename}-g1",
+        }
+        record = dict(
+            _PA_REQUEST_42_RECORD,
+            producer=key["producer"],
+            generation=key["generation"],
+        )
+        fault = dict(
+            _PA_REQUEST_42_UNREADABLE_TREE,
+            key=key,
+        )
+        expected = with_custody_tree(
+            {"version": 1, "records": [record], "faults": []},
+            [(0, key, None)],
+            [fault],
+        )
+        record_text = (
+            "custody record sfenton/native-home request "
+            f"{key['producer']} {key['generation']}: phase "
+            "release_authorized; original outcome clean_end/0/done; "
+            "since 2026-11-23T12:00:00Z; age 0s; attempts unknown; "
+            "reason unknown; next unknown; tree exists unknown\n"
+        )
+        fault_text = (
+            "custody fault request: unreadable_tree (exists unknown, "
+            "scope tree, version 1, key "
+            + json.dumps(key, separators=(",", ":"))
+            + ")\n"
+        )
+        layout = CustodyTreeLayout(self, "public-long-request-name")
+        self.assert_public_tree_status(
+            primary, {"version": 1, "records": {}},
+            expected, record_text + fault_text,
+            layout, [(basename, errno.ENAMETOOLONG)],
+            (key["producer"],),
+        )
+
+    def test_custody_status_continues_after_one_shot_metadata_errors(self):
+        """Fails if: one metadata error removes or changes either sibling."""
+        job = self.custody_seed(
+            "request", "job:Researcher.X", "job-Researcher.X-g1",
+            "refs/heads/agents/researcher-x",
+            "job-Researcher.X", "job-Researcher.X-seed",
+        )
+        request = self.request_seed(42)
+        retro = self.retro_seed(
+            "Task-X",
+            "refs/heads/agents/task-x",
+            "Task-X",
+            "2026-11-23T12:00:00Z",
+            "retro-Task-X",
+            "retro-Task-X-seed",
+        )
+        primary = CustodySeeds((job, request, retro)).aggregate()
+        nightly = {"version": 1, "records": {}}
+        mixed = {
+            "version": 1,
+            "records": [
+                _PA_MIXED_JOB_RECORD,
+                _PA_REQUEST_42_RECORD,
+                _PA_MIXED_RETRO_RECORD,
+            ],
+            "faults": [],
+        }
+        job_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "job:Researcher.X",
+            "generation": "job-Researcher.X-g1",
+        }
+        request_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "request:42",
+            "generation": "request-42-g1",
+        }
+        retro_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "retro:Task-X",
+            "generation": "retro-Task-X-g1",
+        }
+        positive = with_custody_tree(
+            mixed,
+            [
+                (0, job_identity, True),
+                (1, request_identity, True),
+                (2, retro_identity, True),
+            ],
+            [],
+        )
+        positive_text = (
+            _CT_MIXED_JOB_YES
+            + _CT_REQUEST_42_YES
+            + _CT_MIXED_RETRO_YES
+        )
+        rows = (
+            ("configured root EACCES", "open", "runner", errno.EACCES),
+            ("worktrees ELOOP", "open", "worktrees", errno.ELOOP),
+            ("worktrees ENOTDIR", "open", "worktrees", errno.ENOTDIR),
+            ("leaf EIO", "stat", "42", errno.EIO),
+        )
+        completed = []
+        for index, (label, operation, target, error) in enumerate(rows):
+            with self.subTest(error=label):
+                control = CustodyTreeLayout(
+                    self, f"public-metadata-{index}-control"
+                )
+                for basename in (
+                    "job-Researcher.X", "42", "retro-Task-X",
+                ):
+                    control.leaf(basename)
+                self.assert_public_tree_status(
+                    primary, nightly, positive, positive_text,
+                    control,
+                    [
+                        ("job-Researcher.X", "ok"),
+                        ("42", "ok"),
+                        ("retro-Task-X", "ok"),
+                    ],
+                    (
+                        "job:Researcher.X", "request:42",
+                        "retro:Task-X",
+                    ),
+                )
+                layout = CustodyTreeLayout(
+                    self, f"public-metadata-{index}-injected"
+                )
+                for basename in (
+                    "job-Researcher.X", "42", "retro-Task-X",
+                ):
+                    layout.leaf(basename)
+                injection_target = (
+                    expected_custody_open_ordinal(
+                        layout, target, preceding=1
+                    )
+                    if operation == "open" else target
+                )
+                injected = (
+                    ("open", injection_target, error)
+                    if operation == "open" else error
+                )
+                expected = with_custody_tree(
+                    mixed,
+                    [
+                        (0, job_identity, True),
+                        (1, request_identity, None),
+                        (2, retro_identity, True),
+                    ],
+                    [_PA_REQUEST_42_UNREADABLE_TREE],
+                )
+                self.assert_public_tree_status(
+                    primary, nightly, expected,
+                    (
+                        _CT_MIXED_JOB_YES
+                        + _CT_REQUEST_42
+                        + _CT_MIXED_RETRO_YES
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    ),
+                    layout,
+                    [
+                        ("job-Researcher.X", "ok"),
+                        ("42", injected),
+                        ("retro-Task-X", "ok"),
+                    ],
+                    (
+                        "job:Researcher.X", "request:42",
+                        "retro:Task-X",
+                    ),
+                    tree_injection=(
+                        operation, injection_target, error
+                    ),
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "metadata error matrix did not complete",
+        )
+
+    def test_custody_status_publishes_one_shot_cleanup_failures(self):
+        """Fails if: a consumed close or its remaining cleanup changes publication."""
+        primary = self.request_seed(42).aggregate()
+        nightly = {"version": 1, "records": {}}
+        rows = (
+            ("component handoff", False, "component"),
+            ("worktrees handoff", True, "worktrees"),
+            ("final close after missing", False, "final"),
+            ("final close after positive", True, "final"),
+        )
+        completed = []
+        for index, (label, positive, position) in enumerate(rows):
+            with self.subTest(cleanup=label):
+                control = CustodyTreeLayout(
+                    self, f"public-close-{index}-control"
+                )
+                if positive:
+                    control.leaf("42")
+                control_result = (
+                    with_custody_tree(
+                        _PA_REQUEST_42_CUSTODY,
+                        [(0, _PA_REQUEST_42_MISSING_TREE["key"], True)],
+                        [],
+                    )
+                    if positive
+                    else with_custody_tree(
+                        _PA_REQUEST_42_CUSTODY,
+                        [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                        [_PA_REQUEST_42_MISSING_TREE],
+                    )
+                )
+                control_text = (
+                    _CT_REQUEST_42_YES
+                    if positive
+                    else (
+                        _CT_REQUEST_42_MISSING
+                        + _CT_REQUEST_42_MISSING_FAULT
+                    )
+                )
+                control_stat = "ok" if positive else errno.ENOENT
+                self.assert_public_tree_status(
+                    primary, nightly, control_result, control_text,
+                    control, [("42", control_stat)], ("request:42",),
+                )
+
+                layout = CustodyTreeLayout(
+                    self, f"public-close-{index}-injected"
+                )
+                if positive:
+                    layout.leaf("42")
+                root_components = [
+                    item
+                    for item in os.fspath(layout.paths.root).split(os.sep)
+                    if item
+                ]
+                if position == "component":
+                    selector = "fd0"
+                elif position == "worktrees":
+                    selector = f"fd{len(root_components)}"
+                else:
+                    selector = f"fd{len(root_components) + 1}"
+                expected = with_custody_tree(
+                    _PA_REQUEST_42_CUSTODY,
+                    [(0, _PA_REQUEST_42_UNREADABLE_TREE["key"], None)],
+                    [_PA_REQUEST_42_UNREADABLE_TREE],
+                )
+                stat_result = "ok" if positive else errno.ENOENT
+                self.assert_public_tree_status(
+                    primary, nightly, expected,
+                    (
+                        _CT_REQUEST_42
+                        + _CT_REQUEST_42_UNREADABLE_FAULT
+                    ),
+                    layout,
+                    [(
+                        "42",
+                        ("close", selector, errno.EIO, stat_result),
+                    )],
+                    ("request:42",),
+                    tree_close_failure=selector,
+                )
+                completed.append(label)
+        self.assertEqual(
+            completed, [row[0] for row in rows],
+            "cleanup failure matrix did not complete",
+        )
 
     def test_custody_status_samples_clock_once_and_clamps_ages(self):
         """Fails if: one report sample or floor/clamp age arithmetic is skipped."""
@@ -7969,10 +9310,11 @@ class StatusAndGoldenTests(StoreTestBase):
                 ),
                 (0, 90, 30, 150),
                 (
-                    _CT_SIGNED_RECORD_0
+                    _CT_SIGNED_RECORD_0_MISSING
                     + _CT_REVIEW_BINDING_90
                     + _CT_UNCERTAIN_NOTICE_30
                     + _CT_CONFIRMED_NOTICE_150
+                    + _CT_REQUEST_42_MISSING_FAULT
                 ),
             ),
             (
@@ -7982,10 +9324,11 @@ class StatusAndGoldenTests(StoreTestBase):
                 ),
                 (3600, 3720, 3660, 3780),
                 (
-                    _CT_SIGNED_RECORD_3600
+                    _CT_SIGNED_RECORD_3600_MISSING
                     + _CT_REVIEW_BINDING_3720
                     + _CT_UNCERTAIN_NOTICE_3660
                     + _CT_CONFIRMED_NOTICE_3780
+                    + _CT_REQUEST_42_MISSING_FAULT
                 ),
             ),
         )
@@ -8005,6 +9348,11 @@ class StatusAndGoldenTests(StoreTestBase):
                 expected_record["bindings"][0]["age_seconds"] = ages[1]
                 expected_record["notices"][0]["age_seconds"] = ages[2]
                 expected_record["notices"][1]["age_seconds"] = ages[3]
+                expected = with_custody_tree(
+                    expected,
+                    [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                    [_PA_REQUEST_42_MISSING_TREE],
+                )
                 expected_files = {
                     ".local/state/hass-triage/state.json":
                         json.dumps(primary).encode(),
@@ -8037,6 +9385,12 @@ class StatusAndGoldenTests(StoreTestBase):
                     expected_custody_text=custody_text,
                     test_clock=sample,
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_custody_tree_probes(
+                        tree_layout, "request:42"
+                    ),
+                    expected_projection_trace=expected_custody_tree_walks(
+                        tree_layout, [("42", errno.ENOENT)]
+                    ),
                 )
 
     def test_custody_status_orders_records_across_selected_stores(self):
@@ -8066,6 +9420,14 @@ class StatusAndGoldenTests(StoreTestBase):
         )
         request_state = ht.State(self.paths.state)
         nightly_state = ht.State(nightly_path)
+        before_loads = (
+            json.loads(json.dumps(request_state.load_faults)),
+            json.loads(json.dumps(nightly_state.load_faults)),
+        )
+        before_writable = (
+            request_state.writable,
+            nightly_state.writable,
+        )
         expected = [
             ("example/product", "request", "request:7", "g7"),
             ("sfenton/native-home", "nightly", "nightly:52",
@@ -8078,12 +9440,16 @@ class StatusAndGoldenTests(StoreTestBase):
             (("nightly", nightly_state), ("request", request_state)),
         ):
             with self.subTest(stores=[store for store, _state in states]):
+                tree_layout = CustodyTreeLayout(
+                    self, f"cross-store-{states[0][0]}"
+                )
                 projected = ht.custody_status(
                     states,
                     datetime(
                         2026, 11, 23, 12, 0,
                         tzinfo=timezone.utc,
                     ),
+                    tree_layout.paths,
                 )
                 actual = [
                     (
@@ -8095,7 +9461,29 @@ class StatusAndGoldenTests(StoreTestBase):
                     for record in projected["records"]
                 ]
                 self.assertEqual(actual, expected)
-                self.assertEqual(projected["faults"], [])
+                self.assertEqual(
+                    [record["tree_exists"] for record in projected["records"]],
+                    [False, False, False],
+                )
+                self.assertEqual(projected["faults"], [
+                    _PA_NIGHTLY_52_MISSING_TREE,
+                    _PA_PRODUCT_REQUEST_7_MISSING_TREE,
+                    _PA_REQUEST_42_MISSING_TREE,
+                ])
+                self.assertEqual(
+                    (
+                        request_state.load_faults,
+                        nightly_state.load_faults,
+                    ),
+                    before_loads,
+                )
+                self.assertEqual(
+                    (
+                        request_state.writable,
+                        nightly_state.writable,
+                    ),
+                    before_writable,
+                )
 
     def test_custody_status_orders_within_parent_at_projection_boundary(self):
         """Fails if: loader-sorted bindings or notices mask display insertion order."""
@@ -8150,6 +9538,7 @@ class StatusAndGoldenTests(StoreTestBase):
             datetime(
                 2026, 11, 23, 13, 0, tzinfo=timezone.utc
             ),
+            self.paths,
         )
         record = projected["records"][0]
         self.assertEqual(
@@ -8216,7 +9605,9 @@ class StatusAndGoldenTests(StoreTestBase):
             (("nightly", nightly_state), ("request", request_state)),
         ):
             with self.subTest(stores=[store for store, _state in states]):
-                projected = ht.custody_status(states, sample)
+                projected = ht.custody_status(
+                    states, sample, self.paths
+                )
                 self.assertEqual(projected, expected_custody)
         actual_loads = request_state.load_projection("request")
         actual_loads += nightly_state.load_projection("nightly")
@@ -8332,8 +9723,8 @@ class StatusAndGoldenTests(StoreTestBase):
                     )
             status.assert_not_called()
 
-    def test_pa_locked_status_empty_trace_rejects_real_observer_call(self):
-        """Fails if: a real observer call inside the command trace passes the empty projection gate."""
+    def test_pa_locked_status_bound_trace_rejects_additional_observer_call(self):
+        """Fails if: an observer call beyond the expected bound walk passes the projection gate."""
         cfg = dict(self.cfg)
         cfg["schedules"] = {}
         primary = self.legacy(
@@ -8362,7 +9753,9 @@ class StatusAndGoldenTests(StoreTestBase):
             }),
             RecordlessBoundaries(self.home),
             with_custody_text(
-                _PA_HEALTHY_STATUS_TEXT, _CT_REQUEST_42
+                _PA_HEALTHY_STATUS_TEXT,
+                _CT_REQUEST_42_MISSING
+                + _CT_REQUEST_42_MISSING_FAULT,
             ),
             _PA_HEALTHY_JSON_FIELDS,
             [],
@@ -8374,8 +9767,15 @@ class StatusAndGoldenTests(StoreTestBase):
             expected_files,
         )
         kwargs = {
-            "expected_custody": _PA_REQUEST_42_CUSTODY,
-            "expected_custody_text": _CT_REQUEST_42,
+            "expected_custody": with_custody_tree(
+                _PA_REQUEST_42_CUSTODY,
+                [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                [_PA_REQUEST_42_MISSING_TREE],
+            ),
+            "expected_custody_text": (
+                _CT_REQUEST_42_MISSING
+                + _CT_REQUEST_42_MISSING_FAULT
+            ),
         }
         control_layout = CustodyTreeLayout(
             self, "negative-control"
@@ -8398,6 +9798,12 @@ class StatusAndGoldenTests(StoreTestBase):
                 *arguments,
                 **kwargs,
                 tree_layout=control_layout,
+                expected_projection_probes=expected_custody_tree_probes(
+                    control_layout, "request:42"
+                ),
+                expected_projection_trace=expected_custody_tree_walks(
+                    control_layout, [("42", errno.ENOENT)]
+                ),
             )
         self.assertEqual(
             command_roots,
@@ -8431,6 +9837,12 @@ class StatusAndGoldenTests(StoreTestBase):
                 *arguments,
                 **kwargs,
                 tree_layout=negative_layout,
+                expected_projection_probes=expected_custody_tree_probes(
+                    negative_layout, "request:42"
+                ),
+                expected_projection_trace=expected_custody_tree_walks(
+                    negative_layout, [("42", errno.ENOENT)]
+                ),
             )
         self.assertEqual(observer_calls, 1)
 
@@ -8610,16 +10022,21 @@ class StatusAndGoldenTests(StoreTestBase):
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
                 custody_text = (
-                    _CT_TWO_BINDINGS_RECORD
+                    _CT_TWO_BINDINGS_RECORD_MISSING
                     + _CT_ALPHA_BINDING
                     + _CT_BETA_BINDING
                     if expected_custody is _PB_TWO_BINDINGS_CUSTODY
                     else (
-                        _CT_SIGNED_RECORD_0
+                        _CT_SIGNED_RECORD_0_MISSING
                         + _CT_REVIEW_BINDING_120
                         + _CT_UNCERTAIN_NOTICE_60
                         + _CT_CONFIRMED_NOTICE_180
                     )
+                ) + _CT_REQUEST_42_MISSING_FAULT
+                status_custody = with_custody_tree(
+                    expected_custody,
+                    [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                    [_PA_REQUEST_42_MISSING_TREE],
                 )
                 tree_layout = CustodyTreeLayout(
                     self, f"pb-rows-6-7-{index}"
@@ -8642,9 +10059,15 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     queue_events,
                     expected_files,
-                    expected_custody=expected_custody,
+                    expected_custody=status_custody,
                     expected_custody_text=custody_text,
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_custody_tree_probes(
+                        tree_layout, "request:42"
+                    ),
+                    expected_projection_trace=expected_custody_tree_walks(
+                        tree_layout, [("42", errno.ENOENT)]
+                    ),
                 )
 
     def test_custody_pb_locked_status_rows_12_14(self):
@@ -8824,36 +10247,90 @@ class StatusAndGoldenTests(StoreTestBase):
                     "state_loads": expected_state_loads,
                     "retro_queue": [],
                 }
-                custody_text = (
-                    _CT_REQUEST_42
-                    + _CT_REQUEST_43_PHASE_FAULT
-                    if expected_custody
-                    is _PB_BAD_REQUEST_PHASE_CUSTODY
-                    else (
-                        _CT_NIGHTLY_52
+                if expected_custody is _PB_BAD_REQUEST_PHASE_CUSTODY:
+                    observations = [(
+                        0, _PA_REQUEST_42_MISSING_TREE["key"], False
+                    )]
+                    faults = [
+                        _PA_REQUEST_42_MISSING_TREE,
+                        _PB_REQUEST_43_PHASE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_REQUEST_42_MISSING
+                        + _CT_REQUEST_42_MISSING_FAULT
+                        + _CT_REQUEST_43_PHASE_FAULT
+                    )
+                    probes = [("request:42", "42")]
+                elif expected_custody is _PB_BAD_NIGHTLY_PHASE_CUSTODY:
+                    observations = [(
+                        0, _PA_NIGHTLY_52_MISSING_TREE["key"], False
+                    )]
+                    faults = [
+                        _PA_NIGHTLY_52_MISSING_TREE,
+                        _PB_NIGHTLY_53_PHASE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_NIGHTLY_52_MISSING
+                        + _CT_NIGHTLY_52_MISSING_FAULT
                         + _CT_NIGHTLY_53_PHASE_FAULT
                     )
-                    if expected_custody
-                    is _PB_BAD_NIGHTLY_PHASE_CUSTODY
-                    else (
-                        _CT_REQUEST_42
+                    probes = [("nightly:52", "nightly-52")]
+                elif expected_custody is _PB_BAD_REQUEST_NOTICE_CUSTODY:
+                    observations = [(
+                        0, _PA_REQUEST_42_MISSING_TREE["key"], False
+                    )]
+                    faults = [
+                        _PA_REQUEST_42_MISSING_TREE,
+                        _PB_REQUEST_NOTICE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_REQUEST_42_MISSING
                         + _CT_SAFE_JAN_NOTICE
+                        + _CT_REQUEST_42_MISSING_FAULT
                         + _CT_REQUEST_NOTICE_FAULT
                     )
-                    if expected_custody
-                    is _PB_BAD_REQUEST_NOTICE_CUSTODY
-                    else (
-                        _CT_NIGHTLY_52
+                    probes = [("request:42", "42")]
+                elif expected_custody is _PB_BAD_NIGHTLY_NOTICE_CUSTODY:
+                    observations = [(
+                        0, _PA_NIGHTLY_52_MISSING_TREE["key"], False
+                    )]
+                    faults = [
+                        _PA_NIGHTLY_52_MISSING_TREE,
+                        _PB_NIGHTLY_NOTICE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_NIGHTLY_52_MISSING
                         + _CT_SAFE_JAN_NOTICE
+                        + _CT_NIGHTLY_52_MISSING_FAULT
                         + _CT_NIGHTLY_NOTICE_FAULT
                     )
-                    if expected_custody
-                    is _PB_BAD_NIGHTLY_NOTICE_CUSTODY
-                    else (
-                        _CT_JOB
-                        + _CT_RETRO
+                    probes = [("nightly:52", "nightly-52")]
+                else:
+                    observations = [
+                        (0, _PA_JOB_MISSING_TREE["key"], False),
+                        (1, _PA_RETRO_MISSING_TREE["key"], False),
+                    ]
+                    faults = [
+                        _PA_JOB_MISSING_TREE,
+                        _PA_RETRO_MISSING_TREE,
+                        _PB_RETRO_NAMESPACE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_JOB_MISSING
+                        + _CT_RETRO_MISSING
+                        + _CT_JOB_MISSING_FAULT
+                        + _CT_RETRO_MISSING_FAULT
                         + _CT_RETRO_NAMESPACE_FAULT
                     )
+                    probes = [
+                        ("job:researcher", "job-researcher"),
+                        (
+                            "retro:job-researcher-2026-11-23",
+                            "retro-job-researcher-2026-11-23",
+                        ),
+                    ]
+                status_custody = with_custody_tree(
+                    expected_custody, observations, faults
                 )
                 tree_layout = CustodyTreeLayout(
                     self, f"pb-rows-12-14-{index}"
@@ -8877,9 +10354,20 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     queue_events,
                     expected_files,
-                    expected_custody=expected_custody,
+                    expected_custody=status_custody,
                     expected_custody_text=custody_text,
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_custody_tree_probes(
+                        tree_layout,
+                        *(producer for producer, _basename in probes),
+                    ),
+                    expected_projection_trace=expected_custody_tree_walks(
+                        tree_layout,
+                        [
+                            (basename, errno.ENOENT)
+                            for _producer, basename in probes
+                        ],
+                    ),
                 )
 
     def test_custody_pb_locked_status_row_16(self):
@@ -9015,17 +10503,37 @@ class StatusAndGoldenTests(StoreTestBase):
                         json.dumps(nightly).encode(),
                     ".local/state/hass-triage/tick.lock": b"4242",
                 }
-                custody_text = (
-                    _CT_REQUEST_42
-                    if expected_custody is _PA_REQUEST_42_CUSTODY
-                    else _CT_REQUEST_42
-                    + _CT_REQUEST_43_TYPE_FAULT
-                    if expected_custody is _PB_BAD_BINDING_CUSTODY
-                    else (
-                        _CT_REQUEST_42
+                if expected_custody is _PA_REQUEST_42_CUSTODY:
+                    faults = [_PA_REQUEST_42_MISSING_TREE]
+                    custody_text = (
+                        _CT_REQUEST_42_MISSING
+                        + _CT_REQUEST_42_MISSING_FAULT
+                    )
+                elif expected_custody is _PB_BAD_BINDING_CUSTODY:
+                    faults = [
+                        _PA_REQUEST_42_MISSING_TREE,
+                        _PB_REQUEST_43_TYPE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_REQUEST_42_MISSING
+                        + _CT_REQUEST_42_MISSING_FAULT
+                        + _CT_REQUEST_43_TYPE_FAULT
+                    )
+                else:
+                    faults = [
+                        _PA_REQUEST_42_MISSING_TREE,
+                        _PB_REQUEST_NOTICE_FAULT,
+                    ]
+                    custody_text = (
+                        _CT_REQUEST_42_MISSING
                         + _CT_SAFE_NOON_NOTICE
+                        + _CT_REQUEST_42_MISSING_FAULT
                         + _CT_REQUEST_NOTICE_FAULT
                     )
+                status_custody = with_custody_tree(
+                    expected_custody,
+                    [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                    faults,
                 )
                 tree_layout = CustodyTreeLayout(
                     self, f"pb-row-16-{index}"
@@ -9049,9 +10557,15 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     queue_events,
                     expected_files,
-                    expected_custody=expected_custody,
+                    expected_custody=status_custody,
                     expected_custody_text=custody_text,
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_custody_tree_probes(
+                        tree_layout, "request:42"
+                    ),
+                    expected_projection_trace=expected_custody_tree_walks(
+                        tree_layout, [("42", errno.ENOENT)]
+                    ),
                 )
                 for canary in canaries:
                     self.assertNotIn(canary, stdout[0])
@@ -9154,13 +10668,15 @@ class StatusAndGoldenTests(StoreTestBase):
             storage_facts={},
         )
         custody_text = (
-            _CT_L3_RECORD_1
+            _CT_L3_RECORD_1_MISSING
             + _CT_L3_BINDING_1
             + _CT_L3_UNSENT_NOTICE
-            + _CT_L3_RECORD_2
+            + _CT_L3_RECORD_2_MISSING
             + _CT_L3_BINDING_2
             + _CT_L3_INTENT_NOTICE
             + _CT_L3_NIGHTLY_VERSION_FAULT
+            + _CT_L3_REQUEST_1_MISSING_FAULT
+            + _CT_L3_REQUEST_2_MISSING_FAULT
         )
         expected_text = with_custody_text(_L3_STATUS_TEXT, custody_text)
         repositories = (cfg["request_repo"], cfg["nightly"]["repo"])
@@ -9175,6 +10691,18 @@ class StatusAndGoldenTests(StoreTestBase):
             ".local/state/hass-triage/tick.lock": b"4242",
         }
         tree_layout = CustodyTreeLayout(self, "l3-grouped-generations")
+        status_custody = with_custody_tree(
+            _L3_CUSTODY,
+            [
+                (0, _PA_L3_REQUEST_1_MISSING_TREE["key"], False),
+                (1, _PA_L3_REQUEST_2_MISSING_TREE["key"], False),
+            ],
+            [
+                _L3_CUSTODY["faults"][0],
+                _PA_L3_REQUEST_1_MISSING_TREE,
+                _PA_L3_REQUEST_2_MISSING_TREE,
+            ],
+        )
         text, _encoded = self.assert_pa_locked_status(
             cfg,
             RecordlessTraceGitHub({
@@ -9195,9 +10723,16 @@ class StatusAndGoldenTests(StoreTestBase):
             (opens, opens),
             (opens, opens),
             expected_files,
-            expected_custody=_L3_CUSTODY,
+            expected_custody=status_custody,
             expected_custody_text=custody_text,
             tree_layout=tree_layout,
+            expected_projection_probes=expected_custody_tree_probes(
+                tree_layout, "request:42", "request:42"
+            ),
+            expected_projection_trace=expected_custody_tree_walks(
+                tree_layout,
+                [("42", errno.ENOENT), ("42", errno.ENOENT)],
+            ),
         )
         self.assertNotIn("custody:\n", text)
 
@@ -9423,10 +10958,64 @@ class StatusAndGoldenTests(StoreTestBase):
                         + _CT_GENERATION_KEY_FAULT
                     )
                 )
+                status_custody = expected_custody
+                expected_projection_probes = []
+                expected_projection_trace = []
                 tree_layout = (
                     CustodyTreeLayout(self, layout_name)
                     if layout_name is not None else None
                 )
+                if tree_layout is not None:
+                    if expected_custody is _PA_NIGHTLY_52_CUSTODY:
+                        status_custody = with_custody_tree(
+                            expected_custody,
+                            [(0, _PA_NIGHTLY_52_MISSING_TREE["key"], False)],
+                            [_PA_NIGHTLY_52_MISSING_TREE],
+                        )
+                        custody_text = (
+                            _CT_NIGHTLY_52_MISSING
+                            + _CT_NIGHTLY_52_MISSING_FAULT
+                        )
+                        probe = ("nightly:52", "nightly-52")
+                    elif expected_custody is _PA_REQUEST_42_CUSTODY:
+                        status_custody = with_custody_tree(
+                            expected_custody,
+                            [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                            [_PA_REQUEST_42_MISSING_TREE],
+                        )
+                        custody_text = (
+                            _CT_REQUEST_42_MISSING
+                            + _CT_REQUEST_42_MISSING_FAULT
+                        )
+                        probe = ("request:42", "42")
+                    else:
+                        status_custody = with_custody_tree(
+                            expected_custody,
+                            [(0, _PA_REQUEST_42_MISSING_TREE["key"], False)],
+                            [
+                                _PB_REPOSITORY_NAMESPACE_FAULT,
+                                _PB_GENERATION_KEY_FAULT,
+                                _PA_REQUEST_42_MISSING_TREE,
+                            ],
+                        )
+                        custody_text = (
+                            _CT_REQUEST_42_MISSING
+                            + _CT_REPOSITORY_NAMESPACE_FAULT
+                            + _CT_GENERATION_KEY_FAULT
+                            + _CT_REQUEST_42_MISSING_FAULT
+                        )
+                        probe = ("request:42", "42")
+                    expected_projection_probes = (
+                        expected_custody_tree_probes(
+                            tree_layout, probe[0]
+                        )
+                    )
+                    expected_projection_trace = (
+                        expected_custody_tree_walks(
+                            tree_layout,
+                            [(probe[1], errno.ENOENT)],
+                        )
+                    )
                 self.assert_pa_locked_status(
                     cfg,
                     RecordlessTraceGitHub({
@@ -9445,7 +11034,7 @@ class StatusAndGoldenTests(StoreTestBase):
                     queue_events,
                     queue_events,
                     expected_files,
-                    expected_custody=expected_custody,
+                    expected_custody=status_custody,
                     expected_custody_text=custody_text,
                     test_clock=(
                         datetime(
@@ -9456,6 +11045,8 @@ class StatusAndGoldenTests(StoreTestBase):
                         else None
                     ),
                     tree_layout=tree_layout,
+                    expected_projection_probes=expected_projection_probes,
+                    expected_projection_trace=expected_projection_trace,
                 )
                 if label == "configured missing nightly":
                     inventory = self.file_inventory()
