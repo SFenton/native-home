@@ -8715,17 +8715,30 @@ class StatusAndGoldenTests(StoreTestBase):
             "faults": [],
         }
         observed = [
-            (
-                index,
-                {
-                    "repository": "sfenton/native-home",
-                    "intake": record["intake"],
-                    "producer": record["producer"],
-                    "generation": record["generation"],
-                },
-                True,
-            )
-            for index, record in enumerate(base["records"])
+            (0, {
+                "repository": "sfenton/native-home",
+                "intake": "nightly",
+                "producer": "nightly:52",
+                "generation": "nightly-52-g1",
+            }, True),
+            (1, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "job:Researcher.X",
+                "generation": "job-Researcher.X-g1",
+            }, True),
+            (2, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "request:42",
+                "generation": "request-42-g1",
+            }, True),
+            (3, {
+                "repository": "sfenton/native-home",
+                "intake": "request",
+                "producer": "retro:Task-X",
+                "generation": "retro-Task-X-g1",
+            }, True),
         ]
         expected = with_custody_tree(base, observed, [])
         layout = CustodyTreeLayout(self, "all-four-positive-names")
@@ -9006,8 +9019,6 @@ class StatusAndGoldenTests(StoreTestBase):
             layout, [(basename, errno.ENAMETOOLONG)],
             (key["producer"],),
         )
-        completed = [basename]
-        self.assertEqual(completed, ["9" * 1000])
 
     def test_custody_status_continues_after_one_shot_metadata_errors(self):
         """Fails if: one metadata error removes or changes either sibling."""
@@ -9036,36 +9047,30 @@ class StatusAndGoldenTests(StoreTestBase):
             ],
             "faults": [],
         }
+        job_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "job:Researcher.X",
+            "generation": "job-Researcher.X-g1",
+        }
+        request_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "request:42",
+            "generation": "request-42-g1",
+        }
+        retro_identity = {
+            "repository": "sfenton/native-home",
+            "intake": "request",
+            "producer": "retro:Task-X",
+            "generation": "retro-Task-X-g1",
+        }
         positive = with_custody_tree(
             mixed,
             [
-                (
-                    0,
-                    {
-                        key: _PA_MIXED_JOB_RECORD[key]
-                        for key in (
-                            "repository", "intake",
-                            "producer", "generation",
-                        )
-                    },
-                    True,
-                ),
-                (
-                    1,
-                    _PA_REQUEST_42_MISSING_TREE["key"],
-                    True,
-                ),
-                (
-                    2,
-                    {
-                        key: _PA_MIXED_RETRO_RECORD[key]
-                        for key in (
-                            "repository", "intake",
-                            "producer", "generation",
-                        )
-                    },
-                    True,
-                ),
+                (0, job_identity, True),
+                (1, request_identity, True),
+                (2, retro_identity, True),
             ],
             [],
         )
@@ -9123,32 +9128,9 @@ class StatusAndGoldenTests(StoreTestBase):
                 expected = with_custody_tree(
                     mixed,
                     [
-                        (
-                            0,
-                            {
-                                key: _PA_MIXED_JOB_RECORD[key]
-                                for key in (
-                                    "repository", "intake",
-                                    "producer", "generation",
-                                )
-                            },
-                            True,
-                        ),
-                        (
-                            1, _PA_REQUEST_42_UNREADABLE_TREE["key"],
-                            None,
-                        ),
-                        (
-                            2,
-                            {
-                                key: _PA_MIXED_RETRO_RECORD[key]
-                                for key in (
-                                    "repository", "intake",
-                                    "producer", "generation",
-                                )
-                            },
-                            True,
-                        ),
+                        (0, job_identity, True),
+                        (1, request_identity, None),
+                        (2, retro_identity, True),
                     ],
                     [_PA_REQUEST_42_UNREADABLE_TREE],
                 )
