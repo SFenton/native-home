@@ -1317,6 +1317,7 @@ class CustodyTreeTrace:
     def __init__(self, inject=None, close_failure=None):
         self.inject = inject
         self.close_failure = close_failure
+        self.probes = []
         self.events = []
         self.injections = 0
         self.open_ordinal = 0
@@ -1331,11 +1332,17 @@ class CustodyTreeTrace:
         observer = getattr(ht, "_observe_custody_tree", None)
         if observer is not None:
             self._observer_code = observer.__code__
+            self._original_observer = observer
         self._original_open = os.open
         self._original_stat = os.stat
         self._original_close = os.close
         self._stack = contextlib.ExitStack()
         self._stack.__enter__()
+        if observer is not None:
+            self._stack.enter_context(mock.patch.object(
+                ht, "_observe_custody_tree",
+                new=self._observe,
+            ))
         self._stack.enter_context(
             mock.patch.object(os, "open", new=self._open)
         )
@@ -1349,7 +1356,7 @@ class CustodyTreeTrace:
             (Path, (
                 "resolve", "readlink", "stat", "lstat", "exists",
                 "is_dir", "is_file", "open", "read_bytes", "iterdir",
-                "glob", "rglob", "cwd", "absolute",
+                "read_text", "glob", "rglob", "cwd", "absolute",
             )),
             (
                 os,
@@ -1370,6 +1377,12 @@ class CustodyTreeTrace:
 
     def __exit__(self, exc_type, exc, traceback):
         return self._stack.__exit__(exc_type, exc, traceback)
+
+    def _observe(self, paths, producer):
+        self.probes.append((
+            "observe", os.fspath(paths.root), producer,
+        ))
+        return self._original_observer(paths, producer)
 
     def _attributed(self):
         frame = sys._getframe(2)
@@ -2438,7 +2451,19 @@ class StoreTestBase(t.Base):
         expected_custody=_PA_ABSENT,
         expected_custody_text=_PA_ABSENT,
         test_clock=None,
+        expected_projection_probes=None,
+        expected_projection_trace=None,
+        expected_renderer_trace=None,
     ):
+        expected_projection_probes = list(
+            expected_projection_probes or ()
+        )
+        expected_projection_trace = list(
+            expected_projection_trace or ()
+        )
+        expected_renderer_trace = list(
+            expected_renderer_trace or ()
+        )
         self.assertEqual(
             expected_remote_events is None,
             not hasattr(gh, "events"),
@@ -2446,9 +2471,30 @@ class StoreTestBase(t.Base):
         )
         state_paths = (
             self.paths.state,
-            ht.Paths(self.cfg, self.home, "nightly-").state,
-            ht.Paths(self.cfg, self.home, "retro-").state,
+            ht.Paths(cfg, self.home, "nightly-").state,
+            ht.Paths(cfg, self.home, "retro-").state,
         )
+        cfg = dict(cfg)
+        bound_custody = any(
+            "target" in body
+            for path in state_paths
+            for _key, body, _notices in ht.State(path).vetted_custody_records
+        )
+        if bound_custody:
+            layout_number = getattr(
+                self, "_custody_status_layout_number", 0
+            )
+            self._custody_status_layout_number = layout_number + 1
+            layout = CustodyTreeLayout(
+                self, f"status-{layout_number}"
+            )
+            cfg["root"] = str(layout.paths.root)
+            configured_paths = ht.Paths(cfg, self.home)
+            self.assertEqual(configured_paths.state, self.paths.state)
+            self.assertEqual(
+                configured_paths.lock, self.paths.lock
+            )
+            self.assertTrue(configured_paths.worktrees.is_dir())
         queue_events, remote_events = expected_queue_events, expected_remote_events
         text_queue_events, encoded_queue_events = queue_events
         if remote_events is None:
@@ -2461,15 +2507,16 @@ class StoreTestBase(t.Base):
         ):
             constructors = []
             reads = []
-            custody_probes = []
+            renderer_trace = []
             clock_calls = []
             original_init = ht.State.__init__
             original_read_text = Path.read_text
             original_path_methods = {
                 name: getattr(Path, name)
                 for name in (
-                    "exists", "is_file", "is_dir", "read_bytes",
-                    "open", "iterdir", "glob", "rglob",
+                    "resolve", "readlink", "stat", "lstat", "exists",
+                    "is_file", "is_dir", "read_bytes", "open",
+                    "iterdir", "glob", "rglob", "cwd", "absolute",
                 )
             }
             original_open = open
@@ -2477,28 +2524,49 @@ class StoreTestBase(t.Base):
             original_os_methods = {
                 name: getattr(os, name)
                 for name in (
-                    "open", "stat", "lstat", "scandir", "listdir",
+                    "open", "close", "stat", "lstat", "scandir",
+                    "listdir", "readlink", "access", "fstat", "getcwd",
                 )
             }
             remote_start = (
                 len(gh.events) if hasattr(gh, "events") else None
             )
 
-            def in_custody_path():
+            observer_code = getattr(
+                ht, "_observe_custody_tree", None
+            )
+            observer_code = (
+                observer_code.__code__
+                if observer_code is not None else None
+            )
+            projection_code = ht.custody_status.__code__
+            renderer_code = ht.custody_text.__code__
+
+            def in_code(code):
                 frame = sys._getframe(1)
                 while frame is not None:
-                    if frame.f_code in (
-                        ht.custody_status.__code__,
-                        ht.custody_text.__code__,
-                    ):
+                    if frame.f_code is code:
                         return True
                     frame = frame.f_back
                 return False
 
+            def in_projection():
+                return (
+                    in_code(projection_code)
+                    and not in_code(observer_code)
+                )
+
             def observe_probe(label, original):
                 def observed(*args, **kwargs):
-                    if in_custody_path():
-                        custody_probes.append(label)
+                    if in_code(renderer_code):
+                        renderer_trace.append(label)
+                        raise AssertionError(
+                            f"unexpected custody renderer access {label}"
+                        )
+                    if in_projection():
+                        raise AssertionError(
+                            f"unexpected custody projection access {label}"
+                        )
                     return original(*args, **kwargs)
                 return observed
 
@@ -2507,8 +2575,15 @@ class StoreTestBase(t.Base):
                 return original_init(state, path)
 
             def observed_read_text(path, *args, **kwargs):
-                if in_custody_path():
-                    custody_probes.append("Path.read_text")
+                if in_code(renderer_code):
+                    renderer_trace.append("Path.read_text")
+                    raise AssertionError(
+                        "unexpected custody renderer access Path.read_text"
+                    )
+                if in_projection():
+                    raise AssertionError(
+                        "unexpected custody projection access Path.read_text"
+                    )
                 if Path(path) in state_paths:
                     reads.append(Path(path))
                 return original_read_text(path, *args, **kwargs)
@@ -2566,15 +2641,27 @@ class StoreTestBase(t.Base):
                         "status created a directory"
                     ),
                 ))
-                result = self.main_golden(
-                    argv, cfg, gh, boundaries,
-                    custody_clock=test_clock,
-                    clock_calls=clock_calls,
-                )
+                with CustodyTreeTrace() as projection_trace:
+                    result = self.main_golden(
+                        argv, cfg, gh, boundaries,
+                        custody_clock=test_clock,
+                        clock_calls=clock_calls,
+                    )
             self.assertEqual(
-                custody_probes,
-                [],
-                "custody projection filesystem probes",
+                {
+                    "probes": projection_trace.probes,
+                    "calls": projection_trace.events,
+                },
+                {
+                    "probes": expected_projection_probes,
+                    "calls": expected_projection_trace,
+                },
+                f"custody projection trace for {' '.join(argv)}",
+            )
+            self.assertEqual(
+                renderer_trace,
+                expected_renderer_trace,
+                f"custody renderer trace for {' '.join(argv)}",
             )
             self.assertEqual(
                 len(clock_calls),
@@ -8180,6 +8267,72 @@ class StatusAndGoldenTests(StoreTestBase):
                         {},
                     )
             status.assert_not_called()
+
+    def test_pa_locked_status_empty_trace_rejects_real_observer_call(self):
+        """Fails if: a real observer call inside the command trace passes the empty projection gate."""
+        cfg = dict(self.cfg)
+        cfg["schedules"] = {}
+        primary = self.legacy(
+            custody=self.request_seed(42).aggregate()
+        )
+        nightly = self.legacy()
+        self.write_raw(self.paths.state, primary)
+        nightly_path = ht.Paths(cfg, self.home, "nightly-").state
+        self.write_raw(nightly_path, nightly)
+        opens = (
+            ("open", cfg["request_repo"]),
+            ("open", cfg["nightly"]["repo"]),
+        )
+        expected_files = {
+            ".local/state/hass-triage/state.json":
+                json.dumps(primary).encode(),
+            ".local/state/hass-triage/state-nightly.json":
+                json.dumps(nightly).encode(),
+            ".local/state/hass-triage/tick.lock": b"4242",
+        }
+        arguments = (
+            cfg,
+            RecordlessTraceGitHub({
+                cfg["request_repo"]: [],
+                cfg["nightly"]["repo"]: [],
+            }),
+            RecordlessBoundaries(self.home),
+            with_custody_text(
+                _PA_HEALTHY_STATUS_TEXT, _CT_REQUEST_42
+            ),
+            _PA_HEALTHY_JSON_FIELDS,
+            [],
+            [],
+            [],
+            [],
+            (opens, opens),
+            (opens, opens),
+            expected_files,
+        )
+        kwargs = {
+            "expected_custody": _PA_REQUEST_42_CUSTODY,
+            "expected_custody_text": _CT_REQUEST_42,
+        }
+        self.assert_pa_locked_status(*arguments, **kwargs)
+
+        real_main_golden = self.main_golden
+
+        def with_observer_call(argv, observed_cfg, *args, **call_kwargs):
+            result = real_main_golden(
+                argv, observed_cfg, *args, **call_kwargs
+            )
+            ht._observe_custody_tree(
+                ht.Paths(observed_cfg, self.home), "request:42"
+            )
+            return result
+
+        with mock.patch.object(
+            self, "main_golden", side_effect=with_observer_call
+        ), self.assertRaisesRegex(
+            AssertionError,
+            "custody projection trace for status",
+        ):
+            self.assert_pa_locked_status(*arguments, **kwargs)
 
     def test_pa_loader_rejects_age_change_before_storage_or_clock(self):
         """Fails if: a P-a age change passes the legacy empty-shape guard."""
