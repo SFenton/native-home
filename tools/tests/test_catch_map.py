@@ -178,6 +178,76 @@ class CatchMapTests(unittest.TestCase):
             ["{path}:5 _run in def inner: unguarded"],
         )
 
+    def test_async_function_has_its_own_scope_and_owner(self):
+        self.assert_output(
+            """
+            def outer():
+                try:
+                    async def inner():
+                        _run()
+                except Exception:
+                    pass
+            """,
+            ("--callee", "_run"),
+            ["{path}:4 _run in def inner: unguarded"],
+        )
+
+    def test_lambda_has_its_own_scope_and_owner(self):
+        self.assert_output(
+            """
+            def outer():
+                try:
+                    worker = lambda: _run()
+                except Exception:
+                    pass
+            """,
+            ("--callee", "_run"),
+            ["{path}:3 _run in def <lambda>: unguarded"],
+        )
+
+    def test_function_decorator_call_uses_outer_scope(self):
+        self.assert_output(
+            """
+            def outer():
+                try:
+                    @_run()
+                    def inner():
+                        pass
+                except Exception:
+                    pass
+            """,
+            ("--callee", "_run"),
+            ["{path}:3 _run in def outer: handler 6-7 Exception -> pass"],
+        )
+
+    def test_function_default_call_uses_outer_scope(self):
+        self.assert_output(
+            """
+            def outer():
+                try:
+                    def inner(value=_run()):
+                        pass
+                except Exception:
+                    pass
+            """,
+            ("--callee", "_run"),
+            ["{path}:3 _run in def outer: handler 5-6 Exception -> pass"],
+        )
+
+    def test_class_base_call_uses_outer_scope(self):
+        self.assert_output(
+            """
+            def outer():
+                try:
+                    class Inner(_run()):
+                        pass
+                except Exception:
+                    pass
+            """,
+            ("--callee", "_run"),
+            ["{path}:3 _run in def outer: handler 5-6 Exception -> pass"],
+        )
+
     def test_with_inside_try_reports_outer_handler(self):
         self.assert_output(
             """
