@@ -44,6 +44,19 @@ class Base(unittest.TestCase):
         path.write_text(content if isinstance(content, str) else json.dumps(content))
         return path
 
+    def review(self, name, branch, verdict, rnd, when, head=None):
+        path = self.write(
+            f"build/review/{name}.json",
+            {"branch": branch, "head": head or f"{rnd:040x}", "round": rnd, "verdict": verdict},
+        )
+        os.utime(path, (when, when))
+        return path
+
+    def note(self, when, task="R-1"):
+        path = self.write(f"build/retro/{task}.md", "# Steward note\n")
+        os.utime(path, (when, when))
+        return path
+
     def run_digest(self, *extra, task="R-1", worktree=True):
         argv = ["--task", task] + (["--worktree", str(self.dir)] if worktree else []) + list(extra)
         self.assertEqual(rd.main(argv), 0)
@@ -120,15 +133,68 @@ class TriggerTests(Base):
         self.assertIn("retry", self.fired(self.run_digest("--outcome", "retry", "--attempt", "1")))
         self.assertIn("worker_failed", self.fired(self.run_digest("--outcome", "blocked:worker_failed")))
 
-    def test_review_rounds_over_cap(self):
+    def test_review_rounds_over_cap_uses_non_pass_records(self):
         self.write("build/tasks/R-1.json", {"branches": ["lane/a", "lane/b"]})
-        self.write("build/review/a.json", {"branch": "lane/a", "verdict": "changes", "round": 3})
-        self.write("build/review/b.json", {"branch": "lane/b", "verdict": "pass", "round": 1})
+        self.review("a-1", "lane/a", "changes", 1, 10)
+        self.review("a-2", "lane/a", "changes", 2, 20)
+        self.review("a-3", "lane/a", "changes", 3, 30)
+        self.review("b", "lane/b", "pass", 1, 40)
         doc = self.run_digest()
-        self.assertIn("review_rounds_over_cap", self.fired(doc))
-        self.assertEqual(doc["counts"]["review_rounds"], 3)
-        self.write("build/review/a.json", {"branch": "lane/a", "verdict": "pass", "round": 2})
+        self.assertEqual(
+            self.fired(doc)["review_rounds_over_cap"],
+            ["branch lane/a: 3 non-pass rounds (cap 2)"],
+        )
+        self.assertEqual(doc["counts"]["review_rounds_max"], 3)
+
+    def test_confirmation_pass_does_not_count_as_a_non_pass_round(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-1", "lane/a", "changes", 1, 10)
+        self.review("a-2", "lane/a", "changes", 2, 20)
+        self.review("a-pass", "lane/a", "pass", 3, 30)
+        doc = self.run_digest()
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
+        self.assertEqual(
+            (doc["counts"]["review_rounds_max"], doc["counts"]["confirmation_rounds"]),
+            (2, 1),
+        )
+
+    def test_only_branches_newer_than_the_steward_note_are_news(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/new", "lane/old"]})
+        for rnd in range(1, 4):
+            self.review(f"new-{rnd}", "lane/new", "changes", rnd, 200 + rnd)
+            self.review(f"old-{rnd}", "lane/old", "changes", rnd, 50 + rnd)
+        self.note(100)
+        fired = self.fired(self.run_digest())["review_rounds_over_cap"]
+        self.assertEqual(fired, ["branch lane/new: 3 non-pass rounds (cap 2)"])
+
+    def test_the_same_branch_is_news_only_after_a_new_record(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        records = [self.review(f"a-{rnd}", "lane/a", "changes", rnd, 10 + rnd) for rnd in range(1, 4)]
+        self.note(100)
         self.assertNotIn("review_rounds_over_cap", self.fired(self.run_digest()))
+        os.utime(records[-1], (200, 200))
+        self.assertEqual(
+            self.fired(self.run_digest())["review_rounds_over_cap"],
+            ["branch lane/a: 3 non-pass rounds (cap 2)"],
+        )
+
+    def test_a_branch_has_news_without_a_steward_note(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        for rnd in range(1, 4):
+            self.review(f"a-{rnd}", "lane/a", "changes", rnd, rnd)
+        self.assertEqual(
+            self.fired(self.run_digest())["review_rounds_over_cap"],
+            ["branch lane/a: 3 non-pass rounds (cap 2)"],
+        )
+
+    def test_a_blocker_counts_as_a_non_pass_round(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-1", "lane/a", "blocker", 1, 10)
+        self.review("a-2", "lane/a", "changes", 2, 20)
+        self.review("a-3", "lane/a", "blocker", 3, 30)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_rounds_max"], 3)
+        self.assertIn("branch lane/a", self.fired(doc)["review_rounds_over_cap"][0])
 
     def test_owner_correction_after_start(self):
         status = self.write("status.json", {"state": "done", "started": "2026-11-02T10:00:00Z"})
@@ -138,20 +204,21 @@ class TriggerTests(Base):
         self.assertEqual(len(fired["owner_correction"]), 1)
         self.assertIn("other tile", fired["owner_correction"][0])
 
-    def test_routing_override_level_raised(self):
+    def test_reasoned_level_raise_without_a_hint_is_not_an_override(self):
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L2", "intake": "u", "brief": "b",
                                             "level_history": [{"from": "L0", "to": "L2", "reason": "visible"}]})
-        self.assertIn("L0 -> L2", self.fired(self.run_digest())["routing_override"][0])
+        self.assertNotIn("routing_override", self.fired(self.run_digest()))
 
-    def test_routing_override_gate_hint_differs(self):
-        self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L1"})
+    def test_intake_above_hint_is_counted_without_an_override(self):
+        self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L3"})
         self.write("build/jev/gate.jsonl", json.dumps({"subject": "R-1", "question": "design.user_visible@1",
                                                         "value": False}) + "\n"
                    + "garbage\n" + json.dumps({"subject": "R-1", "question": "decision.needs_owner@1",
                                                 "value": False}) + "\n")
         doc = self.run_digest()
         self.assertEqual(doc["level"]["gate_hint"], "L0")
-        self.assertIn("gate routed to L0", self.fired(doc)["routing_override"][0])
+        self.assertNotIn("routing_override", self.fired(doc))
+        self.assertEqual(doc["counts"]["intake_above_hint"], 1)
 
     def test_gate_hint_matching_level_is_quiet(self):
         self.write("build/tasks/R-1.json", {"id": "R-1", "level": "L0"})
@@ -259,6 +326,49 @@ class TriggerTests(Base):
         doc = self.run_digest()
         self.assertEqual(doc["level"]["gate_hint"], "L2")
         self.assertIn("no reason recorded", self.fired(doc)["routing_override"][0])
+
+    def test_a_level_move_away_from_the_hint_is_flagged(self):
+        """Fails if: a reasoned move from the hint to a higher level is treated as intake-only."""
+        self.write("build/tasks/R-1.json", {
+            "id": "R-1",
+            "level": "L3",
+            "level_history": [{"from": "L1", "to": "L3", "reason": "owner requested the wider scope"}],
+        })
+        self.write("build/jev/gate.jsonl", "".join(json.dumps(row) + "\n" for row in (
+            {"subject": "R-1", "question": "design.user_visible", "value": True},
+            {"subject": "R-1", "question": "design.target_decided", "value": True},
+            {"subject": "R-1", "question": "decision.needs_owner", "value": False},
+        )))
+        doc = self.run_digest()
+        self.assertEqual(doc["level"]["gate_hint"], "L1")
+        self.assertIn("L1 -> L3", self.fired(doc)["routing_override"][0])
+        self.assertEqual(doc["counts"]["intake_above_hint"], 0)
+
+    def test_this_task_fixture_has_no_news_or_routing_override(self):
+        self.write("build/tasks/R-1.json", {
+            "id": "R-1",
+            "level": "L2",
+            "branches": ["agents/factory-digest-news-20261127"],
+            "level_history": [],
+            "acceptance": [{"id": "digest-news", "passes": False}],
+        })
+        self.write("build/jev/gate.jsonl", "".join(json.dumps(row) + "\n" for row in (
+            {"subject": "R-1", "question": "design.user_visible", "value": True},
+            {"subject": "R-1", "question": "design.target_decided", "value": False},
+        )))
+        self.review("factory-digest-news", "agents/factory-digest-news-20261127", "pass", 1, 10)
+        fired = self.fired(self.run_digest())
+        self.assertNotIn("review_rounds_over_cap", fired)
+        self.assertNotIn("routing_override", fired)
+
+    def test_weekly_reader_parses_digest_with_news_counts(self):
+        self.review("a", "lane/a", "pass", 1, 10)
+        digest = self.run_digest()
+        self.assertIn("review_rounds_max", digest["counts"])
+        self.assertIn("confirmation_rounds", digest["counts"])
+        records = rw.collect(None, self.dir, None)
+        at = records["digests"][0]["at"]
+        self.assertEqual(rw.metrics(records, at, at + timedelta(seconds=1))["tasks"][0]["task"], "R-1")
 
     def test_tool_errors_counted_and_redacted(self):
         log = self.write("e.log", "error: HTTP 401: Requires authentication\nHTTP 401 again\nNot logged in · Please run /login\n"
@@ -565,7 +675,7 @@ class S3ProofTests(Base):
         self.set_flow([self.check("x", True)], {"x": "fail"})
         self.write(f"build/tasks/{self.TASK}.json", {
             "id": self.TASK, "level": "L2", "acceptance": [self.check("x", True)],
-            "level_history": [{"from": "L0", "to": "L2", "reason": "visible"}],
+            "level_history": [{"from": "L0", "to": "L2"}],
         })
         digest = self.run_digest(task=self.TASK)
         self.assertEqual(digest["status_stale"], ["x"])
@@ -683,8 +793,8 @@ class S3ProofTests(Base):
         self.assertIn("gate", doc["sources"])
         self.assertEqual(doc["counts"]["gate_answers"], 2)
 
-    def test_s3_21_level_history_override_survives_null_hint(self):
-        """Fails if: a null hint disables a recorded level-history override."""
+    def test_s3_21_reasoned_level_history_with_null_hint_is_not_an_override(self):
+        """Fails if: a null hint creates an override for a reasoned move."""
         self.write(f"build/tasks/{self.TASK}.json", {
             "id": self.TASK, "level": "L2", "acceptance": [],
             "level_history": [{"from": "L0", "to": "L2", "reason": "visible user surface"}],
@@ -693,8 +803,7 @@ class S3ProofTests(Base):
         doc = self.run_digest(task=self.TASK)
         self.assertIsNone(doc["level"]["gate_hint"])
         fired = self.fired(doc)
-        self.assertIn("routing_override", fired)
-        self.assertIn("L0 -> L2", fired["routing_override"][0])
+        self.assertNotIn("routing_override", fired)
 
     def test_s3_22_stale_ids_are_sorted_deterministically(self):
         """Fails if: stale ids preserve status-map insertion order."""
@@ -911,17 +1020,19 @@ class StoreTests(Base):
         name = f"{branch.replace('/', '__')}-{sha[:12]}.json"
         (self.store / name).write_text(json.dumps({"branch": stamped or branch, "head": head or sha, "round": rnd, "verdict": "changes"}))
 
-    def test_a_lane_with_records_over_the_cap_fires_review_rounds_over_cap(self):
-        """Fails if: three store records (rounds 1, 2, 3) on two ledger branches do not give review_verdicts 3 and the trigger."""
+    def test_a_branch_with_three_store_records_fires_review_rounds_over_cap(self):
+        """Fails if: three store records on one branch do not give review_verdicts 3 and branch evidence."""
         other = "agents/second-20261109"
         self.ledger(self.BRANCH, other)
-        for i, rnd in enumerate((1, 2)):
+        for i, rnd in enumerate((1, 2, 3)):
             self.record(self.BRANCH, f"{i}" * 40, rnd)
-        self.record(other, "a" * 40, 3)
         doc = self.run_digest()
         self.assertEqual(doc["counts"]["review_verdicts"], 3)
         self.assertEqual(doc["counts"]["review_rounds"], 3)
-        self.assertEqual(self.fired(doc)["review_rounds_over_cap"], ["3 review rounds (cap 2)"])
+        self.assertEqual(
+            self.fired(doc)["review_rounds_over_cap"],
+            [f"branch {self.BRANCH}: 3 non-pass rounds (cap 2)"],
+        )
 
     def test_stray_records_for_another_branch_or_sha_are_not_counted(self):
         """Fails if: a record stamped main, one whose head differs from its file sha, or a prefix-sharing branch name adds to the count."""
@@ -1095,12 +1206,13 @@ class LaneTests(Base):
         self.run_record("tt-cov", "RESULT: PASS (exit 0)  tt-cov  0s")
         self.assertIn("empty_runs", self.fired(self.lane()))
 
-    def test_review_rounds_over_the_cap_come_from_the_branch_file(self):
+    def test_confirmation_pass_round_number_does_not_fire_from_the_branch_file(self):
         self.write("build/review/claude__lane-x.json", {"branch": "claude/lane-x", "round": 3, "verdict": "pass"})
         self.write("build/review/claude__other.json", {"branch": "claude/other", "round": 9, "verdict": "pass"})
         doc = self.lane()
-        self.assertEqual(self.fired(doc)["review_rounds_over_cap"], ["3 review rounds (cap 2)"])
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
         self.assertEqual(doc["counts"]["review_verdicts"], 1)
+        self.assertEqual(doc["counts"]["confirmation_rounds"], 1)
 
     def test_a_marker_with_a_live_process_fires_stopped_with_live_children(self):
         self.write("build/runs/hold.running", {"pid": os.getpid(), "label": "hold", "started": 0, "cwd": "."})
