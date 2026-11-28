@@ -524,6 +524,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         if not getattr(args, "lane", None) and branches and data.get("branch") not in branches:
             skipped_reviews.append(path.name)
             continue
+        data["_retro_record_file"] = path.name
         try:
             data["_retro_record_time"] = path.stat().st_mtime
         except OSError:
@@ -576,28 +577,40 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     rounds = max([int(r.get("round") or 1) for r in reviews] or [0])
     ledger_rounds = int(((ledger.get("rounds") or {}).get("review") or 0)) if isinstance(ledger.get("rounds"), dict) else 0
     rounds = max(rounds, ledger_rounds)
-    non_pass_by_branch: Dict[str, int] = {}
-    newest_by_branch: Dict[str, float] = {}
+    non_pass_by_stream: Dict[Tuple[str, str], int] = {}
+    highest_non_pass_by_stream: Dict[Tuple[str, str], int] = {}
+    newest_by_stream: Dict[Tuple[str, str], float] = {}
     confirmation_rounds = 0
     for review in reviews:
+        round_number = int(review.get("round") or 1)
+        if review.get("verdict") == "pass" and round_number >= 3:
+            confirmation_rounds += 1
         branch = review.get("branch")
-        if not isinstance(branch, str) or not branch.strip():
+        record_file = review.get("_retro_record_file")
+        if isinstance(branch, str) and branch.strip():
+            stream = ("branch", branch)
+        elif isinstance(record_file, str) and record_file:
+            stream = ("file", record_file)
+        else:
             continue
         record_time = float(review.get("_retro_record_time") or 0)
-        newest_by_branch[branch] = max(record_time, newest_by_branch.get(branch, 0))
+        newest_by_stream[stream] = max(record_time, newest_by_stream.get(stream, 0))
         if review.get("verdict") in ("changes", "blocker"):
-            non_pass_by_branch[branch] = non_pass_by_branch.get(branch, 0) + 1
-        elif review.get("verdict") == "pass":
-            confirmation_rounds += 1
-    review_rounds_max = max(non_pass_by_branch.values(), default=0)
+            non_pass_by_stream[stream] = non_pass_by_stream.get(stream, 0) + 1
+            highest_non_pass_by_stream[stream] = max(round_number, highest_non_pass_by_stream.get(stream, 0))
+    stream_rounds = {
+        stream: max(count, highest_non_pass_by_stream.get(stream, 0))
+        for stream, count in non_pass_by_stream.items()
+    }
+    review_rounds_max = max(stream_rounds.values(), default=0)
     note = src["out"].with_suffix(".md") if src["out"] else None
     try:
         note_time = note.stat().st_mtime if note else None
     except OSError:
         note_time = None
-    for branch, count in sorted(non_pass_by_branch.items()):
-        if count > REVIEW_ROUND_CAP and (note_time is None or newest_by_branch.get(branch, 0) > note_time):
-            fire("review_rounds_over_cap", f"branch {branch}: {count} non-pass rounds (cap {REVIEW_ROUND_CAP})")
+    for stream, count in sorted(stream_rounds.items()):
+        if count > REVIEW_ROUND_CAP and (note_time is None or newest_by_stream.get(stream, 0) > note_time):
+            fire("review_rounds_over_cap", f"{stream[0]} {stream[1]}: {count} non-pass rounds (cap {REVIEW_ROUND_CAP})")
 
     started = parse_time(status.get("started") or args.started)
     owner_lines = []

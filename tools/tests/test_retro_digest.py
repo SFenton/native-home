@@ -45,9 +45,12 @@ class Base(unittest.TestCase):
         return path
 
     def review(self, name, branch, verdict, rnd, when, head=None):
+        data = {"head": head or f"{rnd:040x}", "round": rnd, "verdict": verdict}
+        if branch is not None:
+            data["branch"] = branch
         path = self.write(
             f"build/review/{name}.json",
-            {"branch": branch, "head": head or f"{rnd:040x}", "round": rnd, "verdict": verdict},
+            data,
         )
         os.utime(path, (when, when))
         return path
@@ -195,6 +198,69 @@ class TriggerTests(Base):
         doc = self.run_digest()
         self.assertEqual(doc["counts"]["review_rounds_max"], 3)
         self.assertIn("branch lane/a", self.fired(doc)["review_rounds_over_cap"][0])
+
+    def test_unbranched_changes_at_round_3_is_over_cap(self):
+        self.review("lane", None, "changes", 3, 10)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_rounds"], 3)
+        self.assertEqual(doc["counts"]["review_rounds_max"], 3)
+        self.assertEqual(
+            self.fired(doc)["review_rounds_over_cap"],
+            ["file lane.json: 3 non-pass rounds (cap 2)"],
+        )
+
+    def test_highest_non_pass_round_can_raise_a_branch_over_cap(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-1", "lane/a", "changes", 1, 10)
+        self.review("a-3", "lane/a", "changes", 3, 30)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_rounds_max"], 3)
+        self.assertEqual(
+            self.fired(doc)["review_rounds_over_cap"],
+            ["branch lane/a: 3 non-pass rounds (cap 2)"],
+        )
+
+    def test_pass_at_round_3_is_only_a_confirmation_round(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-1", "lane/a", "changes", 1, 10)
+        self.review("a-pass", "lane/a", "pass", 3, 30)
+        doc = self.run_digest()
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
+        self.assertEqual(doc["counts"]["confirmation_rounds"], 1)
+
+    def test_single_changes_at_round_2_is_not_over_cap(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-2", "lane/a", "changes", 2, 10)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_rounds_max"], 2)
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
+
+    def test_blocker_at_round_3_is_over_cap(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        self.review("a-3", "lane/a", "blocker", 3, 10)
+        doc = self.run_digest()
+        self.assertEqual(
+            self.fired(doc)["review_rounds_over_cap"],
+            ["branch lane/a: 3 non-pass rounds (cap 2)"],
+        )
+
+    def test_unbranched_files_are_independent_streams(self):
+        self.review("first", None, "changes", 1, 10)
+        self.review("second", None, "changes", 1, 20)
+        doc = self.run_digest()
+        self.assertEqual(doc["counts"]["review_rounds_max"], 1)
+        self.assertNotIn("review_rounds_over_cap", self.fired(doc))
+
+    def test_unbranched_stream_respects_steward_note_news(self):
+        record = self.review("lane", None, "changes", 3, 10)
+        note = self.note(20)
+        self.assertNotIn("review_rounds_over_cap", self.fired(self.run_digest()))
+        note.unlink()
+        self.assertTrue(record.is_file())
+        self.assertEqual(
+            self.fired(self.run_digest())["review_rounds_over_cap"],
+            ["file lane.json: 3 non-pass rounds (cap 2)"],
+        )
 
     def test_owner_correction_after_start(self):
         status = self.write("status.json", {"state": "done", "started": "2026-11-02T10:00:00Z"})
