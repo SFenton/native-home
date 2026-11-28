@@ -28,10 +28,18 @@ and ``*.running`` markers from ``bg_run``, with their durations and executed/ski
 ``stopped_with_live_children``) and two lane ones: ``repeated_long_device_rounds`` and ``empty_runs``.
 
 For each branch in the ledger's ``branches`` (``tools/tasks.py add-branch``), the digest also reads that branch's records from the
-trusted verdict store (``review_verdict.reviews_dir()``, files ``<branch with / as __>-<sha12>.json``) and merges their highest
-``round`` and their count into ``review_rounds`` and ``review_verdicts``; stray records for another branch or sha are not counted.
-A verdict that is also in the task's ``build/review`` (``record.py --lane`` writes both copies) counts once. ``--archive`` still reads
-the live store, not an archived copy.
+trusted verdict store (``review_verdict.reviews_dir()``, files ``<branch with / as __>-<sha12>.json``) and merges them into
+``review_rounds`` and ``review_verdicts``; stray records for another branch or sha are not counted. Review streams are ledger
+branches, or separate files for unbranched lane records. Their non-pass rounds are the larger of the number of ``changes`` and
+``blocker`` records and the highest round among those records; ``pass`` records never count. ``review_rounds_max`` is the largest
+stream, and ``confirmation_rounds`` counts ``pass`` records at round 3 or later. A verdict present in both the task's
+``build/review`` and the store counts once.
+
+An over-cap stream fires only when its newest record is newer than the task's adjacent Steward note. This news filter only works for
+ordinary worktree output: ``--archive`` does not carry that note, and ``--json`` can move the note lookup, so a missing note makes
+every stream news. An unreadable record time also makes that record news. ``--archive`` still reads the live verdict store, not an
+archived copy. ``routing_override`` fires only for a history entry with no reason, a final level below the hint, or a history move
+away from the hint; an unmoved intake level above the hint is instead reported by ``counts.intake_above_hint``.
 
 ``--archive DIR`` reads the layout ``hass_triage.py archive_evidence`` writes: ``tasks/``, ``review/``,
 ``gate.jsonl``, ``shadow.jsonl``, ``runs/``, ``status.json``, ``worker.log.tail``, ``owner_replies.json``.
@@ -117,6 +125,10 @@ def store_records(branch: str, directory: Optional[Path] = None) -> List[Dict[st
         match = pattern.match(name)
         data = read_json(folder / name) if match else None
         if isinstance(data, dict) and data.get("branch") == branch and str(data.get("head") or "").startswith(match.group(1)):
+            try:
+                data["_retro_record_time"] = (folder / name).stat().st_mtime
+            except OSError:
+                data["_retro_record_time"] = float("inf")
             found.append(data)
     return found
 
@@ -519,6 +531,11 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         if not getattr(args, "lane", None) and branches and data.get("branch") not in branches:
             skipped_reviews.append(path.name)
             continue
+        data["_retro_record_file"] = path.name
+        try:
+            data["_retro_record_time"] = path.stat().st_mtime
+        except OSError:
+            data["_retro_record_time"] = float("inf")
         reviews.append(data)
     seen = {(r.get("branch"), r.get("head"), r.get("round")) for r in reviews if r.get("branch") and r.get("head")}
     for branch in dict.fromkeys(b.strip() for b in branches if isinstance(b, str) and b.strip()):  # each ledger branch once
@@ -567,8 +584,40 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
     rounds = max([int(r.get("round") or 1) for r in reviews] or [0])
     ledger_rounds = int(((ledger.get("rounds") or {}).get("review") or 0)) if isinstance(ledger.get("rounds"), dict) else 0
     rounds = max(rounds, ledger_rounds)
-    if rounds > REVIEW_ROUND_CAP:
-        fire("review_rounds_over_cap", f"{rounds} review rounds (cap {REVIEW_ROUND_CAP})")
+    non_pass_by_stream: Dict[Tuple[str, str], int] = {}
+    highest_non_pass_by_stream: Dict[Tuple[str, str], int] = {}
+    newest_by_stream: Dict[Tuple[str, str], float] = {}
+    confirmation_rounds = 0
+    for review in reviews:
+        round_number = int(review.get("round") or 1)
+        if review.get("verdict") == "pass" and round_number >= 3:
+            confirmation_rounds += 1
+        branch = review.get("branch")
+        record_file = review.get("_retro_record_file")
+        if isinstance(branch, str) and branch.strip():
+            stream = ("branch", branch)
+        elif isinstance(record_file, str) and record_file:
+            stream = ("file", record_file)
+        else:
+            continue
+        record_time = float(review.get("_retro_record_time") or 0)
+        newest_by_stream[stream] = max(record_time, newest_by_stream.get(stream, 0))
+        if review.get("verdict") in ("changes", "blocker"):
+            non_pass_by_stream[stream] = non_pass_by_stream.get(stream, 0) + 1
+            highest_non_pass_by_stream[stream] = max(round_number, highest_non_pass_by_stream.get(stream, 0))
+    stream_rounds = {
+        stream: max(count, highest_non_pass_by_stream.get(stream, 0))
+        for stream, count in non_pass_by_stream.items()
+    }
+    review_rounds_max = max(stream_rounds.values(), default=0)
+    note = src["out"].with_suffix(".md") if src["out"] else None
+    try:
+        note_time = note.stat().st_mtime if note else None
+    except OSError:
+        note_time = None
+    for stream, count in sorted(stream_rounds.items()):
+        if count > REVIEW_ROUND_CAP and (note_time is None or newest_by_stream.get(stream, 0) > note_time):
+            fire("review_rounds_over_cap", f"{stream[0]} {stream[1]}: {count} non-pass rounds (cap {REVIEW_ROUND_CAP})")
 
     started = parse_time(status.get("started") or args.started)
     owner_lines = []
@@ -590,17 +639,25 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         if not isinstance(h, dict):
             continue
         reason = str(h.get("reason") or "").strip()
-        if hint and h.get("to") == hint and reason:
-            continue  # a recorded raise (or move) onto the gate's own hint is sanctioned, not an override
         lowered = h.get("from") in LEVELS and h.get("to") in LEVELS and LEVELS.index(h["to"]) < LEVELS.index(h["from"])
-        override.append(f"{h.get('from')} -> {h.get('to')}: {reason}" + ("" if reason or not lowered else " (lowered with no reason recorded)"))
-    if hint and final_level in LEVELS and hint != final_level:
+        away = (hint in LEVELS and h.get("from") in LEVELS and h.get("to") in LEVELS
+                and abs(LEVELS.index(h["to"]) - LEVELS.index(hint))
+                > abs(LEVELS.index(h["from"]) - LEVELS.index(hint)))
+        if not reason or away:
+            override.append(f"{h.get('from')} -> {h.get('to')}: {reason}"
+                            + ("" if reason or not lowered else " (lowered with no reason recorded)")
+                            + (" (moved away from hint)" if away else ""))
+    if hint in LEVELS and final_level in LEVELS and LEVELS.index(final_level) < LEVELS.index(hint):
         text = f"gate routed to {hint}, final level {final_level}"
         if LEVELS.index(final_level) < LEVELS.index(hint) and not any(str(h.get("reason") or "").strip() for h in history if isinstance(h, dict)):
             text += ": lowered with no reason recorded"
         override.append(text)
     if override:
         fire("routing_override", *override)
+    intake_above_hint = int(
+        hint in LEVELS and final_level in LEVELS and not history
+        and LEVELS.index(final_level) > LEVELS.index(hint)
+    )
 
     last = str(log["last_text"]).strip()
     tail = last[-400:]
@@ -705,9 +762,11 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         "triggers": triggers,
         "status_stale": reconciliation["stale"],
         "counts": {
-            "triggers": len(triggers), "review_rounds": rounds, "review_verdicts": len(reviews),
+            "triggers": len(triggers), "review_rounds": rounds, "review_rounds_max": review_rounds_max,
+            "review_verdicts": len(reviews), "confirmation_rounds": confirmation_rounds,
             "checks": len(checks), "checks_passing": sum(1 for c in checks if isinstance(c, dict) and c.get("passes")),
-            "level_changes": len(history), "gate_answers": len(gate), "shadow_records": len(shadow),
+            "level_changes": len(history), "intake_above_hint": intake_above_hint,
+            "gate_answers": len(gate), "shadow_records": len(shadow),
             "turns": int(result.get("num_turns") or 0), "attempt": args.attempt or 0, "waits": 1 if named_wait else 0,
             "owner_replies": len(comments), "tool_errors": errors,
             "skipped_runs": len(skipped_runs), "unscoped_runs": sum(1 for r in runs if r["unscoped"]), "skipped_reviews": len(skipped_reviews), **lane_counts,
