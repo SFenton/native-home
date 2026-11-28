@@ -28,11 +28,18 @@ and ``*.running`` markers from ``bg_run``, with their durations and executed/ski
 ``stopped_with_live_children``) and two lane ones: ``repeated_long_device_rounds`` and ``empty_runs``.
 
 For each branch in the ledger's ``branches`` (``tools/tasks.py add-branch``), the digest also reads that branch's records from the
-trusted verdict store (``review_verdict.reviews_dir()``, files ``<branch with / as __>-<sha12>.json``) and merges their highest
-``round`` and their count into ``review_rounds`` and ``review_verdicts``; stray records for another branch or sha are not counted.
-The cap trigger counts only non-pass records per branch, and branches older than the task's Steward note are not news. A verdict that
-is also in the task's ``build/review`` (``record.py --lane`` writes both copies) counts once. ``--archive`` still reads the live store,
-not an archived copy.
+trusted verdict store (``review_verdict.reviews_dir()``, files ``<branch with / as __>-<sha12>.json``) and merges them into
+``review_rounds`` and ``review_verdicts``; stray records for another branch or sha are not counted. Review streams are ledger
+branches, or separate files for unbranched lane records. Their non-pass rounds are the larger of the number of ``changes`` and
+``blocker`` records and the highest round among those records; ``pass`` records never count. ``review_rounds_max`` is the largest
+stream, and ``confirmation_rounds`` counts ``pass`` records at round 3 or later. A verdict present in both the task's
+``build/review`` and the store counts once.
+
+An over-cap stream fires only when its newest record is newer than the task's adjacent Steward note. This news filter only works for
+ordinary worktree output: ``--archive`` does not carry that note, and ``--json`` can move the note lookup, so a missing note makes
+every stream news. An unreadable record time also makes that record news. ``--archive`` still reads the live verdict store, not an
+archived copy. ``routing_override`` fires only for a history entry with no reason, a final level below the hint, or a history move
+away from the hint; an unmoved intake level above the hint is instead reported by ``counts.intake_above_hint``.
 
 ``--archive DIR`` reads the layout ``hass_triage.py archive_evidence`` writes: ``tasks/``, ``review/``,
 ``gate.jsonl``, ``shadow.jsonl``, ``runs/``, ``status.json``, ``worker.log.tail``, ``owner_replies.json``.
@@ -121,7 +128,7 @@ def store_records(branch: str, directory: Optional[Path] = None) -> List[Dict[st
             try:
                 data["_retro_record_time"] = (folder / name).stat().st_mtime
             except OSError:
-                data["_retro_record_time"] = 0
+                data["_retro_record_time"] = float("inf")
             found.append(data)
     return found
 
@@ -528,7 +535,7 @@ def digest(args: argparse.Namespace) -> Dict[str, Any]:
         try:
             data["_retro_record_time"] = path.stat().st_mtime
         except OSError:
-            data["_retro_record_time"] = 0
+            data["_retro_record_time"] = float("inf")
         reviews.append(data)
     seen = {(r.get("branch"), r.get("head"), r.get("round")) for r in reviews if r.get("branch") and r.get("head")}
     for branch in dict.fromkeys(b.strip() for b in branches if isinstance(b, str) and b.strip()):  # each ledger branch once

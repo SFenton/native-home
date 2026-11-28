@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from datetime import timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 TOOLS = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("retro_digest", TOOLS / "retro_digest.py")
@@ -37,6 +38,11 @@ class Base(unittest.TestCase):
         self.dir = Path(tempfile.mkdtemp(prefix="retro-digest-test-"))
         self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         self.build = self.dir / "build"
+        self.store = self.dir / "review-store"
+        self.store.mkdir()
+        original_reviews_dir = rd.review_verdict.reviews_dir
+        rd.review_verdict.reviews_dir = lambda: self.store
+        self.addCleanup(setattr, rd.review_verdict, "reviews_dir", original_reviews_dir)
 
     def write(self, rel, content):
         path = self.dir / rel
@@ -70,6 +76,11 @@ class Base(unittest.TestCase):
 
 
 class TriggerTests(Base):
+    def test_trigger_tests_use_an_isolated_verdict_store(self):
+        """Fails if: trigger fixtures can read verdicts outside their temporary directory."""
+        self.assertEqual(rd.review_verdict.reviews_dir(), self.store)
+        self.assertIn(self.dir, self.store.parents)
+
     def test_no_inputs_never_crashes(self):
         doc = self.run_digest()
         self.assertEqual(doc["triggers"], [])
@@ -180,6 +191,23 @@ class TriggerTests(Base):
             self.fired(self.run_digest())["review_rounds_over_cap"],
             ["branch lane/a: 3 non-pass rounds (cap 2)"],
         )
+
+    def test_unreadable_record_time_stays_news(self):
+        self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
+        records = [self.review(f"a-{rnd}", "lane/a", "changes", rnd, 10 + rnd) for rnd in range(1, 4)]
+        self.note(100)
+        original_stat = Path.stat
+
+        def stat(path, *args, **kwargs):
+            if path == records[-1]:
+                raise OSError("record disappeared")
+            return original_stat(path, *args, **kwargs)
+
+        with patch.object(Path, "stat", stat):
+            self.assertEqual(
+                self.fired(self.run_digest())["review_rounds_over_cap"],
+                ["branch lane/a: 3 non-pass rounds (cap 2)"],
+            )
 
     def test_a_branch_has_news_without_a_steward_note(self):
         self.write("build/tasks/R-1.json", {"branches": ["lane/a"]})
@@ -411,21 +439,27 @@ class TriggerTests(Base):
         self.assertEqual(doc["counts"]["intake_above_hint"], 0)
 
     def test_this_task_fixture_has_no_news_or_routing_override(self):
+        branches = ["lane/synthetic-alpha", "lane/synthetic-beta", "lane/synthetic-gamma"]
         self.write("build/tasks/R-1.json", {
             "id": "R-1",
-            "level": "L2",
-            "branches": ["agents/factory-digest-news-20261127"],
-            "level_history": [],
+            "level": "L3",
+            "branches": branches,
             "acceptance": [{"id": "digest-news", "passes": False}],
         })
         self.write("build/jev/gate.jsonl", "".join(json.dumps(row) + "\n" for row in (
-            {"subject": "R-1", "question": "design.user_visible", "value": True},
-            {"subject": "R-1", "question": "design.target_decided", "value": False},
+            {"subject": "R-1", "question": "design.user_visible", "value": False},
+            {"subject": "R-1", "question": "decision.needs_owner", "value": False},
         )))
-        self.review("factory-digest-news", "agents/factory-digest-news-20261127", "pass", 1, 10)
-        fired = self.fired(self.run_digest())
+        for index, branch in enumerate(branches):
+            self.review(f"synthetic-{index}-1", branch, "changes", 1, 10)
+            self.review(f"synthetic-{index}-2", branch, "changes", 2, 20)
+            self.review(f"synthetic-{index}-pass", branch, "pass", 4 if index == 2 else 3, 30)
+        doc = self.run_digest()
+        fired = self.fired(doc)
         self.assertNotIn("review_rounds_over_cap", fired)
         self.assertNotIn("routing_override", fired)
+        self.assertEqual(doc["counts"]["intake_above_hint"], 1)
+        self.assertEqual(doc["counts"]["confirmation_rounds"], len(branches))
 
     def test_weekly_reader_parses_digest_with_news_counts(self):
         self.review("a", "lane/a", "pass", 1, 10)
@@ -1017,6 +1051,29 @@ class S3ProofTests(Base):
 
 
 class ArchiveTests(Base):
+    def test_archive_without_a_steward_note_treats_every_stream_as_news(self):
+        branches = ["lane/archive-alpha", "lane/archive-beta"]
+        self.write("tasks/R-1.json", {"id": "R-1", "branches": branches})
+        for branch_index, branch in enumerate(branches):
+            for rnd in range(1, 4):
+                self.write(
+                    f"review/archive-{branch_index}-{rnd}.json",
+                    {"branch": branch, "round": rnd, "verdict": "changes"},
+                )
+        self.assertEqual(rd.main(["--task", "R-1", "--archive", str(self.dir)]), 0)
+        self.assertFalse((self.dir / "retro" / "R-1.md").exists())
+        doc = json.loads((self.dir / "retro" / "R-1.json").read_text())
+        evidence = [
+            line
+            for trigger in doc["triggers"]
+            if trigger["id"] == "review_rounds_over_cap"
+            for line in trigger["evidence"]
+        ]
+        self.assertEqual(
+            evidence,
+            [f"branch {branch}: 3 non-pass rounds (cap 2)" for branch in branches],
+        )
+
     def test_archive_layout_writes_into_the_archive(self):
         self.write("tasks/R-1.json", {"id": "R-1", "level": "L1", "intake": "u", "brief": "b"})
         self.write("status.json", {"state": "blocked", "blocked_reason": "context: budget"})
@@ -1045,7 +1102,10 @@ class ArchiveTests(Base):
 
     def test_unwritable_output_still_exits_zero(self):
         blocker = self.write("blocker", "file")
-        self.assertEqual(rd.main(["--task", "T", "--json", str(blocker / "sub" / "x.json")]), 0)
+        self.assertEqual(
+            rd.main(["--task", "T", "--worktree", str(self.dir), "--json", str(blocker / "sub" / "x.json")]),
+            0,
+        )
 
 
 class InstrumentTests(Base):
@@ -1069,15 +1129,6 @@ class StoreTests(Base):
     """A ledger's ``branches`` make the digest read the trusted verdict store (a temp home, never the real one)."""
 
     BRANCH = "agents/merge-guard-fixes-20261109"
-
-    def setUp(self):
-        super().setUp()
-        self.home = self.dir / "home"
-        self.store = self.home / "hass-agents" / "reviews"
-        self.store.mkdir(parents=True)
-        original = rd.review_verdict.reviews_dir
-        rd.review_verdict.reviews_dir = lambda: self.store
-        self.addCleanup(setattr, rd.review_verdict, "reviews_dir", original)
 
     def ledger(self, *branches, review=0):
         self.write("build/tasks/R-1.json", {"id": "R-1", "rounds": {"design": 0, "review": review}, "branches": list(branches)})
@@ -1279,6 +1330,16 @@ class LaneTests(Base):
         self.assertNotIn("review_rounds_over_cap", self.fired(doc))
         self.assertEqual(doc["counts"]["review_verdicts"], 1)
         self.assertEqual(doc["counts"]["confirmation_rounds"], 1)
+
+    def test_changes_at_round_3_in_the_lane_branch_file_fire(self):
+        self.write(
+            "build/review/claude__lane-x.json",
+            {"branch": "claude/lane-x", "round": 3, "verdict": "changes"},
+        )
+        self.assertEqual(
+            self.fired(self.lane())["review_rounds_over_cap"],
+            ["branch claude/lane-x: 3 non-pass rounds (cap 2)"],
+        )
 
     def test_a_marker_with_a_live_process_fires_stopped_with_live_children(self):
         self.write("build/runs/hold.running", {"pid": os.getpid(), "label": "hold", "started": 0, "cwd": "."})
